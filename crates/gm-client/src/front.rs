@@ -10,7 +10,7 @@ use gm_core::vocab::ArchetypeFrame;
 use gm_hub_proto::player::{PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{
     BuildChoice, CharacterId, CharacterSummary, HubError, LocationSummary,
-    MAX_CHARACTERS_PER_ACCOUNT, SessionId, ZoneTicket,
+    MAX_CHARACTERS_PER_ACCOUNT, PLACES, SessionId, ZoneTicket,
 };
 use gm_model::ModelId;
 use web_time::{Duration, Instant};
@@ -191,7 +191,7 @@ pub fn frame_name(frame: ArchetypeFrame) -> &'static str {
 /// The preset a build is, by the content's name for it.
 /// What the selector draws (CLIENT.md 4.2): the build, the model worn and the templates
 /// worn in the three places (`None` for an archetype: nothing yet).
-pub type Doll<'a> = (&'a Build, Option<ModelId>, Option<&'a [String; 3]>);
+pub type Doll<'a> = (&'a Build, Option<ModelId>, Option<&'a [String; PLACES]>);
 
 pub fn build_name(pack: Option<&ContentPack>, build: &Build) -> String {
     pack.and_then(|p| p.builds.iter().find(|b| &b.build == build))

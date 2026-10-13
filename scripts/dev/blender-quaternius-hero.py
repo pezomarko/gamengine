@@ -13,8 +13,9 @@
 # Head, clavicle/upperarm/lowerarm/hand, thigh/calf/foot/ball, fingers), so the parts are
 # re-bound to the base body's armature and exported with it: the body (the hero's torso and
 # head, the peasant's trousers and shoes) and each overlay (the ranger jerkin, belts, pauldrons
-# and bracers as `cuirass`; the peasant tunic and sleeves as `robe`) share one skeleton and
-# one set of rest pivots. Bones are renamed to MODELS.md 2; `prop_r`, `prop_l` (in the palms)
+# as `cuirass`; the pauldrons as `pauldrons`, the bracers as `bracers`, the ranger hood as
+# `hood`, trousers as `trousers` and boots as `boots`, EQUIPMENT.md 5.2; the peasant tunic
+# and sleeves as `robe`) share one skeleton and one set of rest pivots. Bones are renamed to MODELS.md 2; `prop_r`, `prop_l` (in the palms)
 # and `prop_back` (behind the chest) are added. The body's legs under the trousers are cut;
 # each object is decimated by its ratio (the numbers after OUT_DIR, defaults below); the
 # head is protected from the body's decimation. An overlay is pushed 12 mm out along its
@@ -29,8 +30,8 @@ from mathutils import Vector
 argv = sys.argv[sys.argv.index('--') + 1:]
 base, parts, out = argv[0], argv[1], argv[2]
 ratios = dict(zip(['body', 'eyes', 'brows', 'hair', 'legs', 'feet', 'ranger_body', 'belt', 'pauldron',
-                   'bracer', 'peasant_body', 'sleeves'],
-                  [0.215, 0.2, 0.1, 0.3, 0.5, 0.17, 0.23, 0.12, 0.11, 0.08, 0.28, 0.3]))
+                   'bracer', 'peasant_body', 'sleeves', 'hood', 'ranger_legs', 'boots'],
+                  [0.215, 0.2, 0.1, 0.3, 0.5, 0.17, 0.23, 0.12, 0.11, 0.08, 0.28, 0.3, 0.3, 0.5, 0.17]))
 INFLATE = 0.012
 for k, v in zip(list(ratios), argv[3:]):
     ratios[k] = float(v)
@@ -69,6 +70,10 @@ pauldron = bring('Male_Ranger_Acc_Pauldron')
 ranger = bring('Male_Ranger')            # the whole outfit: only the bracers are not a part file
 peasant_body = bring('Male_Peasant_Body')
 peasant_arms = bring('Male_Peasant_Arms')
+# The other places (EQUIPMENT.md 5.2): the ranger's hood, trousers and boots.
+hood = bring('Male_Ranger_Head_Hood')
+ranger_legs = bring('Male_Ranger_Legs')
+boots = bring('Male_Ranger_Feet_Boots')
 
 # Of the whole ranger, keep the bracers only (the arms' skin and sleeves are the body's).
 bracer = [o for o in ranger if 'Bracer' in o.name]
@@ -152,6 +157,12 @@ for o in bracer:
 for o in peasant_body:
     decimate(o, ratios['peasant_body'])
 decimate(sleeves, ratios['sleeves'])
+for o in hood:
+    decimate(o, ratios['hood'])
+for o in ranger_legs:
+    decimate(o, ratios['ranger_legs'])
+for o in boots:
+    decimate(o, ratios['boots'])
 
 
 def inflate(o, by):
@@ -164,7 +175,7 @@ def inflate(o, by):
     bm.free()
 
 
-for o in ranger_body + pauldron + bracer + peasant_body + [sleeves]:
+for o in ranger_body + pauldron + bracer + peasant_body + [sleeves] + hood + ranger_legs + boots:
     inflate(o, INFLATE)
 
 # The rig: MODELS.md 2 names, and the prop bones.
@@ -212,6 +223,13 @@ def export(name, objs):
 
 
 export('striker_mail', [body, eyes, brows] + hair + legs + feet)
-export('cuirass', ranger_body + pauldron + bracer)
+# One overlay a place (EQUIPMENT.md 5.2): the cuirass is the jerkin and its belts since
+# the pauldrons and the bracers got places of their own.
+export('cuirass', ranger_body)
+export('pauldrons', pauldron)
+export('bracers', bracer)
+export('hood', hood)
+export('trousers', ranger_legs)
+export('boots', boots)
 export('robe', peasant_body + [sleeves])
 print('DONE')

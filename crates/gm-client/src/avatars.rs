@@ -21,6 +21,7 @@ use crate::cache::{DirSource, ModelSource, default_cache_dir};
 use crate::characters::{CharacterDraw, Characters};
 use crate::render::{EntityDraw, Gpu};
 use crate::{Error, Options};
+use gm_net::control::BODY_PLACES;
 
 /// Key of the own body among the animators.
 /// The paperdoll's key: its own animation track.
@@ -81,10 +82,24 @@ pub struct Body {
     pub prop: Option<usize>,
     /// The prop in its off hand (LOOK.md 6.5: a shield), the same way.
     pub off: Option<usize>,
-    /// The overlay of the armour it wears (LOOK.md 6.6), the same way, drawn over it with
-    /// its pose; and the bones whose part of the body the overlay covers, not drawn.
-    pub worn: Option<usize>,
+    /// The overlays of the armour it wears (LOOK.md 6.6, EQUIPMENT.md 5.2), one a body
+    /// place in the wire's order, the same way, each drawn over it with its pose; and
+    /// the bones whose parts of the body they cover between them, not drawn.
+    pub worn: [Option<usize>; BODY_PLACES],
     pub hide: u32,
+}
+
+/// Overlays in the body's places in the order given, and the bones they cover between
+/// them: the offline fitting room's `--worn`, where a key is any armour's and the place
+/// does not matter to the drawing.
+pub fn places(list: &[(usize, u32)]) -> ([Option<usize>; BODY_PLACES], u32) {
+    let mut worn = [None; BODY_PLACES];
+    let mut hide = 0;
+    for (i, (slot, covers)) in list.iter().take(BODY_PLACES).enumerate() {
+        worn[i] = Some(*slot);
+        hide |= covers;
+    }
+    (worn, hide)
 }
 
 struct Track {
@@ -119,7 +134,7 @@ pub struct Avatars {
     /// And in its left hand (`--off`).
     pub crowd_off: Option<usize>,
     /// And on its body (`--worn`): the overlay and what it covers.
-    pub crowd_worn: Option<(usize, u32)>,
+    pub crowd_worn: Vec<(usize, u32)>,
     /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
     /// loaded: a body without a model of its own wears one before it is the mannequin.
     officials: [[Option<usize>; 4]; 4],
@@ -235,7 +250,7 @@ impl Avatars {
             with_model: 0,
             crowd_prop: None,
             crowd_off: None,
-            crowd_worn: None,
+            crowd_worn: Vec::new(),
             officials: [[None; 4]; 4],
         })
     }
@@ -353,10 +368,12 @@ impl Avatars {
                 });
             }
         }
-        // What it wears (LOOK.md 6.6): the overlay, posed as the body is, over the body
-        // with the covered parts left out. A body drawn with its model or the official
-        // look hides them; the mannequin shows the overlay over its segments as it is.
-        let worn = body.worn.filter(|_| characters.info(slot).is_some());
+        // What it wears (LOOK.md 6.6, EQUIPMENT.md 5.2): the overlays, posed as the body
+        // is, over the body with the covered parts left out. A body drawn with its model
+        // or the official look hides them; the mannequin shows the overlays over its
+        // segments as it is.
+        let dressed = characters.info(slot).is_some();
+        let any = dressed && body.worn.iter().any(|w| w.is_some());
         self.draws.push(CharacterDraw {
             slot,
             world,
@@ -364,18 +381,20 @@ impl Avatars {
             tint,
             light,
             attach: None,
-            hide: if worn.is_some() { body.hide } else { 0 },
+            hide: if any { body.hide } else { 0 },
         });
-        if let Some(worn) = worn {
-            self.draws.push(CharacterDraw {
-                slot: worn,
-                world,
-                pose,
-                tint,
-                light,
-                attach: None,
-                hide: 0,
-            });
+        if dressed {
+            for overlay in body.worn.iter().flatten() {
+                self.draws.push(CharacterDraw {
+                    slot: *overlay,
+                    world,
+                    pose,
+                    tint,
+                    light,
+                    attach: None,
+                    hide: 0,
+                });
+            }
         }
         // The marks round a body (its aspects' ring, its name) are the frame's: the
         // effects and the HUD draw them (LOOK.md 13); nothing solid stands for them.
@@ -513,11 +532,16 @@ impl Avatars {
                 off: self.crowd_off,
                 // The overlay was cut for the striker (`--worn`, LOOK.md 6.6): the
                 // crowd's strikers wear it, the other frames stand bare.
-                worn: self.crowd_worn.filter(|_| frame == 1).map(|(slot, _)| slot),
-                hide: self
-                    .crowd_worn
-                    .filter(|_| frame == 1)
-                    .map_or(0, |(_, hide)| hide),
+                worn: if frame == 1 {
+                    places(&self.crowd_worn).0
+                } else {
+                    [None; BODY_PLACES]
+                },
+                hide: if frame == 1 {
+                    places(&self.crowd_worn).1
+                } else {
+                    0
+                },
             };
             self.push(&body, dt, bsp, characters, boxes);
             // Running on the spot: feed the stride the animator would have seen.
@@ -630,7 +654,7 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         lit: 0.0,
         prop: None,
         off: None,
-        worn: None,
+        worn: [None; BODY_PLACES],
         hide: 0,
     }
 }

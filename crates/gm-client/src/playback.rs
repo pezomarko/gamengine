@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use glam::Vec3;
 use gm_core::trace::Hull;
 use gm_net::client::RenderEntity;
+use gm_net::control::BODY_PLACES;
 use gm_net::snapshot::{EntityKind, SpawnInfo};
 use gm_replay::aim::{AimStats, Shot};
 use gm_replay::{Event, Replay, RosterEntry};
@@ -250,7 +251,7 @@ impl Playback {
                         lit: 0.0,
                         prop: None,
                         off: None,
-                        worn: None,
+                        worn: [None; BODY_PLACES],
                         hide: 0,
                     });
                 }

@@ -92,6 +92,8 @@ impl AskBucket {
     }
 }
 
+// A gear reading is twelve names wide (EQUIPMENT.md 5), in `Worn`.
+#[allow(clippy::large_enum_variant)]
 pub enum ClientEvent {
     Join {
         name: String,

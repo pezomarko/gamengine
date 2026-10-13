@@ -9,7 +9,7 @@ use sqlx::{AssertSqlSafe, Postgres, Row, Transaction};
 
 use gm_hub_proto::protocol::{
     AccountId, CharacterId, CharacterState, CharacterSummary, HubError, LocationSummary,
-    MAX_CHARACTERS_PER_ACCOUNT, TRANSIT_ABANDON_SECS, ZoneId,
+    MAX_CHARACTERS_PER_ACCOUNT, PLACE_NAMES, PLACES, TRANSIT_ABANDON_SECS, ZoneId,
 };
 
 #[derive(Clone)]
@@ -37,7 +37,7 @@ pub struct CharacterRow {
     /// The model the character wears (MODELS.md 6.1), whatever its status.
     pub model: Option<Vec<u8>>,
     /// The templates worn in its three places (ITEMS.md 2), empty for nothing.
-    pub worn: [String; 3],
+    pub worn: [String; PLACES],
 }
 
 impl CharacterRow {
@@ -107,26 +107,36 @@ fn row_to_character(r: &sqlx::postgres::PgRow) -> Result<CharacterRow, HubError>
         viewport: r.try_get("viewport").map_err(internal)?,
         play_seconds: r.try_get("play_seconds").map_err(internal)?,
         model: r.try_get("model").map_err(internal)?,
-        worn: [
-            r.try_get::<Option<String>, _>("worn_weapon")
-                .map_err(internal)?
-                .unwrap_or_default(),
-            r.try_get::<Option<String>, _>("worn_off")
-                .map_err(internal)?
-                .unwrap_or_default(),
-            r.try_get::<Option<String>, _>("worn_armour")
-                .map_err(internal)?
-                .unwrap_or_default(),
-        ],
+        worn: {
+            // One column a place (EQUIPMENT.md 5), named `worn_<place>`.
+            let mut worn: [String; PLACES] = Default::default();
+            for (i, name) in PLACE_NAMES.iter().enumerate() {
+                worn[i] = r
+                    .try_get::<Option<String>, _>(format!("worn_{name}").as_str())
+                    .map_err(internal)?
+                    .unwrap_or_default();
+            }
+            worn
+        },
     })
 }
 
-const CHARACTER_COLUMNS: &str = "id, account_id, name, build, location_kind, location_zone, transit_to, \
-    extract(epoch from (now() - transit_since))::float8 as transit_age_secs, \
-    pos_zone, pos_x, pos_y, pos_z, yaw, viewport, play_seconds, model, \
-    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'weapon') as worn_weapon, \
-    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'off') as worn_off, \
-    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'armour') as worn_armour";
+/// A character's columns, with the template worn in each place as `worn_<place>` (a
+/// scalar subquery a place, EQUIPMENT.md 5: twelve of them).
+fn character_columns() -> String {
+    let mut cols = String::from(
+        "id, account_id, name, build, location_kind, location_zone, transit_to, \
+         extract(epoch from (now() - transit_since))::float8 as transit_age_secs, \
+         pos_zone, pos_x, pos_y, pos_z, yaw, viewport, play_seconds, model",
+    );
+    for name in PLACE_NAMES {
+        cols.push_str(&format!(
+            ", (select i.template from worn w join items i on i.id = w.item_id \
+             where w.character_id = characters.id and w.slot = '{name}') as worn_{name}"
+        ));
+    }
+    cols
+}
 
 impl Db {
     pub fn pool(&self) -> &PgPool {
@@ -199,7 +209,8 @@ impl Db {
 
     pub async fn characters_of(&self, account: AccountId) -> Result<Vec<CharacterRow>, HubError> {
         let rows = sqlx::query(AssertSqlSafe(format!(
-            "select {CHARACTER_COLUMNS} from characters where account_id = $1 order by id"
+            "select {} from characters where account_id = $1 order by id",
+            character_columns()
         )))
         .bind(account)
         .fetch_all(&self.pool)
@@ -265,7 +276,8 @@ impl Db {
 
     pub async fn character(&self, id: CharacterId) -> Result<Option<CharacterRow>, HubError> {
         let row = sqlx::query(AssertSqlSafe(format!(
-            "select {CHARACTER_COLUMNS} from characters where id = $1"
+            "select {} from characters where id = $1",
+            character_columns()
         )))
         .bind(id)
         .fetch_optional(&self.pool)
@@ -340,8 +352,7 @@ impl Db {
         }
         let build_json = serde_json::to_value(build).map_err(|_| HubError::Internal)?;
         let inserted = sqlx::query(AssertSqlSafe(format!(
-            "insert into characters (account_id, name, name_key, build) values ($1, $2, $3, $4) returning {CHARACTER_COLUMNS}"
-        )))
+            "insert into characters (account_id, name, name_key, build) values ($1, $2, $3, $4) returning {}", character_columns())))
         .bind(account)
         .bind(name)
         .bind(name_key)
@@ -389,7 +400,8 @@ impl Db {
         id: CharacterId,
     ) -> Result<CharacterRow, HubError> {
         let row = sqlx::query(AssertSqlSafe(format!(
-            "select {CHARACTER_COLUMNS} from characters where id = $1 for update"
+            "select {} from characters where id = $1 for update",
+            character_columns()
         )))
         .bind(id)
         .fetch_optional(&mut **tx)

@@ -499,6 +499,32 @@ Steps 1 to 3 of section 6, in that order, one commit:
    the best sword in each hand still the cap). `ItemSummary.both_hands` lets the bag
    ghost the left slot with `both hands` beneath.
 
-Measured: the hub's items and economy tests, the zone's items test, the client's 115 unit
-tests and the content's pass; the bundle is rebuilt (content v10, 1,921,839 bytes).
-Not yet: steps 4 to 6 (the body places with the share table, the trinkets, the back).
+4. **The body places and the trinkets** (5.2, 5.4, 5.5; steps 4 and 5 of section 6
+   together, since the plumbing is one). `Place` has twelve values (the chest keeps the
+   name `armour`), `PLACES` = 12 is the width of a reading's `templates` and a
+   character's `worn` (`HUB_VERSION` 15, `PLAYER_VERSION` 11), migration 0015 widens
+   `worn.slot`, `Look.worn` is an array of seven (protocol v20), the zone fills it from
+   the reading's body places and the client draws one `CharacterDraw` an overlay with
+   the union of their `covers`. `Place::share` is the table of 5.5 as proposed; a
+   two-hander's 1.5 is the reading's. An armour row says its `place`, a `trinket` kind
+   (`amulet` on the neck, `ring` on either finger: the free one first, like the hands)
+   is built round a catalyst and gems with no model, the elements its edge; the hub's
+   craft rule knows it. The equipment draws all twelve slots in two columns of six, each
+   by its place name. Content: the ranger set cut into one overlay a place by
+   `scripts/dev/places-pipeline.sh` (the cuirass is the jerkin and its belts now; the
+   pauldrons, the bracers, the hood, the trousers and the boots are their own, all
+   under 1,500 triangles), every one of them on the striker and seen together in the
+   fitting room (`--worn cuirass,hood,bracers,trousers,boots,pauldrons`). The bundle's
+   cap counts the manifest, the atlases and the props (1.37 MB); the avatars and the
+   overlays (1.34 MB) are counted apart under `max_wear_bytes` (8 MiB), fetched a file
+   at a time as they are first seen (8.1 finding 9, the first way); the 4x atlas grew
+   with 32 icons and its cap is 640 KiB. The numbers moved as 5.5 says: a cuirass alone
+   is 88 of taken where it was 110 (the zone's items test now expects a sword against a
+   cuirass to win by less than the sword adds).
+
+Measured: the hub's items and economy tests (the hub test wears a hood, boots, two rings
+and an amulet and reads `[220, 0, 0, 230, 10, 10, 10, 10, 10]` dealt and `[110, 110,
+110, 11, 26, 11, 11, 11, 11]` taken beside the sword, the shield and the cuirass), the
+zone's items test, the client's 115 unit tests, the content's and the tool's pass;
+clippy is clean. Not yet: step 6 (a cape for the back place, which has no model in the
+packs, and the sheathed weapon at `prop_back`).

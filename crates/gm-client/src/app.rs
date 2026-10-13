@@ -23,8 +23,8 @@ use gm_hub_proto::player::PlayerRequest;
 use gm_model::ModelId;
 use gm_net::client::ClientState;
 use gm_net::control::{
-    BodyKind, BuildChoice, EncounterState, FromClient, FromZone, GmNews, Look, Order, SquadEntry,
-    StallEntry,
+    BODY_PLACES, BodyKind, BuildChoice, EncounterState, FromClient, FromZone, GmNews, Look, Order,
+    SquadEntry, StallEntry,
 };
 use gm_net::snapshot::{EntityKind, SpawnInfo};
 use gm_net::transport::fnv1a64;
@@ -481,7 +481,7 @@ struct App {
     /// CONTENT.md 9), once it is on the GPU.
     offline_prop: Option<usize>,
     /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
-    offline_worn: Option<(usize, u32)>,
+    offline_worn: Vec<(usize, u32)>,
     /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
     offline_off: Option<usize>,
     /// The window, from its creation: the renderer on it (`active`) may come later.
@@ -753,19 +753,25 @@ fn worn_overlay(
     props: &[String],
     look: Look,
     frame: u8,
-) -> (Option<usize>, u32) {
-    let Some(key) = props.get(look.worn as usize) else {
-        return (None, 0);
-    };
+) -> ([Option<usize>; BODY_PLACES], u32) {
+    let mut worn = [None; BODY_PLACES];
+    let mut hide = 0;
     let Some(active) = active else {
-        return (None, 0);
+        return (worn, 0);
     };
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    let slot = content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)));
-    match slot {
-        Some(slot) => (Some(slot), content.covers(key)),
-        None => (None, 0),
+    for (i, index) in look.worn.iter().enumerate() {
+        let Some(key) = props.get(*index as usize) else {
+            continue;
+        };
+        if let Some(slot) =
+            content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
+        {
+            worn[i] = Some(slot);
+            hide |= content.covers(key);
+        }
     }
+    (worn, hide)
 }
 
 /// The off hand's prop (LOOK.md 6.5), the same way.
@@ -805,25 +811,31 @@ fn template_prop(
     content.prop(&model, |m| Some(characters.add_model(gpu, m)))
 }
 
-/// The overlay of the armour a character wears, on the selector (LOOK.md 6.6), and the
-/// bones it covers.
+/// The overlays of the armour a character wears, on the selector (LOOK.md 6.6,
+/// EQUIPMENT.md 5.2): one a body place from the hub's list of what is worn, and the
+/// bones they cover between them.
 fn template_overlay(
     content: &mut Content,
     active: Option<&mut Active>,
-    template: Option<&str>,
+    worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
     frame: u8,
-) -> (Option<usize>, u32) {
-    let Some(model) = template_model(content, template) else {
-        return (None, 0);
-    };
-    let Some(active) = active else {
-        return (None, 0);
+) -> ([Option<usize>; BODY_PLACES], u32) {
+    let mut out = [None; BODY_PLACES];
+    let mut hide = 0;
+    let (Some(worn), Some(active)) = (worn, active) else {
+        return (out, 0);
     };
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    match content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
-        Some(slot) => (Some(slot), content.covers(&model)),
-        None => (None, 0),
+    for (i, index) in gm_hub_proto::protocol::BODY_INDICES.iter().enumerate() {
+        let Some(model) = template_model(content, Some(worn[*index].as_str())) else {
+            continue;
+        };
+        if let Some(slot) = content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
+            out[i] = Some(slot);
+            hide |= content.covers(&model);
+        }
     }
+    (out, hide)
 }
 
 fn prop_slot(
@@ -917,7 +929,7 @@ fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, start: Start)
         view_model: None,
         content: start.content,
         offline_prop: None,
-        offline_worn: None,
+        offline_worn: Vec::new(),
         offline_off: None,
         front_up: start.front.is_some() && start.online.is_none(),
         title: None,
@@ -2828,19 +2840,24 @@ impl App {
             self.offline_off = slot;
             a.avatars.crowd_off = slot;
         }
-        // `--worn KEY`: an armour's overlay on the striker's body, own and crowd (the
-        // fitting room of the overlay, CONTENT.md 3.3).
-        if let Some(key) = self.opts.worn.clone() {
+        // `--worn KEY[,KEY...]`: armours' overlays on the striker's body, own and crowd
+        // (the fitting room of the overlays, CONTENT.md 3.3, EQUIPMENT.md 5.2).
+        if let Some(keys) = self.opts.worn.clone() {
             let a = self.active.as_mut().expect("just made");
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
-            let slot = self
-                .content
-                .overlay(&key, 1, |model| Some(characters.add_model(gpu, model)));
-            if slot.is_none() {
-                log::warn!("--worn {key}: the bundle has no such overlay for the striker");
+            let mut worn = Vec::new();
+            for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                let slot = self
+                    .content
+                    .overlay(key, 1, |model| Some(characters.add_model(gpu, model)));
+                match slot {
+                    Some(s) => worn.push((s, self.content.covers(key))),
+                    None => {
+                        log::warn!("--worn {key}: the bundle has no such overlay for the striker")
+                    }
+                }
             }
-            let worn = slot.map(|s| (s, self.content.covers(&key)));
-            self.offline_worn = worn;
+            self.offline_worn = worn.clone();
             a.avatars.crowd_worn = worn;
         }
         // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
@@ -5892,8 +5909,8 @@ impl App {
                         // Offline (`--prop FILE`, CONTENT.md 9): the prop to look at.
                         prop: self.offline_prop,
                         off: self.offline_off,
-                        worn: self.offline_worn.map(|(slot, _)| slot),
-                        hide: self.offline_worn.map_or(0, |(_, hide)| hide),
+                        worn: crate::avatars::places(&self.offline_worn).0,
+                        hide: crate::avatars::places(&self.offline_worn).1,
                     });
                     (
                         third_person_camera(
@@ -6359,7 +6376,7 @@ impl App {
                         let prop = template_prop(&mut self.content, Some(a), place(0));
                         let off = template_prop(&mut self.content, Some(a), place(1));
                         let (overlay, hide) =
-                            template_overlay(&mut self.content, Some(a), place(2), frame);
+                            template_overlay(&mut self.content, Some(a), worn, frame);
                         let body = Body {
                             key: DOLL,
                             origin: Vec3::new(0.0, 0.0, 24.0),

@@ -101,13 +101,61 @@ model = "pistol"
 fit = { turn = [0, 88, 0] }
 fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye: a short thing
 
+# The body's places (EQUIPMENT.md 5.2): `place` names where an armour goes (the chest when
+# nothing is said), each an overlay of its own on the striker from the Fantasy outfits'
+# ranger set (LICENSES.md), each counting for its share of the body (5.5).
 [[template]]
 id = "cuirass"
 kind = "armour"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
-model = "cuirass"                            # the leather jerkin, pauldrons and bracers (LICENSES.md), on the striker
+model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
 covers = ["spine", "chest"]
+
+[[template]]
+id = "hood"
+kind = "armour"
+place = "head"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "hood"                               # the ranger's hood: cloth, over the hair
+covers = []
+
+[[template]]
+id = "pauldrons"
+kind = "armour"
+place = "shoulders"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "pauldrons"                          # the ranger's pauldrons, one a shoulder
+covers = []
+
+[[template]]
+id = "bracers"
+kind = "armour"
+place = "hands"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "bracers"                            # the ranger's bracers
+covers = ["forearm_l", "forearm_r", "hand_l", "hand_r"]
+
+[[template]]
+id = "trousers"
+kind = "armour"
+place = "legs"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "trousers"                           # the ranger's trousers, over the body's own
+covers = ["thigh_l", "thigh_r", "shin_l", "shin_r"]
+
+[[template]]
+id = "boots"
+kind = "armour"
+place = "feet"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "boots"                              # the ranger's boots, over the body's shoes
+covers = ["foot_l", "foot_r", "toe_l", "toe_r"]
 
 [[template]]
 id = "robe"
@@ -126,6 +174,21 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "shield"
 held = "left"
+
+# Trinkets (EQUIPMENT.md 5.4): numbers only, nothing drawn, built round a catalyst (the
+# element) with gems. An amulet on the neck lowers what its wearer takes of the elements;
+# a ring (either finger) raises what it deals of them. Each counts for half (5.5).
+[[template]]
+id = "amulet"
+kind = "trinket"
+place = "neck"
+layers = ["catalyst", "gem"]
+
+[[template]]
+id = "ring"
+kind = "trinket"
+place = "ring"
+layers = ["catalyst", "gem"]
 
 # Stacks (MODES.md 11.1): one row and one slot, merged up to the cap, which is the strict
 # limit of what a body carries. A firearm names the stack its reserve is drawn from

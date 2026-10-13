@@ -839,7 +839,9 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
             Err("that cannot be worn".to_string())
         ]
     );
-    // The keeper's cuirass takes the same eleven per cent off again: a wash.
+    // The keeper's cuirass takes some of it off again: the chest counts for 8 of the
+    // body's 20 (EQUIPMENT.md 5.5), so a cuirass alone guards less than a sword adds,
+    // and more than nothing.
     assert_eq!(
         smith_hand
             .ask_when_calm(FromClient::Wear { item: cuirass })
@@ -847,7 +849,10 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         Ok(())
     );
     let both = hit(&buyer_hand).await;
-    assert_eq!(both, bare, "sword against cuirass");
+    assert!(
+        both < armed && both > bare,
+        "sword against cuirass: {both}, {bare} bare, {armed} armed"
+    );
 
     // A claim carries what is worn: the buyer hangs up, is put away, comes back to where
     // it stood, and its sword still counts.
@@ -860,9 +865,10 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     )
     .await;
     let back = hit(&buyer_hand).await;
-    assert_eq!(back, bare, "the sword came back with its wearer");
+    assert_eq!(back, both, "the sword came back with its wearer");
 
-    // Taken off, the cuirass alone is left: eleven per cent less than in nothing.
+    // Taken off, the cuirass alone is left: 2000 / 2088 of a blow (the chest counts
+    // 88 of a 220 edge, EQUIPMENT.md 5.5).
     assert_eq!(
         buyer_hand
             .ask_when_calm(FromClient::TakeOff { item: sword })
@@ -871,7 +877,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     );
     let warded = hit(&buyer_hand).await;
     assert!(
-        moved(1.0 / 1.11).contains(&warded) && warded < bare,
+        moved(2000.0 / 2088.0).contains(&warded) && warded < bare,
         "{bare} in nothing, {warded} against the cuirass"
     );
     println!(

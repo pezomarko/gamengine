@@ -1671,8 +1671,16 @@ hand says why; the **equipment** is a panel of its own beside the bag (`O`; `I` 
 alone; the body in the open between two columns of places, what is worn in words, Take off; a wearable thing
 dragged out of the bag opens it); **Wear** puts a second one-hander into the empty left hand; `held = "two"`
 (the staff, content v10) takes both hands and is ghosted in the left slot; the left hand counts for half and a
-two-hander for 1.5 under the one cap (ITEMS.md 3.1). Not done: the body places, the trinkets, the back
-(EQUIPMENT.md 6, steps 4 to 6), the share table of the body.
+two-hander for 1.5 under the one cap (ITEMS.md 3.1). Later the same evening, **the body places and the trinkets** (EQUIPMENT.md 10, step 4): twelve places
+(the two hands, the chest as `armour`, head, hands, legs, feet, back, shoulders, neck, two fingers), each
+counting for its share of its item's edge under the one cap (`Place::share`: the chest 8 of 20, the legs 5,
+the head 3, the hands 2, the rest 1; the left hand and the trinkets half; a two-hander 1.5), migration 0015,
+`PLACES` = 12 on the hub's wire (`HUB_VERSION` 15, `PLAYER_VERSION` 11), `Look.worn` an array of seven
+(protocol v20) drawn as one overlay a place with the union of their covers; `kind = "trinket"` (an amulet,
+a ring) built round a catalyst; the ranger set cut into one overlay a place (`scripts/dev/places-pipeline.sh`:
+hood, pauldrons, bracers, trousers, boots, the cuirass the jerkin alone); the bundle's cap counts the
+manifest, atlases and props, the avatars and overlays apart under `max_wear_bytes`. Not done: a cape for
+the back and the sheathed weapon (EQUIPMENT.md 6, step 6).
 
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute

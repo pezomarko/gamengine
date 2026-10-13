@@ -76,8 +76,13 @@ if target/release/gm-tools content check --built assets/built/content > "$tmp/co
 else
   cat "$tmp/content.log" | tail -20; fail "the content check (run gm-tools content build and commit what it writes)"
 fi
-bundle_bytes="$(find assets/built/content -type f -printf '%s\n' | awk '{s+=$1} END {print s+0}')"
+# The bundle a client takes whole (the manifest, the atlases, the props), and apart from it
+# what is worn (the avatars and the armour overlays, fetched a file at a time as they are
+# first seen: EQUIPMENT.md 6 step 4, 8.1 finding 9).
+bundle_bytes="$(find assets/built/content -type f -not -path '*/armour/*' -not -path '*/avatars/*' -printf '%s\n' | awk '{s+=$1} END {print s+0}')"
 atmost "$bundle_bytes" "$(budget content max_bundle_bytes)" "bundle bytes"
+wear_bytes="$(find assets/built/content/armour assets/built/content/avatars -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+atmost "$wear_bytes" "$(budget content max_wear_bytes)" "worn bytes (avatars and overlays)"
 # One atlas per UI scale (LOOK.md 2.2): a client fetches the first and the one of its scale.
 for d in 1 2 3 4; do
   f="assets/built/content/ui${d#1}.gma"

@@ -88,8 +88,8 @@ pub struct Options {
     /// `--off KEY`: offline, the own body holds this prop of the bundle in its left hand
     /// (LOOK.md 6.5: a shield), and the crowd too.
     pub off: Option<String>,
-    /// `--worn KEY`: offline, the own body and the crowd wear this armour's overlay
-    /// (LOOK.md 6.6), on the striker's body.
+    /// `--worn KEY[,KEY...]`: offline, the own body and the crowd wear these armours'
+    /// overlays (LOOK.md 6.6, EQUIPMENT.md 5.2: one a body place), on the striker's body.
     pub worn: Option<String>,
     /// Offline: this many bodies standing in front of the start.
     pub crowd: u32,

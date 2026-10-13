@@ -6,7 +6,7 @@
 use gm_core::sim::BAR_CELLS;
 use std::time::Duration;
 
-use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, Place};
+use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, PLACES, Place};
 use gm_core::matrix::Gear;
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
@@ -156,7 +156,7 @@ pub struct Item {
 /// A stack in a character's inventory, as a zone reads it (MODES.md 11.2).
 /// What `Economy::gear` reads of a character (ITEMS.md 3.3): the reading's number, the
 /// gear term, the templates worn, the stacks carried and the item bar (LOOK.md 3.2).
-pub type Reading = (u64, Gear, [String; 3], Vec<Stack>, Vec<Option<String>>);
+pub type Reading = (u64, Gear, [String; PLACES], Vec<Stack>, Vec<Option<String>>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stack {
@@ -642,7 +642,7 @@ async fn gear_in(
     tx: &mut Tx<'_>,
     character: i64,
     content: &ItemContent,
-) -> Result<(Gear, [String; 3]), EconError> {
+) -> Result<(Gear, [String; PLACES]), EconError> {
     let rows = sqlx::query(
         "select w.slot, i.id, i.template from worn w join items i on i.id = w.item_id \
          where w.character_id = $1",
@@ -652,9 +652,10 @@ async fn gear_in(
     .await
     .map_err(internal)?;
     let mut gear = Gear::NONE;
-    let mut templates: [String; 3] = Default::default();
+    let mut templates: [String; PLACES] = Default::default();
     // A place counts for its share (EQUIPMENT.md 5.5), under the one cap: the right
-    // hand whole, the left hand half, a two-hander for both (1.5), each number capped.
+    // hand whole, the left hand half, the body by its parts, the trinkets half, a
+    // two-hander for both hands (1.5), each number capped.
     let add = |into: &mut [u16; 9], edges: [u16; 9], share: (u32, u32)| {
         for (a, b) in into.iter_mut().zip(edges) {
             let b = (b as u32 * share.0 / share.1).min(u16::MAX as u32) as u16;
@@ -677,13 +678,15 @@ async fn gear_in(
             && let Some((_, edges, _)) = content.edges(&template, materials)
         {
             let deals = content.template(&template).is_some_and(|t| t.deals());
-            let two = content.two_handed(&template);
-            match (place, deals) {
-                (Place::Weapon, _) if two => add(&mut gear.dealt, edges, (3, 2)),
-                (Place::Weapon, _) => add(&mut gear.dealt, edges, (1, 1)),
-                (Place::Off, true) => add(&mut gear.dealt, edges, (1, 2)),
-                (Place::Armour, _) => add(&mut gear.taken, edges, (1, 1)),
-                (Place::Off, false) => add(&mut gear.taken, edges, (1, 2)),
+            let share = if place == Place::Weapon && content.two_handed(&template) {
+                (3, 2)
+            } else {
+                place.share()
+            };
+            if deals {
+                add(&mut gear.dealt, edges, share);
+            } else {
+                add(&mut gear.taken, edges, share);
             }
         }
         templates[place.index()] = template;
@@ -786,7 +789,16 @@ fn check_parts(
         )));
     }
     let count = |layer: &str| parts.iter().filter(|c| c.layer == layer).count();
-    if count("core") != 1 || count("frame") != 1 {
+    // A trinket (EQUIPMENT.md 5.4) is built round a catalyst instead of a core on a
+    // frame: its template has no room for either.
+    let trinket = layers.is_some_and(|l| !l.iter().any(|l| l == "core"));
+    if trinket {
+        if count("catalyst") != 1 {
+            return Err(EconError::Invalid(
+                "a trinket needs exactly one catalyst".into(),
+            ));
+        }
+    } else if count("core") != 1 || count("frame") != 1 {
         return Err(EconError::Invalid(
             "a craft needs exactly one core and one frame".into(),
         ));
@@ -1145,13 +1157,9 @@ impl Economy {
         let place = match place {
             Some(p) if content.may_wear_in(&template, p) => p,
             Some(p) => {
-                let where_ = match p {
-                    Place::Weapon => "the right hand",
-                    Place::Off => "the left hand",
-                    Place::Armour => "the body",
-                };
                 return Err(EconError::Invalid(format!(
-                    "a {template} does not go on {where_}"
+                    "a {template} does not go on {}",
+                    p.in_words()
                 )));
             }
             None => {
@@ -1187,6 +1195,33 @@ impl Economy {
                         .is_some_and(|t| content.may_wear_in(t, Place::Off));
                     if left_free && right_one_hander {
                         Place::Off
+                    } else {
+                        own
+                    }
+                } else if own == Place::Ring {
+                    // A ring goes onto the free finger first (EQUIPMENT.md 5.4), as a
+                    // one-hander goes into the free hand.
+                    let rows = sqlx::query(
+                        "select w.slot from worn w where w.character_id = $1 and w.item_id <> $2 \
+                         and w.slot in ('ring', 'ring2')",
+                    )
+                    .bind(character)
+                    .bind(item)
+                    .fetch_all(&mut *tx)
+                    .await
+                    .map_err(internal)?;
+                    let mut first_taken = false;
+                    let mut second_free = true;
+                    for r in &rows {
+                        let slot: String = r.try_get("slot").map_err(internal)?;
+                        match slot.as_str() {
+                            "ring" => first_taken = true,
+                            "ring2" => second_free = false,
+                            _ => {}
+                        }
+                    }
+                    if first_taken && second_free {
+                        Place::Ring2
                     } else {
                         own
                     }

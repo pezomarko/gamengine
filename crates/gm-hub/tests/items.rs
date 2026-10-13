@@ -13,7 +13,7 @@ use gm_hub::economy::{EconError, Economy, INVENTORY_SLOTS, MAX_PARTS, NOT_CARRIE
 use gm_hub::protocol::{
     BuildChoice, CharacterId, CharacterState, EconOp, EconReply, GearReading, HubError, HubRequest,
     HubResponse, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_OFF, PLACE_WEAPON,
-    SessionId, ZoneEconOp,
+    PLACES, SessionId, ZoneEconOp,
 };
 use gm_hub::{Db, HubClient, HubClientError, HubConfig, HubKey};
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
@@ -108,7 +108,7 @@ async fn player(
     else {
         panic!("create")
     };
-    assert_eq!(c.worn, [String::new(), String::new(), String::new()]);
+    assert_eq!(c.worn, worn3("", "", ""));
     let (state, gear) = enter(&client, session, c.id, zone_conn, zone_id).await;
     assert_eq!(gear, Gear::NONE, "a new character wears nothing");
     (client, session, c.id, state)
@@ -204,6 +204,16 @@ async fn take_off(zone: &HubClient, character: CharacterId, item: i64) -> Result
     change_gear(zone, character, item, false)
         .await
         .map(|r| r.gear)
+}
+
+/// The templates worn in the three first places (the right hand, the left hand, the
+/// chest), nothing in the other nine (EQUIPMENT.md 5).
+fn worn3(weapon: &str, off: &str, armour: &str) -> [String; PLACES] {
+    let mut out: [String; PLACES] = Default::default();
+    out[0] = weapon.to_string();
+    out[1] = off.to_string();
+    out[2] = armour.to_string();
+    out
 }
 
 fn strings(parts: &[&str]) -> Vec<String> {
@@ -380,7 +390,8 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     let mut sword_edge = [0u16; 9];
     sword_edge[at(DamageType::Slash)] = 220;
     sword_edge[at(DamageType::Fire)] = 190;
-    let cuirass_edge = [220u16, 220, 220, 0, 0, 0, 0, 0, 0];
+    // The chest counts for 8 of the body's 20 (EQUIPMENT.md 5.5): 220 is 88 taken.
+    let cuirass_edge = [88u16, 88, 88, 0, 0, 0, 0, 0, 0];
     let plain_edge = [40u16, 0, 0, 0, 0, 0, 0, 0, 0];
     let have = inventory(&smith_conn, smith_s, smith).await;
     let find = |list: &[ItemSummary], id: i64| list.iter().find(|i| i.id == id).unwrap().clone();
@@ -393,7 +404,10 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     // their class names, whoever asks; an armour says nothing of the kind.
     assert_eq!(shown.hands, "Blade");
     let shown = find(&have, cuirass);
-    assert_eq!((shown.place, shown.edge), (PLACE_ARMOUR, cuirass_edge));
+    assert_eq!(
+        (shown.place, shown.edge),
+        (PLACE_ARMOUR, [220, 220, 220, 0, 0, 0, 0, 0, 0])
+    );
     assert_eq!(shown.what, "an armour, 220 of 250");
     assert_eq!(shown.does, ["physical -9.9%"]);
     assert_eq!(shown.hands, "");
@@ -425,10 +439,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         HubResponse::Characters(list) => list.into_iter().find(|c| c.id == smith).unwrap().worn,
         other => panic!("unexpected {other:?}"),
     };
-    assert_eq!(
-        listed,
-        ["sword".to_string(), String::new(), "cuirass".to_string()]
-    );
+    assert_eq!(listed, worn3("sword", "", "cuirass"));
     // Only that zone: another speaks for nobody here, and a session's connection is no zone.
     assert_eq!(
         wear(&arena, smith, plain).await,
@@ -643,14 +654,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         (reading.gear.dealt, reading.gear.taken),
         (both, cuirass_edge)
     );
-    assert_eq!(
-        reading.templates,
-        [
-            "sword".to_string(),
-            "sword".to_string(),
-            "cuirass".to_string()
-        ]
-    );
+    assert_eq!(reading.templates, worn3("sword", "sword", "cuirass"));
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert_eq!(
         (find(&have, sword).worn_in, find(&have, plain).worn_in),
@@ -686,18 +690,18 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         ))
     );
     assert_eq!(
-        wear_in(&town, smith, plain, 9).await,
+        wear_in(&town, smith, plain, 99).await,
         Err(HubError::Invalid("no such place".into()))
     );
     // A shield goes into the left hand by nature, takes the plain sword's place there,
-    // and guards beside the cuirass for half of itself: 220 + 40 / 2 of a blow is 240.
+    // and guards beside the cuirass for half of itself: 88 + 40 / 2 of a blow is 108.
     let shield = direct
         .grant_item(smith, "shield", &iron, room("shield").as_deref())
         .await
         .unwrap();
     let gear = wear(&town, smith, shield).await.unwrap();
     assert_eq!(gear.dealt, sword_edge);
-    assert_eq!(gear.taken, [240, 240, 240, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(gear.taken, [108, 108, 108, 0, 0, 0, 0, 0, 0]);
     let have = inventory(&smith_conn, smith_s, smith).await;
     let shown = find(&have, shield);
     assert_eq!(
@@ -707,6 +711,71 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(shown.what, "a shield, 40 of 250");
     assert_eq!(shown.does, ["physical -2.0%"]);
     assert!(!find(&have, plain).worn, "the shield took the left hand");
+
+    // The body's places and the trinkets (EQUIPMENT.md 5): each counts for its share
+    // under the one cap. A hood of iron and oak guards the elements (40 on each, 3 of
+    // 20: 6); boots the blows (40, 1 of 20: 2); a ring of ember and quartz deals fire
+    // 40 and the other elements 10, for half; an amulet of rime and quartz takes the
+    // same off water. The second ring goes onto the other finger by itself.
+    let hood = direct
+        .grant_item(smith, "hood", &iron, room("hood").as_deref())
+        .await
+        .unwrap();
+    let boots = direct
+        .grant_item(smith, "boots", &iron, room("boots").as_deref())
+        .await
+        .unwrap();
+    let ember_ring = strings(&["catalyst/ember", "gem/quartz"]);
+    let ring_a = direct
+        .grant_item(smith, "ring", &ember_ring, room("ring").as_deref())
+        .await
+        .unwrap();
+    let ring_b = direct
+        .grant_item(smith, "ring", &ember_ring, room("ring").as_deref())
+        .await
+        .unwrap();
+    let amulet = direct
+        .grant_item(
+            smith,
+            "amulet",
+            &strings(&["catalyst/rime", "gem/quartz"]),
+            room("amulet").as_deref(),
+        )
+        .await
+        .unwrap();
+    for item in [hood, boots, ring_a, ring_b, amulet] {
+        wear(&town, smith, item).await.unwrap();
+    }
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert_eq!(
+        [hood, boots, ring_a, ring_b, amulet].map(|i| find(&have, i).worn_in),
+        [
+            gm_hub::protocol::PLACE_HEAD,
+            gm_hub::protocol::PLACE_FEET,
+            gm_hub::protocol::PLACE_RING,
+            gm_hub::protocol::PLACE_RING2,
+            gm_hub::protocol::PLACE_NECK
+        ]
+    );
+    assert_eq!(find(&have, ring_a).what, "a trinket, 40 of 250");
+    let gear = wear(&town, smith, amulet).await.unwrap();
+    assert_eq!(gear.dealt, [220, 0, 0, 230, 10, 10, 10, 10, 10]);
+    assert_eq!(gear.taken, [110, 110, 110, 11, 26, 11, 11, 11, 11]);
+    // A thing asked onto a place that is not its own is refused in words; a ring onto
+    // the second finger by name goes there, and takes what was there.
+    assert_eq!(
+        wear_in(&town, smith, boots, gm_hub::protocol::PLACE_HEAD).await,
+        Err(HubError::Invalid("a boots does not go on the head".into()))
+    );
+    let reading = wear_in(&town, smith, ring_a, gm_hub::protocol::PLACE_RING2)
+        .await
+        .unwrap();
+    assert_eq!(reading.templates[10], "", "the first finger is bare");
+    assert_eq!(reading.templates[11], "ring");
+    assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring_b).worn);
+    for item in [hood, boots, ring_a, amulet] {
+        take_off(&town, smith, item).await.unwrap();
+    }
     assert_eq!(
         wear_in(&town, smith, shield, PLACE_WEAPON).await,
         Err(HubError::Invalid(
@@ -721,10 +790,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         (reading.gear.dealt, reading.gear.taken),
         (half, cuirass_edge)
     );
-    assert_eq!(
-        reading.templates,
-        [String::new(), "sword".to_string(), "cuirass".to_string()]
-    );
+    assert_eq!(reading.templates, worn3("", "sword", "cuirass"));
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert_eq!(find(&have, sword).worn_in, PLACE_OFF);
     assert!(!find(&have, shield).worn);

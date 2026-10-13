@@ -16,8 +16,9 @@
 
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{
-    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_OFF,
-    PLACE_WEAPON, SessionId,
+    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_BACK, PLACE_FEET,
+    PLACE_HANDS, PLACE_HEAD, PLACE_LEGS, PLACE_NAMES, PLACE_NECK, PLACE_NONE, PLACE_OFF,
+    PLACE_RING, PLACE_RING2, PLACE_SHOULDERS, PLACE_WEAPON, SessionId, place_index,
 };
 use web_time::{Duration, Instant};
 
@@ -377,6 +378,11 @@ pub(crate) fn name(item: &ItemSummary) -> String {
 }
 
 /// The row's word for it: the strongest thing it does, or what it is.
+/// A place's name, as the equipment's slots and the UI scripts call it (EQUIPMENT.md 4).
+fn place_name(code: u8) -> &'static str {
+    place_index(code).map_or("", |i| PLACE_NAMES[i])
+}
+
 pub(crate) fn headline(item: &ItemSummary) -> &str {
     item.does.first().unwrap_or(&item.what)
 }
@@ -957,16 +963,30 @@ impl Bag {
         let picked = items.get(self.picked).cloned();
         let worn = picked.as_ref().is_some_and(|i| i.worn);
 
-        // The equipment (EQUIPMENT.md 4.1): the body's places down the left in the order
-        // of the body, the hands and the trinkets down the right; only the places that
-        // exist are drawn. The body stands between them in the open, turned by a drag.
-        let mut dropped_on_weapon = None;
-        let mut dropped_on_off = None;
-        let mut dropped_on_armour = None;
+        // The equipment (EQUIPMENT.md 4.1 and 5): the body's places down the left in
+        // the order of the body (head, chest, back, hands, legs, feet), the hands and the
+        // trinkets down the right (right hand, left hand, shoulders, neck, two rings).
+        // The body stands between them in the open, turned by a drag.
+        const LEFT: [u8; 6] = [
+            PLACE_HEAD,
+            PLACE_ARMOUR,
+            PLACE_BACK,
+            PLACE_HANDS,
+            PLACE_LEGS,
+            PLACE_FEET,
+        ];
+        const RIGHT: [u8; 6] = [
+            PLACE_WEAPON,
+            PLACE_OFF,
+            PLACE_SHOULDERS,
+            PLACE_NECK,
+            PLACE_RING,
+            PLACE_RING2,
+        ];
+        let worn_in = |code: u8| items.iter().find(|i| i.worn && i.worn_in == code);
+        let mut dropped_on: Vec<(u8, Option<(String, i64)>)> = Vec::new();
         let (mut take_off, mut want_bag, mut close_equip) = (false, false, false);
-        let weapon = items.iter().find(|i| i.worn && i.worn_in == PLACE_WEAPON);
-        let off = items.iter().find(|i| i.worn && i.worn_in == PLACE_OFF);
-        let armour = items.iter().find(|i| i.worn && i.worn_in == PLACE_ARMOUR);
+        let weapon = worn_in(PLACE_WEAPON);
         if self.show_equip {
             let title = if wearer.name.is_empty() {
                 "equipment"
@@ -990,52 +1010,61 @@ impl Bag {
             let at = |column: f32, row: usize| {
                 Rect::new(column, area.y + row as f32 * (side + gap), side, side)
             };
-            let wt = weapon.map(|i| looks.thing(i));
             // Under a two-hander the left hand shows it ghosted (EQUIPMENT.md 3): dim,
             // with `both hands` beneath. Dragged into the grid it comes off like any
             // worn thing, and a thing dropped there takes it off at the hub.
             let two = weapon.is_some_and(|i| i.both_hands);
-            let ot = match (off, two) {
-                (Some(i), _) => Some(looks.thing(i)),
-                (None, true) => wt.clone().map(|mut t| {
-                    t.off = true;
-                    t.mark = None;
-                    t
-                }),
-                (None, false) => None,
-            };
-            let a = armour.map(|i| looks.thing(i));
-            dropped_on_armour = ui.drop_slot(at(area.x, 0), "armour", a.as_ref(), &tip);
             let right = area.x + area.w - side;
-            dropped_on_weapon = ui.drop_slot(at(right, 0), "weapon", wt.as_ref(), &tip);
-            let off_slot = at(right, 1);
-            dropped_on_off = ui.drop_slot(off_slot, "off", ot.as_ref(), &tip);
-            if two && off.is_none() {
-                ui.small(
-                    off_slot.x + off_slot.w,
-                    off_slot.y + off_slot.h + 2.0 * s,
-                    ui::FAINT,
-                    "both hands",
-                );
+            for (x, codes) in [(area.x, LEFT), (right, RIGHT)] {
+                for (row, code) in codes.into_iter().enumerate() {
+                    let r = at(x, row);
+                    let ghost = code == PLACE_OFF && two && worn_in(PLACE_OFF).is_none();
+                    let thing = match (worn_in(code), ghost) {
+                        (Some(i), _) => Some(looks.thing(i)),
+                        (None, true) => weapon.map(|i| {
+                            let mut t = looks.thing(i);
+                            t.off = true;
+                            t.mark = None;
+                            t
+                        }),
+                        (None, false) => None,
+                    };
+                    dropped_on.push((
+                        code,
+                        ui.drop_slot(r, place_name(code), thing.as_ref(), &tip),
+                    ));
+                    if ghost {
+                        ui.small(r.x + r.w, r.y + r.h + 2.0 * s, ui::FAINT, "both hands");
+                    }
+                }
             }
-            // What is worn, in the hub's words (ITEMS.md 6): one line a place.
+            // What is worn, in the hub's words (ITEMS.md 6): the hands a line each, the
+            // rest of the body and the trinkets by name on the third.
             let said = col.take(3.0 * line);
             let words = |i: Option<&ItemSummary>| match i {
                 Some(i) => format!("{}  {}", name(i), headline(i)),
                 None => "nothing".to_string(),
             };
-            for (row, (place, thing)) in
-                [("right hand", weapon), ("left hand", off), ("body", armour)]
-                    .into_iter()
-                    .enumerate()
+            let rest: Vec<String> = LEFT
+                .iter()
+                .chain(RIGHT[2..].iter())
+                .filter_map(|code| worn_in(*code))
+                .map(name)
+                .collect();
+            let rest = if rest.is_empty() {
+                "nothing".to_string()
+            } else {
+                rest.join(", ")
+            };
+            for (row, text) in [
+                format!("right hand: {}", words(weapon)),
+                format!("left hand: {}", words(worn_in(PLACE_OFF))),
+                format!("body: {rest}"),
+            ]
+            .iter()
+            .enumerate()
             {
-                ui.label(
-                    said.x,
-                    said.y + row as f32 * line,
-                    said.w,
-                    ui::TEXT,
-                    &format!("{place}: {}", words(thing)),
-                );
+                ui.label(said.x, said.y + row as f32 * line, said.w, ui::TEXT, text);
             }
             if !self.show_grid {
                 self.notice_lines(ui, col.take(2.0 * line));
@@ -1247,35 +1276,35 @@ impl Bag {
         // nothing; the zone would refuse it, and the screen does not ask).
         // The left hand takes what goes there by nature (a shield) and what may go there
         // beside the right hand's (a one-handed weapon, `off`).
-        let for_slot = |dropped: Option<(String, i64)>, place: u8| {
-            dropped
-                .filter(|(from, _)| from == "items")
-                .map(|(_, id)| id)
-                .and_then(|id| items.iter().find(|i| i.id == id))
-                .filter(|i| {
-                    !i.worn && i.fits && (i.place == place || (place == PLACE_OFF && i.off))
-                })
-                .cloned()
+        // The second finger takes a ring (EQUIPMENT.md 5.4).
+        let for_place = |i: &ItemSummary, code: u8| {
+            i.place == code
+                || (code == PLACE_OFF && i.off)
+                || (code == PLACE_RING2 && i.place == PLACE_RING)
         };
-        // A weapon dropped on a hand that is not for it says why, in the hub's words
-        // (EQUIPMENT.md 2): a drop that is silently nothing reads as "can't equip".
-        let refused = |dropped: &Option<(String, i64)>| {
-            dropped
-                .as_ref()
-                .filter(|(from, _)| from == "items")
-                .and_then(|(_, id)| items.iter().find(|i| i.id == *id))
-                .filter(|i| !i.fits)
-                .and_then(|i| i.does.last().cloned())
-        };
-        if let Some(why) = refused(&dropped_on_weapon).or_else(|| refused(&dropped_on_off)) {
+        let mut dropped_to_wear: Option<(ItemSummary, u8)> = None;
+        let mut refused: Option<String> = None;
+        for (code, dropped) in &dropped_on {
+            let Some((from, id)) = dropped else { continue };
+            if from != "items" {
+                continue;
+            }
+            let Some(i) = items.iter().find(|i| i.id == *id) else {
+                continue;
+            };
+            // A weapon dropped on a hand that is not for it says why, in the hub's words
+            // (EQUIPMENT.md 2): a drop that is silently nothing reads as "can't equip".
+            if !i.fits {
+                refused = i.does.last().cloned();
+            } else if !i.worn && for_place(i, *code) && dropped_to_wear.is_none() {
+                dropped_to_wear = Some((i.clone(), *code));
+            }
+        }
+        if let Some(why) = refused {
             self.say(why, true);
         }
-        let dropped_to_wear = for_slot(dropped_on_weapon, PLACE_WEAPON)
-            .map(|i| (i, PLACE_WEAPON))
-            .or(for_slot(dropped_on_off, PLACE_OFF).map(|i| (i, PLACE_OFF)))
-            .or(for_slot(dropped_on_armour, PLACE_ARMOUR).map(|i| (i, PLACE_ARMOUR)));
         let dropped_to_take_off = dropped_in_grid
-            .filter(|(from, _)| from == "weapon" || from == "off" || from == "armour")
+            .filter(|(from, _)| PLACE_NAMES.contains(&from.as_str()))
             .map(|(_, id)| id)
             .and_then(|id| items.iter().find(|i| i.id == id))
             .filter(|i| i.worn)

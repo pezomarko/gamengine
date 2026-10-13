@@ -314,7 +314,7 @@ fn look_of(
             .map(|a| a.id.0.saturating_sub(1) as usize);
         return Look {
             held: looks.held(None, in_hand),
-            worn: Look::NONE,
+            worn: [Look::NONE; gm_net::control::BODY_PLACES],
             off: Look::NONE,
         };
     }
@@ -325,10 +325,11 @@ fn look_of(
             .filter(|t| !t.is_empty())
     };
     // The hands hold what is worn in them and nothing else (LOOK.md 6.1, 6.5): no sword
-    // in the inventory, no sword in the hand. The body (LOOK.md 6.6): the armour's overlay.
+    // in the inventory, no sword in the hand. The body (LOOK.md 6.6, EQUIPMENT.md 5.2):
+    // an overlay a place, in the order the wire lists them.
     Look {
         held: looks.held(worn(0), None),
-        worn: looks.worn(worn(2)),
+        worn: std::array::from_fn(|i| looks.worn(worn(gm_hub_proto::protocol::BODY_INDICES[i]))),
         off: looks.off(worn(1)),
     }
 }
@@ -399,9 +400,9 @@ struct HubSlot {
     /// The number of the hub's reading of its gear that the body has (ITEMS.md 3.3): a
     /// reading with a smaller number that arrives later changes nothing.
     gear_seq: u64,
-    /// The templates worn by place (weapon, off hand, armour), from the same reading
-    /// (LOOK.md 6.2): what it holds and wears.
-    worn: [String; 3],
+    /// The templates worn by place (`PLACE_NAMES`), from the same reading (LOOK.md 6.2):
+    /// what it holds and wears.
+    worn: [String; gm_hub_proto::protocol::PLACES],
     /// The stacks it carries, from the same reading (MODES.md 11.2): the firearms'
     /// reserves and the kits, and which item row each is, for the hub's books.
     stacks: Vec<StackReading>,

@@ -376,6 +376,14 @@ it does not know goes on to the next: one stream, one notice.
 
 ### 3.9 Possessions (ITEMS.md)
 
+- **Twelve places** (EQUIPMENT.md 5; `HUB_VERSION` 15, `PLAYER_VERSION` 11, protocol
+  v20, migration 0015, 2026-10-13): `worn.slot` takes the twelve names (`PLACE_NAMES`),
+  `GearReading.templates` and `CharacterSummary.worn` are twelve wide (`PLACES`), the
+  codes `PLACE_HEAD` to `PLACE_RING2` name the new places on the wire (`place_code`,
+  `place_index`), and the reading counts each place for its share (`Place::share`). A
+  ring goes onto the free finger first, as a one-hander into the free hand. A trinket is
+  crafted round one catalyst and no core (`check_parts`).
+
 - **Whose hands, and both hands** (EQUIPMENT.md 2 and 3; `HUB_VERSION` 14,
   `PLAYER_VERSION` 10, 2026-10-13): `ItemSummary.hands`, the classes whose preset kits
   hold a weapon's model (`Blade, Ironclad`; `no preset's`; empty for what is not a

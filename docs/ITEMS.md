@@ -36,11 +36,17 @@ simulation knew of none, and no screen showed one.
 
 ## 2. What is worn
 
-A character has three places: **weapon** (the right hand), **off** (the left hand, since
-2026-10-13) and **armour** (the body). A template's `kind` says where an item goes
-(`items.toml`: `weapon`, `shield` or `armour`; a component is neither and cannot be worn): a
-weapon into the right hand, or into the left when its row says `held = "left"`; a shield
-into the left; an armour onto the body. A one-handed weapon whose row says `held =
+A character has **twelve places** (EQUIPMENT.md 5, the evening of 2026-10-13; three
+that afternoon, two before): **weapon** (the right hand), **off** (the left hand), the
+body's seven, **armour** (the chest, named as it was when it was the whole body),
+**head**, **hands**, **legs**, **feet**, **back**, **shoulders**, and the trinkets'
+three, **neck**, **ring**, **ring2** (the two fingers). A template's `kind` says where
+an item goes (`items.toml`: `weapon`, `shield`, `armour`, `trinket`; a component is
+none of these and cannot be worn): a weapon into the right hand, or into the left when
+its row says `held = "left"`; a shield into the left; an armour onto the place of the
+body its row's `place` names (the chest when it names none); an amulet onto the neck; a
+ring onto the first finger, or the second when the first is taken, or either by name.
+Each place counts for its share of the item's edge (3.1). A one-handed weapon whose row says `held =
 "either"` (the sword, the dagger) goes into the right hand when nobody says, and into the
 left when the person says so (`WearIn`, below): two swords, a sword and a shield, one or
 both hands empty. One item in each place, or none. "Worn" in this document is about
@@ -140,14 +146,18 @@ edge of 220 is 11% more dealt, or 9.9% less taken (2000/2220).
   knockback, stagger build-up, stamina costs, a block's stamina cost.
 - A body with nothing worn has all sixteen at 0, and `gear` is 1: every result measured
   before Phase 11 stands.
-- **The off hand adds half of itself** (2026-10-13; EQUIPMENT.md 5.5 since the same
-  evening): a weapon worn there adds half its edges to `dealt`, a shield half its edges
-  to `taken`, each number capped at 250 as the one place's was, so the bounds above
-  stand: two swords of iron and oak deal 3.0% more slash instead of 2.0%, the best sword
-  in each hand 11.0% (the cap: 220 + 110 is still 250), a shield of iron and oak beside a
-  plain cuirass takes 2.9% less of a blow instead of 2.0%. **A two-hander counts for
-  both hands**, 1.5 of its edge: a staff of iron and oak deals 3.0% more blunt, what a
-  sword in each hand comes to. What a hand is worth is a proposed number (9).
+- **A place counts for its share** (EQUIPMENT.md 5.5, 2026-10-13; `Place::share`): the
+  right hand whole, the left hand half, the chest 8 of 20, the legs 5, the head 3, the
+  hands 2, the feet, the back and the shoulders 1 each, the neck and each ring half; a
+  two-hander in the right hand 1.5. Each is applied to the item's edge before the sum,
+  and each of the sixteen numbers is capped at 250 as before, so the bounds above
+  stand: a top cuirass alone is 88 of `taken` (0.4 × 220) where it was 110, a full top
+  set of the body 220, and a top shield's 110 on top of it is clamped; two swords of
+  iron and oak deal 3.0% more slash instead of 2.0%, the best sword in each hand 11.0%
+  (220 + 110 is still 250); a staff of iron and oak deals 3.0% more blunt, what a sword
+  in each hand comes to. A ring adds half its edge to the elements dealt, an amulet half
+  to the elements taken (a trinket's edge is its catalyst's element and its gems over
+  every element, EQUIPMENT.md 5.4). The shares are proposed numbers (9).
 
 ### 3.2 From materials to the sixteen numbers
 
@@ -399,10 +409,12 @@ account's storage), **Storage**, **Equipment**, **Close**. Since the evening of
 2026-10-13 (EQUIPMENT.md 4) the screen is **two panels side by side**, each shown or
 hidden on its own: the **bag** (all of the above) and the **equipment**: the name and
 the class line over the body in the open (the paperdoll of LOOK.md 5, turned by a drag),
-the places as slots in two columns at its sides (the body's down the left, `armour`; the
-hands down the right, `weapon` and `off`; only the places that exist are drawn), what is
-worn in words under it (`right hand: sword  slash +2.0%`, one line a place), and **Take
-off**, **Bag**, **Close**. `O` opens the equipment alone (its screen is named
+the twelve places as slots in two columns of six at its sides (the body's down the left
+in the order of the body: `head`, `armour`, `back`, `hands`, `legs`, `feet`; the hands
+and the trinkets down the right: `weapon`, `off`, `shoulders`, `neck`, `ring`, `ring2`),
+what is worn in words under it (`right hand: sword  slash +2.0%`, `left hand: nothing`,
+and the rest by name on a third line, `body: cuirass, hood, boots`), and **Take off**,
+**Bag**, **Close**. `O` opens the equipment alone (its screen is named
 `equipment`), `I` the bag alone; each key shows or hides its panel while the other is
 up; **Bag** and **Equipment** open the other; a wearable thing dragged out of the bag
 while the equipment is hidden opens it beside the bag; Escape closes the panel under the
@@ -520,8 +532,9 @@ by clicking: a UI script presses the keys of screens, not of a fight.
 
 ## 9. Proposed numbers and open decisions
 
-Proposed, for the director: three places (the off hand since 2026-10-13, adding half
-of itself under the one cap of 250, and a two-hander 1.5: EQUIPMENT.md 5.5);
+Proposed, for the director: twelve places and the share of each (EQUIPMENT.md 5.5,
+2026-10-13: the left hand half, the body by its parts, the trinkets half, a two-hander
+1.5, under the one cap of 250);
 **a place counts for half** (the scale of 2000);
 the layer table of 3.2, what each weapon strikes with and each armour guards against; that
 pulses take no gear; 120 units of reach; the fight lock of 10 s; one change a second; five

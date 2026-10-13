@@ -286,8 +286,8 @@ An empty equip slot says what goes in it whole (`weapon`, `armour`), in small pr
 the word is wider than the slot.
 
 A grid cell is found by `ui.find` by the words its row had, so `click "sword  slash
-+2.0%"` still picks it, and the equip panel's slots are found as `weapon: sword` and
-`armour: nothing`.
++2.0%"` still picks it, and the equipment's slots are found as `weapon: sword`,
+`armour: nothing`, `head: hood` and so on by the twelve place names (EQUIPMENT.md 5).
 
 ## 5. Bodies drawn into a screen
 
@@ -452,14 +452,19 @@ rig and a mesh per slot). Here:
   budgets of 1,500 triangles, a 512² texture and 262,144 bytes, no envelope) to
   `armour/<model>_<frame>.gmm`, `FLAG_OVERLAY` set (MODELS.md 5), named in the manifest by
   model and frame.
-- On the wire it is **`Look.worn`** (6.2: the index of the armour template's model in the
-  pack's `props`, `NONE` for nothing), set by the zone from the reading's third template.
-  Companions and creatures wear nothing.
-- The client draws it as **a second `CharacterDraw`** with the body's `world`, `pose`,
-  tint and light and the overlay's own pivots (which are the body's: the file was made on
-  it), after the body; a body of another frame than the overlay was made for wears
-  nothing (the bundle has none for it), and a player's own model of that frame wears it
-  as the official avatar does (the envelope keeps the bodies alike).
+- On the wire it is **`Look.worn`** (6.2: since protocol v20 an array of seven, one a
+  body place in the order chest, head, hands, legs, feet, back, shoulders, EQUIPMENT.md
+  5.2; each the index of that armour template's model in the pack's `props`, `NONE` for
+  nothing), set by the zone from the reading's templates of those places. Companions
+  and creatures wear nothing.
+- The client draws each as **a further `CharacterDraw`** with the body's `world`,
+  `pose`, tint and light and the overlay's own pivots (which are the body's: the file
+  was made on it), after the body, and the body's mask is the union of what they
+  `cover`; a body of another frame than an overlay was made for wears that one not
+  (the bundle has none for it), and a player's own model of that frame wears it as the
+  official avatar does (the envelope keeps the bodies alike). The first cut of the
+  other places is the ranger's: the hood, the pauldrons, the bracers, the trousers and
+  the boots (`scripts/dev/places-pipeline.sh`), the cuirass the jerkin alone.
 - **What it covers is not drawn** (`covers` in the row: the standard bones whose part of
   the body is under it, `TemplateEntry.covers` as a mask). The body's draw carries the
   mask in the block's spare number (`scale.w`, 24 bits, exact in a float); the vertex
@@ -469,8 +474,9 @@ rig and a mesh per slot). Here:
   The mannequin, whose segments the overlay was not cut for, is drawn whole under it.
 - The icon of an armour is baked from its overlay (CONTENT.md 5.3), the first frame's.
 
-Offline, `gm-client --offline --worn KEY` puts the overlay on the own body and the crowd's
-strikers (headless too: the fitting room of an overlay), beside `--prop` and `--off`.
+Offline, `gm-client --offline --worn KEY[,KEY...]` puts the overlays on the own body and
+the crowd's strikers (headless too: the fitting room of the overlays), beside `--prop`
+and `--off`.
 
 ## 7. The purse: silver and gold
 

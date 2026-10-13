@@ -1,6 +1,6 @@
 # Wire Protocol
 
-Status: v19 (a thing worn into a named hand, section 31; v18 the item bar, section 30; v17 the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
+Status: v20 (an overlay a body place, section 32; v19 a thing worn into a named hand, section 31; v18 the item bar, section 30; v17 the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
 and command, section 14; v2 of Phase 3 with the reliable messages of Phases 4 and 6, sections
 12 and 13). `gm-net` implements exactly this document; the test vectors in section 2
 are unit tests. Decisions from PLAN.md 2.1, 2.3 and 11.3 are binding here. When the code and this
@@ -896,6 +896,17 @@ own block reshaped:
   bit. The client adopts them as it adopts the rounds, and drops a use the zone cleared.
 - Nothing new in the control stream. Hub protocol 12 and the players' protocol 7 carry
   the bar's arrangement (ITEMS.md 4).
+
+## 32. Changes in v20 (the body's places, 2026-10-13)
+
+`PROTOCOL_VERSION` 20 (EQUIPMENT.md 5, LOOK.md 6.6). One field changes its layout:
+
+- **`Look.worn`** is `[u16; 7]` where it was one `u16`: an overlay a body place, in the
+  order chest, head, hands, legs, feet, back, shoulders (`gm_net::control::BODY_PLACES`,
+  `gm_content::items::Place::BODY`), each an index into `props` or `NONE`. Twelve bytes
+  more a `Look`, which is sent on a change and in the roster, never in a snapshot. The
+  version byte keeps a v19 client out, since it would read the roster short.
+- `WearIn`'s `place` takes the new codes (`gm_hub_proto::PLACE_HEAD` to `PLACE_RING2`).
 
 ## 31. Changes in v19 (the left hand, 2026-10-13)
 

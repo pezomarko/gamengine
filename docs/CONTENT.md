@@ -89,6 +89,7 @@ each the key of a file in 2:
 | `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template; for an armour, `models/armour/<model>_<frame>.glb`, its overlay (3.3) |
 | | `icon` | absent: baked from `model` (5.3); absent both: a glyph of the template's kind |
 | | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `two` (both hands, EQUIPMENT.md 3: content v10), `back`: which `prop_*` bone (MODELS.md 2) |
+| | `place` | an armour's place on the body (EQUIPMENT.md 5.2, content v10): `chest` (default), `head`, `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring` |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
@@ -101,7 +102,10 @@ Since content v3 (2026-10-07, MODES.md 11.1) `[[template]]` has a third `kind`, 
 no layers, a `cap` (the most one holder carries, 1–1,000) and an optional `heals`; a
 firearm's `ammo` names one. A stack has no model or icon yet: a glyph of its kind. Since
 content v9 (2026-10-13, ITEMS.md 2) a fourth, `shield`: worn in the left hand (`held =
-"left"`), guarding like an armour, its model a prop like a weapon's.
+"left"`), guarding like an armour, its model a prop like a weapon's. Since content v10
+(the same evening, EQUIPMENT.md 5.4) a fifth, `trinket`: no model, built round a
+catalyst (`layers` without `core` and `frame`), its `place` the neck (an amulet, the
+elements taken) or a finger (a ring, the elements dealt).
 
 Order matters where it did before and nowhere new: `abilities.toml` is **append-only**
 (stored builds name abilities by their place; README). Items are named by their **key**
@@ -195,7 +199,15 @@ the body's pose it sits where it was cut. It is ingested as an overlay: the pose
 the rig's rules as a body, the budgets of the **overlay** row of 4, no envelope (it covers
 part of a body). `covers` on the row names the bones whose part of the body is hidden
 under it. A frame without a file is drawn bare; `build` refuses a model with no file for
-any frame. The first two are the Fantasy outfits' leather jerkin with its pauldrons and
+any frame. One overlay a place (EQUIPMENT.md 5.2, content v10): the row's `place` says
+which, and a body wears up to seven at once, drawn in the order of `Place::BODY`. The
+ranger set on the striker is the first cut: `cuirass` (the jerkin and its belts),
+`pauldrons`, `bracers`, `hood`, `trousers`, `boots`, made by
+`scripts/dev/places-pipeline.sh` (the hero's Blender pass exporting each as its own
+file). The overlays and the avatars are fetched a file at a time as they are first
+seen, so they are counted apart from the bundle (`budgets.toml [content]
+max_wear_bytes`, LOOK.md 8) and the bundle's own cap holds the manifest, the atlases
+and the props. The first two are the Fantasy outfits' leather jerkin with its pauldrons and
 bracers (the cuirass) and cloth tunic (the robe) on the striker, cut by
 `scripts/dev/blender-quaternius-hero.py` (the same pass that makes the body: one armature,
 every part decimated to its budget, each outfit pushed 12 mm out so the body does not

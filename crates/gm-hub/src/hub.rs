@@ -24,10 +24,10 @@ use gm_hub_proto::protocol::{
     AccountId, BuildChoice, CHANNEL_PARTY, CHANNEL_WHISPER, CLOCK_SKEW_SECS, CharacterId,
     ContractOutcome, EconOp, EconReply, GearReading, HASH_PERMITS, HUB_PREAMBLE, HUB_VERSION,
     HiredAvatar, HubError, HubNotice, HubRequest, HubResponse, ItemSummary, ListingSummary,
-    LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef, PLACE_ARMOUR,
-    PLACE_NONE, PLACE_OFF, PLACE_WEAPON, PartyNews, PartyReply, SESSION_LIFETIMES, SayTo,
-    SessionId, StackReading, StallSummary, TOKEN_VALID_SECS, TavernEntry, TradeOffer, ZoneEconOp,
-    ZoneId, ZonePartyOp, ZoneSummary, ZoneTicket, now_secs,
+    LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef, PLACE_NONE,
+    PartyNews, PartyReply, SESSION_LIFETIMES, SayTo, SessionId, StackReading, StallSummary,
+    TOKEN_VALID_SECS, TavernEntry, TradeOffer, ZoneEconOp, ZoneId, ZonePartyOp, ZoneSummary,
+    ZoneTicket, now_secs, place_code, place_index,
 };
 
 use crate::conduct::Conduct;
@@ -1911,21 +1911,15 @@ fn item_summary(
         both_hands: content.two_handed(&i.template),
         id: i.id,
         template: i.template,
-        place: match view.place {
-            Some(Place::Weapon) => PLACE_WEAPON,
-            Some(Place::Off) => PLACE_OFF,
-            Some(Place::Armour) => PLACE_ARMOUR,
-            None => PLACE_NONE,
-        },
+        place: view.place.map_or(PLACE_NONE, |p| place_code(p.index())),
         off: view.off,
         edge: view.edge,
         worn: i.worn,
-        worn_in: match i.worn_in.as_deref().and_then(Place::parse) {
-            Some(Place::Weapon) => PLACE_WEAPON,
-            Some(Place::Off) => PLACE_OFF,
-            Some(Place::Armour) => PLACE_ARMOUR,
-            None => PLACE_NONE,
-        },
+        worn_in: i
+            .worn_in
+            .as_deref()
+            .and_then(Place::parse)
+            .map_or(PLACE_NONE, |p| place_code(p.index())),
         what: view.what,
         does: view.does,
         components: i
@@ -2433,11 +2427,8 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
             item,
             place,
         } => {
-            let place = match place {
-                PLACE_WEAPON => Place::Weapon,
-                PLACE_OFF => Place::Off,
-                PLACE_ARMOUR => Place::Armour,
-                _ => return Err(HubError::Invalid("no such place".into())),
+            let Some(place) = place_index(place).map(|i| Place::ALL[i]) else {
+                return Err(HubError::Invalid("no such place".into()));
             };
             let hands = hands_of(hub, character).await?;
             e.wear(

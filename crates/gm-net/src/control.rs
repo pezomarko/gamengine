@@ -34,15 +34,20 @@ pub enum BodyKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct Look {
     pub held: u16,
-    pub worn: u16,
+    /// The overlays worn on the body (LOOK.md 6.6, EQUIPMENT.md 5.2), one a body place in
+    /// the order chest, head, hands, legs, feet, back, shoulders (v20; one before).
+    pub worn: [u16; BODY_PLACES],
     pub off: u16,
 }
+
+/// The body's places an overlay is drawn for (`gm_content::items::Place::BODY`).
+pub const BODY_PLACES: usize = 7;
 
 impl Look {
     pub const NONE: u16 = u16::MAX;
     pub const EMPTY: Look = Look {
         held: Look::NONE,
-        worn: Look::NONE,
+        worn: [Look::NONE; BODY_PLACES],
         off: Look::NONE,
     };
 }
@@ -834,7 +839,7 @@ mod tests {
                     kind: BodyKind::Companion { owner: i },
                     look: Look {
                         held: (i % 7) as u16,
-                        worn: Look::NONE,
+                        worn: [Look::NONE; BODY_PLACES],
                         off: if i % 2 == 0 { 3 } else { Look::NONE },
                     },
                 })
