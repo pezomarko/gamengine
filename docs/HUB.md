@@ -376,6 +376,11 @@ it does not know goes on to the next: one stream, one notice.
 
 ### 3.9 Possessions (ITEMS.md)
 
+- **What is worn, on the list** (`PLAYER_VERSION` 9, 2026-10-13): `CharacterSummary.worn:
+  [String; 3]`, the keys of the templates worn in the three places (empty for nothing),
+  read with the character's row (three scalar subqueries on `worn`), so the selector
+  draws a character as its zone does (CLIENT.md 4.2) instead of its preset's props.
+
 - **The off hand** (ITEMS.md 2; `HUB_VERSION` 13, `PLAYER_VERSION` 8, 2026-10-13): a
   third place, `worn.slot = 'off'` (migration 0014), for a shield or a one-handed weapon
   beside another. `ZoneEconOp::WearIn { character, item, place }` puts a thing into a

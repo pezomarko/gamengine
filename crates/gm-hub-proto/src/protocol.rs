@@ -42,6 +42,10 @@ pub struct CharacterSummary {
     pub play_seconds: u32,
     /// The model the character wears (MODELS.md 6), whatever its status.
     pub model: Option<ModelId>,
+    /// The keys of the templates worn in its three places (ITEMS.md 2: the right hand,
+    /// the left hand, the body; empty for nothing), so the selector draws the character
+    /// as the zone does (CLIENT.md 4.2). Since `PLAYER_VERSION` 9.
+    pub worn: [String; 3],
 }
 
 /// What a zone is told about a character's avatar: the id clients fetch by and the frame the

@@ -108,6 +108,7 @@ async fn player(
     else {
         panic!("create")
     };
+    assert_eq!(c.worn, [String::new(), String::new(), String::new()]);
     let (state, gear) = enter(&client, session, c.id, zone_conn, zone_id).await;
     assert_eq!(gear, Gear::NONE, "a new character wears nothing");
     (client, session, c.id, state)
@@ -411,6 +412,16 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(have.len(), 6, "what is worn stays in the inventory");
     assert!(find(&have, sword).worn && find(&have, cuirass).worn);
     assert!(!find(&have, plain).worn && !find(&have, ember).worn);
+    // The account's list says what is worn, by place (HUB.md 3.9: the selector draws it).
+    let listed = match smith_conn
+        .request(&HubRequest::Characters { session: smith_s })
+        .await
+        .unwrap()
+    {
+        HubResponse::Characters(list) => list.into_iter().find(|c| c.id == smith).unwrap().worn,
+        other => panic!("unexpected {other:?}"),
+    };
+    assert_eq!(listed, ["sword".to_string(), String::new(), "cuirass".to_string()]);
     // Only that zone: another speaks for nobody here, and a session's connection is no zone.
     assert_eq!(
         wear(&arena, smith, plain).await,

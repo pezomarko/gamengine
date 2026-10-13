@@ -36,6 +36,8 @@ pub struct CharacterRow {
     pub play_seconds: i32,
     /// The model the character wears (MODELS.md 6.1), whatever its status.
     pub model: Option<Vec<u8>>,
+    /// The templates worn in its three places (ITEMS.md 2), empty for nothing.
+    pub worn: [String; 3],
 }
 
 impl CharacterRow {
@@ -59,6 +61,7 @@ impl CharacterRow {
             last_zone: self.pos_zone.clone(),
             play_seconds: self.play_seconds.max(0) as u32,
             model: self.model.clone().and_then(|m| m.try_into().ok()),
+            worn: self.worn.clone(),
         }
     }
 
@@ -104,12 +107,20 @@ fn row_to_character(r: &sqlx::postgres::PgRow) -> Result<CharacterRow, HubError>
         viewport: r.try_get("viewport").map_err(internal)?,
         play_seconds: r.try_get("play_seconds").map_err(internal)?,
         model: r.try_get("model").map_err(internal)?,
+        worn: [
+            r.try_get::<Option<String>, _>("worn_weapon").map_err(internal)?.unwrap_or_default(),
+            r.try_get::<Option<String>, _>("worn_off").map_err(internal)?.unwrap_or_default(),
+            r.try_get::<Option<String>, _>("worn_armour").map_err(internal)?.unwrap_or_default(),
+        ],
     })
 }
 
 const CHARACTER_COLUMNS: &str = "id, account_id, name, build, location_kind, location_zone, transit_to, \
     extract(epoch from (now() - transit_since))::float8 as transit_age_secs, \
-    pos_zone, pos_x, pos_y, pos_z, yaw, viewport, play_seconds, model";
+    pos_zone, pos_x, pos_y, pos_z, yaw, viewport, play_seconds, model, \
+    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'weapon') as worn_weapon, \
+    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'off') as worn_off, \
+    (select i.template from worn w join items i on i.id = w.item_id where w.character_id = characters.id and w.slot = 'armour') as worn_armour";
 
 impl Db {
     pub fn pool(&self) -> &PgPool {

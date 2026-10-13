@@ -318,9 +318,9 @@ held one; the director tested it ("he still holds the sword even though inventor
 no sword") and since then **what is not in the inventory is not in the hand**: a player
 holds and wears what the hub's gear reading names (6.2) and nothing else, bots included
 (the arena's duelists fight bare-handed until something hands them swords). The ability's
-`prop` is drawn in two places only: the gun mode's hand (6.4: a firearm is no item yet)
-and the selector's archetype (CLIENT.md 4.2: a preset's portrait, not a character's
-inventory). A stall keeper holds nothing in v1.
+`prop` is drawn in one place only: the gun mode's hand (6.4: a firearm is no item yet).
+The selector draws the same (CLIENT.md 4.2): the hub's list says what is worn. A stall
+keeper holds nothing in v1.
 
 ### 6.2 On the wire (protocol v8, hub v1.9)
 

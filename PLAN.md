@@ -1641,7 +1641,9 @@ and bracers (the cuirass) and cloth tunic (the robe); the shield is the *LowPoly
 The bag has three slots. The director's first test: "he still holds the sword even though inventory shows
 no sword equipped, not even possesses a sword" — the bare hand held the primary ability's prop since Phase
 14; since then a hand holds what is worn in it and nothing else (LOOK.md 6.1; bots fight bare-handed until
-something hands them swords; the gun mode's hand and the selector's archetype still draw the ability's prop). Not done: the plate and mail of a real crusader (the packs' free tiers have no
+something hands them swords; the gun mode's hand still draws the ability's prop). And "login screen still
+shows char with sword, not char as it is ingame": the hub's character list names the templates worn
+(`CharacterSummary.worn`, players' 9) and the selector draws those, with the armour's overlay. Not done: the plate and mail of a real crusader (the packs' free tiers have no
 knight; the Source tier of *Modular Character Outfits - Fantasy* has one), overlays for the other three
 frames, the other fifteen avatar pairs, creature models, sounds.
 

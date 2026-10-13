@@ -778,27 +778,52 @@ fn off_prop(
     prop_slot(content, active, props, look.off)
 }
 
-/// The prop of an ability of the hub's pack (the selector's body, CLIENT.md 4.2: no zone
-/// has sent a prop list yet): the manifest's prop for the ability's key, as a slot of the
-/// character renderer, when the bundle has it.
-fn ability_prop(
-    content: &mut Content,
-    active: Option<&mut Active>,
-    pack: Option<&ContentPack>,
-    ability: Option<u16>,
-) -> Option<usize> {
-    let key = &pack?.abilities.get(ability? as usize)?.key;
-    let prop = content
+/// The prop of a template a character wears, on the selector (CLIENT.md 4.2: no zone has
+/// sent a prop list yet, the hub's list names the templates): the manifest's model for
+/// the template's key, as a slot of the character renderer, when the bundle has it;
+/// nothing for an empty place or a template the bundle does not know.
+fn template_model(content: &Content, template: Option<&str>) -> Option<String> {
+    let key = template.filter(|t| !t.is_empty())?;
+    content
         .manifest
         .as_ref()?
-        .abilities
+        .templates
         .iter()
-        .find(|a| &a.key == key)?
-        .prop
-        .clone()?;
+        .find(|t| t.key == key)?
+        .model
+        .clone()
+}
+
+fn template_prop(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    template: Option<&str>,
+) -> Option<usize> {
+    let model = template_model(content, template)?;
     let active = active?;
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    content.prop(&prop, |model| Some(characters.add_model(gpu, model)))
+    content.prop(&model, |m| Some(characters.add_model(gpu, m)))
+}
+
+/// The overlay of the armour a character wears, on the selector (LOOK.md 6.6), and the
+/// bones it covers.
+fn template_overlay(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    template: Option<&str>,
+    frame: u8,
+) -> (Option<usize>, u32) {
+    let Some(model) = template_model(content, template) else {
+        return (None, 0);
+    };
+    let Some(active) = active else {
+        return (None, 0);
+    };
+    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    match content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
+        Some(slot) => (Some(slot), content.covers(&model)),
+        None => (None, 0),
+    }
 }
 
 fn prop_slot(
@@ -6270,13 +6295,17 @@ impl App {
         // rectangle by a camera of its own.
         let doll_draws: Vec<CharacterDraw> = match (self.ui.paperdolls.first(), &self.online) {
             // The selector's body (CLIENT.md 4.2): the character or the archetype shown,
-            // in the open, with the props of its weapon and its guard.
+            // in the open, with what it wears (the hub's list names the templates), as
+            // the zone draws it; an archetype stands bare, as a new character enters.
             (Some(doll), _) if self.front_up && doll.rect.w > 1.0 && doll.rect.h > 1.0 => {
                 match self.front.as_ref().and_then(|f| f.shown()) {
-                    Some((pack, build, model)) => {
-                        let prop =
-                            ability_prop(&mut self.content, Some(a), pack, Some(build.primary));
-                        let off = ability_prop(&mut self.content, Some(a), pack, build.guard);
+                    Some((build, model, worn)) => {
+                        let frame = gm_model::rig::frame_index(build.frame);
+                        let place = |i: usize| worn.map(|w| w[i].as_str());
+                        let prop = template_prop(&mut self.content, Some(a), place(0));
+                        let off = template_prop(&mut self.content, Some(a), place(1));
+                        let (overlay, hide) =
+                            template_overlay(&mut self.content, Some(a), place(2), frame);
                         let body = Body {
                             key: DOLL,
                             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -6284,7 +6313,7 @@ impl App {
                             pitch: 0.0,
                             anim: gm_core::sim::anim::IDLE,
                             crouched: false,
-                            frame: gm_model::rig::frame_index(build.frame),
+                            frame,
                             armour: build.armour as u8,
                             aspects: build.aspects.0,
                             status: 0,
@@ -6293,8 +6322,8 @@ impl App {
                             lit: 0.0,
                             prop,
                             off,
-                            worn: None,
-                            hide: 0,
+                            worn: overlay,
+                            hide,
                         };
                         a.avatars
                             .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
