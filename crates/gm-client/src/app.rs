@@ -480,6 +480,8 @@ struct App {
     /// `--prop FILE` or `--prop KEY` offline: the own body holds it (the fitting room of
     /// CONTENT.md 9), once it is on the GPU.
     offline_prop: Option<usize>,
+    /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
+    offline_worn: Option<(usize, u32)>,
     /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
     offline_off: Option<usize>,
     /// The window, from its creation: the renderer on it (`active`) may come later.
@@ -742,6 +744,30 @@ fn held_prop(
     prop_slot(content, active, props, look.held)
 }
 
+/// What a body wears (LOOK.md 6.6): the overlay of its armour's model for its frame, as a
+/// slot of the character renderer, and the bones the overlay covers; nothing and 0 while
+/// it loads, for a frame the bundle has no overlay for, or without a renderer.
+fn worn_overlay(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    props: &[String],
+    look: Look,
+    frame: u8,
+) -> (Option<usize>, u32) {
+    let Some(key) = props.get(look.worn as usize) else {
+        return (None, 0);
+    };
+    let Some(active) = active else {
+        return (None, 0);
+    };
+    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    let slot = content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)));
+    match slot {
+        Some(slot) => (Some(slot), content.covers(key)),
+        None => (None, 0),
+    }
+}
+
 /// The off hand's prop (LOOK.md 6.5), the same way.
 fn off_prop(
     content: &mut Content,
@@ -866,6 +892,7 @@ fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, start: Start)
         view_model: None,
         content: start.content,
         offline_prop: None,
+        offline_worn: None,
         offline_off: None,
         front_up: start.front.is_some() && start.online.is_none(),
         title: None,
@@ -2776,6 +2803,21 @@ impl App {
             self.offline_off = slot;
             a.avatars.crowd_off = slot;
         }
+        // `--worn KEY`: an armour's overlay on the striker's body, own and crowd (the
+        // fitting room of the overlay, CONTENT.md 3.3).
+        if let Some(key) = self.opts.worn.clone() {
+            let a = self.active.as_mut().expect("just made");
+            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let slot = self
+                .content
+                .overlay(&key, 1, |model| Some(characters.add_model(gpu, model)));
+            if slot.is_none() {
+                log::warn!("--worn {key}: the bundle has no such overlay for the striker");
+            }
+            let worn = slot.map(|s| (s, self.content.covers(&key)));
+            self.offline_worn = worn;
+            a.avatars.crowd_worn = worn;
+        }
         // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
         if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
             self.set_grab(true);
@@ -3257,6 +3299,7 @@ impl App {
                 price,
             },
             BagAction::Wear { item } => FromClient::Wear { item },
+            BagAction::WearIn { item, place } => FromClient::WearIn { item, place },
             BagAction::TakeOff { item } => FromClient::TakeOff { item },
         };
         if let Some(o) = &mut self.online {
@@ -4612,6 +4655,13 @@ impl App {
                         frame_dt,
                     );
                     self.facings.insert(e.id, yaw);
+                    let worn = worn_overlay(
+                        &mut self.content,
+                        self.active.as_mut(),
+                        &o.props,
+                        o.looks.get(&e.id).copied().unwrap_or_default(),
+                        frame,
+                    );
                     self.bodies.push(Body {
                         key: e.id,
                         origin: e.pos,
@@ -4638,6 +4688,8 @@ impl App {
                             &o.props,
                             o.looks.get(&e.id).copied().unwrap_or_default(),
                         ),
+                        worn: worn.0,
+                        hide: worn.1,
                     });
                 }
                 EntityKind::Projectile => {
@@ -4948,6 +5000,13 @@ impl App {
                     frame_dt,
                 );
                 self.facings.insert(OWN, yaw);
+                let worn = worn_overlay(
+                    &mut self.content,
+                    self.active.as_mut(),
+                    &o.props,
+                    o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                    gm_model::rig::frame_index(build.frame),
+                );
                 self.bodies.push(Body {
                     key: OWN,
                     origin: centre,
@@ -4974,6 +5033,8 @@ impl App {
                         &o.props,
                         o.looks.get(&c.my_id).copied().unwrap_or_default(),
                     ),
+                    worn: worn.0,
+                    hide: worn.1,
                 });
                 Some((camera, self.sim.yaw, self.sim.pitch))
             }
@@ -5773,6 +5834,8 @@ impl App {
                         // Offline (`--prop FILE`, CONTENT.md 9): the prop to look at.
                         prop: self.offline_prop,
                         off: self.offline_off,
+                        worn: self.offline_worn.map(|(slot, _)| slot),
+                        hide: self.offline_worn.map_or(0, |(_, hide)| hide),
                     });
                     (
                         third_person_camera(
@@ -6230,6 +6293,8 @@ impl App {
                             lit: 0.0,
                             prop,
                             off,
+                            worn: None,
+                            hide: 0,
                         };
                         a.avatars
                             .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
@@ -6240,6 +6305,13 @@ impl App {
             (Some(doll), Some(o)) if doll.rect.w > 1.0 && doll.rect.h > 1.0 => match &o.client {
                 Some(c) => {
                     let build = &c.sheet.build;
+                    let worn = worn_overlay(
+                        &mut self.content,
+                        Some(a),
+                        &o.props,
+                        o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                        gm_model::rig::frame_index(build.frame),
+                    );
                     let body = Body {
                         key: DOLL,
                         origin: Vec3::new(0.0, 0.0, 24.0),
@@ -6266,6 +6338,8 @@ impl App {
                             &o.props,
                             o.looks.get(&c.my_id).copied().unwrap_or_default(),
                         ),
+                        worn: worn.0,
+                        hide: worn.1,
                     };
                     a.avatars
                         .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)

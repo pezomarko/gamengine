@@ -6,18 +6,21 @@ official content as a whole is CC-BY-SA 4.0 (LICENSE.md at the root).
 
 ## Models (`models/`)
 
-Props under `props/`, official avatars under `avatars/` (CONTENT.md 2).
+Props under `props/`, official avatars under `avatars/`, armour overlays under `armour/`
+(CONTENT.md 2).
 
 | File | From | Licence |
 |---|---|---|
 | `props/sword.glb` | Quaternius *RPG Characters* (`glTF/Warrior.gltf`: the `Warrior_Sword` mesh with `Warrior_Sword_Texture`), https://quaternius.com/packs/rpgcharacters.html; split off by `scripts/dev/blender-quaternius-warrior.py`, packed by `gm-tools content import prop` (until 2026-10-13 the KayKit Adventurers `sword_1handed.gltf`, CC0, which the dagger, staff and crossbow still come from) | CC0 1.0 |
-| `avatars/striker_mail.glb` | Quaternius *RPG Characters* (`glTF/Warrior.gltf`: the body, the face and the shoulder pads with `Warrior_Texture`), https://quaternius.com/packs/rpgcharacters.html; made by `scripts/dev/blender-quaternius-warrior.py` (bones renamed to MODELS.md 2, feet and thighs reparented, the face decimated to 938 triangles, the sword split off, animations dropped) and `scripts/dev/glb-retarget.py --scale 0.675 0.675 0.6075` (into the striker's envelope, 10% thinner front to back) | CC0 1.0 |
+| `avatars/striker_mail.glb` | Quaternius *Universal Base Characters* (`Superhero_Male_FullBody.gltf`, `Hair_Buzzed.gltf`, `T_Superhero_Male_Ligh.png`, `T_Eye_Brown.png`, `T_Hair_1_BaseColor.png`), https://quaternius.com/packs/universalbasecharacters.html, with the trousers and boots of Quaternius *Modular Character Outfits - Fantasy* (`Male_Peasant_Legs.gltf`, `Male_Peasant_Feet.gltf`, `T_Peasant_BaseColor.png`), https://quaternius.com/packs/modularcharacteroutfitsfantasy.html; made by `scripts/dev/blender-quaternius-hero.py` (one armature, bones renamed to MODELS.md 2, `prop_r`/`prop_l`/`prop_back` added, the legs under the trousers cut, decimated to 3,448 triangles) and `scripts/dev/gltf-atlas.py` (one 1024² atlas); `scripts/dev/hero-pipeline.sh` runs it all. Until 2026-10-13 the Quaternius *RPG Characters* warrior, `scripts/dev/blender-quaternius-warrior.py` | CC0 1.0 |
+| `armour/cuirass_striker.glb` | Quaternius *Modular Character Outfits - Fantasy* (`Male_Ranger_Body.gltf` with its two belts, `Male_Ranger_Acc_Pauldron.gltf` mirrored to both shoulders, `Male_Ranger_Arms_Bracer.gltf`, `T_Ranger_BaseColor.png`), the same scripts: the overlay of the cuirass on the striker's body (CONTENT.md 3.3), 1,473 triangles, pushed 12 mm out | CC0 1.0 |
+| `armour/robe_striker.glb` | the same pack (`Male_Peasant_Body.gltf`, the sleeves of `Male_Peasant_Arms.gltf`, `T_Peasant_BaseColor.png`), the same scripts: the robe's overlay, 1,500 triangles | CC0 1.0 |
 | `props/dagger.glb` | the same pack (`dagger.gltf` + `rogue_texture.png`) | CC0 1.0 |
 | `props/staff.glb` | the same pack (`staff.gltf` + `mage_texture.png`) | CC0 1.0 |
 | `props/crossbow.glb` | the same pack (`crossbow_1handed.gltf` + `rogue_texture.png`) | CC0 1.0 |
 | `props/hammer.glb` | ours: `gm-tools content synth hammer` | CC-BY-SA 4.0 |
 | `props/greatsword.glb` | ours: `gm-tools content synth greatsword` | CC-BY-SA 4.0 |
-| `props/shield.glb` | ours: `gm-tools content synth shield` | CC-BY-SA 4.0 |
+| `props/shield.glb` | Quaternius *LowPoly Medieval Weapons* (`OBJ/Shield_Heater.obj`), https://quaternius.com/packs/lowpolymedievalweapons.html; made by `scripts/dev/blender-obj-prop.py` (the grip at the back strap, the face along +Y, 984 triangles; flat colours, so `gm-tools content build` gives it swatches). Until 2026-10-13 ours, `gm-tools content synth shield` | CC0 1.0 |
 | `props/musket.glb` | ours: `gm-tools content synth musket` | CC-BY-SA 4.0 |
 | `props/pistol.glb` | ours: `gm-tools content synth pistol` | CC-BY-SA 4.0 |
 

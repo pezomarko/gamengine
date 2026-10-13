@@ -26,10 +26,13 @@ pub struct TemplateLook {
     pub kind: String,
     pub model: Option<String>,
     pub icon: Option<String>,
-    /// `right` (the default), `left` or `back`.
+    /// `right` (the default), `left`, `either` or `back` (CONTENT.md 3).
     pub held: String,
     pub fit: Fit,
     pub fit_view: Option<Fit>,
+    /// An armour's overlay: the standard bones whose part of the body it covers
+    /// (CONTENT.md 3.3), as a mask over the rig.
+    pub covers: u32,
     pub retired: bool,
 }
 
@@ -196,12 +199,26 @@ impl Looks {
         }
         for t in &it.templates {
             name_prop(&t.model, &format!("template {}", t.id))?;
-            let held = t.held.clone().unwrap_or_else(|| "right".into());
-            if !["right", "left", "back"].contains(&held.as_str()) {
+            let held = t.held().to_string();
+            if !["right", "left", "either", "back"].contains(&held.as_str()) {
                 return Err(ContentError::Invalid(format!(
-                    "template {}: held must be right, left or back, not `{held}`",
+                    "template {}: held must be right, left, either or back, not `{held}`",
                     t.id
                 )));
+            }
+            if !t.covers.is_empty() && t.kind != "armour" {
+                return Err(ContentError::Invalid(format!(
+                    "template {}: only an armour covers the body",
+                    t.id
+                )));
+            }
+            for bone in &t.covers {
+                if gm_model::rig::bone_by_name(bone).is_none() {
+                    return Err(ContentError::Invalid(format!(
+                        "template {}: covers `{bone}`, which is no bone of the rig (MODELS.md 2)",
+                        t.id
+                    )));
+                }
             }
             if let Some(v) = &t.icon
                 && !valid_key(v)
@@ -231,6 +248,7 @@ impl Looks {
                 held,
                 fit: t.fit.unwrap_or_default(),
                 fit_view: t.fit_view,
+                covers: items::covers_mask(&t.covers),
                 retired: t.retired,
             });
         }
@@ -367,14 +385,33 @@ impl Looks {
         NONE
     }
 
-    /// What a body holds in its off hand (LOOK.md 6.5): the prop of its guard ability (by
-    /// the ability's place in the pack), else nothing. A shield wall holds a shield.
-    pub fn off(&self, guard: Option<usize>) -> u16 {
+    /// What a body holds in its off hand (LOOK.md 6.5): the model of the item worn there
+    /// (a shield, a second sword), else the prop of its guard ability (by the ability's
+    /// place in the pack), else nothing. A shield wall holds a shield.
+    pub fn off(&self, worn_off: Option<&str>, guard: Option<usize>) -> u16 {
+        if let Some(t) = worn_off
+            && let Some(look) = self.templates.iter().find(|l| l.key == t)
+            && let Some(model) = &look.model
+        {
+            return self.prop_index(model);
+        }
         if let Some(i) = guard
             && let Some(a) = self.abilities.get(i)
             && let Some(prop) = &a.prop
         {
             return self.prop_index(prop);
+        }
+        NONE
+    }
+
+    /// What a body wears on it (LOOK.md 6.6): the model of its armour's template, which
+    /// a client draws as an overlay over the body, else nothing.
+    pub fn worn(&self, armour: Option<&str>) -> u16 {
+        if let Some(t) = armour
+            && let Some(look) = self.templates.iter().find(|l| l.key == t)
+            && let Some(model) = &look.model
+        {
+            return self.prop_index(model);
         }
         NONE
     }
@@ -421,6 +458,20 @@ strikes = "blunt"
 layers = ["core", "frame"]
 model = "hammer_plain"
 held = "back"
+[[template]]
+id = "shield"
+kind = "shield"
+guards = "physical"
+layers = ["core", "frame"]
+model = "shield_round"
+held = "left"
+[[template]]
+id = "cuirass"
+kind = "armour"
+guards = "physical"
+layers = ["core", "frame"]
+model = "cuirass_leather"
+covers = ["spine", "chest"]
 [[material]]
 id = "core/iron"
 edge = 30
@@ -430,20 +481,30 @@ tint = [0.8, 0.8, 0.85]
     #[test]
     fn props_are_listed_by_first_appearance_and_a_body_holds_what_it_wears_or_swings() {
         let looks = Looks::load_str(ABILITIES, "", "", ITEMS, "").unwrap();
-        assert_eq!(looks.props, ["sword_plain", "hammer_plain", "sword_iron"]);
+        assert_eq!(
+            looks.props,
+            ["sword_plain", "hammer_plain", "sword_iron", "shield_round", "cuirass_leather"]
+        );
         // Worn: the item's model. Bare: the primary's prop. Neither: nothing.
         assert_eq!(looks.held(Some("sword"), Some(0)), 2);
         assert_eq!(looks.held(None, Some(0)), 0);
         assert_eq!(looks.held(None, Some(1)), 1);
         assert_eq!(looks.held(None, Some(2)), NONE);
-        assert_eq!(looks.held(Some("cuirass"), Some(0)), 0);
         assert_eq!(looks.held(Some("nothing"), None), NONE);
         assert_eq!(looks.held(None, Some(99)), NONE);
-        // The off hand (LOOK.md 6.5): the guard's prop; a guard without one, or none, is empty.
-        assert_eq!(looks.off(Some(1)), 1);
-        assert_eq!(looks.off(Some(2)), NONE);
-        assert_eq!(looks.off(None), NONE);
+        // The off hand (LOOK.md 6.5): what is worn there, else the guard's prop; a guard
+        // without one, or none, is empty.
+        assert_eq!(looks.off(None, Some(1)), 1);
+        assert_eq!(looks.off(Some("shield"), Some(1)), 3);
+        assert_eq!(looks.off(Some("sword"), None), 2);
+        assert_eq!(looks.off(None, Some(2)), NONE);
+        assert_eq!(looks.off(None, None), NONE);
+        // The body (LOOK.md 6.6): the armour's overlay, by the same list.
+        assert_eq!(looks.worn(Some("cuirass")), 4);
+        assert_eq!(looks.worn(Some("sword")), 2);
+        assert_eq!(looks.worn(None), NONE);
         assert_eq!(looks.templates[1].held, "back");
+        assert_eq!(looks.templates[3].covers, (1 << 1) | (1 << 2));
         assert_eq!(looks.templates[0].fit.turn, [0.0, 90.0, 0.0]);
         assert_eq!(looks.materials[0].tint, Some([0.8, 0.8, 0.85]));
         assert_eq!(looks.abilities[2].sound.as_deref(), Some("whoosh"));
@@ -456,6 +517,10 @@ tint = [0.8, 0.8, 0.85]
         let bad = ABILITIES.replace("sword_plain", "Sword Plain");
         assert!(Looks::load_str(&bad, "", "", ITEMS, "").is_err());
         let bad = ITEMS.replace("held = \"back\"", "held = \"teeth\"");
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        let bad = ITEMS.replace("covers = [\"spine\", \"chest\"]", "covers = [\"tail\"]");
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        let bad = ITEMS.replace("held = \"back\"", "held = \"back\"\ncovers = [\"chest\"]");
         assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
         // An avatar row names a frame, an armour class and a key, once per pair.
         let one = "[[avatar]]\nframe = \"striker\"\narmour = \"mail\"\nmodel = \"striker_mail\"\n";

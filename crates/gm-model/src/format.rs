@@ -19,6 +19,9 @@ pub const FLAG_TWO_SIDED: u16 = 1 << 1;
 /// bone mask is bone 0 alone with zero pivots, and every vertex is on bone 0 with weight
 /// 255: the character pipeline draws it with the hand's matrix at index 0 (LOOK.md 6.3).
 pub const FLAG_PROP: u16 = 1 << 2;
+/// An armour overlay (CONTENT.md 3.3): a skinned piece on the standard rig for one frame,
+/// drawn over a body with the body's pose; smaller budgets, no envelope.
+pub const FLAG_OVERLAY: u16 = 1 << 3;
 /// The `frame` byte of a prop: no frame at all.
 pub const PROP_FRAME: u8 = 255;
 
@@ -36,6 +39,10 @@ pub mod limits {
     pub const PROP_MAX_FILE_BYTES: usize = 131_072;
     /// How far from its grip a prop may reach, in world units (3 m).
     pub const PROP_MAX_EXTENT: f32 = 96.0;
+    /// An armour overlay's triangles, texture side and file (CONTENT.md 4).
+    pub const OVERLAY_MAX_TRIANGLES: usize = 1500;
+    pub const OVERLAY_MAX_TEXTURE: u16 = 512;
+    pub const OVERLAY_MAX_FILE_BYTES: usize = 262_144;
     /// The payload after inflation.
     pub const MAX_RAW_BYTES: usize = 2 * 1024 * 1024;
     /// Coordinates and pivots stay inside this cube (world units).
@@ -250,6 +257,11 @@ impl Model {
         self.flags & FLAG_PROP != 0
     }
 
+    /// A thing worn over a body (CONTENT.md 3.3): on the rig, for one frame.
+    pub fn is_overlay(&self) -> bool {
+        self.flags & FLAG_OVERLAY != 0
+    }
+
     pub fn position(&self, i: usize) -> Vec3 {
         let v = &self.vertices[i];
         Vec3::new(
@@ -294,10 +306,23 @@ impl Model {
 
     /// Everything the reader will check, checked on the writer's side too.
     pub fn validate(&self) -> Result<(), ModelError> {
-        if self.flags & !(FLAG_CUTOUT | FLAG_TWO_SIDED | FLAG_PROP) != 0 {
+        if self.flags & !(FLAG_CUTOUT | FLAG_TWO_SIDED | FLAG_PROP | FLAG_OVERLAY) != 0 {
             return Err(ModelError::Range("flags"));
         }
         let prop = self.is_prop();
+        if prop && self.is_overlay() {
+            return Err(ModelError::Range("a prop is not an overlay"));
+        }
+        // An overlay is a body in its rig and its frame, within a prop's kind of budget.
+        if self.is_overlay() {
+            if self.indices.len() > limits::OVERLAY_MAX_TRIANGLES * 3 {
+                return Err(ModelError::Range("an overlay's triangles"));
+            }
+            if self.tex_w > limits::OVERLAY_MAX_TEXTURE || self.tex_h > limits::OVERLAY_MAX_TEXTURE
+            {
+                return Err(ModelError::Range("an overlay's texture"));
+            }
+        }
         // A prop is a prop in every way at once, or it is not one: the frame byte, the
         // flag and the rig agree, so that nothing reads a held thing as a body.
         if prop {
@@ -454,6 +479,12 @@ impl Model {
             return Err(ModelError::TooLarge(
                 file.len(),
                 limits::PROP_MAX_FILE_BYTES,
+            ));
+        }
+        if flags & FLAG_OVERLAY != 0 && file.len() > limits::OVERLAY_MAX_FILE_BYTES {
+            return Err(ModelError::TooLarge(
+                file.len(),
+                limits::OVERLAY_MAX_FILE_BYTES,
             ));
         }
         if file[7] != TEX_BC1_SRGB {
@@ -673,6 +704,32 @@ pub(crate) mod tests {
         m.tex_h = 512;
         m.texture = (0..texture_bytes(512, 512)).map(|i| i as u8).collect();
         assert!(matches!(m.encode(), Err(ModelError::Range(_))));
+    }
+
+    #[test]
+    fn an_overlay_is_a_body_on_the_rig_within_a_smaller_budget() {
+        let mut o = sample();
+        o.flags |= FLAG_OVERLAY;
+        let file = o.encode().unwrap();
+        let back = Model::decode(&file).unwrap();
+        assert!(back.is_overlay() && !back.is_prop() && back.frame == o.frame);
+        // Not a prop as well, nor over its texture or its triangles.
+        let mut m = sample_prop();
+        m.flags |= FLAG_OVERLAY;
+        assert!(m.encode().is_err());
+        let mut m = sample();
+        m.flags |= FLAG_OVERLAY;
+        m.tex_w = 1024;
+        m.tex_h = 1024;
+        m.texture = (0..texture_bytes(1024, 1024)).map(|i| i as u8).collect();
+        assert!(matches!(m.encode(), Err(ModelError::Range("an overlay's texture"))));
+        let mut m = sample();
+        m.flags |= FLAG_OVERLAY;
+        let tri = m.indices[..3].to_vec();
+        while m.indices.len() <= limits::OVERLAY_MAX_TRIANGLES * 3 {
+            m.indices.extend_from_slice(&tri);
+        }
+        assert!(matches!(m.encode(), Err(ModelError::Range("an overlay's triangles"))));
     }
 
     #[test]

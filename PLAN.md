@@ -1622,6 +1622,26 @@ envelope of MODELS.md 4 refused at 153% and takes at 137%. KayKit's Adventurers 
 (chibi: 4,712 triangles and a head pivot under every frame's band). Measured in CONTENT.md 13. Not done:
 the other fifteen pairs, creature models, the armour overlay, sounds per ability (the rest of Phase 17).
 
+**2026-10-13, the lean hero, three places and the armour overlay** (the director: "we need something better,
+more relatable ... lean crusader, not short legged samurai like. Also We need mechanism to not only equip
+sword, but also armor so it's visible. Lets do Armor, Left hand and right hand equips ... weapon is separate
+model and equipable"; ITEMS.md 2, LOOK.md 6.5 and 6.6, CONTENT.md 3.3): the striker in mail is now Quaternius'
+CC0 *Universal Base Characters* hero (1.81 m, the Superhero proportions: long legs, a lean athlete) in the
+*Fantasy outfits'* trousers and boots, made by `scripts/dev/blender-quaternius-hero.py` and `gltf-atlas.py`
+with `prop_r`, `prop_l` and `prop_back` bones added where the fist closes; it needed no scaling (head pivot
+51.6 u, top 58.9 u). A character has **three places**: the right hand, the left hand (`off`, migration 0014)
+and the body; a sword is `held = "either"` and goes into the left hand by `WearIn` (protocol v19, hub 13,
+players 8), a `shield` kind goes there by nature, and the off hand's edges add to the weapon's or the
+armour's under the same cap of 250. The armour is **seen**: an armour template's `model` is an overlay
+(`models/armour/<model>_<frame>.glb`, a skinned piece on the rig cut for that frame's body, `FLAG_OVERLAY`,
+1,500 triangles, 512², 262,144 bytes, no envelope), `Look.worn` carries it, the client draws it over the body
+with the body's pose and leaves out the body's parts it `covers` (a bone mask in the block, the triangle
+dropped whole in the fragment shader). The first two overlays are the outfits' leather jerkin with pauldrons
+and bracers (the cuirass) and cloth tunic (the robe); the shield is the *LowPoly Medieval Weapons* heater.
+The bag has three slots. Not done: the plate and mail of a real crusader (the packs' free tiers have no
+knight; the Source tier of *Modular Character Outfits - Fantasy* has one), overlays for the other three
+frames, the other fifteen avatar pairs, creature models, sounds.
+
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
 set are **proposed** in `docs/MATRIX.md` 12 (implemented and measured; the director confirms or changes

@@ -1,6 +1,6 @@
 # Wire Protocol
 
-Status: v17 (the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
+Status: v19 (a thing worn into a named hand, section 31; v18 the item bar, section 30; v17 the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
 and command, section 14; v2 of Phase 3 with the reliable messages of Phases 4 and 6, sections
 12 and 13). `gm-net` implements exactly this document; the test vectors in section 2
 are unit tests. Decisions from PLAN.md 2.1, 2.3 and 11.3 are binding here. When the code and this
@@ -896,3 +896,17 @@ own block reshaped:
   bit. The client adopts them as it adopts the rounds, and drops a use the zone cleared.
 - Nothing new in the control stream. Hub protocol 12 and the players' protocol 7 carry
   the bar's arrangement (ITEMS.md 4).
+
+## 31. Changes in v19 (the left hand, 2026-10-13)
+
+`PROTOCOL_VERSION` 19 (ITEMS.md 2, LOOK.md 6.5 and 6.6). One message appended to
+`FromClient`:
+
+- **`WearIn { item, place }`**: `Wear` into a named place, a `gm_hub_proto::PLACE_*` (the
+  right hand, the left hand, the body); answered by `WearResult` as `Wear` is. A one-handed
+  weapon goes into the left hand beside another this way; `Wear` keeps putting a thing into
+  its own place.
+- `Look` does not change its layout; `worn` carries the armour's overlay now (it was always
+  `NONE`), and `off` the item worn in the left hand before the guard's prop. The version
+  byte keeps a v18 client out, since it could not say `WearIn` and would read the enum
+  one short.

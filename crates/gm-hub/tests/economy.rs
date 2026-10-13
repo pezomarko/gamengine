@@ -1330,7 +1330,7 @@ async fn a_storm_of_mixed_movements_never_deadlocks() {
                 let cuirass = e.craft(me, "cuirass", &[theirs, frame], None).await?;
                 // Worn, it cannot be taken apart; taken off, it can. (An armour: the
                 // weapon's place is being fought over by the sword below.)
-                e.wear(me, "storm", cuirass, &content, &[]).await?;
+                e.wear(me, "storm", cuirass, &content, &[], None).await?;
                 if e.decompose(me, cuirass).await.is_ok() {
                     return Err(EconError::Invalid("a worn cuirass was decomposed".into()));
                 }
@@ -1352,7 +1352,7 @@ async fn a_storm_of_mixed_movements_never_deadlocks() {
                 let (e1, e2, c1) = (e.clone(), e.clone(), content.clone());
                 let offer = tokio::spawn(async move { e1.trade_offer_item(t, a, sword).await });
                 let wear = tokio::spawn(async move {
-                    e2.wear(a, "storm", sword, &c1, &["sword".to_string()])
+                    e2.wear(a, "storm", sword, &c1, &["sword".to_string()], None)
                         .await
                 });
                 let offered = offer.await.unwrap();

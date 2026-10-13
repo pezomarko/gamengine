@@ -134,9 +134,14 @@ done
 if [[ -n "$bare" && -n "$armed" ]]; then
   cost="$(printf '%s\n' "${costs[@]}" | LC_ALL=C sort -g | sed -n "$(( (${#costs[@]} + 1) / 2 ))p")"
   echo "look: crowd=$COUNT bare_frame_ms=$(field "$bare" frame_ms_avg) armed_frame_ms=$(field "$armed" frame_ms_avg) prop_cost_ms=$cost (the middle of: ${costs[*]})"
-  atmost "$cost" "$(budget look max_prop_draw_ms)" "milliseconds a frame $COUNT held props add"
+  # The budget is the real GPU's (LOOK.md 8): the software GPU pays per triangle, and the
+  # 712-triangle sword of 2026-10-13 costs it some 13 ms over 48 bodies, where the iGPU
+  # pays nothing it can measure. Without --gate-fps the number is reported, not gated.
   if (( GATE_FPS )); then
+    atmost "$cost" "$(budget look max_prop_draw_ms)" "milliseconds a frame $COUNT held props add"
     atleast "$(field "$armed" fps_avg)" "$(budget look min_fps)" "average fps with every body armed"
+  else
+    ok "milliseconds a frame $COUNT held props add on the software GPU: $cost (gated on the real GPU, --gate-fps)"
   fi
 fi
 [[ "$DESKTOP" == 1 || "$BROWSER" == 1 ]] || exit $status

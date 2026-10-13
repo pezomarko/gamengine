@@ -326,11 +326,12 @@ avatar wears no gear yet: ITEMS.md 9). A stall keeper holds nothing in v1.
   to change content, and its clients reconnect and get the new pack).
 - `PlayerEntry` (the `Players` message) gains **`look: Look { held: u16, worn: u16 }`**:
   indices into `props` (`NONE = u16::MAX`; an index past the list is read as `NONE`);
-  `worn` is always `NONE` in Phase 14 and is the armour overlay of Phase 15.
+  `worn` was always `NONE` until 2026-10-13 and is the armour overlay since (6.6).
   **`FromZone::Look { id, look }`**, appended at the end of the enum (ITEMS.md's lesson),
   when a body's look changes.
-- `GearReading` (hub → zone) gains **`templates: [String; 2]`**, the **keys** of the
-  templates worn by place (empty when nothing is worn): a hub and a zone on different
+- `GearReading` (hub → zone) gains **`templates: [String; 2]`** (three since hub protocol
+  13: weapon, off hand, armour), the **keys** of the templates worn by place (empty when
+  nothing is worn): a hub and a zone on different
   content versions then disagree about nothing but what to draw; the zone maps a key it
   knows to its `model` key, then to the prop index, and one it does not know to an empty
   hand. One more reading when wear changes is one `Look` to everybody who has the body
@@ -424,6 +425,47 @@ model, the back of the fist's side) then stands out of the back of the hand, and
 guard stance, which already raises the left forearm across the chest, raises the shield in
 front. The fitting room draws it: `gm-tools content look shield --left`.
 
+**Worn there** (2026-10-13, ITEMS.md 2): the item worn in the off hand comes first, its
+template's `model` as the right hand's does (a shield, a second sword), and the guard's
+prop only when nothing is worn there; a gun build's stays `NONE`. The zone reads it from
+the reading's second template.
+
+### 6.6 The armour overlay (2026-10-13)
+
+The director: "We need mechanism to not only equip sword, but also armor so it's visible
+... weapon is separate model and equipable", and the games he named do it the way every
+modular character does: the weapon is a rigid thing on a socket of the hand (6.3, the
+`prop_r` and `prop_l` bones are those sockets), and the armour is **a skinned piece on the
+same skeleton**, drawn with the body's pose, that replaces the part of the body it covers
+(Skyrim's armour meshes, WoW's geosets, Unity's and Unreal's modular characters with one
+rig and a mesh per slot). Here:
+
+- An armour template's `model` is its **overlay** (CONTENT.md 3.3): `models/armour/<model>_
+  <frame>.glb`, a body's file on the standard rig in the T-pose, made for one frame's
+  body, ingested as an overlay (`gm_ingest::ingest_overlay`: the pose check, an overlay's
+  budgets of 1,500 triangles, a 512² texture and 262,144 bytes, no envelope) to
+  `armour/<model>_<frame>.gmm`, `FLAG_OVERLAY` set (MODELS.md 5), named in the manifest by
+  model and frame.
+- On the wire it is **`Look.worn`** (6.2: the index of the armour template's model in the
+  pack's `props`, `NONE` for nothing), set by the zone from the reading's third template.
+  Companions and creatures wear nothing.
+- The client draws it as **a second `CharacterDraw`** with the body's `world`, `pose`,
+  tint and light and the overlay's own pivots (which are the body's: the file was made on
+  it), after the body; a body of another frame than the overlay was made for wears
+  nothing (the bundle has none for it), and a player's own model of that frame wears it
+  as the official avatar does (the envelope keeps the bodies alike).
+- **What it covers is not drawn** (`covers` in the row: the standard bones whose part of
+  the body is under it, `TemplateEntry.covers` as a mask). The body's draw carries the
+  mask in the block's spare number (`scale.w`, 24 bits, exact in a float); the vertex
+  shader marks a vertex whose first joint is in it, flat across the triangle from the
+  provoking vertex, and the fragment shader discards the triangle whole: nothing is
+  stretched or torn at the edge, and the hero's chest does not come through his jerkin.
+  The mannequin, whose segments the overlay was not cut for, is drawn whole under it.
+- The icon of an armour is baked from its overlay (CONTENT.md 5.3), the first frame's.
+
+Offline, `gm-client --offline --worn KEY` puts the overlay on the own body and the crowd's
+strikers (headless too: the fitting room of an overlay), beside `--prop` and `--off`.
+
 ## 7. The purse: silver and gold
 
 The director dropped copper (2026-10-03). The ledger's integer is **silver**; **100 silver =
@@ -453,7 +495,7 @@ two gem sockets: no casino, PLAN.md 0.) The screens show two coins (`coin_gold`,
 | `max_native_added_bytes` | 262,144 | the native client |
 | `max_page_ms` | 0.8 | inventory with the paperdoll, a frame on the iGPU (today 0.36–0.47 ms for a page) |
 | `max_hud_ms` | 0.15 | the hotbar, statuses, portrait and party frames, a frame on the iGPU |
-| `max_prop_draw_ms` | 0.5 | 100 bodies holding props in the town over the same scene without (the avatars gate's scene) |
+| `max_prop_draw_ms` | 0.5 | 100 bodies holding props in the town over the same scene without (the avatars gate's scene); the real GPU's number (`check-look.sh --gate-fps`): the software GPU pays per triangle, and the 712-triangle sword of 2026-10-13 costs it 13 ms over 48 bodies, reported there and not gated |
 | `min_fps` | 60 | the avatars gate with every body armed |
 
 `scripts/check-look.sh [--desktop] [--browser] [--gate-fps]`: (1) `gm-tools content check

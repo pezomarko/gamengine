@@ -264,6 +264,14 @@ pub enum FromClient {
     // v10 (GM.md 2).
     /// Something only a game master may ask (the zone says `Gm(Refused)` to anyone else).
     Gm(GmOp),
+    // v19 (ITEMS.md 2).
+    /// `Wear`, into a named place: `gm_hub_proto::PLACE_WEAPON` (the right hand), `PLACE_OFF`
+    /// (the left), `PLACE_ARMOUR`. A sword goes into the left hand beside another this way;
+    /// answered by `WearResult` as `Wear` is.
+    WearIn {
+        item: i64,
+        place: u8,
+    },
 }
 
 /// What a game master may do to a running zone (GM.md 2): tune its timings, make a body

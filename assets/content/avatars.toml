@@ -6,8 +6,11 @@
 # The row is the look and nothing else: the frame's hitbox, gait and reach are unchanged.
 
 # The striker in mail: the blade's body (builds.toml: blade = striker, mail). Quaternius'
-# Warrior (CC0; LICENSES.md), retargeted by scripts/dev/blender-quaternius-warrior.py and
-# scripts/dev/glb-retarget.py: 2,946 triangles, a 1024 atlas, 20 of the 24 bones.
+# Universal Base Characters hero in the Fantasy outfits' trousers and boots (CC0;
+# LICENSES.md), made by scripts/dev/blender-quaternius-hero.py and gltf-atlas.py: 3,448
+# triangles, a 1024 atlas, all 24 bones (prop_r, prop_l and prop_back added in the palms
+# and behind the chest). Its armour is an overlay worn over it (items.toml: cuirass, robe;
+# CONTENT.md 3.3), not painted on: bare, it is a man in trousers.
 [[avatar]]
 frame = "striker"
 armour = "mail"

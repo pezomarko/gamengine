@@ -376,6 +376,12 @@ it does not know goes on to the next: one stream, one notice.
 
 ### 3.9 Possessions (ITEMS.md)
 
+- **The off hand** (ITEMS.md 2; `HUB_VERSION` 13, `PLAYER_VERSION` 8, 2026-10-13): a
+  third place, `worn.slot = 'off'` (migration 0014), for a shield or a one-handed weapon
+  beside another. `ZoneEconOp::WearIn { character, item, place }` puts a thing into a
+  named place; `GearReading.templates` is three wide; `ItemSummary` says where a thing is
+  worn (`worn_in`) and whether it may go into the off hand (`off`).
+
 - **The item bar** (LOOK.md 3.2, ITEMS.md 4; `HUB_VERSION` 12, `PLAYER_VERSION` 7,
   2026-10-08): a small record a character, `bars (character_id, cell_1..cell_4 text)`,
   one row once the character has arranged it (migration 0013). `EconOp::Bar` reads it

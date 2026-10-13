@@ -6,7 +6,7 @@
 use gm_core::sim::BAR_CELLS;
 use std::time::Duration;
 
-use gm_content::items::{ItemContent, Place};
+use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, Place};
 use gm_core::matrix::Gear;
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
@@ -39,7 +39,10 @@ pub fn fits(
     template: &str,
     place: Option<Place>,
 ) -> Result<(), String> {
-    if place != Some(Place::Weapon) {
+    // A weapon, in either hand, wants the build's hands; a shield and an armour fit all.
+    if !matches!(place, Some(Place::Weapon | Place::Off))
+        || !content.template(template).is_some_and(|t| t.deals())
+    {
         return Ok(());
     }
     let model = content.model(template).unwrap_or(template);
@@ -144,6 +147,8 @@ pub struct Item {
     pub components: Vec<Component>,
     /// Somebody wears it (ITEMS.md 2): only ever true in its wearer's inventory.
     pub worn: bool,
+    /// Where (`Place::name`), when it is worn.
+    pub worn_in: Option<String>,
     /// How many (MODES.md 11.1): 1 for gear and parts, a stack's count for a stack.
     pub quantity: u32,
 }
@@ -151,7 +156,7 @@ pub struct Item {
 /// A stack in a character's inventory, as a zone reads it (MODES.md 11.2).
 /// What `Economy::gear` reads of a character (ITEMS.md 3.3): the reading's number, the
 /// gear term, the templates worn, the stacks carried and the item bar (LOOK.md 3.2).
-pub type Reading = (u64, Gear, [String; 2], Vec<Stack>, Vec<Option<String>>);
+pub type Reading = (u64, Gear, [String; 3], Vec<Stack>, Vec<Option<String>>);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stack {
@@ -630,12 +635,14 @@ async fn playing_in(tx: &mut Tx<'_>, character: i64, zone: &str) -> Result<(), E
 
 /// What the character's worn items do (ITEMS.md 3.2), within a transaction.
 /// The sixteen numbers of what a character wears, and the templates worn by place
-/// (weapon, armour; empty for nothing).
+/// (weapon, off hand, armour; empty for nothing). The off hand's item adds to what the
+/// weapon deals (a second weapon) or to what the armour takes (a shield), each number
+/// capped where the zone caps it (ITEMS.md 3.1).
 async fn gear_in(
     tx: &mut Tx<'_>,
     character: i64,
     content: &ItemContent,
-) -> Result<(Gear, [String; 2]), EconError> {
+) -> Result<(Gear, [String; 3]), EconError> {
     let rows = sqlx::query(
         "select w.slot, i.id, i.template from worn w join items i on i.id = w.item_id \
          where w.character_id = $1",
@@ -645,26 +652,34 @@ async fn gear_in(
     .await
     .map_err(internal)?;
     let mut gear = Gear::NONE;
-    let mut templates: [String; 2] = Default::default();
+    let mut templates: [String; 3] = Default::default();
+    let add = |into: &mut [u16; 9], edges: [u16; 9]| {
+        for (a, b) in into.iter_mut().zip(edges) {
+            *a = a.saturating_add(b).min(MAX_EDGE_PER_MILLE as u16);
+        }
+    };
     for r in rows {
         let slot: String = r.try_get("slot").map_err(internal)?;
         let id: i64 = r.try_get("id").map_err(internal)?;
         let template: String = r.try_get("template").map_err(internal)?;
+        let Some(place) = Place::parse(&slot) else {
+            continue;
+        };
         let parts = components_of(tx, id).await?;
         let materials = parts.iter().map(|c| c.material.as_str());
-        // Content that no longer knows the template, or knows it as another kind than
-        // the place it was put into, gives nothing (and is still named: what is worn is
-        // worn, whatever it does).
-        match content.edges(&template, materials) {
-            Some((Place::Weapon, edges, _)) if slot == Place::Weapon.name() => gear.dealt = edges,
-            Some((Place::Armour, edges, _)) if slot == Place::Armour.name() => gear.taken = edges,
-            _ => {}
+        // Content that no longer knows the template, or no longer lets it into the place
+        // it was put into, gives nothing (and is still named: what is worn is worn,
+        // whatever it does).
+        if content.may_wear_in(&template, place)
+            && let Some((_, edges, _)) = content.edges(&template, materials)
+        {
+            let deals = content.template(&template).is_some_and(|t| t.deals());
+            match (place, deals) {
+                (Place::Weapon, _) | (Place::Off, true) => add(&mut gear.dealt, edges),
+                (Place::Armour, _) | (Place::Off, false) => add(&mut gear.taken, edges),
+            }
         }
-        if slot == Place::Weapon.name() {
-            templates[0] = template;
-        } else if slot == Place::Armour.name() {
-            templates[1] = template;
-        }
+        templates[place.index()] = template;
     }
     Ok((gear, templates))
 }
@@ -1039,7 +1054,7 @@ impl Economy {
             .try_get("coin")
             .map_err(internal)?;
         let rows = sqlx::query(
-            "select id, template, quantity, exists (select 1 from worn w where w.item_id = items.id) as worn \
+            "select id, template, quantity, (select w.slot from worn w where w.item_id = items.id) as worn_in \
              from items where holder_id = $1 order by id",
         )
         .bind(holder)
@@ -1054,7 +1069,11 @@ impl Economy {
                 id,
                 template: r.try_get("template").map_err(internal)?,
                 components: components_of(tx, id).await?,
-                worn: r.try_get("worn").map_err(internal)?,
+                worn: r
+                    .try_get::<Option<String>, _>("worn_in")
+                    .map_err(internal)?
+                    .is_some(),
+                worn_in: r.try_get("worn_in").map_err(internal)?,
                 quantity: quantity.max(0) as u32,
             });
         }
@@ -1074,7 +1093,10 @@ impl Economy {
     /// refused.
     ///
     /// `hands` is what the character's build holds (`hub::hands`): a weapon whose model
-    /// none of its abilities holds is refused in words (ITEMS.md 2).
+    /// none of its abilities holds is refused in words (ITEMS.md 2). `place` is where it
+    /// is to go when the asker says (a sword into the left hand beside another); nobody
+    /// saying, the template's own place. An item that does not go there is refused in
+    /// words.
     pub async fn wear(
         &self,
         character: i64,
@@ -1082,6 +1104,7 @@ impl Economy {
         item: i64,
         content: &ItemContent,
         hands: &[String],
+        place: Option<Place>,
     ) -> Result<Reading, EconError> {
         let mut tx = self.begin().await?;
         playing_in(&mut tx, character, zone).await?;
@@ -1112,10 +1135,31 @@ impl Economy {
             return Err(EconError::Invalid(NOT_CARRIED.into()));
         }
         let template: String = r.try_get("template").map_err(internal)?;
-        let place = content
-            .place(&template)
-            .ok_or_else(|| EconError::Invalid("that cannot be worn".into()))?;
+        let place = match place {
+            Some(p) if content.may_wear_in(&template, p) => p,
+            Some(p) => {
+                let where_ = match p {
+                    Place::Weapon => "the right hand",
+                    Place::Off => "the left hand",
+                    Place::Armour => "the body",
+                };
+                return Err(EconError::Invalid(format!(
+                    "a {template} does not go on {where_}"
+                )));
+            }
+            None => content
+                .place(&template)
+                .ok_or_else(|| EconError::Invalid("that cannot be worn".into()))?,
+        };
         fits(content, hands, &template, Some(place)).map_err(EconError::Invalid)?;
+        // It is one item: it leaves the place it was in (a sword moved from the right
+        // hand to the left), then takes this one from whatever was there.
+        sqlx::query("delete from worn where character_id = $1 and item_id = $2")
+            .bind(character)
+            .bind(item)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal)?;
         sqlx::query("delete from worn where character_id = $1 and slot = $2")
             .bind(character)
             .bind(place.name())
@@ -2120,6 +2164,7 @@ impl Economy {
                     components: Vec::new(),
                     // A worn item is in no offer: wearing it took it out of every one.
                     worn: false,
+                    worn_in: None,
                     quantity: row.try_get::<i32, _>("quantity").map_err(internal)?.max(0) as u32,
                 },
             ));
@@ -2629,6 +2674,7 @@ impl Economy {
                     template: row.try_get("template").map_err(internal)?,
                     components: components_of(&mut tx, item).await?,
                     worn: false,
+                    worn_in: None,
                     quantity: row.try_get::<i32, _>("quantity").map_err(internal)?.max(0) as u32,
                 },
             });

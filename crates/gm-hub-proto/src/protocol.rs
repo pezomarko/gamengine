@@ -784,6 +784,14 @@ pub enum ZoneEconOp {
     /// each other (PARTY.md 6): the zone vouches for that, and the hub opens the trade
     /// (calling off any trade either still had open). Answered `Id`.
     TradeOpen { a: CharacterId, b: CharacterId },
+    /// `Wear`, into a named place (`PLACE_WEAPON`, `PLACE_OFF`, `PLACE_ARMOUR`): a sword
+    /// into the left hand beside another (ITEMS.md 2). Refused in words when the item
+    /// does not go there. v13.
+    WearIn {
+        character: CharacterId,
+        item: ItemId,
+        place: u8,
+    },
 }
 
 /// An open stall as its zone shows it: where it is and who keeps it.
@@ -811,6 +819,8 @@ pub enum ContractOutcome {
 pub const PLACE_NONE: u8 = 0;
 pub const PLACE_WEAPON: u8 = 1;
 pub const PLACE_ARMOUR: u8 = 2;
+/// The off hand (ITEMS.md 2): a shield, or a one-handed weapon beside another. v8.
+pub const PLACE_OFF: u8 = 3;
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ItemSummary {
@@ -818,12 +828,17 @@ pub struct ItemSummary {
     pub template: String,
     /// `(layer, material)` in layer order.
     pub components: Vec<(String, String)>,
-    /// Where it is worn: `PLACE_WEAPON`, `PLACE_ARMOUR`, or `PLACE_NONE`.
+    /// Where it is worn when nobody says: `PLACE_WEAPON`, `PLACE_OFF`, `PLACE_ARMOUR`, or
+    /// `PLACE_NONE`.
     pub place: u8,
+    /// It may be worn in the off hand as well (a one-handed weapon, ITEMS.md 2): the bag
+    /// takes it dropped on the left hand's slot. Player protocol v8.
+    pub off: bool,
     /// Its edge there, per mille per damage type in `DamageType`'s order (ITEMS.md 3.2).
     pub edge: [u16; 9],
-    /// Its holder wears it now.
+    /// Its holder wears it now; and where (`PLACE_*`, `PLACE_NONE` when not). v8.
     pub worn: bool,
+    pub worn_in: u8,
     /// What it is, in words: `a weapon, 220 of 250`; `a core, for crafting`.
     pub what: String,
     /// What it does, in words, the strongest first: `slash +11.0%`. A screen shows these
@@ -847,10 +862,10 @@ pub struct ItemSummary {
 pub struct GearReading {
     pub seq: u64,
     pub gear: Gear,
-    /// The keys of the templates worn, by place (weapon, armour); empty for nothing (LOOK.md
-    /// 6.2: keys, so that a hub and a zone on different content versions disagree about
-    /// nothing but what to draw). v1.9.
-    pub templates: [String; 2],
+    /// The keys of the templates worn, by place (weapon, off hand, armour); empty for
+    /// nothing (LOOK.md 6.2: keys, so that a hub and a zone on different content versions
+    /// disagree about nothing but what to draw). v1.9; three since v13.
+    pub templates: [String; 3],
     /// The stacks in the inventory (MODES.md 11.2): a firearm's reserve is the quantity of
     /// the one its `ammo` names, the kits are the ones that heal. v11.
     pub stacks: Vec<StackReading>,
@@ -1223,7 +1238,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 12;
+pub const HUB_VERSION: u8 = 13;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

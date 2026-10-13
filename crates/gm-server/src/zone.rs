@@ -318,17 +318,20 @@ fn look_of(
             off: Look::NONE,
         };
     }
-    let worn = hub_slots
-        .get(&body)
-        .map(|s| s.worn[0].as_str())
-        .filter(|t| !t.is_empty());
+    let worn = |place: usize| {
+        hub_slots
+            .get(&body)
+            .map(|s| s.worn[place].as_str())
+            .filter(|t| !t.is_empty())
+    };
     let primary = player.map(|p| p.sheet.build.primary as usize);
-    // The off hand (LOOK.md 6.5): the guard's prop, a shield for a shield wall.
+    // The off hand (LOOK.md 6.5): what is worn there, else the guard's prop, a shield for
+    // a shield wall. The body (LOOK.md 6.6): the armour's overlay.
     let guard = player.and_then(|p| p.sheet.build.guard.map(|g| g as usize));
     Look {
-        held: looks.held(worn, primary),
-        worn: Look::NONE,
-        off: looks.off(guard),
+        held: looks.held(worn(0), primary),
+        worn: looks.worn(worn(2)),
+        off: looks.off(worn(1), guard),
     }
 }
 
@@ -398,8 +401,9 @@ struct HubSlot {
     /// The number of the hub's reading of its gear that the body has (ITEMS.md 3.3): a
     /// reading with a smaller number that arrives later changes nothing.
     gear_seq: u64,
-    /// The templates worn by place, from the same reading (LOOK.md 6.2): what it holds.
-    worn: [String; 2],
+    /// The templates worn by place (weapon, off hand, armour), from the same reading
+    /// (LOOK.md 6.2): what it holds and wears.
+    worn: [String; 3],
     /// The stacks it carries, from the same reading (MODES.md 11.2): the firearms'
     /// reserves and the kits, and which item row each is, for the hub's books.
     stacks: Vec<StackReading>,
@@ -1675,7 +1679,12 @@ pub async fn run_with_web(
                         s.send_control(FromZone::BuyResult { listing, result });
                     }
                 }
-                ClientEvent::Wear { id, item, on } => {
+                ClientEvent::Wear {
+                    id,
+                    item,
+                    on,
+                    place,
+                } => {
                     let Some(session) = sessions.get_mut(&id) else {
                         continue;
                     };
@@ -1717,7 +1726,7 @@ pub async fn run_with_web(
                                     result,
                                     tell,
                                 };
-                                let asked = link.wear(character, item, on);
+                                let asked = link.wear(character, item, on, place);
                                 tokio::pin!(asked);
                                 match tokio::time::timeout(HUB_PATIENCE, &mut asked).await {
                                     Ok(result) => {

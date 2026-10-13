@@ -12,8 +12,8 @@ use gm_core::vocab::DamageType;
 use gm_hub::economy::{EconError, Economy, INVENTORY_SLOTS, MAX_PARTS, NOT_CARRIED, WORN};
 use gm_hub::protocol::{
     BuildChoice, CharacterId, CharacterState, EconOp, EconReply, GearReading, HubError, HubRequest,
-    HubResponse, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_WEAPON, SessionId,
-    ZoneEconOp,
+    HubResponse, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_OFF, PLACE_WEAPON,
+    SessionId, ZoneEconOp,
 };
 use gm_hub::{Db, HubClient, HubClientError, HubConfig, HubKey};
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
@@ -168,6 +168,28 @@ async fn change_gear(
     match zone_econ(zone, op).await? {
         EconReply::Gear(reading) => Ok(reading),
         other => panic!("wear: {other:?}"),
+    }
+}
+
+/// A zone puts an item into a named place (ITEMS.md 2: `WearIn`).
+async fn wear_in(
+    zone: &HubClient,
+    character: CharacterId,
+    item: i64,
+    place: u8,
+) -> Result<GearReading, HubError> {
+    match zone_econ(
+        zone,
+        ZoneEconOp::WearIn {
+            character,
+            item,
+            place,
+        },
+    )
+    .await?
+    {
+        EconReply::Gear(reading) => Ok(reading),
+        other => panic!("wear in: {other:?}"),
     }
 }
 
@@ -570,6 +592,84 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     let gear = wear(&town, smith, sword).await.unwrap();
     assert_eq!((gear.dealt, gear.taken), (sword_edge, cuirass_edge));
 
+    // The off hand (ITEMS.md 2, 2026-10-13). The plain sword goes into the left hand
+    // beside the best one when asked, and adds under the cap: 220 + 40 of slash is 250.
+    let reading = wear_in(&town, smith, plain, PLACE_OFF).await.unwrap();
+    let mut both = sword_edge;
+    both[at(DamageType::Slash)] = 250;
+    assert_eq!((reading.gear.dealt, reading.gear.taken), (both, cuirass_edge));
+    assert_eq!(
+        reading.templates,
+        ["sword".to_string(), "sword".to_string(), "cuirass".to_string()]
+    );
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert_eq!(
+        (find(&have, sword).worn_in, find(&have, plain).worn_in),
+        (PLACE_WEAPON, PLACE_OFF)
+    );
+    assert!(find(&have, sword).off && find(&have, plain).off, "a sword goes either way");
+    assert!(!find(&have, cuirass).off);
+    // Not an armour, not a two-handed staff (held right only), not a dagger this build
+    // does not swing (the hands rule holds in the left hand too); the words say why.
+    assert_eq!(
+        wear_in(&town, smith, cuirass, PLACE_OFF).await,
+        Err(HubError::Invalid("a cuirass does not go on the left hand".into()))
+    );
+    assert_eq!(
+        wear_in(&town, smith, staff, PLACE_OFF).await,
+        Err(HubError::Invalid("a staff does not go on the left hand".into()))
+    );
+    let dagger = direct
+        .grant_item(smith, "dagger", &iron, room("dagger").as_deref())
+        .await
+        .unwrap();
+    assert_eq!(
+        wear_in(&town, smith, dagger, PLACE_OFF).await,
+        Err(HubError::Invalid(
+            "this build's hands are for the sword: not a dagger".into()
+        ))
+    );
+    assert_eq!(
+        wear_in(&town, smith, plain, 9).await,
+        Err(HubError::Invalid("no such place".into()))
+    );
+    // A shield goes into the left hand by nature, takes the plain sword's place there,
+    // and guards beside the cuirass: 220 + 40 of a blow is 250.
+    let shield = direct
+        .grant_item(smith, "shield", &iron, room("shield").as_deref())
+        .await
+        .unwrap();
+    let gear = wear(&town, smith, shield).await.unwrap();
+    assert_eq!(gear.dealt, sword_edge);
+    assert_eq!(gear.taken, [250, 250, 250, 0, 0, 0, 0, 0, 0]);
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    let shown = find(&have, shield);
+    assert_eq!((shown.place, shown.worn_in, shown.off), (PLACE_OFF, PLACE_OFF, false));
+    assert_eq!(shown.what, "a shield, 40 of 250");
+    assert_eq!(shown.does, ["physical -2.0%"]);
+    assert!(!find(&have, plain).worn, "the shield took the left hand");
+    assert_eq!(
+        wear_in(&town, smith, shield, PLACE_WEAPON).await,
+        Err(HubError::Invalid("a shield does not go on the right hand".into()))
+    );
+    // The one sword asked into the left hand moves there: the right hand is empty.
+    let reading = wear_in(&town, smith, sword, PLACE_OFF).await.unwrap();
+    assert_eq!((reading.gear.dealt, reading.gear.taken), (sword_edge, cuirass_edge));
+    assert_eq!(
+        reading.templates,
+        [String::new(), "sword".to_string(), "cuirass".to_string()]
+    );
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert_eq!(find(&have, sword).worn_in, PLACE_OFF);
+    assert!(!find(&have, shield).worn);
+    // And back into its own place by a plain Wear.
+    let gear = wear(&town, smith, sword).await.unwrap();
+    assert_eq!((gear.dealt, gear.taken), (sword_edge, cuirass_edge));
+    assert_eq!(
+        find(&inventory(&smith_conn, smith_s, smith).await, sword).worn_in,
+        PLACE_WEAPON
+    );
+
     // The players' messages (HUB.md 3.8): what the screens ask, in the client's own
     // encoding. Wearing is not among them.
     let players = |op: PlayerEcon| {
@@ -604,6 +704,8 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
             id: listing,
             item: ItemSummary {
                 worn: false,
+                worn_in: PLACE_NONE,
+                off: true,
                 ..find(&have, plain)
             },
             price: 12_345,

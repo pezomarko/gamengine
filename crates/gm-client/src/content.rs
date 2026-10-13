@@ -16,6 +16,9 @@ pub const DIR: &str = "built/content";
 /// `<frame>_<armour>`.
 #[cfg(target_arch = "wasm32")]
 const AVATAR_PREFIX: &str = "avatar:";
+/// And an armour overlay's, before `<frame>:<key>`.
+#[cfg(target_arch = "wasm32")]
+const OVERLAY_PREFIX: &str = "overlay:";
 /// Where the browser's fetches land, by key: the file's bytes, or `None` for a 404.
 #[cfg(target_arch = "wasm32")]
 type Inbox<K> = std::rc::Rc<std::cell::RefCell<Vec<(K, Option<Vec<u8>>)>>>;
@@ -47,6 +50,8 @@ pub struct Content {
     /// The official avatars by frame and armour class (CONTENT.md 3.2): `None` until
     /// asked for, then as a prop.
     pub avatars: [[Option<PropState>; 4]; 4],
+    /// The armour overlays (CONTENT.md 3.3) by model key and frame, as props.
+    pub overlays: HashMap<(String, u8), PropState>,
     /// Where props are read from: a directory natively, a URL prefix in the browser.
     base: String,
     /// Files that arrived (the browser's fetches land here; natively a read is immediate).
@@ -67,6 +72,7 @@ impl Content {
             atlas_inbox: Default::default(),
             props: HashMap::new(),
             avatars: Default::default(),
+            overlays: HashMap::new(),
             base: String::new(),
             #[cfg(target_arch = "wasm32")]
             inbox: Default::default(),
@@ -364,6 +370,75 @@ impl Content {
         }
     }
 
+    /// The overlay of an armour's model for a frame (CONTENT.md 3.3), by the same road as
+    /// a prop: `Some(slot)` when it is on the GPU, the first ask starts the load, and
+    /// `None` for good when the bundle has none for that frame.
+    pub fn overlay(
+        &mut self,
+        key: &str,
+        frame: u8,
+        mut load: impl FnMut(&Model) -> Option<usize>,
+    ) -> Option<usize> {
+        let at = (key.to_string(), frame);
+        if let Some(state) = self.overlays.get(&at) {
+            return match state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+        }
+        let Some(entry) = self.manifest.as_ref().and_then(|m| m.overlay(key, frame)) else {
+            self.overlays.insert(at, PropState::Missing);
+            return None;
+        };
+        let (file, sha) = (entry.file.clone(), entry.sha256);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let path = std::path::Path::new(&self.base).join(&file);
+            let state = match std::fs::read(&path) {
+                Ok(bytes) => Self::decoded_overlay(key, frame, &bytes, sha, &mut load),
+                Err(e) => {
+                    log::warn!("overlay `{key}` for frame {frame}: {}: {e}", path.display());
+                    PropState::Missing
+                }
+            };
+            let out = match &state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+            self.overlays.insert(at, state);
+            out
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sha, &mut load);
+            let url = format!("{}/{file}", self.base);
+            let inbox = self.inbox.clone();
+            let filed = format!("{OVERLAY_PREFIX}{frame}:{key}");
+            wasm_bindgen_futures::spawn_local(async move {
+                let bytes = match crate::web::fetch_bytes(&url).await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        log::warn!("{e}");
+                        None
+                    }
+                };
+                inbox.borrow_mut().push((filed, bytes));
+            });
+            self.overlays.insert(at, PropState::Loading);
+            None
+        }
+    }
+
+    /// What an armour's overlay covers (CONTENT.md 3.3): the standard bones whose part of
+    /// the body is hidden under it, from the template whose model it is; nothing for a
+    /// key no template names.
+    pub fn covers(&self, key: &str) -> u32 {
+        self.manifest
+            .as_ref()
+            .and_then(|m| m.templates.iter().find(|t| t.model.as_deref() == Some(key)))
+            .map_or(0, |t| t.covers)
+    }
+
     /// Fetches that landed since the last frame, decoded and put on the GPU (one a frame,
     /// like avatars, WEB.md 4).
     #[cfg(target_arch = "wasm32")]
@@ -376,6 +451,27 @@ impl Content {
             inbox.remove(0)
         };
         let (key, bytes) = arrived;
+        if let Some(rest) = key.strip_prefix(OVERLAY_PREFIX) {
+            let (frame, key) = match rest.split_once(':') {
+                Some((f, k)) => (f.parse::<u8>().unwrap_or(255), k.to_string()),
+                None => return,
+            };
+            let sha = self
+                .manifest
+                .as_ref()
+                .and_then(|m| m.overlay(&key, frame))
+                .map(|e| e.sha256)
+                .unwrap_or([0; 32]);
+            let state = match bytes {
+                Some(bytes) => Self::decoded_overlay(&key, frame, &bytes, sha, &mut load),
+                None => {
+                    log::warn!("overlay `{key}` for frame {frame}: not on the site");
+                    PropState::Missing
+                }
+            };
+            self.overlays.insert((key, frame), state);
+            return;
+        }
         if let Some(rest) = key.strip_prefix(AVATAR_PREFIX) {
             let mut it = rest.split('_').map(|s| s.parse::<u8>().unwrap_or(255));
             let (frame, armour) = (it.next().unwrap_or(255), it.next().unwrap_or(255));
@@ -413,6 +509,42 @@ impl Content {
             }
         };
         self.props.insert(key, state);
+    }
+
+    /// An overlay's bytes: the file the manifest names, an overlay made for that frame.
+    fn decoded_overlay(
+        key: &str,
+        frame: u8,
+        bytes: &[u8],
+        sha: [u8; 32],
+        load: &mut impl FnMut(&Model) -> Option<usize>,
+    ) -> PropState {
+        if gm_model::model_id(bytes) != sha {
+            log::warn!("overlay `{key}`: the file is not the one the manifest names");
+            return PropState::Missing;
+        }
+        match Model::decode(bytes) {
+            Ok(m) if m.is_overlay() && m.frame == frame => match load(&m) {
+                Some(slot) => {
+                    log::info!(
+                        "overlay `{key}` for frame {frame}: {} triangles, {}x{} atlas",
+                        m.triangles(),
+                        m.tex_w,
+                        m.tex_h
+                    );
+                    PropState::Loaded(slot)
+                }
+                None => PropState::Missing,
+            },
+            Ok(_) => {
+                log::warn!("overlay `{key}`: the file is not an overlay for frame {frame}");
+                PropState::Missing
+            }
+            Err(e) => {
+                log::warn!("overlay `{key}`: {e}");
+                PropState::Missing
+            }
+        }
     }
 
     /// An official avatar's bytes: the file the manifest names, a body of that frame.

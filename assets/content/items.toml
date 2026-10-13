@@ -10,6 +10,12 @@
 # counts for its element; shard, frame and gems count for the kinds the core and the
 # catalyst reach and for no other. An item is for one build and not for another.
 
+# Where it is worn (ITEMS.md 2): a weapon in the right hand (`held = "either"`: or in the
+# left beside another, two swords), a shield (`kind = "shield"`) in the left, an armour on
+# the body. An armour's `model` is its overlay (models/armour/<model>_<frame>.glb, CONTENT.md
+# 3.3), drawn over the body with the body's pose; `covers` names the standard bones whose
+# part of the body is hidden under it.
+#
 # Looks (CONTENT.md 3): `model` is the prop drawn in the hand of whoever wears one
 # (models/props/<model>.glb), fitted into hand space by `fit` (metres, degrees about glTF's
 # X, Y, Z in that order, a scale: the grip ends at the origin, the business end along +Z).
@@ -27,6 +33,7 @@ kind = "weapon"
 strikes = "slash"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "sword"
+held = "either"                              # one in each hand: the crusader's way (ITEMS.md 2)
 fit = { turn = [90, 0, 0], scale = 0.36 }   # Quaternius' warrior sword (LICENSES.md): 3.2 m along +Y as it comes
 
 # The colossus's greatsword (MATRIX.md 16), ours (`gm-tools content synth greatsword`): in
@@ -44,6 +51,7 @@ kind = "weapon"
 strikes = "slash"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "dagger"
+held = "either"
 fit = { turn = [90, 0, 0], scale = 0.55 }
 
 [[template]]
@@ -95,12 +103,26 @@ id = "cuirass"
 kind = "armour"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
+model = "cuirass"                            # the leather jerkin, pauldrons and bracers (LICENSES.md), on the striker
+covers = ["spine", "chest"]
 
 [[template]]
 id = "robe"
 kind = "armour"
 guards = "elements"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "robe"                               # the cloth tunic with sleeves, on the striker
+covers = ["spine", "chest"]
+
+# A shield (ITEMS.md 2): worn in the left hand by anyone, guarding like an armour; a
+# shield wall's own shield is the same model, held bare (abilities.toml).
+[[template]]
+id = "shield"
+kind = "shield"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "shield"
+held = "left"
 
 # Stacks (MODES.md 11.1): one row and one slot, merged up to the cap, which is the strict
 # limit of what a body carries. A firearm names the stack its reserve is drawn from

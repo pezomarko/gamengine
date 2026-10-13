@@ -81,6 +81,10 @@ pub struct Body {
     pub prop: Option<usize>,
     /// The prop in its off hand (LOOK.md 6.5: a shield), the same way.
     pub off: Option<usize>,
+    /// The overlay of the armour it wears (LOOK.md 6.6), the same way, drawn over it with
+    /// its pose; and the bones whose part of the body the overlay covers, not drawn.
+    pub worn: Option<usize>,
+    pub hide: u32,
 }
 
 struct Track {
@@ -114,6 +118,8 @@ pub struct Avatars {
     pub crowd_prop: Option<usize>,
     /// And in its left hand (`--off`).
     pub crowd_off: Option<usize>,
+    /// And on its body (`--worn`): the overlay and what it covers.
+    pub crowd_worn: Option<(usize, u32)>,
     /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
     /// loaded: a body without a model of its own wears one before it is the mannequin.
     officials: [[Option<usize>; 4]; 4],
@@ -229,6 +235,7 @@ impl Avatars {
             with_model: 0,
             crowd_prop: None,
             crowd_off: None,
+            crowd_worn: None,
             officials: [[None; 4]; 4],
         })
     }
@@ -342,9 +349,14 @@ impl Avatars {
                     tint: [1.0; 3],
                     light,
                     attach: Some(attach),
+                    hide: 0,
                 });
             }
         }
+        // What it wears (LOOK.md 6.6): the overlay, posed as the body is, over the body
+        // with the covered parts left out. A body drawn with its model or the official
+        // look hides them; the mannequin shows the overlay over its segments as it is.
+        let worn = body.worn.filter(|_| characters.info(slot).is_some());
         self.draws.push(CharacterDraw {
             slot,
             world,
@@ -352,7 +364,19 @@ impl Avatars {
             tint,
             light,
             attach: None,
+            hide: if worn.is_some() { body.hide } else { 0 },
         });
+        if let Some(worn) = worn {
+            self.draws.push(CharacterDraw {
+                slot: worn,
+                world,
+                pose,
+                tint,
+                light,
+                attach: None,
+                hide: 0,
+            });
+        }
         // The marks round a body (its aspects' ring, its name) are the frame's: the
         // effects and the HUD draw them (LOOK.md 13); nothing solid stands for them.
         let _ = (feet, boxes);
@@ -424,6 +448,7 @@ impl Avatars {
             tint: [1.0; 3],
             light,
             attach: Some(basis * inward * tip * fit),
+            hide: 0,
         });
     }
 
@@ -486,6 +511,10 @@ impl Avatars {
                 lit: 0.0,
                 prop: self.crowd_prop,
                 off: self.crowd_off,
+                // The overlay was cut for the striker (`--worn`, LOOK.md 6.6): the
+                // crowd's strikers wear it, the other frames stand bare.
+                worn: self.crowd_worn.filter(|_| frame == 1).map(|(slot, _)| slot),
+                hide: self.crowd_worn.filter(|_| frame == 1).map_or(0, |(_, hide)| hide),
             };
             self.push(&body, dt, bsp, characters, boxes);
             // Running on the spot: feed the stride the animator would have seen.
@@ -598,6 +627,8 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         lit: 0.0,
         prop: None,
         off: None,
+        worn: None,
+        hide: 0,
     }
 }
 

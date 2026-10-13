@@ -36,15 +36,26 @@ simulation knew of none, and no screen showed one.
 
 ## 2. What is worn
 
-A character has two places: **weapon** and **armour**. A template's `kind` says which one an
-item goes into (`items.toml`: `weapon` or `armour`; a component is neither and cannot be
-worn). One item in each, or none. "Worn" in this document is about items; the avatar model a
-character wears is MODELS.md's.
+A character has three places: **weapon** (the right hand), **off** (the left hand, since
+2026-10-13) and **armour** (the body). A template's `kind` says where an item goes
+(`items.toml`: `weapon`, `shield` or `armour`; a component is neither and cannot be worn): a
+weapon into the right hand, or into the left when its row says `held = "left"`; a shield
+into the left; an armour onto the body. A one-handed weapon whose row says `held =
+"either"` (the sword, the dagger) goes into the right hand when nobody says, and into the
+left when the person says so (`WearIn`, below): two swords, a sword and a shield, one or
+both hands empty. One item in each place, or none. "Worn" in this document is about
+items; the avatar model a character wears is MODELS.md's, and what the worn items look
+like on it is LOOK.md 6 (the weapon in the right fist, the off hand's thing in the left,
+the armour as an overlay over the body).
 
 - **Wear** an item: it must be in the character's own inventory and of a kind that is worn.
   It takes its place; whatever was there is taken off. Wearing what is worn already changes
   nothing. An item on offer in a trade leaves the offer (both accepts are cleared and the
-  offer's version moves on, as when an offered item is destroyed).
+  offer's version moves on, as when an offered item is destroyed). **Wear in** a named
+  place (`WearIn { item, place }`): the same, into the right hand, the left hand or the
+  body as asked; an item that does not go there is refused in words ("a cuirass does not
+  go on the left hand"), and a sword worn in the right hand and asked into the left moves
+  there (it is one item: it leaves the place it was in).
 - **Take off** an item: its place is empty again. Taking off what is not worn changes nothing
   and is no error; an item whose template the content no longer knows comes off like any
   other.
@@ -62,14 +73,18 @@ character wears is MODELS.md's.
   pistol and the dagger: not a staff", and says the same of the item wherever it is shown
   (`ItemSummary.fits` false, the words last in `does`: the inventory, the storage, a stall's
   listing, a trade), so the bag offers no Wear for it and takes no drop of it on the weapon
-  slot. Armour, parts and stacks fit everyone. The rule is the build's, not the item's: the
+  slot. Armour, shields, parts and stacks fit everyone; a weapon in the left hand wants
+  the hands as a weapon in the right does. The rule is the build's, not the item's: the
   item stays unbound, sells to whoever holds one, and the same sword fits every build whose
   abilities hold a sword. A respec that leaves a worn weapon behind keeps it on until it is taken off (an
   open point; the trainer could take it off at the `Respawned`).
 - A companion (a hired avatar, a recruit) fights in **nothing** in v1 (9).
 
 Stored as `worn (character_id, slot, item_id)`, one row per filled place, the item unique
-(migration 0009). What holds the rule that a worn item stays with its wearer:
+(migration 0009; the `off` slot since migration 0014). What is shown says where an item is
+worn (`ItemSummary.worn_in`, a `PLACE_*`) and whether it may go into the off hand beside
+its own place (`ItemSummary.off`), so the bag's three slots show what is in each and take
+what may be dropped on them. What holds the rule that a worn item stays with its wearer:
 
 | What | How |
 |---|---|
@@ -115,6 +130,12 @@ edge of 220 is 11% more dealt, or 9.9% less taken (2000/2220).
   knockback, stagger build-up, stamina costs, a block's stamina cost.
 - A body with nothing worn has all sixteen at 0, and `gear` is 1: every result measured
   before Phase 11 stands.
+- **The off hand adds** (2026-10-13): a weapon worn there adds its edges to `dealt`, a
+  shield its edges to `taken`, each number capped at 250 as the one place's was, so the
+  bounds above stand: two swords of iron and oak deal 4.0% more slash instead of 2.0%, the
+  best sword in each hand 11.0% (the cap: 250 and 250 are still 250), a shield of iron and
+  oak beside a plain cuirass takes 3.8% less of a blow instead of 2.0%. What the second
+  hand is worth is a proposed number (9).
 
 ### 3.2 From materials to the sixteen numbers
 
@@ -134,6 +155,7 @@ material's edge into the kinds of damage the item is for, and into no other:
 | `crossbow` | weapon | strikes pierce | shard, core, frame, gem |
 | `cuirass` | armour | guards physical | shard, core, frame, gem |
 | `robe` | armour | guards elements | shard, core, catalyst, frame, gem |
+| `shield` | shield | guards physical | shard, core, frame, gem |
 
 (`dagger` is new in Phase 11: the dagger ability had no weapon.) Nothing in the rule names
 an ability or a build. A hammer does nothing for a sword's blows; a staff with an ember
@@ -173,7 +195,9 @@ become, not what they do.
 ### 3.3 Where the numbers travel
 
 - `Gear { dealt: [u16; 8], taken: [u16; 8] }` (`gm_core::matrix`), indexed in the order of
-  `DamageType`. The zone clamps each to 250 whatever it is told.
+  `DamageType`. The zone clamps each to 250 whatever it is told. The reading names the
+  templates worn by place, three since hub protocol 13 (weapon, off, armour): what the
+  zone tells everybody to draw (LOOK.md 6.2).
 - **At the claim**: the hub reads what the character wears *after* it made the character
   that zone's, and `Claimed` carries the reading.
 - **While the character plays**: its gear changes only through its zone (5). The hub's
@@ -225,6 +249,7 @@ the content's looks beside the pack
 | `EconOp::StallUnlist { listing }` | a session | `Done` | out of it again, under the same rule; the inventory must have room |
 | `ZoneEconOp::StallBuy { character, stall, listing, price }` | a zone | `Done` | 5 |
 | `ZoneEconOp::Wear { character, item }`, `TakeOff { character, item }` | a zone | `Gear(GearReading { seq, gear })` | 2, 3.3; a weapon the build's hands do not hold is `Invalid` with the words of 2 |
+| `ZoneEconOp::WearIn { character, item, place }` | a zone | the same | 2: into `PLACE_WEAPON`, `PLACE_OFF` or `PLACE_ARMOUR`; an item that does not go there is `Invalid` in words. Hub protocol 13, players' protocol 8 (`ItemSummary.off`, `.worn_in`), 2026-10-13 |
 
 - **`EconOp::StallBuy` is gone**, as `EconOp::StallOpen` went in Phase 6: a session could
   buy from anywhere, and a program with no body at any stall could buy every underpriced
@@ -267,6 +292,7 @@ the content's looks beside the pack
 |---|---|---|
 | `FromClient::StallBuy { stall, listing, price }` | client → zone | `BuyResult { listing, result }`, always |
 | `FromClient::Wear { item }`, `TakeOff { item }` | client → zone | `WearResult { item, result }`, always |
+| `FromClient::WearIn { item, place }` | client → zone | the same (protocol v19, 2026-10-13: a sword into the left hand) |
 
 - **Buying.** The zone checks that the buyer is alive and in person (not a ghost), that the
   stall is one of its open stalls, and that the buyer stands at it: its feet within
@@ -357,7 +383,12 @@ in full: what it is and its budget (`a weapon, 250 of 250`), everything it does,
 worn in its place now (`you wear: slash +2.0%`, or that nothing is), and what it is made
 of. Buttons: **Wear** / **Take off** (asked of the zone; one a second), **Sell** (when the
 character keeps a stall in this zone and the item is not worn), **Store** (into the
-account's storage), **Storage**, **Close**.
+account's storage), **Storage**, **Close**. The equip panel (LOOK.md 4) has **three
+slots** beside the paperdoll since 2026-10-13: the right hand (`weapon`), the left hand
+(`off`), the body (`armour`). A thing dragged onto its own slot is worn (`Wear`); a
+one-handed weapon dragged onto the left hand is worn there (`WearIn`, 2: the second
+sword); a worn thing dragged into the grid comes off. The **Wear** button puts a thing
+into its own place.
 
 Under the grid, **the item bar** (LOOK.md 3.2): the four cells as drop slots named `bar
 F`, `bar 8`, `bar 9`, `bar 0`, each with the stack set on it (dim, `×0`, while none is
@@ -465,7 +496,9 @@ by clicking: a UI script presses the keys of screens, not of a fight.
 
 ## 9. Proposed numbers and open decisions
 
-Proposed, for the director: two places; **a place counts for half** (the scale of 2000);
+Proposed, for the director: three places (the off hand since 2026-10-13, adding under
+the one cap of 250 a number: a second sword is worth a second sword, until the cap);
+**a place counts for half** (the scale of 2000);
 the layer table of 3.2, what each weapon strikes with and each armour guards against; that
 pulses take no gear; 120 units of reach; the fight lock of 10 s; one change a second; five
 economy requests a second per account; that worn items are locked out of every movement.

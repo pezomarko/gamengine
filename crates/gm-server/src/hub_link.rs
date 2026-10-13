@@ -309,11 +309,16 @@ impl HubLink {
         character: CharacterId,
         item: i64,
         on: bool,
+        place: Option<u8>,
     ) -> Result<GearReading, String> {
-        let op = if on {
-            ZoneEconOp::Wear { character, item }
-        } else {
-            ZoneEconOp::TakeOff { character, item }
+        let op = match (on, place) {
+            (true, Some(place)) => ZoneEconOp::WearIn {
+                character,
+                item,
+                place,
+            },
+            (true, None) => ZoneEconOp::Wear { character, item },
+            (false, _) => ZoneEconOp::TakeOff { character, item },
         };
         match self.client.request(&HubRequest::ZoneEcon(op)).await {
             Ok(HubResponse::Econ(EconReply::Gear(reading))) => Ok(reading),

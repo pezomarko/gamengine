@@ -69,6 +69,16 @@ pub fn run(opts: &Options) -> Result<(), Error> {
         avatars.crowd_prop = slot_of(&opts.prop);
         avatars.crowd_off = slot_of(&opts.off);
     }
+    // `--worn KEY`: the crowd's strikers wear the overlay (LOOK.md 6.6).
+    if let Some(key) = &opts.worn {
+        let slot = content.overlay(key, 1, |model| {
+            Some(renderer.characters.add_model(&gpu, model))
+        });
+        if slot.is_none() {
+            log::warn!("--worn {key}: the bundle has no such overlay for the striker");
+        }
+        avatars.crowd_worn = slot.map(|s| (s, content.covers(key)));
+    }
     let target = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("offscreen"),
         size: wgpu::Extent3d {

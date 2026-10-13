@@ -250,6 +250,8 @@ impl Playback {
                         lit: 0.0,
                         prop: None,
                         off: None,
+                        worn: None,
+                        hide: 0,
                     });
                 }
                 EntityKind::Projectile => boxes.push(EntityDraw {

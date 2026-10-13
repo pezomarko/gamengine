@@ -25,6 +25,10 @@ pub struct CharacterDraw {
     /// A prop (LOOK.md 6.3): not posed, but placed by this one matrix (its model space to
     /// the wearer's), which goes to bone 0 of the block; the other bones are unused.
     pub attach: Option<Mat4>,
+    /// The standard bones whose part of the body is not drawn (LOOK.md 6.6): what a worn
+    /// armour's overlay covers, a bit per bone; a triangle whose first vertex belongs
+    /// mostly to one of them is left out.
+    pub hide: u32,
 }
 
 /// What the animation and the caches need to know about a loaded model.
@@ -88,6 +92,9 @@ struct VsOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) shade: vec3<f32>,
+    // Whether the triangle is hidden under a worn overlay (LOOK.md 6.6): the provoking
+    // vertex's word for the whole triangle, so that nothing is stretched or torn.
+    @location(2) @interpolate(flat) hidden: u32,
 };
 
 @vertex fn vs_main(in: VsIn) -> VsOut {
@@ -104,10 +111,13 @@ struct VsOut {
     out.clip = globals.view_proj * world;
     out.uv = in.uv;
     out.shade = character.tint.rgb * character.light.rgb * (0.45 + 0.55 * wrap * wrap);
+    let hide = u32(character.scale.w);
+    out.hidden = (hide >> in.joints.x) & 1u;
     return out;
 }
 
 @fragment fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    if (in.hidden != 0u) { discard; }
     let albedo = textureSample(atlas, atlas_sampler, in.uv);
     if (albedo.a < 0.5) { discard; }
     return vec4<f32>(albedo.rgb * in.shade, 1.0);
@@ -525,7 +535,8 @@ impl Characters {
             let doll = i >= world_draws;
             let mut block = Block {
                 bones: [[[0.0; 4]; 4]; BONES],
-                scale: [m.scale[0], m.scale[1], m.scale[2], 0.0],
+                // The fourth number carries the hidden bones (24 bits: exact in a float).
+                scale: [m.scale[0], m.scale[1], m.scale[2], d.hide as f32],
                 tint: [d.tint[0], d.tint[1], d.tint[2], 1.0],
                 light: [d.light[0], d.light[1], d.light[2], 1.0],
             };

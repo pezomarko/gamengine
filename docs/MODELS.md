@@ -131,6 +131,11 @@ payload                          one zlib stream to the end of the file:
   texture      BC1 blocks, largest mip first, down to the level whose smaller side is 4
 ```
 
+**An overlay** (2026-10-13, CONTENT.md 3.3) is a body's container with flag bit 3 set
+(`FLAG_OVERLAY`): a frame, the rig, pivots, skinned vertices as a body's, within an
+overlay's budgets (1,500 triangles, 512², 262,144 bytes); never a prop as well. A reader
+that wants a body refuses it, and a client draws it only over a body of its frame.
+
 **A prop** (Phase 14, CONTENT.md 4) is the same container with flag bit 2 set
 (`FLAG_PROP`), `frame` 255, `bone_mask` 1, zero pivots, every vertex on bone 0 with weight
 255, at most 1,000 triangles, a 256² texture and 131,072 bytes, and no vertex further than
@@ -327,7 +332,10 @@ The mannequin is generated from the rig (jointed segments, 784 triangles), tinte
 armour class: cloth pale, leather brown, mail steel, plate dark iron. Since 2026-10-13 a
 body without a model of its own wears the **official avatar** of its frame and armour class
 when the content bundle has one (CONTENT.md 3.2: `avatars.toml`, the striker in mail first),
-untinted; the mannequin stands for the pairs without one and for whatever is refused.
+untinted; the mannequin stands for the pairs without one and for whatever is refused. The
+armour a character **wears** is drawn over the body as an overlay with the body's pose
+(LOOK.md 6.6), and the parts of the body it covers are not drawn (a mask of bones in the
+block's spare number; the shader drops the triangle whole).
 
 What a custom model must not hide is drawn by the client around it: **armour class is in the
 gait** (the heavier the class, the longer and heavier the stride, the smaller the arm swing:

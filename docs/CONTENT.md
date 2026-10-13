@@ -56,6 +56,8 @@ assets/content/
     creatures/<key>.glb       a creature on the standard rig (Phase 17)
     avatars/<key>.glb         the official look of a frame in an armour class (3.2; the row
                               in avatars.toml names the key: striker_mail since 2026-10-13)
+    armour/<key>_<frame>.glb  an armour's overlay for that frame's body (3.3: cuirass_striker,
+                              robe_striker since 2026-10-13)
   icons/<key>.png             32 × 32 pictures that override the baked ones (optional; a
                               key's `/` is `_` in the file name: `status_burn.png`)
   ui/
@@ -67,6 +69,7 @@ assets/built/content/         what `gm-tools content build` writes (committed, 5
   manifest.gmc                every entry by key: files, hashes, icon keys, held, fits
   props/<key>.gmm             ingested props
   avatars/<frame>_<armour>.gmm   ingested official avatars
+  armour/<key>_<frame>.gmm   ingested armour overlays
   ui.gma ui2.gma ui3.gma ui4.gma   the atlases, one per UI scale (LOOK.md 2.2)
 ```
 
@@ -83,9 +86,10 @@ each the key of a file in 2:
 | `[[ability]]` | `icon` | `icons/<icon>.png`; absent: a glyph from the verbs (LOOK.md 3.4) |
 | | `prop` | the prop drawn in the hand while this ability is the primary and nothing is worn (a sword build with no sword still swings one) |
 | | `sound` | the patch (SOUND.md 2) its cues use; absent: the patch of its verb kind as today |
-| `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template |
+| `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template; for an armour, `models/armour/<model>_<frame>.glb`, its overlay (3.3) |
 | | `icon` | absent: baked from `model` (5.3); absent both: a glyph of the template's kind |
-| | `held` | `right` (default), `left`, `back`: which `prop_*` bone (MODELS.md 2) |
+| | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `back`: which `prop_*` bone (MODELS.md 2) |
+| | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
 | `[[creature]]` | `model` | `models/creatures/<model>.glb`; absent: the frame's mannequin |
@@ -95,7 +99,9 @@ each the key of a file in 2:
 
 Since content v3 (2026-10-07, MODES.md 11.1) `[[template]]` has a third `kind`, `stack`:
 no layers, a `cap` (the most one holder carries, 1–1,000) and an optional `heals`; a
-firearm's `ammo` names one. A stack has no model or icon yet: a glyph of its kind.
+firearm's `ammo` names one. A stack has no model or icon yet: a glyph of its kind. Since
+content v9 (2026-10-13, ITEMS.md 2) a fourth, `shield`: worn in the left hand (`held =
+"left"`), guarding like an armour, its model a prop like a weapon's.
 
 Order matters where it did before and nowhere new: `abilities.toml` is **append-only**
 (stored builds name abilities by their place; README). Items are named by their **key**
@@ -176,6 +182,25 @@ Blender), and `scripts/dev/blender-quaternius-warrior.py` is the Blender pass th
 first one (bones renamed, the IK feet and the thighs reparented, the face decimated, the sword
 split off as a prop).
 
+### 3.3 Armour overlays (2026-10-13)
+
+An armour is seen on the body (LOOK.md 6.6): its template's `model` names
+`models/armour/<model>_<frame>.glb` for each frame it was made for, a **skinned piece on
+the standard rig** (MODELS.md 2 and 3: metres, +Y up, facing +Z, the T-pose, one texture)
+cut for that frame's official avatar and sharing its rest pose exactly, so that drawn with
+the body's pose it sits where it was cut. It is ingested as an overlay: the pose check and
+the rig's rules as a body, the budgets of the **overlay** row of 4, no envelope (it covers
+part of a body). `covers` on the row names the bones whose part of the body is hidden
+under it. A frame without a file is drawn bare; `build` refuses a model with no file for
+any frame. The first two are the Fantasy outfits' leather jerkin with its pauldrons and
+bracers (the cuirass) and cloth tunic (the robe) on the striker, cut by
+`scripts/dev/blender-quaternius-hero.py` (the same pass that makes the body: one armature,
+every part decimated to its budget, each outfit pushed 12 mm out so the body does not
+come through) and atlased by `scripts/dev/gltf-atlas.py`; `scripts/dev/hero-pipeline.sh`
+runs the whole pipeline from the packs. The offline fitting room is `gm-client --offline
+--worn KEY` (with `--prop` and `--off` for the hands; `--headless --crowd N` for a
+picture).
+
 ## 4. Kinds and budgets
 
 | Kind | Triangles | Texture | `.gmm` bytes | Extent | Rig |
@@ -183,6 +208,7 @@ split off as a prop).
 | avatar (player upload, official) | ≤ 3,500 | ≤ 1024², BC1 | ≤ 1,572,864 | the frame's envelope | 24 bones, T-pose |
 | creature | ≤ 3,500 | ≤ 1024² | ≤ 1,572,864 | its frame's envelope | 24 bones |
 | **prop** | **≤ 1,000** | **≤ 256²** | **≤ 131,072** | **≤ 96 u from the grip** (3 m) | none: every vertex on bone 0, weight 255 (LOOK.md 6) |
+| **overlay** (3.3) | **≤ 1,500** | **≤ 512²** | **≤ 262,144** | the box of a body | 24 bones, T-pose, the frame it was cut for (`FLAG_OVERLAY`) |
 
 The `.gmm` header's `frame` byte is **255 for a prop** and a flag bit (`FLAG_PROP`, bit 2)
 says so; `bone_mask` is 1 and the pivots are zero. The strict reader (MODELS.md 5) accepts a

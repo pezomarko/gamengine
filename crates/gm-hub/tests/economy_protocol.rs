@@ -508,7 +508,7 @@ async fn the_economy_over_the_wire() {
         listings[0].item.does,
         [
             "slash +2.0%",
-            "this build's hands are for the hammer: not a sword"
+            "this build's hands are for the greatsword and the shield: not a sword"
         ]
     );
     // Buying is done standing at the stall (ITEMS.md 5): the zone the buyer plays in asks,

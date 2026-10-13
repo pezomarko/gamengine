@@ -53,6 +53,11 @@ if ls "$ROOT"/assets/built/content/avatars/*.gmm >/dev/null 2>&1; then
   mkdir -p "$OUT/assets/built/content/avatars"
   cp "$ROOT"/assets/built/content/avatars/*.gmm "$OUT/assets/built/content/avatars/"
 fi
+# The armour overlays (CONTENT.md 3.3), fetched like props when an armour is first worn.
+if ls "$ROOT"/assets/built/content/armour/*.gmm >/dev/null 2>&1; then
+  mkdir -p "$OUT/assets/built/content/armour"
+  cp "$ROOT"/assets/built/content/armour/*.gmm "$OUT/assets/built/content/armour/"
+fi
 if [[ -n "$CONFIG" ]]; then
   cp "$CONFIG" "$OUT/config.json"
 elif [[ ! -f "$OUT/config.json" ]]; then

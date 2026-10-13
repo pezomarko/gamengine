@@ -16,7 +16,8 @@
 
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{
-    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_WEAPON,
+    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_OFF,
+    PLACE_WEAPON,
     SessionId,
 };
 use web_time::{Duration, Instant};
@@ -137,6 +138,11 @@ pub enum BagAction {
     /// Put this item of the inventory on, or take it off (ITEMS.md 2).
     Wear {
         item: i64,
+    },
+    /// Put it on in a named place (`PLACE_*`): a sword into the left hand.
+    WearIn {
+        item: i64,
+        place: u8,
     },
     TakeOff {
         item: i64,
@@ -867,14 +873,19 @@ impl Bag {
         if doll.w >= 20.0 * s {
             ui.paperdoll(doll);
         }
-        let weapon = items.iter().find(|i| i.worn && i.place == PLACE_WEAPON);
-        let armour = items.iter().find(|i| i.worn && i.place == PLACE_ARMOUR);
+        // The three places (ITEMS.md 2): the right hand, the left hand, the body.
+        let weapon = items.iter().find(|i| i.worn && i.worn_in == PLACE_WEAPON);
+        let off = items.iter().find(|i| i.worn && i.worn_in == PLACE_OFF);
+        let armour = items.iter().find(|i| i.worn && i.worn_in == PLACE_ARMOUR);
         let sx = area.x + area.w - slot_w;
         let weapon_slot = Rect::new(sx, area.y, slot_w, side);
-        let armour_slot = Rect::new(sx, area.y + side + gap, slot_w, side);
+        let off_slot = Rect::new(sx, area.y + side + gap, slot_w, side);
+        let armour_slot = Rect::new(sx, area.y + 2.0 * (side + gap), slot_w, side);
         let wt = weapon.map(|i| looks.thing(i));
+        let ot = off.map(|i| looks.thing(i));
         let at = armour.map(|i| looks.thing(i));
         let dropped_on_weapon = ui.drop_slot(weapon_slot, "weapon", wt.as_ref(), &tip);
+        let dropped_on_off = ui.drop_slot(off_slot, "off", ot.as_ref(), &tip);
         let dropped_on_armour = ui.drop_slot(armour_slot, "armour", at.as_ref(), &tip);
         let dropped_in_grid = ui.dropped("items");
         // The item bar (LOOK.md 3.2, ITEMS.md 4): its four cells as slots under the grid,
@@ -1018,26 +1029,37 @@ impl Bag {
         // place wears it; a worn thing dragged into the grid comes off.
         // A thing dropped on a slot must be for that slot (a cuirass on the weapon slot is
         // nothing; the zone would refuse it, and the screen does not ask).
+        // The left hand takes what goes there by nature (a shield) and what may go there
+        // beside the right hand's (a one-handed weapon, `off`).
         let for_slot = |dropped: Option<(String, i64)>, place: u8| {
             dropped
                 .filter(|(from, _)| from == "items")
                 .map(|(_, id)| id)
                 .and_then(|id| items.iter().find(|i| i.id == id))
-                .filter(|i| !i.worn && i.place == place && i.fits)
+                .filter(|i| !i.worn && i.fits && (i.place == place || (place == PLACE_OFF && i.off)))
                 .cloned()
         };
-        let dropped_to_wear =
-            for_slot(dropped_on_weapon, PLACE_WEAPON).or(for_slot(dropped_on_armour, PLACE_ARMOUR));
+        let dropped_to_wear = for_slot(dropped_on_weapon, PLACE_WEAPON)
+            .map(|i| (i, PLACE_WEAPON))
+            .or(for_slot(dropped_on_off, PLACE_OFF).map(|i| (i, PLACE_OFF)))
+            .or(for_slot(dropped_on_armour, PLACE_ARMOUR).map(|i| (i, PLACE_ARMOUR)));
         let dropped_to_take_off = dropped_in_grid
-            .filter(|(from, _)| from == "weapon" || from == "armour")
+            .filter(|(from, _)| from == "weapon" || from == "off" || from == "armour")
             .map(|(_, id)| id)
             .and_then(|id| items.iter().find(|i| i.id == id))
             .filter(|i| i.worn)
             .cloned();
-        if may_change && let Some(item) = dropped_to_wear {
+        if may_change && let Some((item, place)) = dropped_to_wear {
             self.wearing.begin(item.id, self.now);
             self.notice.clear();
-            return BagAction::Wear { item: item.id };
+            return if place == item.place {
+                BagAction::Wear { item: item.id }
+            } else {
+                BagAction::WearIn {
+                    item: item.id,
+                    place,
+                }
+            };
         }
         if may_change && let Some(item) = dropped_to_take_off {
             self.wearing.begin(item.id, self.now);
@@ -1359,6 +1381,8 @@ mod tests {
             place: if whole { PLACE_WEAPON } else { PLACE_NONE },
             edge: [0; 9],
             worn: false,
+            worn_in: PLACE_NONE,
+            off: false,
             quantity: 1,
             cap: 0,
             fits: true,
@@ -1683,6 +1707,70 @@ mod tests {
         run.look(&mut bag, &hub);
         assert!(run.shows("this build's hands are for the sword: not a staff"));
         assert!(!run.offers("Wear") && run.offers("Store"));
+    }
+
+    /// ITEMS.md 2: the equip panel has three slots; a sword dropped on the left hand's is
+    /// worn there (`WearIn`), on the right hand's as itself (`Wear`); a cuirass is nothing
+    /// to the left hand; and what is worn in each hand sits in its own slot.
+    #[test]
+    fn a_sword_dropped_on_the_left_hand_is_worn_there() {
+        let hub = shop();
+        {
+            let mut shop = hub.0.borrow_mut();
+            for i in &mut shop.items {
+                if i.template == "sword" {
+                    i.off = true;
+                }
+            }
+            let mut cuirass = item(9, "cuirass", &["physical -9.9%"], &BEST[..2]);
+            cuirass.place = PLACE_ARMOUR;
+            cuirass.what = "an armour, 220 of 250".into();
+            shop.items.push(cuirass);
+        }
+        let mut run = Run::new(false);
+        let mut bag = Bag::inventory(&hub, S, ME, run.t);
+        run.look(&mut bag, &hub);
+        assert!(run.offers("weapon") && run.offers("off") && run.offers("armour"));
+        // The plain sword onto the left hand: worn there, not in its own place.
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +2.0%", "off", &hub),
+            BagAction::WearIn {
+                item: 2,
+                place: PLACE_OFF
+            }
+        );
+        assert_eq!(bag.worn(&hub, 2, Ok(())), None);
+        run.pass(ZONE_GAP + Duration::from_millis(1));
+        // The best sword onto the right hand: its own place.
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +11.0%", "weapon", &hub),
+            BagAction::Wear { item: 1 }
+        );
+        assert_eq!(bag.worn(&hub, 1, Ok(())), None);
+        run.pass(ZONE_GAP + Duration::from_millis(1));
+        // A cuirass dropped on the left hand is nothing; on the body it is worn.
+        assert_eq!(
+            run.drag(&mut bag, "cuirass  physical -9.9%", "off", &hub),
+            BagAction::None
+        );
+        assert_eq!(
+            run.drag(&mut bag, "cuirass  physical -9.9%", "armour", &hub),
+            BagAction::Wear { item: 9 }
+        );
+        assert_eq!(bag.worn(&hub, 9, Ok(())), None);
+        // Worn in each hand, each sits in its own slot, said by the slot's name.
+        {
+            let mut shop = hub.0.borrow_mut();
+            shop.items[0].worn = true;
+            shop.items[0].worn_in = PLACE_WEAPON;
+            shop.items[1].worn = true;
+            shop.items[1].worn_in = PLACE_OFF;
+        }
+        let mut bag = Bag::inventory(&hub, S, ME, run.t);
+        run.look(&mut bag, &hub);
+        assert!(run.shows("sword  slash +11.0%  worn") && run.shows("sword  slash +2.0%  worn"));
+        assert!(run.st.seen.iter().any(|s| s.text == "weapon: sword"), "{:?}", run.st.seen);
+        assert!(run.st.seen.iter().any(|s| s.text == "off: sword"), "{:?}", run.st.seen);
     }
 
     #[test]

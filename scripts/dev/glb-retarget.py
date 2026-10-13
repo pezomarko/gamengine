@@ -3,7 +3,13 @@
 subtrees, and scale the whole model in world space, per axis, keeping the skin consistent.
 
     scripts/dev/glb-retarget.py IN.glb OUT.glb [--rename OLD=NEW ...] [--drop NODE ...]
-                                [--scale S | --scale SX SY SZ] [--keep-anims]
+                                [--fold PATTERN ...] [--scale S | --scale SX SY SZ] [--keep-anims]
+
+--fold folds the joints whose names match a shell pattern (`index_*`, `ball_leaf_?`), and
+every joint under them, into their nearest kept ancestor: the vertices they drove are given
+to that ancestor (weights merged), they leave every skin's joint list, and their nodes are
+unlinked, so a 68-joint pack rig (fingers, leaf bones) comes under the source budget of 32
+(budgets.toml) while the model deforms as before at the standard bones (MODELS.md 2).
 
 glTF axes: X right, Y up, Z forward (the face). A scale moves every node's world translation
 (rotations kept), recomputes each inverse bind matrix as the inverse of the joint's new world
@@ -12,13 +18,14 @@ their world positions scale; so a non-uniform scale (a body 10% thinner front to
 exact. Animations are stripped unless --keep-anims (an upload carries none, MODELS.md 3).
 Needs numpy. CONTENT.md 7 and LICENSES.md say which files were made with it.
 """
-import argparse, json, struct, sys
+import argparse, fnmatch, json, struct, sys
 import numpy as np
 
 ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('dst')
 ap.add_argument('--rename', nargs='*', default=[], metavar='OLD=NEW')
 ap.add_argument('--drop', nargs='*', default=[], metavar='NODE')
+ap.add_argument('--fold', nargs='*', default=[], metavar='PATTERN')
 ap.add_argument('--scale', nargs='+', type=float, default=[1.0])
 ap.add_argument('--keep-anims', action='store_true')
 args = ap.parse_args()
@@ -82,12 +89,26 @@ def local(n):
     Sc = np.diag(list(n.get('scale', [1, 1, 1])) + [1])
     return T @ R @ Sc
 
+CTYPES = {5121: ('B', 1), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
+
 def acc(ai):
     a = j['accessors'][ai]; bv = j['bufferViews'][a['bufferView']]
     n = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}[a['type']]
-    st = bv.get('byteStride', 4 * n)
+    fmt, size = CTYPES[a.get('componentType', 5126)]
+    st = bv.get('byteStride', size * n)
     base = bv.get('byteOffset', 0) + a.get('byteOffset', 0)
     return a, base, st, n
+
+def readi(ai):
+    a, base, st, n = acc(ai)
+    fmt = CTYPES[a['componentType']][0]
+    return [struct.unpack_from('<%d%s' % (n, fmt), bin_, base + k * st) for k in range(a['count'])]
+
+def writei(ai, rows):
+    a, base, st, n = acc(ai)
+    fmt = CTYPES[a['componentType']][0]
+    for k, row in enumerate(rows):
+        struct.pack_into('<%d%s' % (n, fmt), bin_, base + k * st, *row)
 
 def readv(ai):
     a, base, st, n = acc(ai)
@@ -99,6 +120,71 @@ def writev(ai, arr, bounds=True):
         struct.pack_into('<%df' % n, bin_, base + k * st, *row)
     if bounds:
         a['min'] = arr.min(axis=0).tolist(); a['max'] = arr.max(axis=0).tolist()
+
+if args.fold:
+    parent = {}
+    for i, n in enumerate(nodes):
+        for c in n.get('children', []):
+            parent[c] = i
+    folded = set()
+    for i, n in enumerate(nodes):
+        if any(fnmatch.fnmatch(n.get('name', ''), pat) for pat in args.fold):
+            folded.add(i)
+    # Everything under a folded node folds with it.
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(nodes)):
+            if i not in folded and i in parent and parent[i] in folded:
+                folded.add(i); changed = True
+    def keeper(i):
+        while i in folded:
+            i = parent[i]
+        return i
+    print('folding %d joints:' % len(folded), sorted(nodes[i].get('name', '?') for i in folded)[:12], '...')
+    for sk in j.get('skins', []):
+        old_joints = sk['joints']
+        new_joints = [jn for jn in old_joints if jn not in folded]
+        remap = {}
+        for k, jn in enumerate(old_joints):
+            remap[k] = new_joints.index(keeper(jn))
+        # The inverse bind matrices of the kept joints, packed in place; the count shrinks.
+        a, base, st, n = acc(sk['inverseBindMatrices'])
+        kept = [struct.unpack_from('<16f', bin_, base + k * st) for k, jn in enumerate(old_joints) if jn not in folded]
+        for k, m in enumerate(kept):
+            struct.pack_into('<16f', bin_, base + k * st, *m)
+        a['count'] = len(kept)
+        sk['joints'] = new_joints
+        sk['_remap'] = remap
+    done = set()
+    for i, n in enumerate(nodes):
+        if 'mesh' not in n or 'skin' not in n:
+            continue
+        remap = j['skins'][n['skin']]['_remap']
+        for pr in j['meshes'][n['mesh']]['primitives']:
+            at = pr['attributes']
+            if 'JOINTS_0' not in at or at['JOINTS_0'] in done:
+                continue
+            done.add(at['JOINTS_0'])
+            J = readi(at['JOINTS_0']); Wt = readv(at['WEIGHTS_0'])
+            J2, W2 = [], []
+            for jr, wr in zip(J, Wt):
+                merged = {}
+                for jj, ww in zip(jr, wr):
+                    if ww > 0:
+                        merged[remap[jj]] = merged.get(remap[jj], 0.0) + float(ww)
+                top = sorted(merged.items(), key=lambda kv: -kv[1])[:4]
+                top += [(0, 0.0)] * (4 - len(top))
+                J2.append([t[0] for t in top]); W2.append([t[1] for t in top])
+            writei(at['JOINTS_0'], J2)
+            writev(at['WEIGHTS_0'], np.array(W2), bounds=False)
+    for sk in j.get('skins', []):
+        sk.pop('_remap', None)
+    for n in nodes:
+        if 'children' in n:
+            n['children'] = [c for c in n['children'] if c not in folded]
+    for sc in j.get('scenes', []):
+        sc['nodes'] = [c for c in sc['nodes'] if c not in folded]
 
 if args.scale != [1.0, 1.0, 1.0]:
     S = np.diag(args.scale + [1.0])

@@ -1,7 +1,7 @@
 # Content v3 (2026-10-09, content version 6: the six elements of MATRIX.md 5; v2 2026-10-06; v1 Phase 3)
 
 `abilities.toml`, `builds.toml`, `creatures.toml` and `trials.toml` are the shipped content
-(`items.toml` the items, `avatars.toml` the official looks of the frames: CONTENT.md 3)
+(`items.toml` the items and what they look like worn, `avatars.toml` the official looks of the frames: CONTENT.md 3)
 (MATRIX.md 10, COMPANIONS.md 8 and 11). `gm-content` compiles them against the zone tick rate
 and validates them against VOCABULARY.md 11 and MATRIX.md 9; the zone sends the compiled pack
 to every client after `Welcome`. New abilities go at the end of `abilities.toml`: stored

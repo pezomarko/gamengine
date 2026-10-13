@@ -1415,6 +1415,8 @@ mod tests {
             place: if whole { PLACE_WEAPON } else { PLACE_NONE },
             edge: [0; 9],
             worn: false,
+            worn_in: PLACE_NONE,
+            off: false,
             quantity: 1,
             cap: 0,
             fits: true,
