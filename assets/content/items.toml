@@ -27,7 +27,7 @@ kind = "weapon"
 strikes = "slash"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "sword"
-fit = { turn = [90, 0, 0], scale = 0.6 }
+fit = { turn = [90, 0, 0], scale = 0.36 }   # Quaternius' warrior sword (LICENSES.md): 3.2 m along +Y as it comes
 
 # The colossus's greatsword (MATRIX.md 16), ours (`gm-tools content synth greatsword`): in
 # metres already, held like the hammer.

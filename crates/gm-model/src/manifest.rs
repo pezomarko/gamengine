@@ -7,7 +7,7 @@
 use bitcode::{Decode, Encode};
 
 /// The format's own version: a client refuses a manifest of another.
-pub const MANIFEST_VERSION: u32 = 2;
+pub const MANIFEST_VERSION: u32 = 3;
 /// The most entries any list may have: a bound before anything is allocated.
 pub const MAX_ENTRIES: usize = 4096;
 
@@ -22,6 +22,8 @@ pub struct Manifest {
     pub creatures: Vec<CreatureEntry>,
     pub builds: Vec<BuildEntry>,
     pub props: Vec<PropEntry>,
+    /// The official avatars (CONTENT.md 3.2), one per frame and armour class at most.
+    pub avatars: Vec<AvatarEntry>,
     /// Icon keys of the statuses, by status name (`burn`, `chill`, ...).
     pub statuses: Vec<IconEntry>,
     /// Portraits by `<frame>_<armour>` (`striker_mail`).
@@ -98,6 +100,23 @@ pub struct PropEntry {
     pub triangles: u32,
 }
 
+/// An official avatar: the look of a frame in an armour class, worn by every character of
+/// that frame and class without a model of its own (MODELS.md 1, CONTENT.md 3.2).
+#[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
+pub struct AvatarEntry {
+    /// `rig::frame_index`.
+    pub frame: u8,
+    /// `ArmourClass as u8`.
+    pub armour: u8,
+    /// The model's key (`models/avatars/<key>.glb` in the sources).
+    pub key: String,
+    /// The file under the bundle: `avatars/<frame>_<armour>.gmm`.
+    pub file: String,
+    pub sha256: [u8; 32],
+    pub bytes: u32,
+    pub triangles: u32,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct IconEntry {
     pub key: String,
@@ -131,6 +150,7 @@ impl Manifest {
             m.creatures.len(),
             m.builds.len(),
             m.props.len(),
+            m.avatars.len(),
             m.statuses.len(),
             m.portraits.len(),
             m.atlases.len(),
@@ -167,6 +187,13 @@ impl Manifest {
 
     pub fn prop(&self, key: &str) -> Option<&PropEntry> {
         self.props.iter().find(|p| p.key == key)
+    }
+
+    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index).
+    pub fn avatar(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
+        self.avatars
+            .iter()
+            .find(|a| a.frame == frame && a.armour == armour)
     }
 
     pub fn creature(&self, key: &str) -> Option<&CreatureEntry> {
@@ -213,6 +240,15 @@ mod tests {
                 bytes: 1234,
                 triangles: 48,
             }],
+            avatars: vec![AvatarEntry {
+                frame: 1,
+                armour: 2,
+                key: "striker_mail".into(),
+                file: "avatars/striker_mail.gmm".into(),
+                sha256: [9; 32],
+                bytes: 415_970,
+                triangles: 2946,
+            }],
             ..Default::default()
         };
         let bytes = m.encode();
@@ -222,6 +258,11 @@ mod tests {
             Some("sword_iron")
         );
         assert!(m.template("axe").is_none());
+        assert_eq!(
+            m.avatar(1, 2).map(|a| a.file.as_str()),
+            Some("avatars/striker_mail.gmm")
+        );
+        assert!(m.avatar(1, 3).is_none());
         let old = Manifest {
             format: 0,
             ..m.clone()

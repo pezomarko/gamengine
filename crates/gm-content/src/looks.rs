@@ -54,6 +54,31 @@ pub struct BuildLook {
     pub icon: Option<String>,
 }
 
+/// A row of `avatars.toml` (CONTENT.md 3.2): the official look of a frame in an armour
+/// class, worn by every character of that frame and class that has no model of its own.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AvatarLook {
+    pub frame: gm_core::vocab::ArchetypeFrame,
+    pub armour: gm_core::matrix::ArmourClass,
+    /// `models/avatars/<model>.glb`.
+    pub model: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AvatarsFile {
+    #[serde(default)]
+    avatar: Vec<AvatarRow>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AvatarRow {
+    frame: String,
+    armour: String,
+    model: String,
+}
+
 /// Every look field of the content, by key, and the props list a zone sends.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Looks {
@@ -62,6 +87,8 @@ pub struct Looks {
     pub materials: Vec<MaterialLook>,
     pub creatures: Vec<CreatureLook>,
     pub builds: Vec<BuildLook>,
+    /// The official avatars, at most one per frame and armour class (CONTENT.md 3.2).
+    pub avatars: Vec<AvatarLook>,
     /// The keys of every `ability.prop` and `template.model`, in order of first appearance
     /// (LOOK.md 6.2): a `Look.held` on the wire is an index into this list.
     pub props: Vec<String>,
@@ -100,6 +127,7 @@ impl Looks {
             &read("builds.toml", true)?,
             &read("creatures.toml", true)?,
             &read("items.toml", true)?,
+            &read("avatars.toml", true)?,
         )
     }
 
@@ -108,6 +136,7 @@ impl Looks {
         builds: &str,
         creatures: &str,
         items: &str,
+        avatars: &str,
     ) -> Result<Looks, ContentError> {
         fn parse<T: serde::de::DeserializeOwned>(
             text: &str,
@@ -126,6 +155,11 @@ impl Looks {
         };
         let cf: CreaturesFile = parse(creatures, "creatures.toml")?;
         let it: items::ItemContent = parse(items, "items.toml")?;
+        let vf: AvatarsFile = if avatars.trim().is_empty() {
+            AvatarsFile::default()
+        } else {
+            parse(avatars, "avatars.toml")?
+        };
         let mut looks = Looks::default();
         let mut props: Vec<String> = Vec::new();
         let mut name_prop = |key: &Option<String>, owner: &str| -> Result<(), ContentError> {
@@ -255,6 +289,50 @@ impl Looks {
                 icon: b.icon.clone(),
             });
         }
+        for v in &vf.avatar {
+            use gm_core::vocab::ArchetypeFrame;
+            let frame = match v.frame.as_str() {
+                "colossus" => ArchetypeFrame::Colossus,
+                "striker" => ArchetypeFrame::Striker,
+                "caster" => ArchetypeFrame::Caster,
+                "infiltrator" => ArchetypeFrame::Infiltrator,
+                other => {
+                    return Err(ContentError::Invalid(format!(
+                        "avatar: frame `{other}` is not colossus, striker, caster or infiltrator"
+                    )));
+                }
+            };
+            let Some(armour) = gm_core::matrix::ArmourClass::ALL
+                .into_iter()
+                .find(|a| a.name() == v.armour)
+            else {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {}: armour `{}` is not cloth, leather, mail or plate",
+                    v.frame, v.armour
+                )));
+            };
+            if !valid_key(&v.model) {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {} {}: model `{}` is not a key",
+                    v.frame, v.armour, v.model
+                )));
+            }
+            if looks
+                .avatars
+                .iter()
+                .any(|a| a.frame == frame && a.armour == armour)
+            {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {} {}: two rows; a frame has one look per armour class",
+                    v.frame, v.armour
+                )));
+            }
+            looks.avatars.push(AvatarLook {
+                frame,
+                armour,
+                model: v.model.clone(),
+            });
+        }
         if props.len() >= NONE as usize {
             return Err(ContentError::Invalid("too many props".into()));
         }
@@ -351,7 +429,7 @@ tint = [0.8, 0.8, 0.85]
 
     #[test]
     fn props_are_listed_by_first_appearance_and_a_body_holds_what_it_wears_or_swings() {
-        let looks = Looks::load_str(ABILITIES, "", "", ITEMS).unwrap();
+        let looks = Looks::load_str(ABILITIES, "", "", ITEMS, "").unwrap();
         assert_eq!(looks.props, ["sword_plain", "hammer_plain", "sword_iron"]);
         // Worn: the item's model. Bare: the primary's prop. Neither: nothing.
         assert_eq!(looks.held(Some("sword"), Some(0)), 2);
@@ -376,9 +454,26 @@ tint = [0.8, 0.8, 0.85]
         assert!(valid_key("sword_iron") && valid_key("core/iron") && valid_key("m5x7"));
         assert!(!valid_key("Sword") && !valid_key("a b") && !valid_key("a/b/c") && !valid_key(""));
         let bad = ABILITIES.replace("sword_plain", "Sword Plain");
-        assert!(Looks::load_str(&bad, "", "", ITEMS).is_err());
+        assert!(Looks::load_str(&bad, "", "", ITEMS, "").is_err());
         let bad = ITEMS.replace("held = \"back\"", "held = \"teeth\"");
-        assert!(Looks::load_str(ABILITIES, "", "", &bad).is_err());
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        // An avatar row names a frame, an armour class and a key, once per pair.
+        let one = "[[avatar]]\nframe = \"striker\"\narmour = \"mail\"\nmodel = \"striker_mail\"\n";
+        let looks = Looks::load_str(ABILITIES, "", "", ITEMS, one).unwrap();
+        assert_eq!(looks.avatars.len(), 1);
+        assert_eq!(looks.avatars[0].model, "striker_mail");
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{one}")).is_err());
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &one.replace("mail", "silk")).is_err());
+        assert!(
+            Looks::load_str(
+                ABILITIES,
+                "",
+                "",
+                ITEMS,
+                &one.replace("striker\"", "giant\"")
+            )
+            .is_err()
+        );
     }
 
     #[test]

@@ -529,7 +529,7 @@ All item and coin movements are DB transactions; escrow states are enforced by c
 | 14 | The look: the content standard and its tool (`docs/CONTENT.md`: every item, ability and creature a row with its model, picture and sound; `gm-tools content check/build/report/import`; a committed bundle); weapons as props drawn in hands (the first models from a CC0 pack, a musket beside the crossbow) and a first-person view model; the toolkit's skin, icons and real fonts; the inventory, storage, stall and trade as grids with tooltips and drag, an equip panel with a paperdoll; a HUD with a portrait, party frames and a hotbar showing cooldowns; silver and gold only (`docs/LOOK.md`) | a character seen by another holds the sword it wears; the inventory is a grid of pictures and a drag onto the weapon slot wears a sword; the hotbar shows each ability's state; `gm-tools content build` reproduces the committed bundle byte for byte; on the desktop and in a browser, inside the budgets of both (the browser's raised to 2 MiB by the director). **Done 2026-10-03** (11.10) |
 | 15 | The three modes *(proposed 2026-10-07, the director's correction of 4.1; built the same day)* (`docs/MODES.md`), in three parts played one after another: **action** (the mode in the build and fixed on the client, `V` gone; the magnet, chains, cancels, the dodge with its untouchable window, knockdown and launch under diminishing returns, the combo counter), **gun** (the firearm block: magazine, reload, cycle, recoil pattern and cone, the head band, three weapons in hand, the ammo HUD; a musketeer preset, a pistol), **rpg** (the target and its frame, target-actions that walk the body into range on the nav grid and aim by the zone, the repeating primary, the ground click, the orbit camera; `range` in content; the aim statistics skipping RPG bodies) | a sword chained three times into a knockdown and a roll through a firebolt; a spray controlled against its pattern and a crouched headshot at 1,500 u; a frostweaver that clicks a dummy, presses the shard, walks into range and lands it; the character's mode never changes in play. **Done 2026-10-07** (11.10) |
 | 16 | *(proposed 2026-10-03, renumbered 2026-10-07; the director wants it)* The content editor: `gm-tools content edit`, native only, on the client's toolkit over the same TOML files (CONTENT.md 10): the tables as lists, a row as a form with the validation of `check` as it is typed, a model or a picture imported by path and fitted in the 3D view of `look`, links to abilities and materials picked from lists, saved back as text with the diff shown | an item is added, given a model and a picture, priced and made wearable without a text editor, and the result is a one-row diff in git that `check` accepts |
-| 17 | *(proposed 2026-10-03, renumbered 2026-10-07)* The body's look: official avatars per frame and armour class replacing the mannequin, creature models (the Warden, the sentinels), portraits baked from them, the armour overlay in `Look.worn`; sounds per ability as content (SOUND.md 9's open item); the first content pass (more weapons and materials with their pictures) | nobody in the town is a grey mannequin unless their model is refused; the Warden is a creature to look at; every ability of the content has its own picture and sound |
+| 17 | *(proposed 2026-10-03, renumbered 2026-10-07; the first item built 2026-10-13: `avatars.toml`, the striker in mail from Quaternius' CC0 warrior, its sword, CONTENT.md 3.2)* The body's look: official avatars per frame and armour class replacing the mannequin, creature models (the Warden, the sentinels), portraits baked from them, the armour overlay in `Look.worn`; sounds per ability as content (SOUND.md 9's open item); the first content pass (more weapons and materials with their pictures) | nobody in the town is a grey mannequin unless their model is refused; the Warden is a creature to look at; every ability of the content has its own picture and sound |
 | ∞ | Content, balance, ops, community | permanent |
 
 ### 11.9 First concrete step
@@ -1604,6 +1604,23 @@ crouch seen (MODES.md 3.5, 10.2; protocol v14): the hitbox loses 16 u off its to
 the rewind, so the head band moves with the body; the drop is 16 u for the eye, the hitbox and the drawn body
 alike; every body carries a `CROUCHED` flag and is drawn squatting, its name and numbers lower; the world
 hull is unchanged.
+
+**2026-10-13, Phase 17's first body** (the director: "we currently only have fat stickman like figure as
+placeholder, pick one class, and do good model for it, also weapon"; CONTENT.md 3.2, 7 and 13): the
+**striker in mail** (the blade) is Quaternius' CC0 *RPG Characters* warrior, and the blade's `sword` is that
+warrior's sword in place of KayKit's. Content gained `avatars.toml` (`[[avatar]]`: frame, armour, model; one
+row per pair), `build` ingests it as the hub ingests an upload for that frame and writes
+`avatars/<frame>_<armour>.gmm`, the manifest (format 3) names it with its hash, the pair's portrait is baked
+from it, and the client (windowed, headless and the browser's fetch path) wears it for every body of the pair
+that has no model of its own, untinted, before the mannequin. The pack came as FBX, Blend and glTF with a rig
+of its own: `scripts/dev/blender-quaternius-warrior.py` (Blender 3.3 headless in Docker: bones renamed to
+MODELS.md 2, the IK feet and the thighs reparented under the shins and the hips, the 2,682-triangle face
+decimated to 938, the sword split off, animations dropped) and `scripts/dev/glb-retarget.py` (numpy, no
+Blender: rename, unlink, a per-axis world scale that recomputes the inverse bind matrices) made it fit:
+uniformly 0.675 for the head pivot's band and 0.9 front to back for the side-coverage cap, which the
+envelope of MODELS.md 4 refused at 153% and takes at 137%. KayKit's Adventurers were weighed and lost
+(chibi: 4,712 triangles and a head pivot under every frame's band). Measured in CONTENT.md 13. Not done:
+the other fifteen pairs, creature models, the armour overlay, sounds per ability (the rest of Phase 17).
 
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute

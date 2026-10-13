@@ -16,8 +16,8 @@ use gm_core::vocab::Status;
 use gm_ingest::source::Fit;
 use gm_model::atlas::{self, Atlas, Cell, Face, Glyph, Piece};
 use gm_model::manifest::{
-    AbilityEntry, BuildEntry, CreatureEntry, HELD_BACK, HELD_LEFT, HELD_RIGHT, IconEntry,
-    MANIFEST_VERSION, Manifest, MaterialEntry, PropEntry, TemplateEntry,
+    AbilityEntry, AvatarEntry, BuildEntry, CreatureEntry, HELD_BACK, HELD_LEFT, HELD_RIGHT,
+    IconEntry, MANIFEST_VERSION, Manifest, MaterialEntry, PropEntry, TemplateEntry,
 };
 use gm_model::{Model, mannequin, rig, smallfont};
 use serde::Deserialize;
@@ -255,6 +255,9 @@ pub struct Bundle {
     pub baked: Vec<String>,
     /// The props as ingested, by key (the fitting room draws them).
     pub props: BTreeMap<String, Model>,
+    /// The official avatars as ingested, by `<frame>_<armour>` (their portraits are baked
+    /// from them).
+    pub avatars: BTreeMap<String, Model>,
     pub facts: Vec<(String, gm_ingest::Facts)>,
 }
 
@@ -360,6 +363,8 @@ enum IconSource {
     Prop(String),
     /// Baked from a frame's mannequin in an armour's tint.
     Portrait(gm_core::vocab::ArchetypeFrame, [f32; 3]),
+    /// Baked from the official avatar of a frame in an armour class, by `<frame>_<armour>`.
+    Avatar(String),
 }
 
 /// The pieces the client's toolkit asks for (LOOK.md 2.2): every one must be in the skin.
@@ -536,6 +541,46 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         }
     }
 
+    // The official avatars (CONTENT.md 3.2): a frame's look in an armour class, ingested as
+    // the hub ingests an upload for that frame (the envelope, the pose, the budgets).
+    let mut avatars: BTreeMap<String, Model> = BTreeMap::new();
+    let mut avatar_entries: Vec<AvatarEntry> = Vec::new();
+    for a in &looks.avatars {
+        let name = format!("{}_{}", rig::frame_name(a.frame), a.armour.name());
+        let file = format!("models/avatars/{}.glb", a.model.replace('/', "_"));
+        let path = dir.join(&file);
+        if !path.is_file() {
+            problems.push(format!("avatar {name}: {file} does not exist"));
+            continue;
+        }
+        if !licensed(&format!("{}.glb", a.model.replace('/', "_"))) {
+            problems.push(format!("avatar {name}: {file} is not named in LICENSES.md"));
+        }
+        let (report, ingested) = gm_ingest::ingest(&read(&path)?, a.frame);
+        match ingested {
+            Some(ing) if report.ok => {
+                let out = format!("avatars/{name}.gmm");
+                facts.push((format!("avatar/{name}"), report.facts.clone()));
+                avatar_entries.push(AvatarEntry {
+                    frame: rig::frame_index(a.frame),
+                    armour: a.armour as u8,
+                    key: a.model.clone(),
+                    file: out.clone(),
+                    sha256: sha(&ing.gmm),
+                    bytes: ing.gmm.len() as u32,
+                    triangles: ing.model.triangles() as u32,
+                });
+                files.insert(out, ing.gmm);
+                avatars.insert(name, ing.model);
+            }
+            _ => {
+                for v in &report.violations {
+                    problems.push(format!("avatar {name} ({file}): {v}"));
+                }
+            }
+        }
+    }
+
     // Icons: given as files, or baked from models; the keys they go in the atlas under.
     let icon_file = |key: &str| dir.join(format!("icons/{}.png", key.replace('/', "_")));
     fn take_icon(
@@ -667,13 +712,14 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             });
         }
     }
-    // Portraits of every frame in every armour class, from the mannequin (CONTENT.md 5.3),
-    // unless a file is given.
+    // Portraits of every frame in every armour class (CONTENT.md 5.3): from the official
+    // avatar where there is one, else from the mannequin, unless a file is given.
     for frame in rig::FRAMES {
         for (ai, tint) in mannequin::ARMOUR_TINTS.iter().enumerate() {
             let armour =
                 gm_core::matrix::ArmourClass::from_index(ai as u8).map_or("cloth", |a| a.name());
-            let key = format!("portrait/{}_{}", rig::frame_name(frame), armour);
+            let name = format!("{}_{}", rig::frame_name(frame), armour);
+            let key = format!("portrait/{name}");
             let icon = if icon_file(&key).is_file() {
                 take_icon(
                     icon_file(&key),
@@ -683,7 +729,12 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                     &mut problems,
                 )
             } else {
-                icons.insert(key.clone(), IconSource::Portrait(frame, *tint));
+                let source = if avatars.contains_key(&name) {
+                    IconSource::Avatar(name.clone())
+                } else {
+                    IconSource::Portrait(frame, *tint)
+                };
+                icons.insert(key.clone(), source);
                 baked.push(key.clone());
                 Some(key.clone())
             };
@@ -695,6 +746,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             }
         }
     }
+    manifest.avatars = avatar_entries;
     for (key, model) in &props {
         let file = format!("props/{}.gmm", key.replace('/', "_"));
         let bytes = &files[&file];
@@ -832,6 +884,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             IconSource::Portrait(frame, tint) => {
                 Some((key.clone(), mannequin_model(*frame, *tint)))
             }
+            IconSource::Avatar(name) => Some((key.clone(), avatars[name].clone())),
             _ => None,
         })
         .collect();
@@ -864,7 +917,9 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                         .rgba
                 }
                 IconSource::Prop(model) => gm_ingest::raster::icon(&props[model], side),
-                IconSource::Portrait(..) => gm_ingest::raster::portrait(&portraits[key], side),
+                IconSource::Portrait(..) | IconSource::Avatar(..) => {
+                    gm_ingest::raster::portrait(&portraits[key], side)
+                }
             };
             dense_icons.insert(
                 key.clone(),
@@ -895,6 +950,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         atlases,
         baked,
         props,
+        avatars,
         facts,
     })
 }
@@ -1420,13 +1476,14 @@ fn compare(bundle: &Bundle, committed: &Path) -> Result<()> {
 fn print_summary(b: &Bundle) {
     let total: usize = b.files.values().map(Vec::len).sum();
     println!(
-        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} icons ({} baked), atlases {}, bundle {} files, {} bytes",
+        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} avatars, {} icons ({} baked), atlases {}, bundle {} files, {} bytes",
         b.manifest.content_version,
         b.manifest.templates.len(),
         b.manifest.materials.len(),
         b.manifest.abilities.len(),
         b.manifest.creatures.len(),
         b.manifest.props.len(),
+        b.manifest.avatars.len(),
         b.atlases[0].icons.len(),
         b.baked.len(),
         b.atlases
@@ -1457,6 +1514,34 @@ fn report(b: &Bundle) {
             p.triangles,
             p.bytes,
             f.map_or(0.0, |f| f.top)
+        );
+    }
+    println!();
+    println!(
+        "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
+        "avatar", "model", "texture", "tris", "bytes", "bones"
+    );
+    for a in &b.manifest.avatars {
+        let name = a
+            .file
+            .trim_start_matches("avatars/")
+            .trim_end_matches(".gmm");
+        let f = b
+            .facts
+            .iter()
+            .find(|(k, _)| k == &format!("avatar/{name}"))
+            .map(|(_, f)| f);
+        println!(
+            "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
+            name,
+            a.key,
+            f.map_or(String::new(), |f| format!(
+                "{}x{}",
+                f.texture[0], f.texture[1]
+            )),
+            a.triangles,
+            a.bytes,
+            b.avatars.get(name).map_or(0, |m| m.bone_mask.count_ones())
         );
     }
     println!();
@@ -1532,6 +1617,38 @@ mod tests {
 
     fn sources() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/content")
+    }
+
+    /// CONTENT.md 3.2: the official avatar of a frame in an armour class is in the bundle
+    /// as a body of that frame under the avatar budgets, named by the manifest with its
+    /// hash, and its portrait is baked from it, not from the mannequin.
+    #[test]
+    fn the_official_avatar_is_built_as_a_body_and_sits_for_its_portrait() {
+        let bundle = build(&sources()).expect("the content builds");
+        let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
+        let mail = gm_core::matrix::ArmourClass::Mail as u8;
+        let a = bundle
+            .manifest
+            .avatar(striker, mail)
+            .expect("the striker in mail (avatars.toml)");
+        assert_eq!(a.file, "avatars/striker_mail.gmm");
+        assert_eq!(a.key, "striker_mail");
+        let bytes = &bundle.files[&a.file];
+        assert_eq!(gm_model::model_id(bytes), a.sha256);
+        assert_eq!(bytes.len() as u32, a.bytes);
+        let model = Model::decode(bytes).expect("a model the strict reader takes");
+        assert!(!model.is_prop());
+        assert_eq!(model.frame, striker);
+        assert_eq!(model.triangles() as u32, a.triangles);
+        assert!(model.triangles() <= gm_model::limits::MAX_TRIANGLES);
+        assert!(bundle.avatars.contains_key("striker_mail"));
+        assert!(bundle.baked.contains(&"portrait/striker_mail".to_string()));
+        assert_eq!(
+            bundle.manifest.portrait("striker_mail"),
+            Some("portrait/striker_mail")
+        );
+        // A frame without a row keeps the mannequin: nothing is in the bundle for it.
+        assert!(bundle.manifest.avatar(striker, 0).is_none());
     }
 
     /// LOOK.md 2.2: an atlas per density, and nothing a layout counts with differs

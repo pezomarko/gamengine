@@ -324,7 +324,10 @@ stagger) and time to 24 bone rotations, cross-faded over 120 ms on a state chang
 placeholder art (PLAN.md 9: animation is human work); the contract is that it is **shared**.
 
 The mannequin is generated from the rig (jointed segments, 784 triangles), tinted by
-armour class: cloth pale, leather brown, mail steel, plate dark iron.
+armour class: cloth pale, leather brown, mail steel, plate dark iron. Since 2026-10-13 a
+body without a model of its own wears the **official avatar** of its frame and armour class
+when the content bundle has one (CONTENT.md 3.2: `avatars.toml`, the striker in mail first),
+untinted; the mannequin stands for the pairs without one and for whatever is refused.
 
 What a custom model must not hide is drawn by the client around it: **armour class is in the
 gait** (the heavier the class, the longer and heavier the stride, the smaller the arm swing:

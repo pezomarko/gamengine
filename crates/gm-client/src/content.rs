@@ -12,6 +12,13 @@ use gm_model::manifest::Manifest;
 
 /// Where the bundle's files are, under the assets: `<assets>/built/content`.
 pub const DIR: &str = "built/content";
+/// What an official avatar's fetch is filed under in the browser's inbox, before
+/// `<frame>_<armour>`.
+#[cfg(target_arch = "wasm32")]
+const AVATAR_PREFIX: &str = "avatar:";
+/// Where the browser's fetches land, by key: the file's bytes, or `None` for a 404.
+#[cfg(target_arch = "wasm32")]
+type Inbox<K> = std::rc::Rc<std::cell::RefCell<Vec<(K, Option<Vec<u8>>)>>>;
 
 /// A prop as the client has it.
 #[derive(Debug)]
@@ -35,13 +42,16 @@ pub struct Content {
     /// that landed since the last frame (two may, when the scale changed twice while the
     /// page was hidden, and the one asked for last must not be lost to the other).
     #[cfg(target_arch = "wasm32")]
-    atlas_inbox: std::rc::Rc<std::cell::RefCell<Vec<(u8, Option<Vec<u8>>)>>>,
+    atlas_inbox: Inbox<u8>,
     pub props: HashMap<String, PropState>,
+    /// The official avatars by frame and armour class (CONTENT.md 3.2): `None` until
+    /// asked for, then as a prop.
+    pub avatars: [[Option<PropState>; 4]; 4],
     /// Where props are read from: a directory natively, a URL prefix in the browser.
     base: String,
     /// Files that arrived (the browser's fetches land here; natively a read is immediate).
     #[cfg(target_arch = "wasm32")]
-    inbox: std::rc::Rc<std::cell::RefCell<Vec<(String, Option<Vec<u8>>)>>>,
+    inbox: Inbox<String>,
     /// What was said about the bundle, for the report.
     pub note: String,
 }
@@ -56,6 +66,7 @@ impl Content {
             #[cfg(target_arch = "wasm32")]
             atlas_inbox: Default::default(),
             props: HashMap::new(),
+            avatars: Default::default(),
             base: String::new(),
             #[cfg(target_arch = "wasm32")]
             inbox: Default::default(),
@@ -272,7 +283,7 @@ impl Content {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = sha;
+            let _ = (sha, &mut load);
             let url = format!("{}/{file}", self.base);
             let inbox = self.inbox.clone();
             let key_owned = key.to_string();
@@ -291,6 +302,68 @@ impl Content {
         }
     }
 
+    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index),
+    /// CONTENT.md 3.2, by the same road as a prop: `Some(slot)` when it is on the GPU, the
+    /// first ask starts the load, and `None` for good when the bundle has none.
+    pub fn avatar(
+        &mut self,
+        frame: u8,
+        armour: u8,
+        mut load: impl FnMut(&Model) -> Option<usize>,
+    ) -> Option<usize> {
+        let (f, a) = (frame as usize, armour as usize);
+        if f >= 4 || a >= 4 {
+            return None;
+        }
+        if let Some(state) = &self.avatars[f][a] {
+            return match state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+        }
+        let Some(entry) = self.manifest.as_ref().and_then(|m| m.avatar(frame, armour)) else {
+            self.avatars[f][a] = Some(PropState::Missing);
+            return None;
+        };
+        let (file, sha) = (entry.file.clone(), entry.sha256);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let path = std::path::Path::new(&self.base).join(&file);
+            let state = match std::fs::read(&path) {
+                Ok(bytes) => Self::decoded_body(frame, armour, &bytes, sha, &mut load),
+                Err(e) => {
+                    log::warn!("avatar {frame}/{armour}: {}: {e}", path.display());
+                    PropState::Missing
+                }
+            };
+            let out = match &state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+            self.avatars[f][a] = Some(state);
+            out
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sha, &mut load);
+            let url = format!("{}/{file}", self.base);
+            let inbox = self.inbox.clone();
+            let key = format!("{AVATAR_PREFIX}{frame}_{armour}");
+            wasm_bindgen_futures::spawn_local(async move {
+                let bytes = match crate::web::fetch_bytes(&url).await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        log::warn!("{e}");
+                        None
+                    }
+                };
+                inbox.borrow_mut().push((key, bytes));
+            });
+            self.avatars[f][a] = Some(PropState::Loading);
+            None
+        }
+    }
+
     /// Fetches that landed since the last frame, decoded and put on the GPU (one a frame,
     /// like avatars, WEB.md 4).
     #[cfg(target_arch = "wasm32")]
@@ -303,6 +376,29 @@ impl Content {
             inbox.remove(0)
         };
         let (key, bytes) = arrived;
+        if let Some(rest) = key.strip_prefix(AVATAR_PREFIX) {
+            let mut it = rest.split('_').map(|s| s.parse::<u8>().unwrap_or(255));
+            let (frame, armour) = (it.next().unwrap_or(255), it.next().unwrap_or(255));
+            let (f, a) = (frame as usize, armour as usize);
+            if f >= 4 || a >= 4 {
+                return;
+            }
+            let sha = self
+                .manifest
+                .as_ref()
+                .and_then(|m| m.avatar(frame, armour))
+                .map(|e| e.sha256)
+                .unwrap_or([0; 32]);
+            let state = match bytes {
+                Some(bytes) => Self::decoded_body(frame, armour, &bytes, sha, &mut load),
+                None => {
+                    log::warn!("avatar {frame}/{armour}: not on the site");
+                    PropState::Missing
+                }
+            };
+            self.avatars[f][a] = Some(state);
+            return;
+        }
         let sha = self
             .manifest
             .as_ref()
@@ -317,6 +413,42 @@ impl Content {
             }
         };
         self.props.insert(key, state);
+    }
+
+    /// An official avatar's bytes: the file the manifest names, a body of that frame.
+    fn decoded_body(
+        frame: u8,
+        armour: u8,
+        bytes: &[u8],
+        sha: [u8; 32],
+        load: &mut impl FnMut(&Model) -> Option<usize>,
+    ) -> PropState {
+        if gm_model::model_id(bytes) != sha {
+            log::warn!("avatar {frame}/{armour}: the file is not the one the manifest names");
+            return PropState::Missing;
+        }
+        match Model::decode(bytes) {
+            Ok(m) if !m.is_prop() && m.frame == frame => match load(&m) {
+                Some(slot) => {
+                    log::info!(
+                        "avatar {frame}/{armour}: {} triangles, {}x{} atlas",
+                        m.triangles(),
+                        m.tex_w,
+                        m.tex_h
+                    );
+                    PropState::Loaded(slot)
+                }
+                None => PropState::Missing,
+            },
+            Ok(_) => {
+                log::warn!("avatar {frame}/{armour}: the file is not a body of that frame");
+                PropState::Missing
+            }
+            Err(e) => {
+                log::warn!("avatar {frame}/{armour}: {e}");
+                PropState::Missing
+            }
+        }
     }
 
     fn decoded(

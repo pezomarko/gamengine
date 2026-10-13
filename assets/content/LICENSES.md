@@ -6,9 +6,12 @@ official content as a whole is CC-BY-SA 4.0 (LICENSE.md at the root).
 
 ## Models (`models/`)
 
+Props under `props/`, official avatars under `avatars/` (CONTENT.md 2).
+
 | File | From | Licence |
 |---|---|---|
-| `props/sword.glb` | KayKit Adventurers Character Pack 1.0 (`sword_1handed.gltf` + `knight_texture.png`), Kay Lousberg, https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0 | CC0 1.0 |
+| `props/sword.glb` | Quaternius *RPG Characters* (`glTF/Warrior.gltf`: the `Warrior_Sword` mesh with `Warrior_Sword_Texture`), https://quaternius.com/packs/rpgcharacters.html; split off by `scripts/dev/blender-quaternius-warrior.py`, packed by `gm-tools content import prop` (until 2026-10-13 the KayKit Adventurers `sword_1handed.gltf`, CC0, which the dagger, staff and crossbow still come from) | CC0 1.0 |
+| `avatars/striker_mail.glb` | Quaternius *RPG Characters* (`glTF/Warrior.gltf`: the body, the face and the shoulder pads with `Warrior_Texture`), https://quaternius.com/packs/rpgcharacters.html; made by `scripts/dev/blender-quaternius-warrior.py` (bones renamed to MODELS.md 2, feet and thighs reparented, the face decimated to 938 triangles, the sword split off, animations dropped) and `scripts/dev/glb-retarget.py --scale 0.675 0.675 0.6075` (into the striker's envelope, 10% thinner front to back) | CC0 1.0 |
 | `props/dagger.glb` | the same pack (`dagger.gltf` + `rogue_texture.png`) | CC0 1.0 |
 | `props/staff.glb` | the same pack (`staff.gltf` + `mage_texture.png`) | CC0 1.0 |
 | `props/crossbow.glb` | the same pack (`crossbow_1handed.gltf` + `rogue_texture.png`) | CC0 1.0 |

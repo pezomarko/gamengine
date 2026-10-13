@@ -114,6 +114,9 @@ pub struct Avatars {
     pub crowd_prop: Option<usize>,
     /// And in its left hand (`--off`).
     pub crowd_off: Option<usize>,
+    /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
+    /// loaded: a body without a model of its own wears one before it is the mannequin.
+    officials: [[Option<usize>; 4]; 4],
 }
 
 /// The ambient light at a body's feet.
@@ -226,7 +229,17 @@ impl Avatars {
             with_model: 0,
             crowd_prop: None,
             crowd_off: None,
+            officials: [[None; 4]; 4],
         })
+    }
+
+    /// The official avatar of a frame in an armour class, on the GPU (or not there).
+    pub fn set_official(&mut self, frame: u8, armour: u8, slot: Option<usize>) {
+        if let Some(row) = self.officials.get_mut(frame as usize)
+            && let Some(cell) = row.get_mut(armour as usize)
+        {
+            *cell = slot;
+        }
     }
 
     pub fn begin_frame(&mut self) {
@@ -258,10 +271,15 @@ impl Avatars {
                 self.with_model += 1;
                 (slot, [1.0; 3])
             }
-            None => (
-                self.mannequins[frame],
-                ARMOUR_TINTS[(body.armour as usize).min(3)],
-            ),
+            None => {
+                let armour = (body.armour as usize).min(3);
+                match self.officials[frame][armour] {
+                    // The official look is untinted: its armour is painted on (MODELS.md 9:
+                    // the class is in the gait).
+                    Some(slot) => (slot, [1.0; 3]),
+                    None => (self.mannequins[frame], ARMOUR_TINTS[armour]),
+                }
+            }
         };
         // Auras: a staggered or rooted body darkens, a hasted one brightens.
         let has = |s: Status| body.status & (1 << s.index()) != 0;

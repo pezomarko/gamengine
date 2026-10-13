@@ -49,6 +49,10 @@ cp "$ROOT/assets/textures/palette.lmp" "$OUT/assets/textures/"
 mkdir -p "$OUT/assets/built/content/props"
 cp "$ROOT"/assets/built/content/manifest.gmc "$ROOT"/assets/built/content/ui*.gma "$OUT/assets/built/content/"
 cp "$ROOT"/assets/built/content/props/*.gmm "$OUT/assets/built/content/props/"
+if ls "$ROOT"/assets/built/content/avatars/*.gmm >/dev/null 2>&1; then
+  mkdir -p "$OUT/assets/built/content/avatars"
+  cp "$ROOT"/assets/built/content/avatars/*.gmm "$OUT/assets/built/content/avatars/"
+fi
 if [[ -n "$CONFIG" ]]; then
   cp "$CONFIG" "$OUT/config.json"
 elif [[ ! -f "$OUT/config.json" ]]; then

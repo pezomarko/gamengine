@@ -1,0 +1,14 @@
+# The official looks (CONTENT.md 3.2): the model worn by every character of a frame in an
+# armour class that has no model of its own (MODELS.md 1: a player's upload replaces it; the
+# mannequin stands in wherever no row is). At most one row per frame and armour class.
+# `model` names models/avatars/<model>.glb, ingested as the hub ingests an upload for that
+# frame: the standard rig, the T-pose, the frame's envelope and the budgets of CONTENT.md 4.
+# The row is the look and nothing else: the frame's hitbox, gait and reach are unchanged.
+
+# The striker in mail: the blade's body (builds.toml: blade = striker, mail). Quaternius'
+# Warrior (CC0; LICENSES.md), retargeted by scripts/dev/blender-quaternius-warrior.py and
+# scripts/dev/glb-retarget.py: 2,946 triangles, a 1024 atlas, 20 of the 24 bones.
+[[avatar]]
+frame = "striker"
+armour = "mail"
+model = "striker_mail"

@@ -1628,10 +1628,11 @@ pub(crate) fn facing(
         if free || off.abs() <= FACING_BACKPEDAL_DEG {
             target = travel;
         }
-    } else if free && !anim::acts(anim) {
-        if let Some(drawn) = drawn {
-            return drawn;
-        }
+    } else if free
+        && !anim::acts(anim)
+        && let Some(drawn) = drawn
+    {
+        return drawn;
     }
     let Some(drawn) = drawn else {
         return target.rem_euclid(360.0);
@@ -5869,6 +5870,20 @@ impl App {
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
             self.content
                 .poll(|model| Some(characters.add_model(gpu, model)));
+        }
+        // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
+        // of their frame and armour class: natively a file is read the first time it is
+        // asked for, in a browser it is fetched like a prop and lands through `poll`.
+        {
+            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            for frame in 0..4u8 {
+                for armour in 0..4u8 {
+                    let slot = self.content.avatar(frame, armour, |model| {
+                        Some(characters.add_model(gpu, model))
+                    });
+                    a.avatars.set_official(frame, armour, slot);
+                }
+            }
         }
         a.avatars.begin_frame();
         if let Some(v) = self.view_model.take() {

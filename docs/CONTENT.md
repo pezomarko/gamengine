@@ -49,11 +49,13 @@ assets/content/
   README.md                   the tables, as now
   VERSION                     the content's version: a number, bumped by whoever changes a table
   abilities.toml  builds.toml  creatures.toml  trials.toml  items.toml   (rows; see 3)
+  avatars.toml                the official looks: one row per frame and armour class (3.2)
   LICENSES.md                 every file that is not ours: where from, which licence
   models/
     props/<key>.glb           a thing held: sword, dagger, hammer, staff, crossbow, musket
-    creatures/<key>.glb       a creature on the standard rig (Phase 16)
-    avatars/<frame>_<armour>.glb   the official look of a frame in an armour class (Phase 16)
+    creatures/<key>.glb       a creature on the standard rig (Phase 17)
+    avatars/<key>.glb         the official look of a frame in an armour class (3.2; the row
+                              in avatars.toml names the key: striker_mail since 2026-10-13)
   icons/<key>.png             32 × 32 pictures that override the baked ones (optional; a
                               key's `/` is `_` in the file name: `status_burn.png`)
   ui/
@@ -64,6 +66,7 @@ assets/content/
 assets/built/content/         what `gm-tools content build` writes (committed, 5.4)
   manifest.gmc                every entry by key: files, hashes, icon keys, held, fits
   props/<key>.gmm             ingested props
+  avatars/<frame>_<armour>.gmm   ingested official avatars
   ui.gma ui2.gma ui3.gma ui4.gma   the atlases, one per UI scale (LOOK.md 2.2)
 ```
 
@@ -88,7 +91,7 @@ each the key of a file in 2:
 | `[[creature]]` | `model` | `models/creatures/<model>.glb`; absent: the frame's mannequin |
 | | `icon` | its portrait; absent: baked from the model |
 | `[[build]]` | `icon` | the archetype's picture on the new-character screen; absent: baked from the frame's avatar or mannequin |
-| the frame × armour table (new, `avatars.toml`, Phase 15) | `model` | `models/avatars/<frame>_<armour>.glb`: the official look, worn when a character has no model of its own |
+| `[[avatar]]` (`avatars.toml`, since 2026-10-13) | `frame`, `armour`, `model` | `models/avatars/<model>.glb`: the official look of that frame in that armour class, worn by every character of the pair that has no model of its own; one row per pair at most |
 
 Since content v3 (2026-10-07, MODES.md 11.1) `[[template]]` has a third `kind`, `stack`:
 no layers, a `cap` (the most one holder carries, 1–1,000) and an optional `heals`; a
@@ -149,12 +152,29 @@ holds `shield`, ours: `gm-tools content synth shield`, built in hand space alrea
 along +Y). `gm-tools content look KEY --left` is the fitting room for it, and offline
 `gm-client --offline --prop KEY --off KEY` holds one in each hand.
 
-### 3.2 Creatures and official avatars (Phase 15)
+### 3.2 Creatures and official avatars
 
 The same `.glb` rules as an upload (MODELS.md 3 and 4): on the standard rig, T-pose, one
 texture, the frame's envelope. A creature is checked against the envelope of *its* frame
 (creatures are builds, COMPANIONS.md 8.1). Nothing else differs: the ingestion is
 `gm_ingest::ingest` as the hub runs it.
+
+**Official avatars** (built 2026-10-13, the first of Phase 17's items): `avatars.toml` holds
+`[[avatar]]` rows of `frame`, `armour` and `model`; `build` ingests `models/avatars/<model>.glb`
+for that frame exactly as the hub would an upload (the envelope: a Quaternius warrior had to be
+scaled to put its head pivot in the striker's band and thinned 10% front to back to stay under
+150% of the mannequin's side coverage) and writes `avatars/<frame>_<armour>.gmm`, named in the
+manifest with its hash. A client loads it from the bundle like a prop, the first time it is
+asked for (natively a read, in a browser a fetch), and every body of that frame and class
+without a model of its own wears it instead of the mannequin: a player's upload still wins, a
+refused or missing one still falls back, and the mannequin remains for every pair without a
+row. The look is untinted (its armour is painted on; the class is in the gait, MODELS.md 9),
+auras and hits tint it as any model. The pair's portrait (5.3) is baked from it, not from the
+mannequin. A rigged pack rarely comes on this rig: `scripts/dev/glb-retarget.py` renames
+nodes, unlinks subtrees and scales a `.glb` per axis with its skin kept consistent (no
+Blender), and `scripts/dev/blender-quaternius-warrior.py` is the Blender pass that made the
+first one (bones renamed, the IK feet and the thighs reparented, the face decimated, the sword
+split off as a prop).
 
 ## 4. Kinds and budgets
 
@@ -270,7 +290,7 @@ rebuilt in the same commit.
   The manifest and the atlas are fetched at start (the screens before the game use them;
   until they arrive the toolkit draws with its built-in font and plain plates: principle 4);
   props are loaded when first seen, one at a time, like avatars, through the same model
-  cache, **from the bundle and never from the hub**: the cache gets a second source (the
+  cache, and the official avatars the same way (3.2), **from the bundle and never from the hub**: the cache gets a second source (the
   bundle's directory or URL, by file name, checked against the manifest's hash), and a
   prop the bundle lacks is logged once and never asked for again. The hub holds no
   official content and is not asked for any.
@@ -293,6 +313,7 @@ For the first props (Phase 14) three sources were weighed on 2026-10-03:
 | CC0 packs on itch.io/OpenGameArt (KayKit *Fantasy Weapons*, *Medieval Weapons – Small Low Poly Pack*, *50 Low Poly Swords*, Quaternius *Medieval Weapons* and *Guns*) | stylised low-poly, flat or palette-shaded, 100–800 triangles | none; CC0 needs no attribution, and LICENSES.md names them anyway | in the budget as they are; glTF or GLB offered by most (Quaternius ships FBX/OBJ/Blend, which the tool does not read) |
 | A 3D-generation service (Tripo, Meshy: image or text to a textured mesh; free tiers exist) | "realistic" textured meshes, 5–30k triangles, PBR maps | an account the director opens; a decimation to ≤ 1,000 triangles and a bake of the base colour, which the tool does not do yet | the base-colour texture is what this renderer draws (half-lambert, one texture, MODELS.md 9): a scan-like model is flattened to its diffuse anyway |
 | Procedural in the tool (a sword from blade, guard, grip and pommel parameters; a texture painted by an image model, Gemini's `gemini-3-pro-image`) | ours, consistent, parametric | code | the mannequin and the sounds were made this way; the look is "programmer's" |
+| *(2026-10-13, for the bodies)* Quaternius *RPG Characters* (CC0: warrior, wizard, rogue, ranger, monk, cleric, each rigged, with a weapon mesh and a painted 1024 atlas) and KayKit *Adventurers* (CC0: knight, mage, rogue, barbarian) | Quaternius: human proportions, 1.5k-tri bodies with a 2.7k-tri face; KayKit: chibi, 4.1k-tri bodies | a retarget (the rig's names and hierarchy, the scale into the envelope: `scripts/dev/glb-retarget.py`) and a decimation of the face (Blender, headless in Docker) | the KayKit bodies are over the triangle budget and too short in the head for every frame; the Quaternius warrior passed as the striker in mail at 2,946 triangles (3.2) |
 
 **Recommendation**: the CC0 packs for Phase 14 (fetched by a pinned script with SHA-256
 checks like `scripts/fetch-ericw-tools.sh`, the chosen files committed under
@@ -414,6 +435,13 @@ Five findings on the servers and the pipeline (LOOK.md 11.2 has the client's sev
   averaging and texel fetches on top of the rasteriser's IEEE basics.
 
 ## 13. What was measured (2026-10-03, the reference machine)
+
+- **2026-10-13, the official avatar** (3.2): the striker in mail from Quaternius' warrior is
+  **415,970 bytes** ingested (2,946 triangles, 3,376 vertices, a 1024² BC1 atlas, 20 bones),
+  its source `.glb` 866,940 bytes in the repository; the bundle is **1,629,589 bytes** in 15
+  files (content v8: the new sword's `.gmm` is 33,335 bytes, 712 triangles). The offline
+  town with sixteen armed bodies, one of them the avatar, on the Radeon iGPU: 495 fps,
+  2.97 ms at the 99th percentile, 60 MB RSS.
 
 - The bundle: **114,614 bytes** in 8 files; the atlas 512 × 176, **58,985 bytes**
   (33 pieces, 3 faces of 105 glyphs each, 22 icons: 6 baked from props, 16 portraits of the

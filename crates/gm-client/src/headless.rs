@@ -42,10 +42,20 @@ pub fn run(opts: &Options) -> Result<(), Error> {
     let (w, h) = (opts.width.max(1), opts.height.max(1));
     let mut renderer = Renderer::new(&gpu, FORMAT, &mesh, (w, h));
     let mut avatars = Avatars::new(&gpu, &mut renderer.characters, opts, &bsp, None)?;
+    let mut content = crate::content::Content::load(&crate::install_root().join(&opts.assets));
+    // The official avatars of the bundle (CONTENT.md 3.2), worn as the windowed client
+    // wears them: a frame's look in an armour class before its mannequin.
+    for frame in 0..4u8 {
+        for armour in 0..4u8 {
+            let slot = content.avatar(frame, armour, |model| {
+                Some(renderer.characters.add_model(&gpu, model))
+            });
+            avatars.set_official(frame, armour, slot);
+        }
+    }
     // `--prop KEY` and `--off KEY` (CONTENT.md 9): the crowd armed from the bundle, as the
     // windowed client arms it, so a screenshot shows a prop in each hand.
     if opts.prop.is_some() || opts.off.is_some() {
-        let mut content = crate::content::Content::load(&crate::install_root().join(&opts.assets));
         let mut slot_of = |key: &Option<String>| {
             let key = key.as_ref()?;
             let slot = content.prop(key, |model| {
