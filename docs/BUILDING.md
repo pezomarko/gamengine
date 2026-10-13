@@ -140,8 +140,8 @@ directions (from QUIC's own counters), snapshot payload bytes/s, tick timing, st
 and kills; the final report adds kills per team. `RUST_LOG=debug` shows joins, malformed
 datagrams and connection ends.
 
-Bot flags: `--bots N`, `--secs N`, `--behaviour wander|hunter|hold|duelist`, `--builds a,b,...`
-and `--teams 1,2,...` (cycled over the bots), `--counter-pick`, `--seed N`, `--map PATH` (the
+Bot flags: `--bots N`, `--secs N`, `--behaviour wander|hunter|hold|duelist|skirmisher|...`,
+`--builds a,b,...` and `--teams 1,2,...` (each cycled over the bots), `--counter-pick`, `--seed N`, `--map PATH` (the
 bots predict against the same BSP). The summary prints bytes/s per bot, RTT, snapshot gaps,
 reconciliation corrections, kills and the re-specs that happened.
 
@@ -324,7 +324,8 @@ cargo run --release -p gm-server -- --map assets/maps/built/arena.bsp --cert-out
     --replay-dir replays
 # twelve bots whose view moves like a hand, four that aim by program
 cargo run --release -p gm-bot -- --connect 127.0.0.1:4433 --cert zone-cert.der --map assets/maps/built/arena.bsp \
-    --bots 16 --secs 90 --behaviour duelist --builds blade,frostweaver,shade,ironclad --teams 1,2 \
+    --bots 16 --secs 90 --builds blade,frostweaver,shade,ironclad,blade,frostweaver,shade,shade --teams 1,2 \
+    --behaviour duelist,duelist,skirmisher,duelist,duelist,duelist,skirmisher,skirmisher \
     --aim hand,sharp,hand,sharp,hand,sharp,lock,flick
 cargo run --release -p gm-tools -- replay info replays/arena-*.gmr
 cargo run --release -p gm-tools -- replay aim replays/arena-*.gmr --shots lock06

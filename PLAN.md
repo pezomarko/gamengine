@@ -1041,7 +1041,16 @@ ranges are the spread over repeated runs):
   corrects a handful of times a second); the sight sweep was quadratic (3.5 ms a tick at 200 players:
   now the four nearest on screen, 0.3 ms); **uneven frame delivery hid the lock** (one gate run in nine:
   under load four of six lock programs escaped, until each tick's view was held against its own world and
-  the cheat model stopped counting its own frames).
+  the cheat model stopped counting its own frames). **The gate's own programs went unjudged for six days**
+  (2026-10-07 to 2026-10-13): Phase 15c made an RPG body's aim the zone's and the analysis skip it, and the
+  gate's two locks (the hub test's too) played the frostweaver, an RPG build, so they fired nothing the
+  analysis saw (shots=0 for every frostweaver, hand or program), the gate failed and the hub test with it,
+  unseen under CI's older reds. The programs now play the shade, the one action build with a bolt the
+  client aims, and keep knife range (`gm-bot --behaviour skirmisher`, the list cycled per bot like the
+  builds): at a dagger's distance a lock was 4 of 9 moving shots, at 200 u it is 31 of 32; the honest
+  shades skirmish too (five kits against two hand models, so plain and sharp hands both get it) and none
+  is flagged. The musketeer was tried first and is no use here: over the wire without a hub a gun has
+  its magazine and no reserve, one shot a life.
 - Reviews (ANTICHEAT.md 12). **Google AI Studio again answered HTTP 402** (credits depleted), so both
   reviews were done by independent agents. Design review: 19 findings, 13 accepted, 5 in part, 1 rejected
   (view-time targets, the muzzle, party-only hostility in wild zones, steadiness instead of error for the

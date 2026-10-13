@@ -26,7 +26,8 @@ struct Args {
     map: PathBuf,
     bots: usize,
     secs: u64,
-    behaviour: Behaviour,
+    /// How each bot plays, cycled like the builds (empty: wander).
+    behaviours: Vec<Behaviour>,
     seed: u64,
     /// Preset builds, cycled over the bots (empty: the zone's default).
     builds: Vec<String>,
@@ -69,7 +70,7 @@ struct Args {
 }
 
 const USAGE: &str = "gm-bot (--connect ADDR --cert PATH | --web https://HOST:PORT [--web-cert SHA256HEX]) [--map PATH] [--bots N] [--secs N] \
-[--behaviour wander|hunter|hold|duelist|stroll|raid|spar] [--seed N] [--builds a,b,...] [--teams 1,2,...] [--counter-pick] [--aim brain|hand|lock|flick,...] [--report-after SECS] [--say TEXT [--say-every SECS]]\n\
+[--behaviour wander|hunter|hold|duelist|skirmisher|stroll|raid|spar,...] [--seed N] [--builds a,b,...] [--teams 1,2,...] [--counter-pick] [--aim brain|hand|lock|flick,...] [--report-after SECS] [--say TEXT [--say-every SECS]]\n\
        gm-bot --hub ADDR --hub-cert PATH --user EMAIL --password PW [--register] --character NAME --zone ID \
 [--travel-to ZONE --travel-after SECS] [--maps-dir DIR] [--secs N] [--behaviour ...] \
 [--bots N: one account each, {i} in --user and --character is the bot's number] [--stalls N: the first N open a stall] \
@@ -88,7 +89,7 @@ fn parse_args() -> Result<Args, String> {
         map: PathBuf::from("assets/maps/built/test_room.bsp"),
         bots: 16,
         secs: 30,
-        behaviour: Behaviour::Wander,
+        behaviours: Vec::new(),
         seed: 1,
         builds: Vec::new(),
         teams: Vec::new(),
@@ -144,16 +145,13 @@ fn parse_args() -> Result<Args, String> {
                     .map_err(|e| format!("--seed: {e}"))?
             }
             "--behaviour" => {
-                a.behaviour = match value("--behaviour")?.as_str() {
-                    "wander" => Behaviour::Wander,
-                    "hunter" => Behaviour::Hunter,
-                    "hold" => Behaviour::Hold,
-                    "duelist" => Behaviour::Duelist,
-                    "stroll" => Behaviour::Stroll,
-                    "raid" => Behaviour::Raid,
-                    "spar" => Behaviour::Spar,
-                    other => return Err(format!("--behaviour: unknown {other}")),
-                }
+                a.behaviours = value("--behaviour")?
+                    .split(',')
+                    .map(|b| {
+                        Behaviour::parse(b.trim())
+                            .ok_or_else(|| format!("--behaviour: unknown {b}"))
+                    })
+                    .collect::<Result<_, _>>()?
             }
             "--builds" => {
                 a.builds = value("--builds")?
@@ -329,7 +327,7 @@ async fn main() -> anyhow::Result<()> {
                 bot: BotConfig {
                     name: String::new(),
                     seed: args.seed * 1000 + i as u64,
-                    behaviour: args.behaviour,
+                    behaviour: behaviour_of(&args.behaviours, i),
                     rate: TickRate::COMBAT,
                     run_ticks: 0,
                     build: None,
@@ -482,7 +480,7 @@ async fn main() -> anyhow::Result<()> {
                 model => format!("{model:?}{i:02}").to_lowercase(),
             },
             seed: args.seed * 1000 + i as u64,
-            behaviour: args.behaviour,
+            behaviour: behaviour_of(&args.behaviours, i),
             rate: TickRate::COMBAT,
             run_ticks: 0,
             build: (!args.builds.is_empty()).then(|| args.builds[i % args.builds.len()].clone()),
@@ -592,6 +590,15 @@ fn print_heard(reports: &[&gm_bot::BotReport]) {
         for (from, text) in &r.heard {
             println!("heard: {} from {from}: {text}", r.name);
         }
+    }
+}
+
+/// The behaviour of bot `i`: the list cycled, a wanderer without one.
+fn behaviour_of(behaviours: &[Behaviour], i: usize) -> Behaviour {
+    if behaviours.is_empty() {
+        Behaviour::Wander
+    } else {
+        behaviours[i % behaviours.len()]
     }
 }
 

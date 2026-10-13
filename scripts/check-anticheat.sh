@@ -59,15 +59,23 @@ trap cleanup EXIT
 port=$((20000 + RANDOM % 20000))
 # Honest bots alternate a plain hand and a sharp one (it leads its shots, as a good player
 # does); cheats alternate an aim lock and a flick.
-# The cheats play kits that shoot: the aim statistics judge shots, and a blade that looses
-# thirty bolts in ninety seconds gives them too little to judge (ANTICHEAT.md 9).
-aims=""; builds=""
-kits=(blade frostweaver shade ironclad)
+# The cheats play the shade and keep knife range (skirmisher): the aim statistics judge
+# shots the client aimed, the shade's knife is the one bolt an action build throws, and a
+# lock shows at range, not at a dagger's. A blade that looses thirty bolts in ninety
+# seconds gives them too little to judge (ANTICHEAT.md 9); a frostweaver's shards are
+# aimed by the zone (RPG mode, ANTICHEAT.md 4), so its frames say nothing, and the locks
+# that played it from 2026-10-07 to 2026-10-13 were never judged. The honest shades
+# skirmish too, so a hand is judged where the programs are: five kits against two hands,
+# so that plain and sharp hands both get the shade (two of each among twelve).
+aims=""; builds=""; behaviours=""
+kits=(blade frostweaver shade ironclad shade)
 for i in $(seq 1 "$HONEST"); do
-  aims+="$([[ $((i % 2)) == 1 ]] && echo hand || echo sharp),"; builds+="${kits[$(( (i - 1) % 4 ))]},"
+  kit="${kits[$(( (i - 1) % 5 ))]}"
+  aims+="$([[ $((i % 2)) == 1 ]] && echo hand || echo sharp),"; builds+="$kit,"
+  behaviours+="$([[ $kit == shade ]] && echo skirmisher || echo duelist),"
 done
 for i in $(seq 1 "$CHEATS"); do
-  aims+="$([[ $((i % 2)) == 1 ]] && echo lock || echo flick),"; builds+="$([[ $((i % 2)) == 1 ]] && echo frostweaver || echo shade),"
+  aims+="$([[ $((i % 2)) == 1 ]] && echo lock || echo flick),"; builds+="shade,"; behaviours+="skirmisher,"
 done
 bots=$((HONEST + CHEATS))
 target/release/gm-server --map assets/maps/built/arena.bsp --listen 127.0.0.1:$port --cert-out "$tmp/cert.der" \
@@ -75,7 +83,7 @@ target/release/gm-server --map assets/maps/built/arena.bsp --listen 127.0.0.1:$p
 SERVER_PID=$!
 sleep 1.5
 target/release/gm-bot --connect 127.0.0.1:$port --cert "$tmp/cert.der" --map assets/maps/built/arena.bsp \
-  --bots "$bots" --secs "$SECS" --behaviour duelist --builds "${builds%,}" --teams 1,2 \
+  --bots "$bots" --secs "$SECS" --behaviour "${behaviours%,}" --builds "${builds%,}" --teams 1,2 \
   --aim "${aims%,}" --report-after 20 > "$tmp/bots.log" 2>&1 || { tail -5 "$tmp/bots.log"; echo "FAIL: the bots did not finish"; exit 1; }
 # The fight closes ten seconds after its last hit and is written; then the zone stops (and
 # would write what is open anyway).
