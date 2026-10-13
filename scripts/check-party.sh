@@ -382,7 +382,8 @@ type Cvita
 click blade
 click Create
 wait screen characters
-expect "Cvita  blade  new"
+expect "Cvita"
+expect "blade  |  not yet in the world"
 quit
 EOS
   if (cd "$tmp/elsewhere" && "${on[@]}" timeout 120 "${client[@]}" --ui-script "$tmp/new.ui") > "$tmp/new.log" 2>&1; then

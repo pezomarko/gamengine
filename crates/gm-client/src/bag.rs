@@ -114,16 +114,18 @@ const PATIENCE: Duration = Duration::from_secs(12);
 const PRICE_CHARS: usize = 14;
 /// The two panels of the inventory, in units (EQUIPMENT.md 4): the bag, and the
 /// equipment with the body between two columns of places, `EQUIP_ROWS` slots tall.
-pub const BAG_UNITS: f32 = 280.0;
+pub const BAG_UNITS: f32 = 300.0;
 pub const EQUIP_UNITS: f32 = 300.0;
 const EQUIP_ROWS: f32 = 6.0;
 
-/// Who wears it (EQUIPMENT.md 4.1): the name over the body and the class line under it
-/// (`showcase::ribbon`), from the character being played; empty where nothing is known.
+/// Who wears it (EQUIPMENT.md 4.1): the name over the body, the class line under it
+/// (`showcase::short_ribbon`) and the class alone for a panel the line does not fit,
+/// from the character being played; empty where nothing is known.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Wearer<'a> {
     pub name: &'a str,
     pub ribbon: &'a str,
+    pub class: &'a str,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -940,10 +942,15 @@ impl Bag {
         let bag_inner =
             line + gap + grid_h + gap + bar_h + gap + 3.0 * line + gap + 2.0 * line + gap + h;
         let bag_h = ui.panel_height(bag_inner, true);
-        let body_h = EQUIP_ROWS * side + (EQUIP_ROWS - 1.0) * gap;
-        let mut equip_inner = line + gap + body_h + gap + 3.0 * line + gap + h;
+        // The equipment's rows sit closer than the bag's, and its slots two dots apart
+        // like a grid's cells: six of them with the ribbon, the words, the notice and
+        // the buttons fit under `PANEL_HIGH` that way.
+        let egap = 3.0 * s;
+        let slot_gap = 2.0 * s;
+        let body_h = EQUIP_ROWS * side + (EQUIP_ROWS - 1.0) * slot_gap;
+        let mut equip_inner = line + egap + body_h + egap + 3.0 * line + egap + h;
         if !self.show_grid {
-            equip_inner += 2.0 * line + gap;
+            equip_inner += 2.0 * line + egap;
         }
         let equip_h = ui.panel_height(equip_inner, true);
         let total = match (self.show_equip, self.show_grid) {
@@ -994,21 +1001,27 @@ impl Bag {
                 wearer.name
             };
             let inner = ui.panel(equip_rect, title);
-            let mut col = Column::new(inner, gap);
+            let mut col = Column::new(inner, egap);
+            // The class line, or the class alone where the line does not fit.
             let r = col.take(line);
-            ui.label(r.x, r.y, r.w, ui::FAINT, wearer.ribbon);
+            let said = if ui.text_width(wearer.ribbon) <= r.w {
+                wearer.ribbon
+            } else {
+                wearer.class
+            };
+            ui.label(r.x, r.y, r.w, ui::FAINT, said);
             let area = col.take(body_h);
             let well = Rect::new(
-                area.x + side + gap,
+                area.x + side + egap,
                 area.y,
-                (area.w - 2.0 * (side + gap)).max(0.0),
+                (area.w - 2.0 * (side + egap)).max(0.0),
                 area.h,
             );
             if well.w >= 20.0 * s {
                 ui.paperdoll_open(well);
             }
             let at = |column: f32, row: usize| {
-                Rect::new(column, area.y + row as f32 * (side + gap), side, side)
+                Rect::new(column, area.y + row as f32 * (side + slot_gap), side, side)
             };
             // Under a two-hander the left hand shows it ghosted (EQUIPMENT.md 3): dim,
             // with `both hands` beneath. Dragged into the grid it comes off like any
@@ -1226,17 +1239,11 @@ impl Bag {
             close_bag = ui.button(row[5], "Close");
         }
 
-        // Escape closes the panel under the pointer, else both (EQUIPMENT.md 4.3); each
-        // panel's Close closes it alone, and the last one closes the screen.
+        // Escape closes the screen whole, as it does every screen (EQUIPMENT.md 4.3; a
+        // script's Escape must mean one thing); each panel's Close closes it alone, and
+        // the last one closes the screen.
         if ui.key(Key::Escape) {
-            let at = ui.cursor();
-            if self.show_equip && self.show_grid && equip_rect.contains(at) {
-                close_equip = true;
-            } else if self.show_equip && self.show_grid && bag_rect.contains(at) {
-                close_bag = true;
-            } else {
-                return BagAction::Close;
-            }
+            return BagAction::Close;
         }
         if close_equip {
             self.show_equip = false;
@@ -2555,6 +2562,11 @@ mod tests {
             price.selling = Some(4);
             price.price = ["99999999".into(), "99".into()];
             pages.extend([storage, price]);
+            // The equipment alone, and both panels side by side (EQUIPMENT.md 4), with
+            // the ribbon as long as a class line gets.
+            let mut both = Bag::inventory(&hub, S, ME, t);
+            both.show_equip = true;
+            pages.extend([Bag::equipment(&hub, S, ME, t), both]);
             // The stall as its keeper sees it (the answer is made when it is asked for),
             // and one whose keeper's name is as long as a name gets.
             hub.0.borrow_mut().mine = true;
@@ -2581,7 +2593,12 @@ mod tests {
                     let mut canvas = Recorder::new(size.0, size.1);
                     let input = UiInput::default();
                     let mut ui = Ui::begin(&mut canvas, &mut st, &input, bag.name(), PANEL_UNITS);
-                    bag.frame(&mut ui, &hub, true, t);
+                    let wearer = Wearer {
+                        name: "A name of twenty-four b.",
+                        ribbon: "Custom (a Frostweaver)  |  infiltrator in leather",
+                        class: "Custom (a Frostweaver)",
+                    };
+                    bag.frame_with(&mut ui, &hub, true, t, ItemLooks::default(), wearer);
                     ui.end();
                     tidy(&canvas, &st, PANEL_UNITS);
                     assert!(

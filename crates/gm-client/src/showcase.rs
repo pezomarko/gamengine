@@ -118,6 +118,17 @@ pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
     }
 }
 
+/// `Class  |  frame in armour`, the equipment's line under the name (EQUIPMENT.md 4.1):
+/// the ribbon without the aspects and the mode, which the selector says.
+pub fn short_ribbon(class: &str, b: &Build) -> String {
+    let body = format!("{} in {}", frame_name(b.frame), b.armour.name());
+    if class.is_empty() {
+        body
+    } else {
+        format!("{class}  |  {body}")
+    }
+}
+
 /// `Class  |  frame in armour  |  aspects  |  mode`, the line under the name; the class
 /// leads it when the content is here to name one.
 pub fn ribbon(class: &str, b: &Build) -> String {

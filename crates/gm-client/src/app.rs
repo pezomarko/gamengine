@@ -6186,12 +6186,14 @@ impl App {
                 }
                 // Who wears it, for the equipment's ribbon (EQUIPMENT.md 4.1): the
                 // class the content names, and the build.
-                let ribbon = self
+                let (class, ribbon) = self
                     .online
                     .as_ref()
                     .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
                     .map(|(build, pack)| {
-                        crate::showcase::ribbon(&crate::showcase::class_name(pack, build), build)
+                        let class = crate::showcase::class_name(pack, build);
+                        let ribbon = crate::showcase::short_ribbon(&class, build);
+                        (class, ribbon)
                     })
                     .unwrap_or_default();
                 match (&mut self.bag, &self.hub) {
@@ -6202,6 +6204,7 @@ impl App {
                         let wearer = crate::bag::Wearer {
                             name: &me,
                             ribbon: &ribbon,
+                            class: &class,
                         };
                         bag_action = bag.frame_with(
                             &mut ui,

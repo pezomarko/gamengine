@@ -186,7 +186,9 @@ done
 started $hub_pid "the hub" "$tmp/hub.log"
 started $town_pid "the town" "$tmp/town.log"
 [[ "$running" == 1 ]] || { show "$tmp/town.log"; echo "FAIL: the town did not come up"; exit 1; }
-# A walker with a hammer build: somebody else to see holding a prop.
+# A walker with a hammer build: somebody else in the town. (Its hands are bare: since
+# 2026-10-13 a hand holds what is worn in it and nothing else, LOOK.md 6.1, and a bot
+# wears nothing; the character's own sword is the one prop held and loaded.)
 target/release/gm-bot "${link[@]}" --user walker@bots.test --password walker-password --register --character Walker \
   --zone town --bots 1 --builds ironclad --secs 600 --behaviour hold --maps-dir assets/maps/built > "$tmp/walker.log" 2>&1 &
 pids+=("$!")
@@ -210,9 +212,9 @@ expect image item/sword
 click Equipment
 expect "weapon: nothing"
 say inventory
-drag "dagger  slash +2.0%" weapon
-expect "weapon: dagger"
-expect "dagger  slash +2.0%  worn"
+drag "sword  slash +2.0%" weapon
+expect "weapon: sword"
+expect "sword  slash +2.0%  worn"
 say worn
 hover "cuirass  physical -2.0%"
 expect "tooltip: cuirass"
@@ -233,8 +235,8 @@ reported() { # log, label
   [[ -n "$line" ]] || { fail "$2: no report with a hotbar"; return; }
   local bar; bar="$(field "$line" hotbar)"
   if [[ "$bar" == *"LMB:sword:"* ]]; then ok "$2: the hotbar's first cell is the sword"; else fail "$2: the hotbar: $bar"; fi
-  atleast "$(field "$line" held)" 2 "$2: bodies holding something (the character and the walker)"
-  atleast "$(field "$line" props_loaded)" 2 "$2: props loaded from the bundle"
+  atleast "$(field "$line" held)" 1 "$2: bodies holding something (the character; the walker's hands are bare)"
+  atleast "$(field "$line" props_loaded)" 1 "$2: props loaded from the bundle"
   # The atlas in use is the one made for the UI's scale: a texel is a pixel (LOOK.md 2.2).
   local scale density; scale="$(field "$line" ui_scale)"; density="$(field "$line" atlas_density)"
   if [[ -n "$scale" && "$scale" == "$density" ]]; then
@@ -270,7 +272,8 @@ type Dresser
 click blade
 click Create
 wait screen characters
-expect "Dresser  blade  new"
+expect "Dresser"
+expect "blade  |  not yet in the world"
 quit
 EOS
   if (cd "$tmp/elsewhere" && "${on[@]}" timeout 120 "${client[@]}" --ui-script "$tmp/new.ui") > "$tmp/new.log" 2>&1; then
@@ -302,7 +305,7 @@ EOS
     fi
   done
   if wait $pid && /usr/bin/grep -aq '^ui-script: ok' "$tmp/dress.log"; then
-    ok "by script: the inventory as a grid of pictures, the dagger dragged onto the weapon slot and worn, the tooltip, the equip panel ($shots screenshots)"
+    ok "by script: the inventory as a grid of pictures, the sword dragged onto the weapon slot and worn, the tooltip, the equipment ($shots screenshots)"
   else
     show "$tmp/dress.log"; fail "the dressing by script did not reach its end"; return
   fi
@@ -310,7 +313,8 @@ EOS
   reported "$tmp/dress.log" "the desktop client"
   local told; told="$(plain "$tmp/town.log" | /usr/bin/grep -ac " gear " || true)"
   atleast "$told" 1 "gear readings the zone applied"
-  # A blade's bare hand holds the sword; the dagger worn is another look, told to everyone.
+  # A blade's bare hand holds nothing (LOOK.md 6.1); the sword worn is another look, told to
+  # everyone. (A dagger is not for a blade's hands, ITEMS.md 2: the sword is what it wears.)
   told="$(plain "$tmp/town.log" | /usr/bin/grep -ac ' look$\| look ' || true)"
   atleast "$told" 1 "looks the zone announced on a change of gear"
 }
@@ -340,7 +344,7 @@ browser() {
   }
   build=webgpu; name="Dresser$build"
   script="$(printf '%s\n' 'wait screen new character' 'field name' "type $name" 'click blade' 'click Create' \
-    'wait screen characters' "expect \"$name  blade  new\"" 'quit')"
+    'wait screen characters' "expect \"$name\"" 'expect "blade  |  not yet in the world"' 'quit')"
   if page "$tmp/browser-new.log" "$script" --register; then
     ok "$build: a new account by the page's form and a character called $name"
   else
@@ -349,7 +353,7 @@ browser() {
   provide "$name" || return
   script="$(printf '%s\n' 'wait screen characters' 'click Play'; dressing; echo quit)"
   if page "$tmp/browser.log" "$script" --screenshot "$tmp/browser.png"; then
-    ok "$build: the inventory as a grid, the dagger dragged onto its slot and worn, the tooltip"
+    ok "$build: the inventory as a grid, the sword dragged onto its slot and worn, the tooltip"
   else
     show "$tmp/browser.log"; fail "the $build build did not reach the end of its dressing"; return
   fi

@@ -182,7 +182,8 @@ around it, as Tales of Pirates and every game since draw it:
   (the picked worn thing), **Bag** (opens 4.2 beside it when it is closed), **Close**.
 - Opening the character with the bag closed does **not** open the bag; dragging a wearable
   thing out of the bag with the character closed **opens the character** beside it, so a
-  person who never pressed `C` finds the places by picking a sword up.
+  person who never pressed `C` finds the places by picking a sword up. (As built: Escape
+  closes the screen whole, as on every screen; each panel's Close closes it alone.)
 
 ### 4.2 The bag (`I`, and **Inventory** in the menu)
 
@@ -481,14 +482,16 @@ Steps 1 to 3 of section 6, in that order, one commit:
 2. **The equipment window** (4). Not `C`: that key is the gun mode's crouch (the ctrl
    alias), so **`O`** opens it, and its screen is named `equipment` because the K page
    is `character` already. It is the inventory screen with two panels (`Bag.show_grid`,
-   `Bag.show_equip`), so every request, answer and gate of the bag is shared: the bag 280
-   units wide, the equipment 300, side by side in the middle, or one alone. The
+   `Bag.show_equip`), so every request, answer and gate of the bag is shared: each panel
+   300 units wide, side by side in the middle (610 across: a phone's 780 holds them), or
+   one alone; the equipment's rows sit three units apart and its slots two, so six rows
+   with the ribbon, the words, the notice and the buttons stay under `PANEL_HIGH`. The
    equipment: the name as the panel's title with the class ribbon under it, the body in
    the open (`paperdoll_open`) between two columns of six rows of which only the places
    that exist are drawn (`armour` left; `weapon`, `off` right), what is worn in words
    (`right hand: sword  slash +2.0%`), **Take off**, **Bag**, **Close**. Opening by key,
    by the menu's **Equipment**, by the bag's button; a wearable thing dragged out of the
-   bag opens it; Escape closes the panel under the pointer, else both. **Wear** puts a
+   bag opens it; Escape closes the screen whole, each Close its panel. **Wear** puts a
    one-hander into the empty left hand when the right holds a one-hander (4.4), in the
    hub's `wear`. The look gate's script clicks **Equipment** before it drags the dagger.
 3. **Both hands** (3). `held = "two"` (content v10: the staff; the greatsword stays in

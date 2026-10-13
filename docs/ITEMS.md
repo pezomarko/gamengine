@@ -417,8 +417,8 @@ and the rest by name on a third line, `body: cuirass, hood, boots`), and **Take 
 **Bag**, **Close**. `O` opens the equipment alone (its screen is named
 `equipment`), `I` the bag alone; each key shows or hides its panel while the other is
 up; **Bag** and **Equipment** open the other; a wearable thing dragged out of the bag
-while the equipment is hidden opens it beside the bag; Escape closes the panel under the
-pointer, else both, and the last Close ends the screen. A thing dragged onto its slot is
+while the equipment is hidden opens it beside the bag; Escape closes the screen whole, and
+each panel's Close closes it alone, the last one ending the screen. A thing dragged onto its slot is
 worn (`Wear`); a one-handed weapon dragged onto the left hand is worn there (`WearIn`,
 2: the second sword); a worn thing dragged into the grid comes off. The **Wear** button
 puts a thing into its own place, or a second one-hander into the empty hand (2). A

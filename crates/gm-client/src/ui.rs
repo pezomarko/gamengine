@@ -641,11 +641,6 @@ impl<'a, C: Canvas> Ui<'a, C> {
         self.canvas.size()
     }
 
-    /// Where the pointer is this frame.
-    pub fn cursor(&self) -> (f32, f32) {
-        self.input.cursor
-    }
-
     /// A drag in progress (LOOK.md 2.4): the grid or slot it came from and the id of
     /// what is dragged, once the press has moved far enough to be one.
     pub fn dragging(&self) -> Option<(&str, i64)> {
@@ -2410,32 +2405,51 @@ pub mod tests {
     pub fn tidy_in(canvas: &Recorder, state: &UiState, need: f32, whole: bool) {
         let scale = scale_for(canvas.size, need, 0);
         let (w, h) = canvas.size;
-        let panel = if whole {
-            Rect::new(0.0, 0.0, w, h)
+        // The panels: every plate drawn in the panel's colour (the inventory draws two
+        // side by side, EQUIPMENT.md 4); the first rect at least.
+        let panels: Vec<Rect> = if whole {
+            vec![Rect::new(0.0, 0.0, w, h)]
         } else {
-            canvas.rects.first().expect("a panel was drawn").0
+            let plates: Vec<Rect> = canvas
+                .rects
+                .iter()
+                .filter(|(_, c)| *c == PLATE)
+                .map(|(r, _)| *r)
+                .collect();
+            if plates.is_empty() {
+                vec![canvas.rects.first().expect("a panel was drawn").0]
+            } else {
+                plates
+            }
         };
-        assert!(
-            whole || panel.h <= PANEL_HIGH * scale + 0.5,
-            "{}: a panel of {} units is taller than the scale rule knows of",
-            state.screen,
-            panel.h / scale
-        );
-        assert!(
-            panel.x >= 0.0 && panel.y >= 0.0 && panel.x + panel.w <= w && panel.y + panel.h <= h,
-            "{}: the panel {panel:?} is not inside a frame of {w}x{h}",
-            state.screen
-        );
+        for panel in &panels {
+            assert!(
+                whole || panel.h <= PANEL_HIGH * scale + 0.5,
+                "{}: a panel of {} units is taller than the scale rule knows of",
+                state.screen,
+                panel.h / scale
+            );
+            assert!(
+                panel.x >= 0.0
+                    && panel.y >= 0.0
+                    && panel.x + panel.w <= w
+                    && panel.y + panel.h <= h,
+                "{}: the panel {panel:?} is not inside a frame of {w}x{h}",
+                state.screen
+            );
+        }
         let inside = |r: &Rect| {
-            r.x >= panel.x - 0.5
-                && r.y >= panel.y - 0.5
-                && r.x + r.w <= panel.x + panel.w + 0.5
-                && r.y + r.h <= panel.y + panel.h + 0.5
+            panels.iter().any(|panel| {
+                r.x >= panel.x - 0.5
+                    && r.y >= panel.y - 0.5
+                    && r.x + r.w <= panel.x + panel.w + 0.5
+                    && r.y + r.h <= panel.y + panel.h + 0.5
+            })
         };
         for seen in &state.seen {
             assert!(
                 inside(&seen.rect),
-                "{} at {w}x{h}: {:?} at {:?} is outside the panel {panel:?}",
+                "{} at {w}x{h}: {:?} at {:?} is outside the panels {panels:?}",
                 state.screen,
                 seen.text,
                 seen.rect
