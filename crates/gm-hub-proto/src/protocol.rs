@@ -857,6 +857,15 @@ pub struct ItemSummary {
     /// is not a weapon. False, `does` ends with the hub's words for it, and the hub
     /// refuses to wear it. Player protocol v5.
     pub fits: bool,
+    /// Whose hands a weapon is for, true for everyone and whoever asks (ITEMS.md 2,
+    /// EQUIPMENT.md 2): the presets whose kits hold its model, by their class names,
+    /// `Blade, Ironclad`; `no preset's` for a weapon no preset holds; empty for anything
+    /// that is not a weapon (armour, shields, parts and stacks fit everyone). Player
+    /// protocol v10, hub protocol 14.
+    pub hands: String,
+    /// A weapon that takes both hands when worn (EQUIPMENT.md 3): the left hand's slot
+    /// shows it ghosted while it is worn. v10.
+    pub both_hands: bool,
 }
 
 /// A reading of what a character's worn items do to damage (ITEMS.md 3.3). `seq` orders
@@ -1242,7 +1251,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 13;
+pub const HUB_VERSION: u8 = 14;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

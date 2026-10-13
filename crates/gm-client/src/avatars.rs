@@ -514,7 +514,10 @@ impl Avatars {
                 // The overlay was cut for the striker (`--worn`, LOOK.md 6.6): the
                 // crowd's strikers wear it, the other frames stand bare.
                 worn: self.crowd_worn.filter(|_| frame == 1).map(|(slot, _)| slot),
-                hide: self.crowd_worn.filter(|_| frame == 1).map_or(0, |(_, hide)| hide),
+                hide: self
+                    .crowd_worn
+                    .filter(|_| frame == 1)
+                    .map_or(0, |(_, hide)| hide),
             };
             self.push(&body, dt, bsp, characters, boxes);
             // Running on the spot: feed the stride the animator would have seen.

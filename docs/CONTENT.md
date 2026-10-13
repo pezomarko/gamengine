@@ -88,7 +88,7 @@ each the key of a file in 2:
 | | `sound` | the patch (SOUND.md 2) its cues use; absent: the patch of its verb kind as today |
 | `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template; for an armour, `models/armour/<model>_<frame>.glb`, its overlay (3.3) |
 | | `icon` | absent: baked from `model` (5.3); absent both: a glyph of the template's kind |
-| | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `back`: which `prop_*` bone (MODELS.md 2) |
+| | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `two` (both hands, EQUIPMENT.md 3: content v10), `back`: which `prop_*` bone (MODELS.md 2) |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
@@ -151,8 +151,11 @@ way the low-poly packs come) gets a texture made for it: every flat colour becom
 a file with some textured and some flat primitives is refused: it must be one or the
 other). Our own hammer, musket and pistol are made this way (`gm-tools content synth`).
 
-Two-handed holds and sheathing to the back out of a fight are `held` values a later phase
-can act on. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
+**Both hands** (content v10, 2026-10-13, EQUIPMENT.md 3): `held = "two"` on a weapon
+(the staff) says that worn it takes the left hand too (ITEMS.md 2); the manifest carries
+it (`HELD_TWO`), and the hold itself (both fists on the grip) is a later phase's: the prop
+is drawn in the right fist. Sheathing to the back out of a fight is a `held` value a later
+phase can act on. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
 its slot, and the prop of a build's **guard** ability is drawn in the left hand (`shield_wall`
 holds `shield`, ours: `gm-tools content synth shield`, built in hand space already, its face
 along +Y). `gm-tools content look KEY --left` is the fitting room for it, and offline

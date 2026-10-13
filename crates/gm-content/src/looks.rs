@@ -200,9 +200,9 @@ impl Looks {
         for t in &it.templates {
             name_prop(&t.model, &format!("template {}", t.id))?;
             let held = t.held().to_string();
-            if !["right", "left", "either", "back"].contains(&held.as_str()) {
+            if !["right", "left", "either", "back", "two"].contains(&held.as_str()) {
                 return Err(ContentError::Invalid(format!(
-                    "template {}: held must be right, left, either or back, not `{held}`",
+                    "template {}: held must be right, left, either, back or two, not `{held}`",
                     t.id
                 )));
             }
@@ -478,7 +478,13 @@ tint = [0.8, 0.8, 0.85]
         let looks = Looks::load_str(ABILITIES, "", "", ITEMS, "").unwrap();
         assert_eq!(
             looks.props,
-            ["sword_plain", "hammer_plain", "sword_iron", "shield_round", "cuirass_leather"]
+            [
+                "sword_plain",
+                "hammer_plain",
+                "sword_iron",
+                "shield_round",
+                "cuirass_leather"
+            ]
         );
         // Worn: the item's model. Bare: the prop of the ability in hand (the gun mode's
         // firearm), which a zone names only then. Neither: nothing.

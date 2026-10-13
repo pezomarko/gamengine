@@ -389,10 +389,14 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!((shown.place, shown.edge), (PLACE_WEAPON, sword_edge));
     assert_eq!(shown.what, "a weapon, 250 of 250");
     assert_eq!(shown.does, ["slash +11.0%", "fire +9.5%"]);
+    // Whose hands it is for (EQUIPMENT.md 2): the presets whose kits hold a sword, by
+    // their class names, whoever asks; an armour says nothing of the kind.
+    assert_eq!(shown.hands, "Blade");
     let shown = find(&have, cuirass);
     assert_eq!((shown.place, shown.edge), (PLACE_ARMOUR, cuirass_edge));
     assert_eq!(shown.what, "an armour, 220 of 250");
     assert_eq!(shown.does, ["physical -9.9%"]);
+    assert_eq!(shown.hands, "");
     assert_eq!(find(&have, plain).edge, plain_edge);
     let shown = find(&have, ember);
     assert_eq!((shown.place, shown.edge), (PLACE_NONE, [0; 9]));
@@ -421,7 +425,10 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         HubResponse::Characters(list) => list.into_iter().find(|c| c.id == smith).unwrap().worn,
         other => panic!("unexpected {other:?}"),
     };
-    assert_eq!(listed, ["sword".to_string(), String::new(), "cuirass".to_string()]);
+    assert_eq!(
+        listed,
+        ["sword".to_string(), String::new(), "cuirass".to_string()]
+    );
     // Only that zone: another speaks for nobody here, and a session's connection is no zone.
     assert_eq!(
         wear(&arena, smith, plain).await,
@@ -541,12 +548,30 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     let shown = find(&have, staff);
     assert!(!shown.fits && !shown.worn, "{shown:?}");
     assert_eq!(shown.does.last().map(String::as_str), Some(words));
+    assert_eq!(shown.hands, "Frostweaver, Mender");
     assert!(find(&have, plain).fits && find(&have, cuirass).fits);
 
-    // One weapon: the plain sword takes the best one's place, and the best one is an
-    // item like any other again.
+    // A second one-hander goes into the empty left hand (EQUIPMENT.md 4.4): worn beside
+    // the best one, adding under the cap and the left hand's half (EQUIPMENT.md 5.5:
+    // 220 + 40 / 2 of slash is 240); taken off, the best one stands alone again.
     let gear = wear(&town, smith, plain).await.unwrap();
-    assert_eq!((gear.dealt, gear.taken), (plain_edge, cuirass_edge));
+    let mut both = sword_edge;
+    both[at(DamageType::Slash)] = 240;
+    assert_eq!((gear.dealt, gear.taken), (both, cuirass_edge));
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert_eq!(
+        (find(&have, plain).worn_in, find(&have, sword).worn_in),
+        (PLACE_OFF, PLACE_WEAPON)
+    );
+    let gear = take_off(&town, smith, plain).await.unwrap();
+    assert_eq!((gear.dealt, gear.taken), (sword_edge, cuirass_edge));
+    // One weapon, where the asker says: the plain sword into the right hand takes the
+    // best one's place, and the best one is an item like any other again.
+    let reading = wear_in(&town, smith, plain, PLACE_WEAPON).await.unwrap();
+    assert_eq!(
+        (reading.gear.dealt, reading.gear.taken),
+        (plain_edge, cuirass_edge)
+    );
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert!(find(&have, plain).worn && !find(&have, sword).worn);
     assert_eq!(
@@ -572,7 +597,12 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     };
     let (offered, n) = view().await;
     assert_eq!(n, 1);
-    let gear = wear(&town, smith, sword).await.unwrap();
+    // (Into the right hand by name: a plain Wear would take the empty left hand beside
+    // the plain sword, EQUIPMENT.md 4.4.)
+    let gear = wear_in(&town, smith, sword, PLACE_WEAPON)
+        .await
+        .unwrap()
+        .gear;
     assert_eq!(gear.dealt, sword_edge);
     let (now, n) = view().await;
     assert!(
@@ -604,31 +634,46 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!((gear.dealt, gear.taken), (sword_edge, cuirass_edge));
 
     // The off hand (ITEMS.md 2, 2026-10-13). The plain sword goes into the left hand
-    // beside the best one when asked, and adds under the cap: 220 + 40 of slash is 250.
+    // beside the best one when asked, and adds half of itself under the cap (EQUIPMENT.md
+    // 5.5): 220 + 40 / 2 of slash is 240.
     let reading = wear_in(&town, smith, plain, PLACE_OFF).await.unwrap();
     let mut both = sword_edge;
-    both[at(DamageType::Slash)] = 250;
-    assert_eq!((reading.gear.dealt, reading.gear.taken), (both, cuirass_edge));
+    both[at(DamageType::Slash)] = 240;
+    assert_eq!(
+        (reading.gear.dealt, reading.gear.taken),
+        (both, cuirass_edge)
+    );
     assert_eq!(
         reading.templates,
-        ["sword".to_string(), "sword".to_string(), "cuirass".to_string()]
+        [
+            "sword".to_string(),
+            "sword".to_string(),
+            "cuirass".to_string()
+        ]
     );
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert_eq!(
         (find(&have, sword).worn_in, find(&have, plain).worn_in),
         (PLACE_WEAPON, PLACE_OFF)
     );
-    assert!(find(&have, sword).off && find(&have, plain).off, "a sword goes either way");
+    assert!(
+        find(&have, sword).off && find(&have, plain).off,
+        "a sword goes either way"
+    );
     assert!(!find(&have, cuirass).off);
     // Not an armour, not a two-handed staff (held right only), not a dagger this build
     // does not swing (the hands rule holds in the left hand too); the words say why.
     assert_eq!(
         wear_in(&town, smith, cuirass, PLACE_OFF).await,
-        Err(HubError::Invalid("a cuirass does not go on the left hand".into()))
+        Err(HubError::Invalid(
+            "a cuirass does not go on the left hand".into()
+        ))
     );
     assert_eq!(
         wear_in(&town, smith, staff, PLACE_OFF).await,
-        Err(HubError::Invalid("a staff does not go on the left hand".into()))
+        Err(HubError::Invalid(
+            "a staff does not go on the left hand".into()
+        ))
     );
     let dagger = direct
         .grant_item(smith, "dagger", &iron, room("dagger").as_deref())
@@ -645,27 +690,37 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         Err(HubError::Invalid("no such place".into()))
     );
     // A shield goes into the left hand by nature, takes the plain sword's place there,
-    // and guards beside the cuirass: 220 + 40 of a blow is 250.
+    // and guards beside the cuirass for half of itself: 220 + 40 / 2 of a blow is 240.
     let shield = direct
         .grant_item(smith, "shield", &iron, room("shield").as_deref())
         .await
         .unwrap();
     let gear = wear(&town, smith, shield).await.unwrap();
     assert_eq!(gear.dealt, sword_edge);
-    assert_eq!(gear.taken, [250, 250, 250, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(gear.taken, [240, 240, 240, 0, 0, 0, 0, 0, 0]);
     let have = inventory(&smith_conn, smith_s, smith).await;
     let shown = find(&have, shield);
-    assert_eq!((shown.place, shown.worn_in, shown.off), (PLACE_OFF, PLACE_OFF, false));
+    assert_eq!(
+        (shown.place, shown.worn_in, shown.off),
+        (PLACE_OFF, PLACE_OFF, false)
+    );
     assert_eq!(shown.what, "a shield, 40 of 250");
     assert_eq!(shown.does, ["physical -2.0%"]);
     assert!(!find(&have, plain).worn, "the shield took the left hand");
     assert_eq!(
         wear_in(&town, smith, shield, PLACE_WEAPON).await,
-        Err(HubError::Invalid("a shield does not go on the right hand".into()))
+        Err(HubError::Invalid(
+            "a shield does not go on the right hand".into()
+        ))
     );
-    // The one sword asked into the left hand moves there: the right hand is empty.
+    // The one sword asked into the left hand moves there: the right hand is empty, and
+    // the left hand counts for half of it (EQUIPMENT.md 5.5).
     let reading = wear_in(&town, smith, sword, PLACE_OFF).await.unwrap();
-    assert_eq!((reading.gear.dealt, reading.gear.taken), (sword_edge, cuirass_edge));
+    let half = sword_edge.map(|e| e / 2);
+    assert_eq!(
+        (reading.gear.dealt, reading.gear.taken),
+        (half, cuirass_edge)
+    );
     assert_eq!(
         reading.templates,
         [String::new(), "sword".to_string(), "cuirass".to_string()]

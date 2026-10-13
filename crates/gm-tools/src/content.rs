@@ -17,8 +17,8 @@ use gm_ingest::source::Fit;
 use gm_model::atlas::{self, Atlas, Cell, Face, Glyph, Piece};
 use gm_model::manifest::{
     AbilityEntry, AvatarEntry, BuildEntry, CreatureEntry, HELD_BACK, HELD_EITHER, HELD_LEFT,
-    HELD_RIGHT, OverlayEntry,
-    IconEntry, MANIFEST_VERSION, Manifest, MaterialEntry, PropEntry, TemplateEntry,
+    HELD_RIGHT, HELD_TWO, IconEntry, MANIFEST_VERSION, Manifest, MaterialEntry, OverlayEntry,
+    PropEntry, TemplateEntry,
 };
 use gm_model::{Model, mannequin, rig, smallfont};
 use serde::Deserialize;
@@ -607,7 +607,10 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             }
             any = true;
             if !licensed(&format!("{name}.glb")) {
-                problems.push(format!("armour {}: {file} is not named in LICENSES.md", t.key));
+                problems.push(format!(
+                    "armour {}: {file} is not named in LICENSES.md",
+                    t.key
+                ));
             }
             let (report, ingested) = gm_ingest::ingest_overlay(&read(&path)?, frame);
             match ingested {
@@ -708,6 +711,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                 "left" => HELD_LEFT,
                 "back" => HELD_BACK,
                 "either" => HELD_EITHER,
+                "two" => HELD_TWO,
                 _ => HELD_RIGHT,
             },
             fit_view: t.fit_view.map(|f| {
@@ -1673,6 +1677,7 @@ fn report(b: &Bundle) {
                 HELD_LEFT => "left",
                 HELD_BACK => "back",
                 HELD_EITHER => "either",
+                HELD_TWO => "two",
                 _ => "right",
             },
             if t.retired { "  retired" } else { "" }
@@ -1766,7 +1771,10 @@ mod tests {
     fn an_armour_s_overlay_is_built_for_its_frame_and_the_template_says_what_it_covers() {
         let bundle = build(&sources()).expect("the content builds");
         let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
-        for (key, file) in [("cuirass", "armour/cuirass_striker.gmm"), ("robe", "armour/robe_striker.gmm")] {
+        for (key, file) in [
+            ("cuirass", "armour/cuirass_striker.gmm"),
+            ("robe", "armour/robe_striker.gmm"),
+        ] {
             let o = bundle.manifest.overlay(key, striker).expect(key);
             assert_eq!(o.file, file);
             let bytes = &bundle.files[&o.file];
@@ -1779,8 +1787,14 @@ mod tests {
             assert_eq!(model.triangles() as u32, o.triangles);
             assert!(model.triangles() <= gm_model::limits::OVERLAY_MAX_TRIANGLES);
             assert!(model.tex_w <= gm_model::limits::OVERLAY_MAX_TEXTURE);
-            assert!(bundle.manifest.overlay(key, 0).is_none(), "no colossus overlay yet");
-            assert!(bundle.manifest.prop(key).is_none(), "an overlay is not a prop");
+            assert!(
+                bundle.manifest.overlay(key, 0).is_none(),
+                "no colossus overlay yet"
+            );
+            assert!(
+                bundle.manifest.prop(key).is_none(),
+                "an overlay is not a prop"
+            );
             let t = bundle.manifest.template(key).unwrap();
             assert_eq!(t.covers, (1 << rig::bone::SPINE) | (1 << rig::bone::CHEST));
             assert_eq!(t.icon.as_deref(), Some(&*format!("item/{key}")));

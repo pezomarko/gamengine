@@ -108,9 +108,15 @@ fn row_to_character(r: &sqlx::postgres::PgRow) -> Result<CharacterRow, HubError>
         play_seconds: r.try_get("play_seconds").map_err(internal)?,
         model: r.try_get("model").map_err(internal)?,
         worn: [
-            r.try_get::<Option<String>, _>("worn_weapon").map_err(internal)?.unwrap_or_default(),
-            r.try_get::<Option<String>, _>("worn_off").map_err(internal)?.unwrap_or_default(),
-            r.try_get::<Option<String>, _>("worn_armour").map_err(internal)?.unwrap_or_default(),
+            r.try_get::<Option<String>, _>("worn_weapon")
+                .map_err(internal)?
+                .unwrap_or_default(),
+            r.try_get::<Option<String>, _>("worn_off")
+                .map_err(internal)?
+                .unwrap_or_default(),
+            r.try_get::<Option<String>, _>("worn_armour")
+                .map_err(internal)?
+                .unwrap_or_default(),
         ],
     })
 }

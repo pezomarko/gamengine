@@ -272,7 +272,7 @@ runs), and shows its things in grids instead of rows:
 
 | Page | Grid(s) | Besides |
 |---|---|---|
-| inventory | the 24 slots, 6 × 4 | the purse as two coins with numbers (gold, silver: PLAN.md 5.1 as corrected); the **equip** panel beside the grid: the paperdoll (5) with the weapon and armour slots at its side; the picked thing's words under them (three lines) and the tooltip on hover; **Wear**/**Take off**, **Sell**, **Store**, **Storage**, **Close**; a drag onto the weapon or armour slot wears, a worn thing dragged into the grid comes off |
+| inventory | the 24 slots, 6 × 4, in the **bag** panel | the purse as two coins with numbers (gold, silver: PLAN.md 5.1 as corrected); the picked thing's words under the grid (three lines) and the tooltip on hover; **Wear**/**Take off**, **Sell**, **Store**, **Storage**, **Equipment**, **Close**. Beside it, shown or hidden on its own (EQUIPMENT.md 4, 2026-10-13), the **equipment** panel: the body in the open (5, `paperdoll_open`) between two columns of places (`armour` left; `weapon`, `off` right), the name and the class line over it, what is worn in words under it, **Take off**, **Bag**, **Close**; `O` opens it alone as the screen `equipment`. A drag onto a place wears, a worn thing dragged into the grid comes off |
 | storage | the 60 slots, 8 across, scrolled | **Take**, **Back** (a drag between storage and inventory is Phase 15's: the two are pages, not one screen) |
 | stall | the keeper's 12 listings, 6 × 2, the price under each cell | the buyer's purse, the picked thing's words and price, **Buy** / **Take back**; a listing is picked, never dragged |
 | price | two fields: gold, silver | **List it**, the whole said back in words |

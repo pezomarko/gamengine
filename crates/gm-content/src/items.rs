@@ -45,7 +45,8 @@ pub struct ItemTemplate {
     #[serde(default)]
     pub icon: Option<String>,
     /// Which hand (CONTENT.md 3): `right` (the default), `left`, `either` (a one-handed
-    /// weapon worn in the right hand, or in the left beside another), `back`.
+    /// weapon worn in the right hand, or in the left beside another), `two` (both hands,
+    /// EQUIPMENT.md 3: worn, it takes the left hand too), `back`.
     #[serde(default)]
     pub held: Option<String>,
     #[serde(default)]
@@ -69,6 +70,11 @@ impl ItemTemplate {
 
     pub fn held(&self) -> &str {
         self.held.as_deref().unwrap_or("right")
+    }
+
+    /// Worn, it takes both hands (EQUIPMENT.md 3).
+    pub fn two_handed(&self) -> bool {
+        self.held() == "two"
     }
 }
 
@@ -358,6 +364,15 @@ impl ItemContent {
         }
     }
 
+    /// Whether an item of `template` takes both hands when worn (EQUIPMENT.md 3); false
+    /// for a template this content does not know.
+    pub fn two_handed(&self, template: &str) -> bool {
+        self.templates
+            .iter()
+            .find(|t| t.id == template)
+            .is_some_and(|t| t.two_handed())
+    }
+
     /// The template's `covers` (CONTENT.md 3.3) as a mask of standard bones; unknown
     /// names are refused by the look loader, so here they count for nothing.
     pub fn covers(&self, template: &str) -> u32 {
@@ -601,9 +616,15 @@ impl ItemContent {
             if t.kind == "shield" && t.held() != "left" {
                 return bad(format!("template {:?}: a shield is held left", t.id));
             }
-            if !["right", "left", "either", "back"].contains(&t.held()) {
+            if !["right", "left", "either", "back", "two"].contains(&t.held()) {
                 return bad(format!(
-                    "template {:?}: held must be right, left, either or back",
+                    "template {:?}: held must be right, left, either, back or two",
+                    t.id
+                ));
+            }
+            if t.two_handed() && t.kind != "weapon" {
+                return bad(format!(
+                    "template {:?}: only a weapon takes both hands",
                     t.id
                 ));
             }
@@ -734,11 +755,20 @@ mod tests {
         // The three places (ITEMS.md 2): a sword goes into the right hand, and may go
         // into the left; a shield into the left only; a cuirass onto the body only.
         assert_eq!(items.place("shield"), Some(Place::Off));
-        assert!(items.may_wear_in("sword", Place::Weapon) && items.may_wear_in("sword", Place::Off));
+        assert!(
+            items.may_wear_in("sword", Place::Weapon) && items.may_wear_in("sword", Place::Off)
+        );
         assert!(!items.may_wear_in("sword", Place::Armour));
-        assert!(items.may_wear_in("shield", Place::Off) && !items.may_wear_in("shield", Place::Weapon));
-        assert!(items.may_wear_in("cuirass", Place::Armour) && !items.may_wear_in("cuirass", Place::Off));
-        assert!(!items.may_wear_in("hammer", Place::Off) && !items.may_wear_in("lute", Place::Weapon));
+        assert!(
+            items.may_wear_in("shield", Place::Off) && !items.may_wear_in("shield", Place::Weapon)
+        );
+        assert!(
+            items.may_wear_in("cuirass", Place::Armour)
+                && !items.may_wear_in("cuirass", Place::Off)
+        );
+        assert!(
+            !items.may_wear_in("hammer", Place::Off) && !items.may_wear_in("lute", Place::Weapon)
+        );
         // A shield guards like an armour and is said as a shield; a sword says it may go
         // into the off hand too, a shield (there by nature) does not.
         let (place, shield, whole) = items.edges("shield", plain).unwrap();
@@ -748,8 +778,16 @@ mod tests {
         assert_eq!(view.what, "a shield, 40 of 250");
         assert_eq!(view.does, ["physical -2.0%"]);
         assert!(!view.off);
-        assert!(items.view("sword", [("core", "core/iron"), ("frame", "frame/oak")]).off);
-        assert!(!items.view("cuirass", [("core", "core/iron"), ("frame", "frame/oak")]).off);
+        assert!(
+            items
+                .view("sword", [("core", "core/iron"), ("frame", "frame/oak")])
+                .off
+        );
+        assert!(
+            !items
+                .view("cuirass", [("core", "core/iron"), ("frame", "frame/oak")])
+                .off
+        );
         assert_eq!(items.covers("cuirass"), (1 << 1) | (1 << 2));
         assert_eq!(items.covers("sword"), 0);
         // A stack (MODES.md 11.1) is worn nowhere, has a cap, and a kit heals.
@@ -806,6 +844,28 @@ mod tests {
         assert_eq!(items.view("lute", best).what, "nothing this world knows");
         assert_eq!(items.layers("crossbow").unwrap().len(), 4);
         assert_eq!(items.layers("lute"), None);
+    }
+
+    /// EQUIPMENT.md 3: `held = "two"` is a weapon's, goes into the right hand and never
+    /// the left; `either` goes into both.
+    #[test]
+    fn a_two_handed_weapon_goes_right_and_nowhere_else() {
+        let items = load_items(Path::new(DIR)).expect("items load");
+        assert!(items.two_handed("staff") && !items.two_handed("sword"));
+        assert!(
+            items.may_wear_in("staff", Place::Weapon) && !items.may_wear_in("staff", Place::Off)
+        );
+        assert!(
+            items.may_wear_in("sword", Place::Weapon) && items.may_wear_in("sword", Place::Off)
+        );
+        assert!(!items.two_handed("nothing"));
+        let text = std::fs::read_to_string(Path::new(DIR).join("items.toml")).unwrap();
+        let bad = text.replace(
+            "id = \"shield\"\nkind = \"shield\"",
+            "id = \"shield\"\nkind = \"shield\"\nheld = \"two\"",
+        );
+        assert!(bad != text);
+        assert!(load_items_str(&bad).is_err(), "a shield in both hands");
     }
 
     #[test]

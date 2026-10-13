@@ -56,6 +56,16 @@ the armour as an overlay over the body).
   body as asked; an item that does not go there is refused in words ("a cuirass does not
   go on the left hand"), and a sword worn in the right hand and asked into the left moves
   there (it is one item: it leaves the place it was in).
+- **The empty hand** (EQUIPMENT.md 4.4, 2026-10-13): a plain **Wear** of a one-handed
+  weapon (`held = "either"`) goes into the **left hand** when another one-hander is in
+  the right hand and the left is free, so that a second sword is one Wear; otherwise
+  into its own place, where it takes what was there. `WearIn` names the hand as before.
+- **Both hands** (EQUIPMENT.md 3, 2026-10-13): a weapon whose row says `held = "two"`
+  (the staff) takes both hands. Worn, it empties the left hand (what was there stays in
+  the bag like anything taken off); a thing worn into the left hand takes it off. One
+  rule both ways, in the hub's `wear`. The bag shows it ghosted in the left hand's slot
+  with `both hands` beneath. The two-handed hold itself (both fists on the grip) is
+  Phase 17's animation work: until then it is drawn in the right fist.
 - **Take off** an item: its place is empty again. Taking off what is not worn changes nothing
   and is no error; an item whose template the content no longer knows comes off like any
   other.
@@ -130,12 +140,14 @@ edge of 220 is 11% more dealt, or 9.9% less taken (2000/2220).
   knockback, stagger build-up, stamina costs, a block's stamina cost.
 - A body with nothing worn has all sixteen at 0, and `gear` is 1: every result measured
   before Phase 11 stands.
-- **The off hand adds** (2026-10-13): a weapon worn there adds its edges to `dealt`, a
-  shield its edges to `taken`, each number capped at 250 as the one place's was, so the
-  bounds above stand: two swords of iron and oak deal 4.0% more slash instead of 2.0%, the
-  best sword in each hand 11.0% (the cap: 250 and 250 are still 250), a shield of iron and
-  oak beside a plain cuirass takes 3.8% less of a blow instead of 2.0%. What the second
-  hand is worth is a proposed number (9).
+- **The off hand adds half of itself** (2026-10-13; EQUIPMENT.md 5.5 since the same
+  evening): a weapon worn there adds half its edges to `dealt`, a shield half its edges
+  to `taken`, each number capped at 250 as the one place's was, so the bounds above
+  stand: two swords of iron and oak deal 3.0% more slash instead of 2.0%, the best sword
+  in each hand 11.0% (the cap: 220 + 110 is still 250), a shield of iron and oak beside a
+  plain cuirass takes 2.9% less of a blow instead of 2.0%. **A two-hander counts for
+  both hands**, 1.5 of its edge: a staff of iron and oak deals 3.0% more blunt, what a
+  sword in each hand comes to. What a hand is worth is a proposed number (9).
 
 ### 3.2 From materials to the sixteen numbers
 
@@ -383,12 +395,24 @@ in full: what it is and its budget (`a weapon, 250 of 250`), everything it does,
 worn in its place now (`you wear: slash +2.0%`, or that nothing is), and what it is made
 of. Buttons: **Wear** / **Take off** (asked of the zone; one a second), **Sell** (when the
 character keeps a stall in this zone and the item is not worn), **Store** (into the
-account's storage), **Storage**, **Close**. The equip panel (LOOK.md 4) has **three
-slots** beside the paperdoll since 2026-10-13: the right hand (`weapon`), the left hand
-(`off`), the body (`armour`). A thing dragged onto its own slot is worn (`Wear`); a
-one-handed weapon dragged onto the left hand is worn there (`WearIn`, 2: the second
-sword); a worn thing dragged into the grid comes off. The **Wear** button puts a thing
-into its own place.
+account's storage), **Storage**, **Equipment**, **Close**. Since the evening of
+2026-10-13 (EQUIPMENT.md 4) the screen is **two panels side by side**, each shown or
+hidden on its own: the **bag** (all of the above) and the **equipment**: the name and
+the class line over the body in the open (the paperdoll of LOOK.md 5, turned by a drag),
+the places as slots in two columns at its sides (the body's down the left, `armour`; the
+hands down the right, `weapon` and `off`; only the places that exist are drawn), what is
+worn in words under it (`right hand: sword  slash +2.0%`, one line a place), and **Take
+off**, **Bag**, **Close**. `O` opens the equipment alone (its screen is named
+`equipment`), `I` the bag alone; each key shows or hides its panel while the other is
+up; **Bag** and **Equipment** open the other; a wearable thing dragged out of the bag
+while the equipment is hidden opens it beside the bag; Escape closes the panel under the
+pointer, else both, and the last Close ends the screen. A thing dragged onto its slot is
+worn (`Wear`); a one-handed weapon dragged onto the left hand is worn there (`WearIn`,
+2: the second sword); a worn thing dragged into the grid comes off. The **Wear** button
+puts a thing into its own place, or a second one-hander into the empty hand (2). A
+weapon this build's hands are not for is drawn dim with the warning's rim, says
+`hands: Blade, Ironclad` in its tooltip (whose it is, EQUIPMENT.md 2), and dropped on a
+hand says why on the notice line instead of nothing.
 
 Under the grid, **the item bar** (LOOK.md 3.2): the four cells as drop slots named `bar
 F`, `bar 8`, `bar 9`, `bar 0`, each with the stack set on it (dim, `×0`, while none is
@@ -496,8 +520,8 @@ by clicking: a UI script presses the keys of screens, not of a fight.
 
 ## 9. Proposed numbers and open decisions
 
-Proposed, for the director: three places (the off hand since 2026-10-13, adding under
-the one cap of 250 a number: a second sword is worth a second sword, until the cap);
+Proposed, for the director: three places (the off hand since 2026-10-13, adding half
+of itself under the one cap of 250, and a two-hander 1.5: EQUIPMENT.md 5.5);
 **a place counts for half** (the scale of 2000);
 the layer table of 3.2, what each weapon strikes with and each armour guards against; that
 pulses take no gear; 120 units of reach; the fight lock of 10 s; one change a second; five

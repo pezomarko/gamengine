@@ -376,6 +376,15 @@ it does not know goes on to the next: one stream, one notice.
 
 ### 3.9 Possessions (ITEMS.md)
 
+- **Whose hands, and both hands** (EQUIPMENT.md 2 and 3; `HUB_VERSION` 14,
+  `PLAYER_VERSION` 10, 2026-10-13): `ItemSummary.hands`, the classes whose preset kits
+  hold a weapon's model (`Blade, Ironclad`; `no preset's`; empty for what is not a
+  weapon), true for everyone and whoever asks, beside `fits` (the asker's own hands);
+  `ItemSummary.both_hands` for a `held = "two"` weapon. `wear` puts a second one-hander
+  into the empty left hand (EQUIPMENT.md 4.4), takes the left hand's thing off under a
+  two-hander and a two-hander off under a left-hand thing (EQUIPMENT.md 3); the
+  reading counts the left hand for half and a two-hander for 1.5 (EQUIPMENT.md 5.5).
+
 - **What is worn, on the list** (`PLAYER_VERSION` 9, 2026-10-13): `CharacterSummary.worn:
   [String; 3]`, the keys of the templates worn in the three places (empty for nothing),
   read with the character's row (three scalar subqueries on `worn`), so the selector

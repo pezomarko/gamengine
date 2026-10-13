@@ -242,8 +242,10 @@ The HUD as before, and:
 - **Keys** says what the keys do: nothing else tells a new player.
 - **Enter** opens the chat line (5).
 - **I** opens the inventory (ITEMS.md 6.1; under its grid the item bar's four cells, LOOK.md
-  3.2, arranged by drag), and **E** the stall the body stands at (ITEMS.md 6): screens
-  like the menu's, with the body standing while one is up.
+  3.2, arranged by drag), **O** the equipment (EQUIPMENT.md 4: the body with its places,
+  beside the bag when that is up; `C` is the gun mode's crouch, so not that key), and
+  **E** the stall the body stands at (ITEMS.md 6): screens like the menu's, with the body
+  standing while one is up.
 - **K** opens the character (MATRIX.md 9.1): the thirty attribute points with what each
   buys, the frame, the armour, the aspects and the kit, edited anywhere; "Wear it" is
   offered beside the trainer (the client knows one by a body nothing hurts), or anywhere
@@ -452,7 +454,7 @@ wait screen characters        until that screen is up
 field email                   give the field with that label the keyboard (a click on it)
 type someone@example.com      characters, as if typed
 key Enter                     Enter | Escape | Tab | BackTab | Backspace | Delete | Left | Right | Up | Down | Home | End | PageUp | PageDown
-                              | I | E | P | K | G (the game's own keys that open a screen)
+                              | I | O | E | P | K | G (the game's own keys that open a screen)
                               | F (the first item cell, the kit's, MODES.md 11.3: pressed for one frame of the game, as a person's key is)
 click "New character"         the button, row, box or grid cell with that text
 dclick "Aldric"               the same, twice
@@ -468,8 +470,9 @@ quit                          print `ui-script: ok` and end the program
 ```
 
 Screens are named `login`, `characters`, `new character`, `entering`, `game`, `chat`,
-`menu`, `travel`, `settings`, `keys`, `title`, `inventory`, `storage`, `price`, `stall`
-(ITEMS.md 6), and `people`, `trade`, `tavern` (PARTY.md 8). A line that waits (`wait`, `expect`, `click`,
+`menu`, `travel`, `settings`, `keys`, `title`, `inventory`, `equipment` (the inventory
+with the bag's grid hidden, EQUIPMENT.md 4), `storage`, `price`, `stall` (ITEMS.md 6),
+and `people`, `trade`, `tavern` (PARTY.md 8). A line that waits (`wait`, `expect`, `click`,
 `where`) gives up after 30 seconds (longer than the screens themselves keep trying): the
 script then fails with its line and what the screen showed instead, and the client exits
 with an error. After every line the script lets two drawn frames pass, so that the next

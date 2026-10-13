@@ -39,6 +39,8 @@ pub enum MenuAction {
     Resume,
     /// Close the menu and open the inventory (ITEMS.md 6).
     Inventory,
+    /// Close the menu and open the equipment (EQUIPMENT.md 4).
+    Equipment,
     /// Close the menu and open the page of people (PARTY.md 8).
     People,
     /// Close the menu and open the character's page (MATRIX.md 9.1).
@@ -60,6 +62,7 @@ pub enum MenuAction {
 #[derive(Clone, Copy, Debug)]
 pub struct Offers {
     pub inventory: bool,
+    pub equipment: bool,
     pub people: bool,
     /// The zone made this character a game master (GM.md 1).
     pub gm: bool,
@@ -121,7 +124,8 @@ impl GameMenu {
         let s = ui.scale;
         let gap = 5.0 * s;
         let h = ui.button_height();
-        let rows = if offers.gm { 10.0 } else { 9.0 } + offers.page_fullscreen.map_or(0.0, |_| 1.0);
+        let rows =
+            if offers.gm { 11.0 } else { 10.0 } + offers.page_fullscreen.map_or(0.0, |_| 1.0);
         let inner = rows * (h + gap) + 2.0 * ui.line();
         let panel = Rect::centred(ui.size(), 160.0 * s, ui.panel_height(inner, true));
         let inner = ui.panel(panel, "menu");
@@ -131,6 +135,9 @@ impl GameMenu {
         }
         if ui.button_if(col.take(h), "Inventory", offers.inventory) {
             return MenuAction::Inventory;
+        }
+        if ui.button_if(col.take(h), "Equipment", offers.equipment) {
+            return MenuAction::Equipment;
         }
         if ui.button_if(col.take(h), "People", offers.people) {
             return MenuAction::People;
@@ -195,6 +202,7 @@ impl GameMenu {
             ("Enter", "say something"),
             ("F9", "report the player you look at"),
             ("I", "the inventory"),
+            ("O", "the equipment"),
             ("K", "the character: points and kit"),
             ("P", "people, the party, a trade"),
             ("G", "the game master's page"),
@@ -768,6 +776,7 @@ mod tests {
     const S: SessionId = SessionId([9; 16]);
     const ALL: Offers = Offers {
         inventory: true,
+        equipment: true,
         people: true,
         gm: false,
         travel: true,
@@ -944,6 +953,7 @@ mod tests {
             (GameMenu::default(), UiState::default(), Settings::default());
         let none = Offers {
             inventory: false,
+            equipment: false,
             people: false,
             gm: false,
             travel: false,

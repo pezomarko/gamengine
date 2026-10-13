@@ -229,6 +229,8 @@ pub enum Key {
     People,
     /// And `K`: the character's page (MATRIX.md 9.1): the points and the kit.
     Character,
+    /// And `O`: the equipment (EQUIPMENT.md 4): what the body wears, beside the bag.
+    Equipment,
     /// And `G`: the game master's page (GM.md 4), for whom the zone granted it.
     Gm,
     /// And `F`: the kit (MODES.md 11.3), the one key of the game itself a script presses.
@@ -257,6 +259,7 @@ impl Key {
             "E" => Key::Use,
             "P" => Key::People,
             "K" => Key::Character,
+            "O" => Key::Equipment,
             "G" => Key::Gm,
             "F" => Key::Kit,
             _ => return None,
@@ -502,6 +505,8 @@ pub struct SlotThing {
     pub worn: bool,
     /// Drawn dim: it cannot be acted on now.
     pub off: bool,
+    /// Drawn with the warning's rim (EQUIPMENT.md 2): a weapon these hands are not for.
+    pub bad: bool,
     /// It cannot be dragged (a listing at another's stall is bought, not moved).
     pub fixed: bool,
     pub mark: Option<SlotMark>,
@@ -634,6 +639,21 @@ impl<'a, C: Canvas> Ui<'a, C> {
 
     pub fn size(&self) -> (f32, f32) {
         self.canvas.size()
+    }
+
+    /// Where the pointer is this frame.
+    pub fn cursor(&self) -> (f32, f32) {
+        self.input.cursor
+    }
+
+    /// A drag in progress (LOOK.md 2.4): the grid or slot it came from and the id of
+    /// what is dragged, once the press has moved far enough to be one.
+    pub fn dragging(&self) -> Option<(&str, i64)> {
+        self.state
+            .drag
+            .as_ref()
+            .filter(|d| d.live)
+            .map(|d| (d.grid.as_str(), d.id))
     }
 
     /// The height of a line of text, a button and a field at this scale.
@@ -1765,6 +1785,9 @@ impl<'a, C: Canvas> Ui<'a, C> {
                 );
             }
             self.canvas.layer(LAYER_INK);
+            if thing.bad {
+                self.outline(cell, WARN);
+            }
             let inner = cell.inset(2.0 * s);
             let tint = if thing.off {
                 [0.5, 0.5, 0.5, 1.0]
@@ -2095,14 +2118,11 @@ impl<'a, C: Canvas> Ui<'a, C> {
         }
     }
 
-    /// A rectangle a body is drawn into by the app (LOOK.md 5): a dark well now, the body
-    /// over it on layer 1; a drag across it turns the body.
-    pub fn paperdoll(&mut self, r: Rect) {
-        self.paperdoll_in(r, true);
-    }
-
-    /// The same body in the open: no well, drawn over what is behind the screen (the
-    /// map behind the selector, CLIENT.md 4.2).
+    /// A rectangle a body is drawn into by the app (LOOK.md 5), in the open: no well,
+    /// drawn over what is behind the screen (the map behind the selector, CLIENT.md
+    /// 4.2; the equipment's panel, EQUIPMENT.md 4); a drag across it turns the body.
+    /// (The dark well of Phase 14 is `paperdoll_in(r, true)`, which no screen draws
+    /// since the equipment window.)
     pub fn paperdoll_open(&mut self, r: Rect) {
         self.paperdoll_in(r, false);
     }
@@ -2570,7 +2590,7 @@ pub mod tests {
         let s = scale_for(canvas.size(), 100.0, 0);
         let show = |canvas: &mut Recorder, st: &mut UiState, input: &UiInput| {
             let mut ui = Ui::begin(canvas, st, input, "equip", 100.0);
-            ui.paperdoll(r);
+            ui.paperdoll_in(r, true);
             ui.end();
         };
         show(&mut canvas, &mut st, &input);

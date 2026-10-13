@@ -1656,6 +1656,24 @@ shows char with sword, not char as it is ingame": the hub's character list names
 knight; the Source tier of *Modular Character Outfits - Fantasy* has one), overlays for the other three
 frames, the other fifteen avatar pairs, creature models, sounds.
 
+**2026-10-13, the evening: classes by name, the equipment window, both hands** (the director: "our blade
+class can't equip greatsword or 2 swords? can we at least have some char/class names and show restrictions on
+equipables then? also change how inventory looks, we need better representation of character and equipped
+items, like separate from main window we could have char preview and slots in it to equip things. Then lay
+down proposal of all equipment types"; then "now this seems like a good plan, please implement it";
+`docs/EQUIPMENT.md`, Gemini-reviewed, its steps 1 to 3 built): the greatsword was the fit rule's doing (the
+blade's kit holds a sword and nothing else) and two swords worked by one undiscoverable drag. Now a preset's
+name is its **class** (`Blade`, capitalised; `Custom`, `Custom (an Ironclad)` for a build with a preset's kit
+in it: `showcase::class_name`, from the content), leading the selector's ribbon; every weapon says **whose
+hands** it is for (`ItemSummary.hands`, the presets whose kits hold its model, `PLAYER_VERSION` 10,
+`HUB_VERSION` 14), one the build's hands are not for is drawn dim with the warning's rim and a drop of it on a
+hand says why; the **equipment** is a panel of its own beside the bag (`O`; `I` the bag; each shown or hidden
+alone; the body in the open between two columns of places, what is worn in words, Take off; a wearable thing
+dragged out of the bag opens it); **Wear** puts a second one-hander into the empty left hand; `held = "two"`
+(the staff, content v10) takes both hands and is ghosted in the left slot; the left hand counts for half and a
+two-hander for 1.5 under the one cap (ITEMS.md 3.1). Not done: the body places, the trinkets, the back
+(EQUIPMENT.md 6, steps 4 to 6), the share table of the body.
+
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
 set are **proposed** in `docs/MATRIX.md` 12 (implemented and measured; the director confirms or changes

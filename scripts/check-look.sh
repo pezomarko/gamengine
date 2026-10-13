@@ -202,6 +202,7 @@ say in the town
 key I
 wait screen inventory
 expect image item/sword
+click Equipment
 expect "weapon: nothing"
 say inventory
 drag "dagger  slash +2.0%" weapon

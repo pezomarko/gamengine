@@ -722,14 +722,20 @@ pub(crate) mod tests {
         m.tex_w = 1024;
         m.tex_h = 1024;
         m.texture = (0..texture_bytes(1024, 1024)).map(|i| i as u8).collect();
-        assert!(matches!(m.encode(), Err(ModelError::Range("an overlay's texture"))));
+        assert!(matches!(
+            m.encode(),
+            Err(ModelError::Range("an overlay's texture"))
+        ));
         let mut m = sample();
         m.flags |= FLAG_OVERLAY;
         let tri = m.indices[..3].to_vec();
         while m.indices.len() <= limits::OVERLAY_MAX_TRIANGLES * 3 {
             m.indices.extend_from_slice(&tri);
         }
-        assert!(matches!(m.encode(), Err(ModelError::Range("an overlay's triangles"))));
+        assert!(matches!(
+            m.encode(),
+            Err(ModelError::Range("an overlay's triangles"))
+        ));
     }
 
     #[test]

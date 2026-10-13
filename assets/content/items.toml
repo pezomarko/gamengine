@@ -11,8 +11,8 @@
 # catalyst reach and for no other. An item is for one build and not for another.
 
 # Where it is worn (ITEMS.md 2): a weapon in the right hand (`held = "either"`: or in the
-# left beside another, two swords), a shield (`kind = "shield"`) in the left, an armour on
-# the body. An armour's `model` is its overlay (models/armour/<model>_<frame>.glb, CONTENT.md
+# left beside another, two swords; `held = "two"`: both hands, EQUIPMENT.md 3), a shield
+# (`kind = "shield"`) in the left, an armour on the body. An armour's `model` is its overlay (models/armour/<model>_<frame>.glb, CONTENT.md
 # 3.3), drawn over the body with the body's pose; `covers` names the standard bones whose
 # part of the body is hidden under it.
 #
@@ -61,12 +61,15 @@ strikes = "blunt"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "hammer"
 
+# A staff takes both hands (EQUIPMENT.md 3): worn, it empties the left hand, and a shield
+# or a second weapon worn afterwards takes it off; its edge counts for both hands.
 [[template]]
 id = "staff"
 kind = "weapon"
 strikes = "blunt"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "staff"
+held = "two"
 fit = { move = [0.0, 0.0, 0.3], turn = [90, -20, 0], scale = 0.6 }
 
 [[template]]

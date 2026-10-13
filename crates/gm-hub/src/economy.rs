@@ -653,8 +653,11 @@ async fn gear_in(
     .map_err(internal)?;
     let mut gear = Gear::NONE;
     let mut templates: [String; 3] = Default::default();
-    let add = |into: &mut [u16; 9], edges: [u16; 9]| {
+    // A place counts for its share (EQUIPMENT.md 5.5), under the one cap: the right
+    // hand whole, the left hand half, a two-hander for both (1.5), each number capped.
+    let add = |into: &mut [u16; 9], edges: [u16; 9], share: (u32, u32)| {
         for (a, b) in into.iter_mut().zip(edges) {
+            let b = (b as u32 * share.0 / share.1).min(u16::MAX as u32) as u16;
             *a = a.saturating_add(b).min(MAX_EDGE_PER_MILLE as u16);
         }
     };
@@ -674,9 +677,13 @@ async fn gear_in(
             && let Some((_, edges, _)) = content.edges(&template, materials)
         {
             let deals = content.template(&template).is_some_and(|t| t.deals());
+            let two = content.two_handed(&template);
             match (place, deals) {
-                (Place::Weapon, _) | (Place::Off, true) => add(&mut gear.dealt, edges),
-                (Place::Armour, _) | (Place::Off, false) => add(&mut gear.taken, edges),
+                (Place::Weapon, _) if two => add(&mut gear.dealt, edges, (3, 2)),
+                (Place::Weapon, _) => add(&mut gear.dealt, edges, (1, 1)),
+                (Place::Off, true) => add(&mut gear.dealt, edges, (1, 2)),
+                (Place::Armour, _) => add(&mut gear.taken, edges, (1, 1)),
+                (Place::Off, false) => add(&mut gear.taken, edges, (1, 2)),
             }
         }
         templates[place.index()] = template;
@@ -1147,9 +1154,46 @@ impl Economy {
                     "a {template} does not go on {where_}"
                 )));
             }
-            None => content
-                .place(&template)
-                .ok_or_else(|| EconError::Invalid("that cannot be worn".into()))?,
+            None => {
+                let own = content
+                    .place(&template)
+                    .ok_or_else(|| EconError::Invalid("that cannot be worn".into()))?;
+                // A one-handed weapon goes into the empty hand first (EQUIPMENT.md
+                // 4.4): with another one-hander in the right hand and the left hand
+                // free, the left, so that a second sword is one Wear; otherwise its own
+                // place, where it takes what was there.
+                if own == Place::Weapon && content.may_wear_in(&template, Place::Off) {
+                    let rows = sqlx::query(
+                        "select w.slot, i.template from worn w join items i on i.id = w.item_id \
+                         where w.character_id = $1 and w.item_id <> $2",
+                    )
+                    .bind(character)
+                    .bind(item)
+                    .fetch_all(&mut *tx)
+                    .await
+                    .map_err(internal)?;
+                    let mut in_right: Option<String> = None;
+                    let mut left_free = true;
+                    for r in &rows {
+                        let slot: String = r.try_get("slot").map_err(internal)?;
+                        match slot.as_str() {
+                            "weapon" => in_right = Some(r.try_get("template").map_err(internal)?),
+                            "off" => left_free = false,
+                            _ => {}
+                        }
+                    }
+                    let right_one_hander = in_right
+                        .as_deref()
+                        .is_some_and(|t| content.may_wear_in(t, Place::Off));
+                    if left_free && right_one_hander {
+                        Place::Off
+                    } else {
+                        own
+                    }
+                } else {
+                    own
+                }
+            }
         };
         fits(content, hands, &template, Some(place)).map_err(EconError::Invalid)?;
         // It is one item: it leaves the place it was in (a sword moved from the right
@@ -1166,6 +1210,37 @@ impl Economy {
             .execute(&mut *tx)
             .await
             .map_err(internal)?;
+        // Both hands (EQUIPMENT.md 3): a two-hander worn empties the left hand, and a
+        // thing worn in the left hand takes a two-hander off; one rule both ways, and
+        // what comes off stays in the bag like anything taken off.
+        let takes_both = place == Place::Weapon && content.two_handed(&template);
+        let under_two_hander = place == Place::Off && {
+            let right: Option<String> = sqlx::query(
+                "select i.template from worn w join items i on i.id = w.item_id \
+                 where w.character_id = $1 and w.slot = 'weapon'",
+            )
+            .bind(character)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(internal)?
+            .map(|r| r.try_get("template"))
+            .transpose()
+            .map_err(internal)?;
+            right.is_some_and(|t| content.two_handed(&t))
+        };
+        if takes_both || under_two_hander {
+            let other = if takes_both {
+                Place::Off
+            } else {
+                Place::Weapon
+            };
+            sqlx::query("delete from worn where character_id = $1 and slot = $2")
+                .bind(character)
+                .bind(other.name())
+                .execute(&mut *tx)
+                .await
+                .map_err(internal)?;
+        }
         sqlx::query("insert into worn (character_id, slot, item_id) values ($1, $2, $3)")
             .bind(character)
             .bind(place.name())

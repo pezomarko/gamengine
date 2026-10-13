@@ -49,6 +49,8 @@ pub const HELD_RIGHT: u8 = 0;
 pub const HELD_LEFT: u8 = 1;
 pub const HELD_BACK: u8 = 2;
 pub const HELD_EITHER: u8 = 3;
+/// Both hands (EQUIPMENT.md 3): worn, it takes the left hand too.
+pub const HELD_TWO: u8 = 4;
 
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct TemplateEntry {

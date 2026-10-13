@@ -2902,8 +2902,17 @@ impl App {
             .min_by(|a, b| far(a).total_cmp(&far(b)))
     }
 
-    /// `I`: the inventory of the character being played.
+    /// `I`: the inventory of the character being played; with it up already, the bag's
+    /// grid shown or hidden beside the equipment (EQUIPMENT.md 4).
     fn open_inventory(&mut self) {
+        if let Some(bag) = &mut self.bag
+            && bag.page == crate::bag::Page::Inventory
+        {
+            if !bag.toggle_grid() {
+                self.bag = None;
+            }
+            return;
+        }
         match self.owner() {
             Some((hub, session, character)) => {
                 self.bag = Some(Bag::inventory(hub, session, character, Instant::now()));
@@ -2911,6 +2920,28 @@ impl App {
                 self.release_keys();
             }
             None => self.note("there is no inventory without a hub"),
+        }
+    }
+
+    /// `O`: the equipment of the character being played (EQUIPMENT.md 4): what the body
+    /// wears, with the places at its sides; with the inventory up already, shown or
+    /// hidden beside the bag.
+    fn open_equipment(&mut self) {
+        if let Some(bag) = &mut self.bag
+            && bag.page == crate::bag::Page::Inventory
+        {
+            if !bag.toggle_equip() {
+                self.bag = None;
+            }
+            return;
+        }
+        match self.owner() {
+            Some((hub, session, character)) => {
+                self.bag = Some(Bag::equipment(hub, session, character, Instant::now()));
+                self.menu = None;
+                self.release_keys();
+            }
+            None => self.note("there is no equipment without a hub"),
         }
     }
 
@@ -3120,6 +3151,7 @@ impl App {
             }
             Key::Tab if self.rpg_mode() => self.rpg_cycle(),
             Key::Inventory => self.open_inventory(),
+            Key::Equipment => self.open_equipment(),
             Key::People => self.open_people(),
             Key::Use => self.open_stall(),
             Key::Gm => self.open_gm(),
@@ -3360,6 +3392,7 @@ impl App {
             MenuAction::None => {}
             MenuAction::Resume => self.menu = None,
             MenuAction::Inventory => self.open_inventory(),
+            MenuAction::Equipment => self.open_equipment(),
             MenuAction::People => self.open_people(),
             MenuAction::Gm => self.open_gm(),
             MenuAction::Character => self.open_character(),
@@ -6080,7 +6113,7 @@ impl App {
                 _ if self.title.is_some() => "title",
                 (Some(front), _, _) if self.front_up => front.screen.name(),
                 (_, Some(menu), _) => menu.page.name(),
-                (_, _, Some(bag)) => bag.page.name(),
+                (_, _, Some(bag)) => bag.name(),
                 _ if self.people.is_some() => self.people.as_ref().map_or("", |p| p.page.name()),
                 _ if self.gm_page.is_some() => self.gm_page.as_ref().map_or("", |g| g.name()),
                 _ if self.character_page.is_some() => {
@@ -6134,13 +6167,33 @@ impl App {
                     self.people = None;
                     self.gm_page = None;
                 }
+                // Who wears it, for the equipment's ribbon (EQUIPMENT.md 4.1): the
+                // class the content names, and the build.
+                let ribbon = self
+                    .online
+                    .as_ref()
+                    .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
+                    .map(|(build, pack)| {
+                        crate::showcase::ribbon(&crate::showcase::class_name(pack, build), build)
+                    })
+                    .unwrap_or_default();
                 match (&mut self.bag, &self.hub) {
                     (Some(bag), Some(hub)) if self.menu.is_none() => {
                         let looks = crate::bag::ItemLooks {
                             manifest: self.content.manifest.as_ref(),
                         };
-                        bag_action =
-                            bag.frame_with(&mut ui, hub, keeps_stall, Instant::now(), looks);
+                        let wearer = crate::bag::Wearer {
+                            name: &me,
+                            ribbon: &ribbon,
+                        };
+                        bag_action = bag.frame_with(
+                            &mut ui,
+                            hub,
+                            keeps_stall,
+                            Instant::now(),
+                            looks,
+                            wearer,
+                        );
                     }
                     _ => {}
                 }
@@ -6239,6 +6292,7 @@ impl App {
                         // A page's tab is closed and made fullscreen by the browser.
                         let offers = Offers {
                             inventory: playing && hub.is_some() && self.character.is_some(),
+                            equipment: playing && hub.is_some() && self.character.is_some(),
                             people: playing,
                             gm: playing && self.online.as_ref().is_some_and(|o| o.gm),
                             travel: playing && hub.is_some(),
@@ -6774,6 +6828,7 @@ impl ApplicationHandler for App {
                         match code {
                             // The inventory, and the stall the body stands at.
                             KeyCode::KeyI if !event.repeat => self.ui_key(Key::Inventory),
+                            KeyCode::KeyO if !event.repeat => self.ui_key(Key::Equipment),
                             KeyCode::KeyE if !event.repeat => self.ui_key(Key::Use),
                             KeyCode::KeyP if !event.repeat => self.ui_key(Key::People),
                             KeyCode::KeyG if !event.repeat => self.ui_key(Key::Gm),

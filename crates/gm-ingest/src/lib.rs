@@ -296,7 +296,9 @@ pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<I
     let model = match Model::decode(&gmm) {
         Ok(m) => m,
         Err(e) => {
-            report.violations.push(format!("the overlay does not read back: {e}"));
+            report
+                .violations
+                .push(format!("the overlay does not read back: {e}"));
             return (report, None);
         }
     };

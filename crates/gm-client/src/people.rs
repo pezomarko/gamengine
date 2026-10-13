@@ -1420,6 +1420,8 @@ mod tests {
             quantity: 1,
             cap: 0,
             fits: true,
+            hands: String::new(),
+            both_hands: false,
             what: if whole {
                 "a weapon, 250 of 250".to_string()
             } else {
