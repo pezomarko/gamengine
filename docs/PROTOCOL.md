@@ -737,8 +737,8 @@ what a body holds, so that every client draws the same weapon in the same hand:
   weapon worn or taken off, a respec to another primary). The indices are of the session's
   pack: a zone restarts to change content and its clients reconnect.
 - The zone chooses: the model of the weapon template worn (the hub's gear reading names
-  the templates, HUB.md 3.9), else the primary ability's prop, else nothing; companions and
-  creatures by their build.
+  the templates, HUB.md 3.9), else nothing (the primary ability's prop until 2026-10-13,
+  LOOK.md 6.1); the gun mode's hand holds its firearm's prop (LOOK.md 6.4).
 
 ## 21. Changes in v9 (after Phase 14: seeing the fight)
 

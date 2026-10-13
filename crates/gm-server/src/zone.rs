@@ -324,14 +324,12 @@ fn look_of(
             .map(|s| s.worn[place].as_str())
             .filter(|t| !t.is_empty())
     };
-    let primary = player.map(|p| p.sheet.build.primary as usize);
-    // The off hand (LOOK.md 6.5): what is worn there, else the guard's prop, a shield for
-    // a shield wall. The body (LOOK.md 6.6): the armour's overlay.
-    let guard = player.and_then(|p| p.sheet.build.guard.map(|g| g as usize));
+    // The hands hold what is worn in them and nothing else (LOOK.md 6.1, 6.5): no sword
+    // in the inventory, no sword in the hand. The body (LOOK.md 6.6): the armour's overlay.
     Look {
-        held: looks.held(worn(0), primary),
+        held: looks.held(worn(0), None),
         worn: looks.worn(worn(2)),
-        off: looks.off(worn(1), guard),
+        off: looks.off(worn(1)),
     }
 }
 

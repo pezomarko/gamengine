@@ -367,16 +367,17 @@ impl Looks {
     }
 
     /// What a body holds (LOOK.md 6.1): the model of the weapon template it wears, else the
-    /// prop of its primary ability (by the ability's place in the pack), else nothing. A
-    /// template or an ability the content does not know is an empty hand.
-    pub fn held(&self, worn_weapon: Option<&str>, primary: Option<usize>) -> u16 {
+    /// prop of the ability in its hand (by the ability's place in the pack: the gun mode's
+    /// firearm, which is no item yet), else nothing. A template or an ability the content
+    /// does not know is an empty hand; a melee build with no weapon worn holds nothing.
+    pub fn held(&self, worn_weapon: Option<&str>, ability: Option<usize>) -> u16 {
         if let Some(t) = worn_weapon
             && let Some(look) = self.templates.iter().find(|l| l.key == t)
             && let Some(model) = &look.model
         {
             return self.prop_index(model);
         }
-        if let Some(i) = primary
+        if let Some(i) = ability
             && let Some(a) = self.abilities.get(i)
             && let Some(prop) = &a.prop
         {
@@ -386,20 +387,14 @@ impl Looks {
     }
 
     /// What a body holds in its off hand (LOOK.md 6.5): the model of the item worn there
-    /// (a shield, a second sword), else the prop of its guard ability (by the ability's
-    /// place in the pack), else nothing. A shield wall holds a shield.
-    pub fn off(&self, worn_off: Option<&str>, guard: Option<usize>) -> u16 {
+    /// (a shield, a second sword), else nothing. A guard ability puts nothing in the hand
+    /// since 2026-10-13: a shield wall without a shield worn is an empty hand.
+    pub fn off(&self, worn_off: Option<&str>) -> u16 {
         if let Some(t) = worn_off
             && let Some(look) = self.templates.iter().find(|l| l.key == t)
             && let Some(model) = &look.model
         {
             return self.prop_index(model);
-        }
-        if let Some(i) = guard
-            && let Some(a) = self.abilities.get(i)
-            && let Some(prop) = &a.prop
-        {
-            return self.prop_index(prop);
         }
         NONE
     }
@@ -485,20 +480,20 @@ tint = [0.8, 0.8, 0.85]
             looks.props,
             ["sword_plain", "hammer_plain", "sword_iron", "shield_round", "cuirass_leather"]
         );
-        // Worn: the item's model. Bare: the primary's prop. Neither: nothing.
+        // Worn: the item's model. Bare: the prop of the ability in hand (the gun mode's
+        // firearm), which a zone names only then. Neither: nothing.
         assert_eq!(looks.held(Some("sword"), Some(0)), 2);
         assert_eq!(looks.held(None, Some(0)), 0);
         assert_eq!(looks.held(None, Some(1)), 1);
         assert_eq!(looks.held(None, Some(2)), NONE);
+        assert_eq!(looks.held(None, None), NONE);
         assert_eq!(looks.held(Some("nothing"), None), NONE);
         assert_eq!(looks.held(None, Some(99)), NONE);
-        // The off hand (LOOK.md 6.5): what is worn there, else the guard's prop; a guard
-        // without one, or none, is empty.
-        assert_eq!(looks.off(None, Some(1)), 1);
-        assert_eq!(looks.off(Some("shield"), Some(1)), 3);
-        assert_eq!(looks.off(Some("sword"), None), 2);
-        assert_eq!(looks.off(None, Some(2)), NONE);
-        assert_eq!(looks.off(None, None), NONE);
+        // The off hand (LOOK.md 6.5): what is worn there, else nothing.
+        assert_eq!(looks.off(Some("shield")), 3);
+        assert_eq!(looks.off(Some("sword")), 2);
+        assert_eq!(looks.off(None), NONE);
+        assert_eq!(looks.off(Some("nothing")), NONE);
         // The body (LOOK.md 6.6): the armour's overlay, by the same list.
         assert_eq!(looks.worn(Some("cuirass")), 4);
         assert_eq!(looks.worn(Some("sword")), 2);

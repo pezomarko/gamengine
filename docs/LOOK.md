@@ -312,9 +312,15 @@ abilities looked up in the manifest (`ability_prop`), since no zone has sent a p
 ### 6.1 What is held
 
 A body holds **one prop**, chosen by the zone and sent as an index (4): the `model` of the
-weapon it wears (ITEMS.md 2) if it wears one, else the `prop` of its primary ability
-(CONTENT.md 3), else nothing. Companions and creatures hold their primary's prop (a hired
-avatar wears no gear yet: ITEMS.md 9). A stall keeper holds nothing in v1.
+weapon it wears (ITEMS.md 2) if it wears one, else nothing. Until 2026-10-13 a bare hand
+held the `prop` of the primary ability (CONTENT.md 3), so a blade with no sword to its name
+held one; the director tested it ("he still holds the sword even though inventory shows
+no sword") and since then **what is not in the inventory is not in the hand**: a player
+holds and wears what the hub's gear reading names (6.2) and nothing else, bots included
+(the arena's duelists fight bare-handed until something hands them swords). The ability's
+`prop` is drawn in two places only: the gun mode's hand (6.4: a firearm is no item yet)
+and the selector's archetype (CLIENT.md 4.2: a preset's portrait, not a character's
+inventory). A stall keeper holds nothing in v1.
 
 ### 6.2 On the wire (protocol v8, hub v1.9)
 
@@ -425,10 +431,10 @@ model, the back of the fist's side) then stands out of the back of the hand, and
 guard stance, which already raises the left forearm across the chest, raises the shield in
 front. The fitting room draws it: `gm-tools content look shield --left`.
 
-**Worn there** (2026-10-13, ITEMS.md 2): the item worn in the off hand comes first, its
-template's `model` as the right hand's does (a shield, a second sword), and the guard's
-prop only when nothing is worn there; a gun build's stays `NONE`. The zone reads it from
-the reading's second template.
+**Worn there** (2026-10-13, ITEMS.md 2): the item worn in the off hand, its template's
+`model` as the right hand's does (a shield, a second sword), else `NONE` (6.1: the guard's
+prop went with the primary's the same day; a shield wall raises a shield when one is
+worn); a gun build's stays `NONE`. The zone reads it from the reading's second template.
 
 ### 6.6 The armour overlay (2026-10-13)
 

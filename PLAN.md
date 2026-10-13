@@ -1638,7 +1638,10 @@ armour's under the same cap of 250. The armour is **seen**: an armour template's
 with the body's pose and leaves out the body's parts it `covers` (a bone mask in the block, the triangle
 dropped whole in the fragment shader). The first two overlays are the outfits' leather jerkin with pauldrons
 and bracers (the cuirass) and cloth tunic (the robe); the shield is the *LowPoly Medieval Weapons* heater.
-The bag has three slots. Not done: the plate and mail of a real crusader (the packs' free tiers have no
+The bag has three slots. The director's first test: "he still holds the sword even though inventory shows
+no sword equipped, not even possesses a sword" — the bare hand held the primary ability's prop since Phase
+14; since then a hand holds what is worn in it and nothing else (LOOK.md 6.1; bots fight bare-handed until
+something hands them swords; the gun mode's hand and the selector's archetype still draw the ability's prop). Not done: the plate and mail of a real crusader (the packs' free tiers have no
 knight; the Source tier of *Modular Character Outfits - Fantasy* has one), overlays for the other three
 frames, the other fifteen avatar pairs, creature models, sounds.
 
