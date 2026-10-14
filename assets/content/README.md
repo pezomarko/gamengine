@@ -55,6 +55,12 @@ when the two drift.
 | spear | primary | 2 | — | 65 pierce, a line of 24° and 100 u, one target, 220/60/380 ms, 900 ms; both hands |
 | bow | primary | 2 | — | 60 pierce arrow that drops (gravity 0.4), 1.1 s; both hands |
 | wand | primary | 2 | — | 38 blunt bolt of force, fast, 6 focus, 700 ms; a focus in the left hand |
+| mace | primary | 2 | — | 60 blunt, 75° arc, stagger 55, 180/60/340 ms, 750 ms: a custom build's (EQUIPMENT.md 10.7) |
+| katana | primary | 2 | — | 50 slash, 70° arc, 120/50/260 ms, 520 ms: the quickest blade |
+| claymore | primary | 2 | — | 85 slash, 110° arc of 90 u, two targets, 280/80/480 ms, 1 s; both hands |
+| greataxe | primary | 2 | — | 90 slash, 90° arc, two targets, knockback 300, 300/80/500 ms, 1.1 s; both hands |
+| warhammer | primary | 2 | — | 95 blunt, 100° arc, two targets, knockback 320, stagger 70, 320/90/520 ms, 1.2 s; both hands |
+| scythe | primary | 2 | — | 75 slash, 150° arc, three targets at 0.6, 300/80/500 ms, 1.1 s; both hands |
 
 The range is the weapon's (MATRIX.md 10, 2026-10-06): a primary is a blade or the bow; a
 secondary is a short utility. Presets (thirty attribute points each, a kit of at most 40):
@@ -104,4 +110,9 @@ link, `build` writes `assets/built/content/` (committed), `report` lists it all.
 (ECONOMY.md 4). `gm_content::items` validates it: materials are `layer/name`, only catalysts
 carry an element, every template takes a core and a frame, and the best possible craft of any
 template gives at most 250 per mille over a standard item (PLAN.md 0). The hub refuses crafts
-of templates that are not in this file.
+of templates that are not in this file. Thirty-four templates since content v14 (2026-10-14,
+EQUIPMENT.md 10.8: six places): twelve weapons a preset or a custom build swings, the
+crossbow, the musket and the pistol, six armours over three body places (the ranger's
+jerkin, hood and trousers, the peasant's robe, the knight's helm, barbute and great helm),
+three shields and the focus, the ring and the cape for the one accessory, and the four
+stacks; twenty-two materials.

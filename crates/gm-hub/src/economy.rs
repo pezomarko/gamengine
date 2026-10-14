@@ -653,9 +653,9 @@ async fn gear_in(
     .map_err(internal)?;
     let mut gear = Gear::NONE;
     let mut templates: [String; PLACES] = Default::default();
-    // A place counts for its share (EQUIPMENT.md 5.5), under the one cap: the right
-    // hand whole, the left hand half, the body by its parts, the trinkets half, a
-    // two-hander for both hands (1.5), each number capped.
+    // A place counts for its share (EQUIPMENT.md 5.5 and 10.8), under the one cap: the
+    // right hand whole, the left hand half, the body by its parts, the accessory half,
+    // a two-hander for both hands (1.5), each number capped.
     let add = |into: &mut [u16; 9], edges: [u16; 9], share: (u32, u32)| {
         for (a, b) in into.iter_mut().zip(edges) {
             let b = (b as u32 * share.0 / share.1).min(u16::MAX as u32) as u16;
@@ -1195,33 +1195,6 @@ impl Economy {
                         .is_some_and(|t| content.may_wear_in(t, Place::Off));
                     if left_free && right_one_hander {
                         Place::Off
-                    } else {
-                        own
-                    }
-                } else if own == Place::Ring {
-                    // A ring goes onto the free finger first (EQUIPMENT.md 5.4), as a
-                    // one-hander goes into the free hand.
-                    let rows = sqlx::query(
-                        "select w.slot from worn w where w.character_id = $1 and w.item_id <> $2 \
-                         and w.slot in ('ring', 'ring2')",
-                    )
-                    .bind(character)
-                    .bind(item)
-                    .fetch_all(&mut *tx)
-                    .await
-                    .map_err(internal)?;
-                    let mut first_taken = false;
-                    let mut second_free = true;
-                    for r in &rows {
-                        let slot: String = r.try_get("slot").map_err(internal)?;
-                        match slot.as_str() {
-                            "ring" => first_taken = true,
-                            "ring2" => second_free = false,
-                            _ => {}
-                        }
-                    }
-                    if first_taken && second_free {
-                        Place::Ring2
                     } else {
                         own
                     }

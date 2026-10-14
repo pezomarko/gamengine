@@ -894,3 +894,94 @@ interrupt = "on_damage"
 [[ability.step]]
 at_ms = 120
 projectile = { speed = 2000, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 38, type = "blunt", knockback = 50, stagger = 8 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+# ---------- the second batch (2026-10-14, EQUIPMENT.md 10.7): six more primaries ----------
+# Appended, as every new ability is; a custom build's, like the four above. Two
+# one-handers and four two-handers, each a different swing: the mace staggers, the katana
+# is quick, the claymore and the greataxe are the big slashes (the greataxe hits harder
+# and throws further, the claymore reaches further and swings wider), the warhammer is the
+# heaviest blow there is, the scythe sweeps the widest arc for the least.
+
+# The mace: a one-hand blow, a little short, that staggers.
+[[ability]]
+key = "mace"
+name = "Mace"
+slot = "primary"
+cost = 2
+prop = "mace"
+cooldown_ms = 750
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 65, arc = 75, half_height = 40, windup_ms = 180, active_ms = 60, recovery_ms = 340, damage = { amount = 60, type = "blunt", knockback = 160, stagger = 55 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+
+# The katana: the quickest blade, light.
+[[ability]]
+key = "katana"
+name = "Katana"
+slot = "primary"
+cost = 2
+prop = "katana"
+cooldown_ms = 520
+move_scale = 0.75
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 72, arc = 70, half_height = 40, windup_ms = 120, active_ms = 50, recovery_ms = 260, damage = { amount = 50, type = "slash", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+
+# The claymore: a striker's great sword, both hands, a wide reaching swing.
+[[ability]]
+key = "claymore"
+name = "Claymore"
+slot = "primary"
+cost = 2
+prop = "claymore"
+cooldown_ms = 1000
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 90, arc = 110, half_height = 40, windup_ms = 280, active_ms = 80, recovery_ms = 480, damage = { amount = 85, type = "slash", knockback = 200, stagger = 35 }, max_targets = 2, cleave_falloff = 0.75, parryable = true, hit_stop_ms = 30, assist = 25 }
+
+# The greataxe: both hands, the axe's weight twice over.
+[[ability]]
+key = "greataxe"
+name = "Greataxe"
+slot = "primary"
+cost = 2
+prop = "greataxe"
+cooldown_ms = 1100
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 80, arc = 90, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 90, type = "slash", knockback = 300, stagger = 45 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
+
+# The warhammer: both hands, the heaviest blow, slow.
+[[ability]]
+key = "warhammer"
+name = "Warhammer"
+slot = "primary"
+cost = 2
+prop = "warhammer"
+cooldown_ms = 1200
+move_scale = 0.45
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 85, arc = 100, half_height = 40, windup_ms = 320, active_ms = 90, recovery_ms = 520, damage = { amount = 95, type = "blunt", knockback = 320, stagger = 70 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
+
+# The scythe: both hands, the widest sweep, three targets, for less each.
+[[ability]]
+key = "scythe"
+name = "Scythe"
+slot = "primary"
+cost = 2
+prop = "scythe"
+cooldown_ms = 1100
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 85, arc = 150, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 75, type = "slash", knockback = 150, stagger = 25 }, max_targets = 3, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30, assist = 20 }

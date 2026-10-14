@@ -16,9 +16,8 @@
 
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{
-    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_BACK, PLACE_FEET,
-    PLACE_HANDS, PLACE_HEAD, PLACE_LEGS, PLACE_NAMES, PLACE_NECK, PLACE_NONE, PLACE_OFF,
-    PLACE_RING, PLACE_RING2, PLACE_SHOULDERS, PLACE_WEAPON, SessionId, place_index,
+    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ACCESSORY, PLACE_ARMOUR, PLACE_HEAD,
+    PLACE_LEGS, PLACE_NAMES, PLACE_NONE, PLACE_OFF, PLACE_WEAPON, SessionId, place_index,
 };
 use web_time::{Duration, Instant};
 
@@ -970,26 +969,12 @@ impl Bag {
         let picked = items.get(self.picked).cloned();
         let worn = picked.as_ref().is_some_and(|i| i.worn);
 
-        // The equipment (EQUIPMENT.md 4.1 and 5): the body's places down the left in
-        // the order of the body (head, chest, back, hands, legs, feet), the hands and the
-        // trinkets down the right (right hand, left hand, shoulders, neck, two rings).
-        // The body stands between them in the open, turned by a drag.
-        const LEFT: [u8; 6] = [
-            PLACE_HEAD,
-            PLACE_ARMOUR,
-            PLACE_BACK,
-            PLACE_HANDS,
-            PLACE_LEGS,
-            PLACE_FEET,
-        ];
-        const RIGHT: [u8; 6] = [
-            PLACE_WEAPON,
-            PLACE_OFF,
-            PLACE_SHOULDERS,
-            PLACE_NECK,
-            PLACE_RING,
-            PLACE_RING2,
-        ];
+        // The equipment (EQUIPMENT.md 4.1 and 10.8): the body's places down the left in
+        // the order of the body (head, chest, legs), the hands and the accessory down the
+        // right (right hand, left hand, accessory), every other row so that the three
+        // span the body. The body stands between them in the open, turned by a drag.
+        const LEFT: [u8; 3] = [PLACE_HEAD, PLACE_ARMOUR, PLACE_LEGS];
+        const RIGHT: [u8; 3] = [PLACE_WEAPON, PLACE_OFF, PLACE_ACCESSORY];
         let worn_in = |code: u8| items.iter().find(|i| i.worn && i.worn_in == code);
         let mut dropped_on: Vec<(u8, Option<(String, i64)>)> = Vec::new();
         let (mut take_off, mut want_bag, mut close_equip) = (false, false, false);
@@ -1030,7 +1015,7 @@ impl Bag {
             let right = area.x + area.w - side;
             for (x, codes) in [(area.x, LEFT), (right, RIGHT)] {
                 for (row, code) in codes.into_iter().enumerate() {
-                    let r = at(x, row);
+                    let r = at(x, row * 2);
                     let ghost = code == PLACE_OFF && two && worn_in(PLACE_OFF).is_none();
                     let thing = match (worn_in(code), ghost) {
                         (Some(i), _) => Some(looks.thing(i)),
@@ -1052,7 +1037,7 @@ impl Bag {
                 }
             }
             // What is worn, in the hub's words (ITEMS.md 6): the hands a line each, the
-            // rest of the body and the trinkets by name on the third.
+            // rest of the body and the accessory by name on the third.
             let said = col.take(3.0 * line);
             let words = |i: Option<&ItemSummary>| match i {
                 Some(i) => format!("{}  {}", name(i), headline(i)),
@@ -1283,12 +1268,7 @@ impl Bag {
         // nothing; the zone would refuse it, and the screen does not ask).
         // The left hand takes what goes there by nature (a shield) and what may go there
         // beside the right hand's (a one-handed weapon, `off`).
-        // The second finger takes a ring (EQUIPMENT.md 5.4).
-        let for_place = |i: &ItemSummary, code: u8| {
-            i.place == code
-                || (code == PLACE_OFF && i.off)
-                || (code == PLACE_RING2 && i.place == PLACE_RING)
-        };
+        let for_place = |i: &ItemSummary, code: u8| i.place == code || (code == PLACE_OFF && i.off);
         let mut dropped_to_wear: Option<(ItemSummary, u8)> = None;
         let mut refused: Option<String> = None;
         for (code, dropped) in &dropped_on {

@@ -439,6 +439,9 @@ worn); a gun build's stays `NONE`. The zone reads it from the reading's second t
 
 ### 6.6 The armour overlay (2026-10-13)
 
+(Three body places since 2026-10-14, EQUIPMENT.md 10.8: the chest, the head, the legs;
+`Look.worn` is three.)
+
 The director: "We need mechanism to not only equip sword, but also armor so it's visible
 ... weapon is separate model and equipable", and the games he named do it the way every
 modular character does: the weapon is a rigid thing on a socket of the hand (6.3, the

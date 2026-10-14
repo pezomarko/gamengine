@@ -218,6 +218,13 @@ but for the page a script opens first.
 
 ## 5. All the equipment types
 
+> **Superseded in part by 10.8 (2026-10-14):** the director cut the twelve places to six:
+> the two hands, the chest, the head, the legs and one accessory (a ring or a cape,
+> nothing drawn). The shoulders, the hands, the feet, the back, the neck and the second
+> finger of 5.2–5.4 are gone, with their overlays; the shares of 5.5 are the chest 12 of
+> 20, the legs 5, the head 3, the accessory half. The rest of this section stands as the
+> proposal it was.
+
 Grounded in: the rig (MODELS.md 2: 24 bones, `covers` masks name them), the overlay
 budgets (CONTENT.md 4: 1,500 triangles, 512², 262,144 bytes **per overlay per frame**),
 the gear term (ITEMS.md 3.1: one cap of 250 per damage type over every place), and the
@@ -331,11 +338,14 @@ read with the ability in these presets' kits:
 | sword | slash | either | have | blade | one in each hand (1) |
 | dagger | slash / pierce | either | have | shade, musketeer | |
 | greatsword | slash | two; one on the colossus | have | ironclad | 3 |
-| claymore | slash | two | weapons pack | (a striker's greatsword, if wanted) | the same ability, another look |
+| claymore | slash | two | weapons pack (built 2026-10-14, 10.7: `Sword_Big`) | a custom build's | its own ability: wider and further than the greatsword, for less |
+| katana | slash | either | knight pack (built 2026-10-14, 10.7) | a custom build's | the quickest blade |
+| mace | blunt | either | weapons pack (built 2026-10-14, 10.7: `Hammer_Small`) | a custom build's | a one-hand blow that staggers |
+| scythe | slash | two | weapons pack (built 2026-10-14, 10.7) | a custom build's | the widest sweep, three targets |
 | axe | slash | either | KayKit (built 2026-10-14) | a custom build's | a one-hand slash with more knockback |
-| double axe | slash | two | weapons pack, KayKit | nobody yet | |
+| greataxe | slash | two | KayKit `axe_2handed` (built 2026-10-14, 10.7) | a custom build's | the axe's weight twice over |
 | hammer | blunt | right | have | shaman | |
-| maul | blunt | two | weapons pack (Hammer_Double) | the `Maul` ability exists, no preset's | |
+| warhammer | blunt | two | weapons pack `Hammer_Double` (built 2026-10-14, 10.7) | a custom build's | the heaviest blow; the Warden's `maul` stays a creature's |
 | spear | pierce | two | weapons pack (built 2026-10-14) | a custom build's | reach 100, a line, not an arc |
 | staff | blunt (the bolt is the element's) | two | have | frostweaver, mender | |
 | wand | blunt (a bolt of force) | right | KayKit (built 2026-10-14) | a custom build's, with the `focus` left | |
@@ -343,7 +353,7 @@ read with the ability in these presets' kits:
 | crossbow | pierce | two | have | no preset's since MATRIX.md 15 | |
 | musket | pierce | two | have | musketeer | the gun mode |
 | pistol | pierce | either | have | musketeer | |
-| shield (round, heater, tower) | guards | left | have; more in both packs | everyone (a shield fits all hands) | |
+| shield (heater), buckler (round), tower shield (square) | guards | left | have (the buckler and the tower shield KayKit's, built 2026-10-14, 10.7) | everyone (a shield fits all hands) | |
 
 Proposed first additions, in order of what they give the roster: the **axe** (the blade
 and the ironclad gain a second one-hander with a different swing; the ironclad's
@@ -583,3 +593,83 @@ client's 115 unit tests, the content's and the tool's pass; clippy is clean.
    shoulder and the bow stands upright along the back. Not done: arrows as a stack (the firearm's reserve is
    gun-mode machinery), the quiver, and whether a preset should gain one of them, which
    is the director's.
+
+7. **The second batch** (2026-10-14, the director: "sellers for those so I can buy and
+   test with my blade, but ok we need more content anyway"). **Sellers first**: three more
+   stalls on the square from `scripts/dev/play.sh` (`sellers`, run by `people` and on its
+   own against a running stack), the **Armourer** (every body place, the shields and the
+   trinkets, which fit everyone), the **Weaponsmith** (the axe, the spear, the bow, the
+   wand and the crossbow, plain and fine: a custom build's, said so on the stall by the
+   hands rule) and the **Outfitter** (everything below, plain); a seller that still
+   carries anything is not handed more, and one whose bot is alive is left alone. **Six
+   more primaries** (content v13), appended and mirrored like 6: the **mace** (60 blunt,
+   75°, stagger 55, 180/60/340 ms, 750 ms; either hand), the **katana** (50 slash, 70°,
+   120/50/260 ms, 520 ms; either hand), the **claymore** (85 slash, 110° of 90 units, two
+   targets, 280/80/480 ms, 1 s), the **greataxe** (90 slash, 90°, two targets, knockback
+   300, 300/80/500 ms, 1.1 s), the **warhammer** (95 blunt, 100°, two targets, knockback
+   320, stagger 70, 320/90/520 ms, 1.2 s) and the **scythe** (75 slash, 150°, three targets
+   at 0.6, 300/80/500 ms, 1.1 s), the last four both hands; no preset's kit changes. **Two
+   shields**: the `buckler` and the `tower_shield` (KayKit's round and square, stood with
+   the face out: turned −90° about X, where the focus is turned +90°). **The knight's
+   plate**, the first rigid overlays: `scripts/dev/blender-rigid-overlay.py` binds a
+   flat-coloured piece whole to one bone of the striker's rig (every vertex weighed 1.0:
+   a helmet rides the `head`, the shoulder plates the `chest`), scaled to a ratio of the
+   width of the part that bone moves and centred on it, with a 64² swatch texture painted
+   from the materials' colours (an overlay wants a texture where a prop is given swatches
+   at the build); the `helm` (the open helm with a nasal, 772 triangles) and the `barbute`
+   (cheek guards, the face open, 568) cover nothing, the `great_helm` (the bucket with the
+   cross slit, 656) covers the head, the `plate_pauldrons` (96) sit across both shoulders.
+   **Six materials** between the grades (bronze 20 and steel 45 for cores, yew 18 and
+   ironwood 35 for frames, riverglass 15 for shards, garnet 20 for gems), none above its
+   layer's best, so the best craft stays 250. The icon atlas's cap goes from 640 to 768 KiB
+   (50 icons: 645,096 bytes at 4 texels a dot). Models: the LowPoly Medieval Weapons
+   pack's `Hammer_Small`, `Hammer_Double`, `Sword_Big` (the pack's `Claymore` is a thin red
+   blade that reads as a line) and `Scythe`, the knight pack's `Katana`, `Helmet1–3` and
+   `ShoulderPads`, KayKit's `axe_2handed`, `shield_round` and `shield_square`
+   (LICENSES.md). Holds chosen in the fitting room: the blades and hafts in the plain hold
+   (cut along +Z, no turn), the greataxe like the axe (90° about X, scaled 0.9). Open: the
+   quiver, the companions' and creatures' weapons, and whether a preset gains any of
+   these, which is the director's.
+
+8. **Six places** (2026-10-14, the director: "can we simplify it a bit so that we only
+   have 2 hands, head, body, legs and 1 accessory. Accessory could be either ring or cape
+   (we can go with no render for any atm). No shoulder things and such. Then test all the
+   combos if they render correctly and fix it"). `gm_content::items::Place` is **weapon,
+   off, armour (the chest), head, legs, accessory** (`PLACES` 6, `Place::BODY` the three
+   overlays: chest, head, legs); the shares are the chest 12 of 20, the legs 5, the head
+   3 (a full set of the best reaches the cap of 250 alone, as the six did), the accessory
+   half. **The accessory** takes a `trinket`: the **ring** (no guard: it sharpens what
+   its wearer deals of the elements) or the **cape** (`guards = "elements"`: it dulls what
+   it takes; a trinket now, catalyst and gems, nothing drawn; its overlay is gone with the
+   back and may return when the accessory is drawn). `ItemTemplate::deals` reads the
+   guard instead of the place. **Gone**: the pauldrons, the bracers, the boots, the
+   shoulder plates and the amulet with their places and files (`places-pipeline.sh`
+   copies the cuirass, the hood and the trousers only). **The wire**: `Look.worn` is three
+   (`PROTOCOL_VERSION` 22, PROTOCOL.md 34); the hub's reading and a character's list carry
+   six templates (`HUB_VERSION` 16, `PLAYER_VERSION` 12, `PLACE_HEAD` 4, `PLACE_LEGS` 5,
+   `PLACE_ACCESSORY` 6, `BODY_INDICES` [2, 3, 4]); migration 0016 takes off what was on
+   the places that went (it stays in the bag), turns a worn ring or cape into the
+   accessory (the ring first) and narrows `worn_slot_check`. **The window**: three slots
+   a column, every other row, so they span the body; the third line of words is the
+   body and the accessory. **The sellers** (10.7) are handed what they lack by template,
+   so a standing stall takes a list that changed: the armourer sells the chest, head and
+   legs pieces, the shields, the focus and the cape; the weaponsmith the twelve weapons
+   the keeper does not; the outfitter the ring and the fine make. **The combos** (the
+   director's test): every head (none, hood, helm, barbute, great helm) with every chest
+   (none, cuirass, robe) and the legs (none, trousers), armed, and a bow, a claymore, a
+   tower shield and the sheathed sword beside, rendered headless on the striker and
+   looked at as one contact sheet. **Two things were wrong, both fixed in the cut**: the
+   trousers left the hero's legs ending at the knee with the shoes lying between them
+   (the ranger's trousers end where its boots begin, and the boots had gone with the
+   feet's place; `covers` hid the shins, and the shoes, weighted to the shins too, lost
+   their tops), so the legs' overlay is now the trousers **and** the boots in one
+   (`blender-quaternius-hero.py`: 451 + 825 = 1,276 triangles at ratios 0.4 and 0.09,
+   covering the thighs, the shins, the feet and the toes); and the buzzed hair came
+   through the hood's cloth, at 12 mm and at 20, so the hood alone is pushed out 35 mm.
+   Everything else drew as it should: the helm and the barbute over the hair, the great
+   helm hiding the head, the cuirass and the robe under every helmet, each over the
+   trousers, every weapon in the hand and the sword on the back. (The first sheet was
+   taken on a striker mannequin, which has no hair and no separate shoes and so showed
+   neither fault: a check of overlays must be on the official avatar, `--crowd 10` with
+   the camera at `-876,-649,40,32` and `--bench 240`, where member 5 stands idle facing
+   it.)
