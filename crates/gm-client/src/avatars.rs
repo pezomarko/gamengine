@@ -2,7 +2,7 @@
 //! its model when the cache has it; the shared animation set poses both. Also the offline
 //! crowd used to benchmark a town full of avatars.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use glam::{Mat4, Vec3};
 use gm_bsp::Bsp;
@@ -88,7 +88,7 @@ pub struct Body {
     pub worn: [Option<usize>; BODY_PLACES],
     pub hide: u32,
     /// Out of a fight (LOOK.md 6.7): `prop` rests on the back at `prop_back` instead of
-    /// in the right fist.
+    /// in the right fist, and `off` beside it instead of in the left.
     pub sheathed: bool,
 }
 
@@ -140,6 +140,9 @@ pub struct Avatars {
     pub crowd_worn: Vec<(usize, u32)>,
     /// And the prop on its back instead of in its fist (`--sheathed`, LOOK.md 6.7).
     pub crowd_sheathed: bool,
+    /// The props that hang flat on the back when sheathed (LOOK.md 6.7): the shields,
+    /// marked by whoever puts a prop in a slot (the app, from the manifest's kind).
+    pub flat: HashSet<usize>,
     /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
     /// loaded: a body without a model of its own wears one before it is the mannequin.
     officials: [[Option<usize>; 4]; 4],
@@ -235,7 +238,7 @@ impl Avatars {
                 opts.vram_mb as usize * 1024 * 1024,
             )
         });
-        let crowd = place_crowd(bsp, opts.crowd, &crowd_ids);
+        let crowd = place_crowd(bsp, opts.crowd, opts.crowd_turn, &crowd_ids);
         if !crowd.is_empty() {
             log::info!(
                 "crowd: {} bodies, {} distinct models",
@@ -257,6 +260,7 @@ impl Avatars {
             crowd_off: None,
             crowd_worn: Vec::new(),
             crowd_sheathed: false,
+            flat: HashSet::new(),
             officials: [[None; 4]; 4],
         })
     }
@@ -360,14 +364,17 @@ impl Avatars {
             } else {
                 gm_model::pose::prop_attach(&info.pivots, &skin)
             };
-            // And the off hand's (LOOK.md 6.5): a shield on `prop_l` with the left grip.
-            for (held, attach) in [
-                (body.prop, right),
-                (
-                    body.off,
-                    gm_model::pose::prop_attach_left(&info.pivots, &skin),
-                ),
-            ] {
+            // And the off hand's (LOOK.md 6.5): a shield on `prop_l` with the left grip;
+            // sheathed, over the left shoulder crossing the right hand's, or a shield
+            // flat on the back over both (LOOK.md 6.7).
+            let left = if body.sheathed && body.off.is_some_and(|s| self.flat.contains(&s)) {
+                gm_model::pose::prop_attach_back_flat(&info.pivots, &skin)
+            } else if body.sheathed {
+                gm_model::pose::prop_attach_back_left(&info.pivots, &skin)
+            } else {
+                gm_model::pose::prop_attach_left(&info.pivots, &skin)
+            };
+            for (held, attach) in [(body.prop, right), (body.off, left)] {
                 let Some(held) = held else { continue };
                 self.draws.push(CharacterDraw {
                     slot: held,
@@ -606,8 +613,8 @@ impl Avatars {
 }
 
 /// Rows of ten, three body widths apart, in front of the map's start, standing on whatever
-/// is under them.
-fn place_crowd(bsp: &Bsp, count: u32, ids: &[ModelId]) -> Vec<CrowdMember> {
+/// is under them, facing the start and then turned `turn` degrees (180: their backs).
+fn place_crowd(bsp: &Bsp, count: u32, turn: f32, ids: &[ModelId]) -> Vec<CrowdMember> {
     if count == 0 {
         return Vec::new();
     }
@@ -631,10 +638,10 @@ fn place_crowd(bsp: &Bsp, count: u32, ids: &[ModelId]) -> Vec<CrowdMember> {
             continue;
         }
         let i = out.len();
-        // Facing the start, so the bench camera sees faces.
+        // Facing the start, so the bench camera sees faces (or turned from it).
         out.push(CrowdMember {
             origin: tr.end,
-            yaw: (yaw + 180.0).rem_euclid(360.0),
+            yaw: (yaw + 180.0 + turn).rem_euclid(360.0),
             // The mannequin's frame; generated models cycle through the four the same way.
             frame: (i % 4) as u8,
             armour: ((i / 4) % 4) as u8,

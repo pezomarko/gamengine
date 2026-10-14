@@ -810,7 +810,11 @@ fn template_prop(
     let model = template_model(content, template)?;
     let active = active?;
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    content.prop(&model, |m| Some(characters.add_model(gpu, m)))
+    let slot = content.prop(&model, |m| Some(characters.add_model(gpu, m)))?;
+    if content.is_shield(&model) {
+        active.avatars.flat.insert(slot);
+    }
+    Some(slot)
 }
 
 /// The overlays of the armour a character wears, on the selector (LOOK.md 6.6,
@@ -849,7 +853,11 @@ fn prop_slot(
     let key = props.get(index as usize)?;
     let active = active?;
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    content.prop(key, |model| Some(characters.add_model(gpu, model)))
+    let slot = content.prop(key, |model| Some(characters.add_model(gpu, model)))?;
+    if content.is_shield(key) {
+        active.avatars.flat.insert(slot);
+    }
+    Some(slot)
 }
 
 /// Where the view model of a prop sits (LOOK.md 6.4): the `fit_view` of the template
@@ -2839,6 +2847,11 @@ impl App {
                 .prop(&key, |model| Some(characters.add_model(gpu, model)));
             if slot.is_none() {
                 log::warn!("--off {key}: the bundle has no such prop on the desktop");
+            }
+            if let Some(slot) = slot
+                && self.content.is_shield(&key)
+            {
+                a.avatars.flat.insert(slot);
             }
             self.offline_off = slot;
             a.avatars.crowd_off = slot;
