@@ -384,6 +384,13 @@ it does not know goes on to the next: one stream, one notice.
   ring goes onto the free finger first, as a one-hander into the free hand. A trinket is
   crafted round one catalyst and no core (`check_parts`).
 
+- **Six places** (EQUIPMENT.md 10.8; `HUB_VERSION` 16, `PLAYER_VERSION` 12, 2026-10-14):
+  a reading's `templates` and `CharacterSummary.worn` are six (weapon, off, armour,
+  head, legs, accessory; `PLACE_ACCESSORY` 6), the twelve of the evening before gone with
+  their places; `wear` puts a trinket onto the accessory's place where it takes what was
+  there (no second finger); migration 0016 takes off what was worn on the places that
+  went and makes a worn ring or cape the accessory.
+
 - **Whose hands, and both hands** (EQUIPMENT.md 2 and 3; `HUB_VERSION` 14,
   `PLAYER_VERSION` 10, 2026-10-13): `ItemSummary.hands`, the classes whose preset kits
   hold a weapon's model (`Blade, Ironclad`; `no preset's`; empty for what is not a

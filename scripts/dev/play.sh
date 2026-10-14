@@ -190,43 +190,49 @@ people() {
     --builds ironclad,blade,frostweaver,shade --zone arena --secs $BOT_SECS --behaviour duelist
 }
 
-# The sellers of the equipment (EQUIPMENT.md 5; 2026-10-14, the director: "sellers for those
-# so I can buy and test"): two more stalls on the square, each with the twelve of its trade
-# at 1 s 20 c, plain iron and oak. The armourer: every body place, the shields and the
-# trinkets (they fit everyone, ITEMS.md 2); the weaponsmith: the weapons no preset holds
-# (the hands rule says whose they are on the stall; a custom build that slots the
-# ability wears them). Handed once, like the keeper: a seller that still carries anything
-# is not handed more. `play.sh sellers` puts them on a running stack (a seller whose bot
-# is alive is left alone).
-ARMOURER_STOCK=("cuirass core/iron,frame/oak" "hood core/iron,frame/oak" "pauldrons core/iron,frame/oak"
-  "bracers core/iron,frame/oak" "trousers core/iron,frame/oak" "boots core/iron,frame/oak"
-  "cape core/iron,frame/oak" "robe core/iron,frame/oak" "shield core/iron,frame/oak" "focus core/iron,frame/oak"
-  "amulet catalyst/rime,gem/quartz" "ring catalyst/ember,gem/quartz")
+# The sellers of the equipment (EQUIPMENT.md 10.7 and 10.8; 2026-10-14, the director:
+# "sellers for those so I can buy and test"): three more stalls on the square, each with
+# the twelve of its trade at 1 s 20 c. The armourer: every body place, the shields, the
+# focus and the cape (they fit everyone, ITEMS.md 2), plain; the weaponsmith: the twelve
+# weapons the keeper does not sell, plain (the hands rule says whose they are on the
+# stall; a custom build that slots the ability wears them); the outfitter: the ring and
+# the fine make. A seller is handed what it lacks **by template** (one line a template:
+# a seller holding a plain sword is not handed a fine one), so a list that changes
+# reaches a stall that stands, and a stall that sold out is filled again by `people`.
+# `play.sh sellers` puts them on a running stack (a seller whose bot is alive is left
+# alone, and is handed what it lacks).
+ARMOURER_STOCK=("cuirass core/iron,frame/oak" "robe core/iron,frame/oak" "hood core/iron,frame/oak"
+  "helm core/iron,frame/oak" "barbute core/iron,frame/oak" "great_helm core/iron,frame/oak"
+  "trousers core/iron,frame/oak" "shield core/iron,frame/oak" "buckler core/iron,frame/oak"
+  "tower_shield core/iron,frame/oak" "focus core/iron,frame/oak" "cape catalyst/rime,gem/quartz")
 WEAPONSMITH_STOCK=("axe core/iron,frame/oak" "spear core/iron,frame/oak" "bow core/iron,frame/oak" "wand core/iron,frame/oak"
-  "crossbow core/iron,frame/oak" "axe core/dragonbone,frame/whalebone,catalyst/basalt,gem/opal"
-  "spear core/dragonbone,frame/whalebone,catalyst/zephyr,gem/opal" "bow core/dragonbone,frame/whalebone,catalyst/umbra,gem/opal"
-  "wand core/dragonbone,frame/whalebone,catalyst/thunderstone,gem/opal" "crossbow core/dragonbone,frame/whalebone,gem/opal")
-# The outfitter (2026-10-14, the second batch, EQUIPMENT.md 10.7): the knight's
-# plate, the two shields and the six weapons, plain.
-OUTFITTER_STOCK=("helm core/iron,frame/oak" "barbute core/iron,frame/oak" "great_helm core/iron,frame/oak"
-  "plate_pauldrons core/iron,frame/oak" "buckler core/iron,frame/oak" "tower_shield core/iron,frame/oak"
-  "mace core/iron,frame/oak" "katana core/iron,frame/oak" "claymore core/iron,frame/oak"
-  "greataxe core/iron,frame/oak" "warhammer core/iron,frame/oak" "scythe core/iron,frame/oak")
+  "crossbow core/iron,frame/oak" "pistol core/iron,frame/oak" "mace core/iron,frame/oak" "katana core/iron,frame/oak"
+  "claymore core/iron,frame/oak" "greataxe core/iron,frame/oak" "warhammer core/iron,frame/oak" "scythe core/iron,frame/oak")
+# The outfitter: the ring, and the fine make of what the others sell plain (one of each
+# template, since a seller is handed what it lacks by template).
+OUTFITTER_STOCK=("ring catalyst/ember,gem/quartz" "cuirass core/dragonbone,frame/whalebone,gem/opal"
+  "robe core/dragonbone,frame/whalebone,catalyst/rime,gem/opal" "hood core/dragonbone,frame/whalebone,catalyst/ember,gem/opal"
+  "trousers core/dragonbone,frame/whalebone,gem/opal" "helm core/dragonbone,frame/whalebone,gem/opal"
+  "shield core/dragonbone,frame/whalebone,gem/opal" "mace core/dragonbone,frame/whalebone,catalyst/basalt,gem/opal"
+  "katana core/dragonbone,frame/whalebone,catalyst/zephyr,gem/opal" "claymore core/dragonbone,frame/whalebone,catalyst/ember,gem/opal"
+  "greataxe core/dragonbone,frame/whalebone,catalyst/umbra,gem/opal" "warhammer core/dragonbone,frame/whalebone,catalyst/thunderstone,gem/opal")
 seller() { # NAME LOG STOCK...
   local name=$1 log=$2; shift 2
-  if pgrep -f -- "--character $name " >/dev/null; then echo "$name is in the town already"; return 0; fi
+  if pgrep -f -- "--character $name " >/dev/null; then echo "$name is in the town already"; else
   spawn "$log" --bots 1 --user "$log@bots.test" --register --character "$name" --builds ironclad --zone town \
     --stalls 1 --sell-at 120 --secs $BOT_SECS --behaviour stroll
   for _ in $(seq 1 100); do /usr/bin/grep -aq "stall stands" "$D/log/$log.log" 2>/dev/null && break; sleep 0.2; done
-  local carried="select count(*) from items i join holders h on h.id = i.holder_id join characters c on c.id = h.character_id \
-      or c.id = (select owner_character from stalls s where s.holder_id = h.id) where c.name = '$name'"
-  if [[ "$(psql "$URL" -Atc "$carried" 2>/dev/null || echo 0)" == 0 ]]; then
-    local item
-    for item in "$@"; do
+  fi
+  local item template
+  for item in "$@"; do
+    template=${item%% *}
+    local held="select count(*) from items i join holders h on h.id = i.holder_id join characters c on c.id = h.character_id \
+        or c.id = (select owner_character from stalls s where s.holder_id = h.id) where c.name = '$name' and i.template = '$template'"
+    if [[ "$(psql "$URL" -Atc "$held" 2>/dev/null || echo 1)" == 0 ]]; then
       # shellcheck disable=SC2086
       hubctl --grant-item "$name" $item >>"$D/log/grants.log" 2>&1
-    done
-  fi
+    fi
+  done
 }
 sellers() {
   seller Armourer armourer "${ARMOURER_STOCK[@]}"

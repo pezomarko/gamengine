@@ -197,9 +197,10 @@ model = "pistol"
 fit = { turn = [0, 88, 0] }
 fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye: a short thing
 
-# The body's places (EQUIPMENT.md 5.2): `place` names where an armour goes (the chest when
-# nothing is said), each an overlay of its own on the striker from the Fantasy outfits'
-# ranger set (LICENSES.md), each counting for its share of the body (5.5).
+# The body's places (EQUIPMENT.md 10.8, 2026-10-14: the chest, the head and the legs, the
+# six places of the director's simplification): `place` names where an armour goes (the
+# chest when nothing is said), each an overlay of its own on the striker from the Fantasy
+# outfits' ranger set (LICENSES.md), each counting for its share of the body (5.5).
 [[template]]
 id = "cuirass"
 kind = "armour"
@@ -218,46 +219,19 @@ model = "hood"                               # the ranger's hood: cloth, over th
 covers = []
 
 [[template]]
-id = "pauldrons"
-kind = "armour"
-place = "shoulders"
-guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
-model = "pauldrons"                          # the ranger's pauldrons, one a shoulder
-covers = []
-
-[[template]]
-id = "bracers"
-kind = "armour"
-place = "hands"
-guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
-model = "bracers"                            # the ranger's bracers
-covers = ["forearm_l", "forearm_r", "hand_l", "hand_r"]
-
-[[template]]
 id = "trousers"
 kind = "armour"
 place = "legs"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
-model = "trousers"                           # the ranger's trousers, over the body's own
-covers = ["thigh_l", "thigh_r", "shin_l", "shin_r"]
-
-[[template]]
-id = "boots"
-kind = "armour"
-place = "feet"
-guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
-model = "boots"                              # the ranger's boots, over the body's shoes
-covers = ["foot_l", "foot_r", "toe_l", "toe_r"]
+model = "trousers"                           # the ranger's trousers and boots in one, over the body's own
+covers = ["thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", "toe_l", "toe_r"]
 
 # The knight's plate (EQUIPMENT.md 10.7, 2026-10-14): rigid pieces of the LowPoly
 # Animated Knight pack bound whole to one bone by scripts/dev/blender-rigid-overlay.py
-# (a helmet rides the head, the shoulder plates the chest). The helm and the barbute
-# leave the face open, so they cover nothing, like the hood; the great helm is a bucket
-# with a cross slit and hides the head.
+# (a helmet rides the head). The helm and the barbute leave the face open, so they cover
+# nothing, like the hood; the great helm is a bucket with a cross slit and hides the
+# head. (The shoulder plates went with the shoulders' place, 10.8.)
 [[template]]
 id = "helm"
 kind = "armour"
@@ -284,27 +258,6 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "great_helm"                         # the knight's closed helm with the cross slit: the whole head under it
 covers = ["head"]
-
-[[template]]
-id = "plate_pauldrons"
-kind = "armour"
-place = "shoulders"
-guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
-model = "plate_pauldrons"                    # the knight's shoulder plates, one piece across both
-covers = []
-
-# The back (EQUIPMENT.md 5.3): a cape, ours (the hero's Blender pass hangs a cloth plane
-# from the shoulders, skinned to the chest, the spine and the hips), over the body and
-# covering nothing. The sheathed weapon rests on the back whether or not one is worn.
-[[template]]
-id = "cape"
-kind = "armour"
-place = "back"
-guards = "elements"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
-model = "cape"                               # a cloth cape off the shoulders, ours (LICENSES.md)
-covers = []
 
 [[template]]
 id = "robe"
@@ -357,19 +310,22 @@ model = "focus"
 held = "left"
 fit = { turn = [90, 0, 0], scale = 0.7 }   # upright, the cover out, as a shield's face
 
-# Trinkets (EQUIPMENT.md 5.4): numbers only, nothing drawn, built round a catalyst (the
-# element) with gems. An amulet on the neck lowers what its wearer takes of the elements;
-# a ring (either finger) raises what it deals of them. Each counts for half (5.5).
-[[template]]
-id = "amulet"
-kind = "trinket"
-place = "neck"
-layers = ["catalyst", "gem"]
-
+# The accessory (EQUIPMENT.md 10.8): one place, numbers only, nothing drawn, built round a
+# catalyst (the element) with gems. A ring raises what its wearer deals of the elements;
+# a cape (`guards = "elements"`) lowers what it takes of them. One or the other; it counts
+# for half. (Until 2026-10-14 the cape was an overlay on the back, ours; the model is
+# gone with the place, and may come back when the accessory is drawn.)
 [[template]]
 id = "ring"
 kind = "trinket"
-place = "ring"
+place = "accessory"
+layers = ["catalyst", "gem"]
+
+[[template]]
+id = "cape"
+kind = "trinket"
+place = "accessory"
+guards = "elements"
 layers = ["catalyst", "gem"]
 
 # Stacks (MODES.md 11.1): one row and one slot, merged up to the cap, which is the strict

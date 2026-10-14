@@ -218,6 +218,13 @@ but for the page a script opens first.
 
 ## 5. All the equipment types
 
+> **Superseded in part by 10.8 (2026-10-14):** the director cut the twelve places to six:
+> the two hands, the chest, the head, the legs and one accessory (a ring or a cape,
+> nothing drawn). The shoulders, the hands, the feet, the back, the neck and the second
+> finger of 5.2–5.4 are gone, with their overlays; the shares of 5.5 are the chest 12 of
+> 20, the legs 5, the head 3, the accessory half. The rest of this section stands as the
+> proposal it was.
+
 Grounded in: the rig (MODELS.md 2: 24 bones, `covers` masks name them), the overlay
 budgets (CONTENT.md 4: 1,500 triangles, 512², 262,144 bytes **per overlay per frame**),
 the gear term (ITEMS.md 3.1: one cap of 250 per damage type over every place), and the
@@ -623,3 +630,46 @@ client's 115 unit tests, the content's and the tool's pass; clippy is clean.
    (cut along +Z, no turn), the greataxe like the axe (90° about X, scaled 0.9). Open: the
    quiver, the companions' and creatures' weapons, and whether a preset gains any of
    these, which is the director's.
+
+8. **Six places** (2026-10-14, the director: "can we simplify it a bit so that we only
+   have 2 hands, head, body, legs and 1 accessory. Accessory could be either ring or cape
+   (we can go with no render for any atm). No shoulder things and such. Then test all the
+   combos if they render correctly and fix it"). `gm_content::items::Place` is **weapon,
+   off, armour (the chest), head, legs, accessory** (`PLACES` 6, `Place::BODY` the three
+   overlays: chest, head, legs); the shares are the chest 12 of 20, the legs 5, the head
+   3 (a full set of the best reaches the cap of 250 alone, as the six did), the accessory
+   half. **The accessory** takes a `trinket`: the **ring** (no guard: it sharpens what
+   its wearer deals of the elements) or the **cape** (`guards = "elements"`: it dulls what
+   it takes; a trinket now, catalyst and gems, nothing drawn; its overlay is gone with the
+   back and may return when the accessory is drawn). `ItemTemplate::deals` reads the
+   guard instead of the place. **Gone**: the pauldrons, the bracers, the boots, the
+   shoulder plates and the amulet with their places and files (`places-pipeline.sh`
+   copies the cuirass, the hood and the trousers only). **The wire**: `Look.worn` is three
+   (`PROTOCOL_VERSION` 22, PROTOCOL.md 34); the hub's reading and a character's list carry
+   six templates (`HUB_VERSION` 16, `PLAYER_VERSION` 12, `PLACE_HEAD` 4, `PLACE_LEGS` 5,
+   `PLACE_ACCESSORY` 6, `BODY_INDICES` [2, 3, 4]); migration 0016 takes off what was on
+   the places that went (it stays in the bag), turns a worn ring or cape into the
+   accessory (the ring first) and narrows `worn_slot_check`. **The window**: three slots
+   a column, every other row, so they span the body; the third line of words is the
+   body and the accessory. **The sellers** (10.7) are handed what they lack by template,
+   so a standing stall takes a list that changed: the armourer sells the chest, head and
+   legs pieces, the shields, the focus and the cape; the weaponsmith the twelve weapons
+   the keeper does not; the outfitter the ring and the fine make. **The combos** (the
+   director's test): every head (none, hood, helm, barbute, great helm) with every chest
+   (none, cuirass, robe) and the legs (none, trousers), armed, and a bow, a claymore, a
+   tower shield and the sheathed sword beside, rendered headless on the striker and
+   looked at as one contact sheet. **Two things were wrong, both fixed in the cut**: the
+   trousers left the hero's legs ending at the knee with the shoes lying between them
+   (the ranger's trousers end where its boots begin, and the boots had gone with the
+   feet's place; `covers` hid the shins, and the shoes, weighted to the shins too, lost
+   their tops), so the legs' overlay is now the trousers **and** the boots in one
+   (`blender-quaternius-hero.py`: 451 + 825 = 1,276 triangles at ratios 0.4 and 0.09,
+   covering the thighs, the shins, the feet and the toes); and the buzzed hair came
+   through the hood's cloth, at 12 mm and at 20, so the hood alone is pushed out 35 mm.
+   Everything else drew as it should: the helm and the barbute over the hair, the great
+   helm hiding the head, the cuirass and the robe under every helmet, each over the
+   trousers, every weapon in the hand and the sword on the back. (The first sheet was
+   taken on a striker mannequin, which has no hair and no separate shoes and so showed
+   neither fault: a check of overlays must be on the official avatar, `--crowd 10` with
+   the camera at `-876,-649,40,32` and `--bench 240`, where member 5 stands idle facing
+   it.)

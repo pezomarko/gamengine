@@ -181,6 +181,9 @@ def inflate(o, by):
 
 for o in ranger_body + pauldron + bracer + peasant_body + [sleeves] + hood + ranger_legs + boots:
     inflate(o, INFLATE)
+# The hood 35 mm in all: at 12 and at 20 the buzzed hair came through its cloth (EQUIPMENT.md 10.8).
+for o in hood:
+    inflate(o, 0.023)
 
 # The rig: MODELS.md 2 names, and the prop bones.
 ren = {'pelvis': 'hips', 'spine_01': 'spine', 'spine_02': 'chest', 'neck_01': 'neck', 'Head': 'head'}
@@ -309,8 +312,9 @@ export('cuirass', ranger_body)
 export('pauldrons', pauldron)
 export('bracers', bracer)
 export('hood', hood)
-export('trousers', ranger_legs)
-export('boots', boots)
+# The legs' overlay is the trousers and the boots in one (EQUIPMENT.md 10.8: the feet are
+# no place of their own, and the ranger's trousers end where its boots begin).
+export('trousers', ranger_legs + boots)
 export('cape', [cape])
 export('robe', peasant_body + [sleeves])
 print('DONE')

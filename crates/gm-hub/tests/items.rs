@@ -390,8 +390,8 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     let mut sword_edge = [0u16; 9];
     sword_edge[at(DamageType::Slash)] = 220;
     sword_edge[at(DamageType::Fire)] = 190;
-    // The chest counts for 8 of the body's 20 (EQUIPMENT.md 5.5): 220 is 88 taken.
-    let cuirass_edge = [88u16, 88, 88, 0, 0, 0, 0, 0, 0];
+    // The chest counts for 12 of the body's 20 (EQUIPMENT.md 10.8): 220 is 132 taken.
+    let cuirass_edge = [132u16, 132, 132, 0, 0, 0, 0, 0, 0];
     let plain_edge = [40u16, 0, 0, 0, 0, 0, 0, 0, 0];
     let have = inventory(&smith_conn, smith_s, smith).await;
     let find = |list: &[ItemSummary], id: i64| list.iter().find(|i| i.id == id).unwrap().clone();
@@ -694,14 +694,14 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         Err(HubError::Invalid("no such place".into()))
     );
     // A shield goes into the left hand by nature, takes the plain sword's place there,
-    // and guards beside the cuirass for half of itself: 88 + 40 / 2 of a blow is 108.
+    // and guards beside the cuirass for half of itself: 132 + 40 / 2 of a blow is 152.
     let shield = direct
         .grant_item(smith, "shield", &iron, room("shield").as_deref())
         .await
         .unwrap();
     let gear = wear(&town, smith, shield).await.unwrap();
     assert_eq!(gear.dealt, sword_edge);
-    assert_eq!(gear.taken, [108, 108, 108, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(gear.taken, [152, 152, 152, 0, 0, 0, 0, 0, 0]);
     let have = inventory(&smith_conn, smith_s, smith).await;
     let shown = find(&have, shield);
     assert_eq!(
@@ -712,75 +712,75 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(shown.does, ["physical -2.0%"]);
     assert!(!find(&have, plain).worn, "the shield took the left hand");
 
-    // The body's places and the trinkets (EQUIPMENT.md 5): each counts for its share
-    // under the one cap. A hood of iron and oak guards the elements (40 on each, 3 of
-    // 20: 6); boots the blows (40, 1 of 20: 2); a cape the elements for the back's 1 of
-    // 20 (2); a ring of ember and quartz deals fire 40 and the other elements 10, for
-    // half; an amulet of rime and quartz takes the same off water. The second ring goes
-    // onto the other finger by itself.
+    // The body's places and the accessory (EQUIPMENT.md 10.8): each counts for its share
+    // under the one cap. A hood of iron and oak guards the elements (40 on each, 3 of 20:
+    // 6); trousers the blows (40, 5 of 20: 10); a ring of ember and quartz deals fire 40
+    // and the other elements 10, for half (20 and 5); a cape of rime and quartz takes
+    // the same off water. The accessory is one place: the cape worn takes the ring's.
     let hood = direct
         .grant_item(smith, "hood", &iron, room("hood").as_deref())
         .await
         .unwrap();
-    let boots = direct
-        .grant_item(smith, "boots", &iron, room("boots").as_deref())
+    let trousers = direct
+        .grant_item(smith, "trousers", &iron, room("trousers").as_deref())
         .await
         .unwrap();
-    let cape = direct
-        .grant_item(smith, "cape", &iron, room("cape").as_deref())
-        .await
-        .unwrap();
-    let ember_ring = strings(&["catalyst/ember", "gem/quartz"]);
-    let ring_a = direct
-        .grant_item(smith, "ring", &ember_ring, room("ring").as_deref())
-        .await
-        .unwrap();
-    let ring_b = direct
-        .grant_item(smith, "ring", &ember_ring, room("ring").as_deref())
-        .await
-        .unwrap();
-    let amulet = direct
+    let ring = direct
         .grant_item(
             smith,
-            "amulet",
-            &strings(&["catalyst/rime", "gem/quartz"]),
-            room("amulet").as_deref(),
+            "ring",
+            &strings(&["catalyst/ember", "gem/quartz"]),
+            room("ring").as_deref(),
         )
         .await
         .unwrap();
-    for item in [hood, boots, cape, ring_a, ring_b, amulet] {
-        wear(&town, smith, item).await.unwrap();
-    }
-    let have = inventory(&smith_conn, smith_s, smith).await;
-    assert_eq!(
-        [hood, boots, cape, ring_a, ring_b, amulet].map(|i| find(&have, i).worn_in),
-        [
-            gm_hub::protocol::PLACE_HEAD,
-            gm_hub::protocol::PLACE_FEET,
-            gm_hub::protocol::PLACE_BACK,
-            gm_hub::protocol::PLACE_RING,
-            gm_hub::protocol::PLACE_RING2,
-            gm_hub::protocol::PLACE_NECK
-        ]
-    );
-    assert_eq!(find(&have, ring_a).what, "a trinket, 40 of 250");
-    let gear = wear(&town, smith, amulet).await.unwrap();
-    assert_eq!(gear.dealt, [220, 0, 0, 230, 10, 10, 10, 10, 10]);
-    assert_eq!(gear.taken, [110, 110, 110, 13, 28, 13, 13, 13, 13]);
-    // A thing asked onto a place that is not its own is refused in words; a ring onto
-    // the second finger by name goes there, and takes what was there.
-    assert_eq!(
-        wear_in(&town, smith, boots, gm_hub::protocol::PLACE_HEAD).await,
-        Err(HubError::Invalid("a boots does not go on the head".into()))
-    );
-    let reading = wear_in(&town, smith, ring_a, gm_hub::protocol::PLACE_RING2)
+    let cape = direct
+        .grant_item(
+            smith,
+            "cape",
+            &strings(&["catalyst/rime", "gem/quartz"]),
+            room("cape").as_deref(),
+        )
         .await
         .unwrap();
-    assert_eq!(reading.templates[10], "", "the first finger is bare");
-    assert_eq!(reading.templates[11], "ring");
-    assert_eq!(reading.templates[7], "cape", "the back");
-    assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring_b).worn);
-    for item in [hood, boots, cape, ring_a, amulet] {
+    for item in [hood, trousers] {
+        wear(&town, smith, item).await.unwrap();
+    }
+    let gear = wear(&town, smith, ring).await.unwrap();
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert_eq!(
+        [hood, trousers, ring].map(|i| find(&have, i).worn_in),
+        [
+            gm_hub::protocol::PLACE_HEAD,
+            gm_hub::protocol::PLACE_LEGS,
+            gm_hub::protocol::PLACE_ACCESSORY
+        ]
+    );
+    assert_eq!(find(&have, ring).what, "a trinket, 40 of 250");
+    assert_eq!(gear.dealt, [220, 0, 0, 210, 5, 5, 5, 5, 5]);
+    assert_eq!(
+        gear.taken,
+        [162, 162, 162, 6, 6, 6, 6, 6, 6],
+        "the shield still on"
+    );
+    let gear = wear(&town, smith, cape).await.unwrap();
+    assert_eq!(gear.dealt, sword_edge, "the ring came off: one accessory");
+    assert_eq!(gear.taken, [162, 162, 162, 11, 26, 11, 11, 11, 11]);
+    assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring).worn);
+    // A thing asked onto a place that is not its own is refused in words.
+    assert_eq!(
+        wear_in(&town, smith, trousers, gm_hub::protocol::PLACE_HEAD).await,
+        Err(HubError::Invalid(
+            "a trousers does not go on the head".into()
+        ))
+    );
+    let reading = wear_in(&town, smith, ring, gm_hub::protocol::PLACE_ACCESSORY)
+        .await
+        .unwrap();
+    assert_eq!(reading.templates[3], "hood");
+    assert_eq!(reading.templates[4], "trousers");
+    assert_eq!(reading.templates[5], "ring", "the cape came off");
+    for item in [hood, trousers, ring] {
         take_off(&town, smith, item).await.unwrap();
     }
     assert_eq!(

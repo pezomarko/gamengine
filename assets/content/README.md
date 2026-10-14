@@ -110,9 +110,9 @@ link, `build` writes `assets/built/content/` (committed), `report` lists it all.
 (ECONOMY.md 4). `gm_content::items` validates it: materials are `layer/name`, only catalysts
 carry an element, every template takes a core and a frame, and the best possible craft of any
 template gives at most 250 per mille over a standard item (PLAN.md 0). The hub refuses crafts
-of templates that are not in this file. Forty templates since content v13 (2026-10-14,
-EQUIPMENT.md 10.7): twelve weapons a preset or a custom build swings, the crossbow, the
-musket and the pistol, twelve armours over seven body places (the ranger's leather, the
-peasant's robe, our cape, the knight's helm, barbute, great helm and shoulder plates),
-three shields and the focus, the amulet and the ring, and the four stacks; twenty-two
-materials.
+of templates that are not in this file. Thirty-four templates since content v14 (2026-10-14,
+EQUIPMENT.md 10.8: six places): twelve weapons a preset or a custom build swings, the
+crossbow, the musket and the pistol, six armours over three body places (the ranger's
+jerkin, hood and trousers, the peasant's robe, the knight's helm, barbute and great helm),
+three shields and the focus, the ring and the cape for the one accessory, and the four
+stacks; twenty-two materials.

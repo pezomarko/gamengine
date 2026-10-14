@@ -34,8 +34,8 @@ pub enum BodyKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct Look {
     pub held: u16,
-    /// The overlays worn on the body (LOOK.md 6.6, EQUIPMENT.md 5.2), one a body place in
-    /// the order chest, head, hands, legs, feet, back, shoulders (v20; one before).
+    /// The overlays worn on the body (LOOK.md 6.6, EQUIPMENT.md 10.8), one a body place
+    /// in the order chest, head, legs (v22; seven in v20 and v21, one before).
     pub worn: [u16; BODY_PLACES],
     pub off: u16,
     /// Out of a fight (v21, LOOK.md 6.7, EQUIPMENT.md 5.3): `held` rests on the back, at
@@ -46,7 +46,7 @@ pub struct Look {
 }
 
 /// The body's places an overlay is drawn for (`gm_content::items::Place::BODY`).
-pub const BODY_PLACES: usize = 7;
+pub const BODY_PLACES: usize = 3;
 
 impl Look {
     pub const NONE: u16 = u16::MAX;

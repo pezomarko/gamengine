@@ -36,17 +36,16 @@ simulation knew of none, and no screen showed one.
 
 ## 2. What is worn
 
-A character has **twelve places** (EQUIPMENT.md 5, the evening of 2026-10-13; three
-that afternoon, two before): **weapon** (the right hand), **off** (the left hand), the
-body's seven, **armour** (the chest, named as it was when it was the whole body),
-**head**, **hands**, **legs**, **feet**, **back**, **shoulders**, and the trinkets'
-three, **neck**, **ring**, **ring2** (the two fingers). A template's `kind` says where
-an item goes (`items.toml`: `weapon`, `shield`, `armour`, `trinket`; a component is
-none of these and cannot be worn): a weapon into the right hand, or into the left when
-its row says `held = "left"`; a shield into the left; an armour onto the place of the
-body its row's `place` names (the chest when it names none); an amulet onto the neck; a
-ring onto the first finger, or the second when the first is taken, or either by name.
-Each place counts for its share of the item's edge (3.1). A one-handed weapon whose row says `held =
+A character has **six places** (EQUIPMENT.md 10.8, 2026-10-14; twelve from the evening
+of 2026-10-13, three that afternoon, two before): **weapon** (the right hand), **off**
+(the left hand), the body's three, **armour** (the chest, named as it was when it was
+the whole body), **head**, **legs**, and one **accessory** (a ring or a cape: numbers,
+nothing drawn). A template's `kind` says where an item goes (`items.toml`: `weapon`,
+`shield`, `armour`, `trinket`; a component is none of these and cannot be worn): a
+weapon into the right hand, or into the left when its row says `held = "left"`; a shield
+into the left; an armour onto the place of the body its row's `place` names (the chest
+when it names none); a trinket onto the accessory's place, where it takes what was
+there. Each place counts for its share of the item's edge (3.1). A one-handed weapon whose row says `held =
 "either"` (the sword, the dagger) goes into the right hand when nobody says, and into the
 left when the person says so (`WearIn`, below): two swords, a sword and a shield, one or
 both hands empty. One item in each place, or none. "Worn" in this document is about
@@ -102,7 +101,7 @@ the armour as an overlay over the body).
 - A companion (a hired avatar, a recruit) fights in **nothing** in v1 (9).
 
 Stored as `worn (character_id, slot, item_id)`, one row per filled place, the item unique
-(migration 0009; the `off` slot since migration 0014). What is shown says where an item is
+(migration 0009; the `off` slot since migration 0014; the six since 0016). What is shown says where an item is
 worn (`ItemSummary.worn_in`, a `PLACE_*`) and whether it may go into the off hand beside
 its own place (`ItemSummary.off`), so the bag's three slots show what is in each and take
 what may be dropped on them. What holds the rule that a worn item stays with its wearer:

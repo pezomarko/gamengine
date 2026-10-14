@@ -201,9 +201,11 @@ the rig's rules as a body, the budgets of the **overlay** row of 4, no envelope 
 part of a body). `covers` on the row names the bones whose part of the body is hidden
 under it. A frame without a file is drawn bare; `build` refuses a model with no file for
 any frame. One overlay a place (EQUIPMENT.md 5.2, content v10): the row's `place` says
-which, and a body wears up to seven at once, drawn in the order of `Place::BODY`. The
+which, and a body wears up to three at once (the chest, the head, the legs since
+EQUIPMENT.md 10.8, 2026-10-14; seven before), drawn in the order of `Place::BODY`. The
 ranger set on the striker is the first cut: `cuirass` (the jerkin and its belts),
-`pauldrons`, `bracers`, `hood`, `trousers`, `boots`, made by
+`hood` and `trousers` (the trousers and the boots in one since EQUIPMENT.md 10.8, which
+also retired the pauldrons, the bracers and the boots with their places), made by
 `scripts/dev/places-pipeline.sh` (the hero's Blender pass exporting each as its own
 file); the back's `cape` (2026-10-14) is ours, a cloth plane the same pass hangs from the
 shoulders and skins to the chest, the spine and the hips, with a 64² swatch for its
