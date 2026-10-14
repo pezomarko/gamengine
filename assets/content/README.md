@@ -51,6 +51,10 @@ when the two drift.
 | slam | secondary | 4 | — | the hammer on the ground: 96 u circle at the feet, 30 blunt, knockback 300, stagger 40, 4 s |
 | briar | active | 10 | grass | a patch of 140 u where the shaman aims (within 500 u) for 6 s: 8 grass a second on everyone in it, Regen 30/s on the shaman's own side in it; 35 focus, 14 s |
 | entangle | active | 10 | grass | a circle of 112 u where the shaman aims (within 500 u): 15 grass + Root 1.5 s; 25 focus, 14 s |
+| axe | primary | 2 | — | 70 slash, 80° arc, two targets, heavy knockback, 200/60/350 ms, 800 ms: a custom build's (EQUIPMENT.md 5.6) |
+| spear | primary | 2 | — | 65 pierce, a line of 24° and 100 u, one target, 220/60/380 ms, 900 ms; both hands |
+| bow | primary | 2 | — | 60 pierce arrow that drops (gravity 0.4), 1.1 s; both hands |
+| wand | primary | 2 | — | 38 blunt bolt of force, fast, 6 focus, 700 ms; a focus in the left hand |
 
 The range is the weapon's (MATRIX.md 10, 2026-10-06): a primary is a blade or the bow; a
 secondary is a short utility. Presets (thirty attribute points each, a kit of at most 40):

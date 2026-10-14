@@ -72,6 +72,47 @@ model = "staff"
 held = "two"
 fit = { move = [0.0, 0.0, 0.3], turn = [90, -20, 0], scale = 0.6 }
 
+# The weapons of EQUIPMENT.md 5.6 (2026-10-14). The axe and the wand are KayKit's, along
+# +Y as they come (LICENSES.md); the spear and the bow are the LowPoly Medieval Weapons
+# pack's, cut into hand space by scripts/dev/blender-obj-prop.py (the grip at the origin,
+# the length along +Z). The spear lies along the arm like the crossbow, down at rest and
+# levelled into a thrust when the arm comes up, and is turned back to the look in the
+# view; the bow takes the plain hold, so it stands upright when the arm is raised to aim.
+[[template]]
+id = "axe"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "axe"
+held = "either"
+fit = { turn = [90, 0, 0], scale = 0.6 }
+
+[[template]]
+id = "spear"
+kind = "weapon"
+strikes = "pierce"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "spear"
+held = "two"
+fit = { turn = [0, 90, 0] }
+fit_view = { turn = [0, -90, 0] }
+
+[[template]]
+id = "bow"
+kind = "weapon"
+strikes = "pierce"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "bow"
+held = "two"
+
+[[template]]
+id = "wand"
+kind = "weapon"
+strikes = "blunt"                            # the bolt is a blow of force (abilities.toml: wand)
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "wand"
+fit = { turn = [90, 0, 0], scale = 0.5 }
+
 [[template]]
 id = "crossbow"
 kind = "weapon"
@@ -186,6 +227,18 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "shield"
 held = "left"
+
+# A caster's focus (EQUIPMENT.md 5.4 and 5.6): worn in the left hand like a shield and by
+# anyone (a shield fits all hands), guarding against the elements; KayKit's closed
+# spellbook.
+[[template]]
+id = "focus"
+kind = "shield"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "focus"
+held = "left"
+fit = { turn = [90, 0, 0], scale = 0.7 }   # upright, the cover out, as a shield's face
 
 # Trinkets (EQUIPMENT.md 5.4): numbers only, nothing drawn, built round a catalyst (the
 # element) with gems. An amulet on the neck lowers what its wearer takes of the elements;

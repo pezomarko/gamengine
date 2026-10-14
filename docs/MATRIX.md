@@ -317,8 +317,9 @@ Each ability carries: `slot` (primary | secondary | guard | active), `cost` (kit
 `aspect` (optional; the required aspect, and every elemental packet in the script must be of
 that element), and the verb script of VOCABULARY.md 6. Price bands: primaries 0–2,
 secondaries 2–4, guards 4–6, actives 6–12. **The range is the weapon's** (v2): a primary is
-either a melee weapon (sword, hammer, staff, dagger) or the ranged one (crossbow, musket, and
-the five elemental bolts); a secondary is a short utility (kick, shield bash, a knife of
+either a melee weapon (sword, hammer, staff, dagger; the axe and the spear since 2026-10-14,
+EQUIPMENT.md 5.6) or the ranged one (crossbow, musket, the bow and the wand's bolt of force
+since the same day, and the five elemental bolts); a secondary is a short utility (kick, shield bash, a knife of
 300 u, mend). A melee build has nothing that reaches past the knife; a ranged build's primary
 is the whole of its damage at range. (v1 gave every build a bolt in the secondary slot:
 melee had free range and range had no edge; section 13.) A creature may hold a second

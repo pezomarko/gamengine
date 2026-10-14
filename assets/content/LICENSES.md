@@ -24,6 +24,11 @@ Props under `props/`, official avatars under `avatars/`, armour overlays under `
 | `props/dagger.glb` | the same pack (`dagger.gltf` + `rogue_texture.png`) | CC0 1.0 |
 | `props/staff.glb` | the same pack (`staff.gltf` + `mage_texture.png`) | CC0 1.0 |
 | `props/crossbow.glb` | the same pack (`crossbow_1handed.gltf` + `rogue_texture.png`) | CC0 1.0 |
+| `props/axe.glb` | the same pack (`axe_1handed.gltf` + `barbarian_texture.png`), `gm-tools content import prop` | CC0 1.0 |
+| `props/wand.glb` | the same pack (`wand.gltf` + `mage_texture.png`), `gm-tools content import prop` | CC0 1.0 |
+| `props/focus.glb` | the same pack (`spellbook_closed.gltf` + `mage_texture.png`), `gm-tools content import prop`: the caster's focus, worn in the left hand | CC0 1.0 |
+| `props/spear.glb` | Quaternius *LowPoly Medieval Weapons* (`OBJ/Spear.obj`), https://quaternius.com/packs/lowpolymedievalweapons.html; made by `scripts/dev/blender-obj-prop.py` (the grip two fifths up the shaft, the length along +Z, decimated to three quarters; flat colours, so `gm-tools content build` gives it swatches) | CC0 1.0 |
+| `props/bow.glb` | the same pack (`OBJ/Bow_Wooden.obj`), the same script (the grip at the handle, the length along +Z) | CC0 1.0 |
 | `props/hammer.glb` | ours: `gm-tools content synth hammer` | CC-BY-SA 4.0 |
 | `props/greatsword.glb` | ours: `gm-tools content synth greatsword` | CC-BY-SA 4.0 |
 | `props/shield.glb` | Quaternius *LowPoly Medieval Weapons* (`OBJ/Shield_Heater.obj`), https://quaternius.com/packs/lowpolymedievalweapons.html; made by `scripts/dev/blender-obj-prop.py` (the grip at the back strap, the face along +Y, 984 triangles; flat colours, so `gm-tools content build` gives it swatches). Until 2026-10-13 ours, `gm-tools content synth shield` | CC0 1.0 |

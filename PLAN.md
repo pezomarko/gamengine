@@ -1685,7 +1685,10 @@ triangles, two-sided, a 64² swatch; `covers` nothing), and the sheathed weapon:
 v21), set by the zone when an RPG body has neither fought nor swung for the fight lock's ten seconds and
 cleared the tick it does, drawn at `prop_back` with the sheath's grip (`gm_model::pose::prop_attach_back`:
 over the right shoulder, 32° from upright down the back); no view model while sheathed; `gm-tools content
-look KEY --back` and `gm-client --offline --prop KEY --sheathed` are its fitting rooms.
+look KEY --back` and `gm-client --offline --prop KEY --sheathed` are its fitting rooms. The same day the four
+weapons of EQUIPMENT.md 5.6 (the axe, the spear, the bow, the wand with a focus in the left hand) became
+primaries a custom build may take (content v12; no preset's kit changes); arrows as a stack and the quiver
+are not done.
 
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute

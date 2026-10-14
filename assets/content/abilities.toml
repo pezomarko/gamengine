@@ -826,3 +826,71 @@ falloff = "none"
 max_targets = 8
 requires_los = true
 exclude_actor = true
+
+# ---------- the weapons of EQUIPMENT.md 5.6 (2026-10-14): four more primaries ----------
+# Appended, as every new ability is. No preset's kit changes (MATRIX.md 10: the kits are
+# what the balance was measured on): these are a custom build's, and a weapon fits the
+# build whose kit holds its ability (ITEMS.md 2).
+
+# The axe: a one-hander with a different swing from the sword's, slower and heavier, more
+# knockback, two targets. Held either hand, like the sword.
+[[ability]]
+key = "axe"
+name = "Axe"
+slot = "primary"
+cost = 2
+prop = "axe"
+cooldown_ms = 800
+move_scale = 0.55
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 70, arc = 80, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 70, type = "slash", knockback = 240, stagger = 30 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
+
+# The spear: reach the matrix had no answer to, a line and not an arc (24 degrees, one
+# target, 100 units), a thrust. Both hands.
+[[ability]]
+key = "spear"
+name = "Spear"
+slot = "primary"
+cost = 2
+prop = "spear"
+cooldown_ms = 900
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 100, arc = 24, half_height = 40, windup_ms = 220, active_ms = 60, recovery_ms = 380, damage = { amount = 65, type = "pierce", knockback = 140, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 20 }
+
+# The bow: a ranged action primary beside the gun mode, an arrow that drops; quicker and
+# lighter than the crossbow's bolt. Both hands. (Arrows as a stack, like the musket's
+# balls, is the firearm's mechanism and a decision for the director: none here.)
+[[ability]]
+key = "bow"
+name = "Bow"
+slot = "primary"
+cost = 2
+prop = "bow"
+cooldown_ms = 1100
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 60, type = "pierce", knockback = 80, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+# The wand: a caster's one-hand primary, a quick bolt of force (blunt, no aspect, so any
+# build may take it; the elemental bolts stay the staff's), with a focus in the left
+# hand (items.toml: `focus`, worn like a shield).
+[[ability]]
+key = "wand"
+name = "Wand"
+slot = "primary"
+cost = 2
+prop = "wand"
+cooldown_ms = 700
+focus = 6
+move_scale = 0.8
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 120
+projectile = { speed = 2000, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 38, type = "blunt", knockback = 50, stagger = 8 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }

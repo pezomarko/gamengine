@@ -332,14 +332,14 @@ read with the ability in these presets' kits:
 | dagger | slash / pierce | either | have | shade, musketeer | |
 | greatsword | slash | two; one on the colossus | have | ironclad | 3 |
 | claymore | slash | two | weapons pack | (a striker's greatsword, if wanted) | the same ability, another look |
-| axe | slash | either | weapons pack, KayKit | nobody yet | a one-hand slash with more knockback |
+| axe | slash | either | KayKit (built 2026-10-14) | a custom build's | a one-hand slash with more knockback |
 | double axe | slash | two | weapons pack, KayKit | nobody yet | |
 | hammer | blunt | right | have | shaman | |
 | maul | blunt | two | weapons pack (Hammer_Double) | the `Maul` ability exists, no preset's | |
-| spear | pierce | two | weapons pack | nobody yet | reach 100, a line, not an arc |
+| spear | pierce | two | weapons pack (built 2026-10-14) | a custom build's | reach 100, a line, not an arc |
 | staff | blunt (the bolt is the element's) | two | have | frostweaver, mender | |
-| wand | — (the bolt) | right | KayKit | a caster's one-hand primary, with a focus (5.4) left | |
-| bow | pierce | two | weapons pack | nobody yet | arrows a stack, like the musket's balls |
+| wand | blunt (a bolt of force) | right | KayKit (built 2026-10-14) | a custom build's, with the `focus` left | |
+| bow | pierce | two | weapons pack (built 2026-10-14) | a custom build's | arrows as a stack would be the firearm's mechanism: not done |
 | crossbow | pierce | two | have | no preset's since MATRIX.md 15 | |
 | musket | pierce | two | have | musketeer | the gun mode |
 | pistol | pierce | either | have | musketeer | |
@@ -559,3 +559,27 @@ client's 115 unit tests, the content's and the tool's pass; clippy is clean.
    sheath's grip a rotation that puts a metre of blade from over the right shoulder to
    the left hip, behind the body. Open: a quiver on the back for the bow (5.6), the
    companions' and creatures' weapons (they hold nothing yet, LOOK.md 6.1).
+
+6. **The weapons of 5.6** (2026-10-14, the director: "can you do it"). Four primaries,
+   appended to `abilities.toml` and mirrored in `gm_core::sim::test_content` (content
+   v12): the **axe** (70 slash, 80°, two targets, knockback 240, 200/60/350 ms, 800 ms;
+   held either hand), the **spear** (65 pierce, a line of 24° and 100 units, one target,
+   220/60/380 ms, 900 ms; both hands), the **bow** (an arrow of 60 pierce that drops,
+   gravity 0.4, 1.1 s; both hands) and the **wand** (a bolt of force, 38 blunt, 6 focus,
+   700 ms: no aspect, so any build may take it; the elemental bolts stay the staff's),
+   with the **focus** (`kind = "shield"`, guards the elements, the left hand; KayKit's
+   closed spellbook) as the wand's other hand. **No preset's kit changes** (MATRIX.md 10:
+   the kits are what the balance was measured on, and the matrix gate plays the presets):
+   these are a custom build's, and the hands rule says `no preset's` of each until a
+   preset takes one; a build whose kit holds the ability wears the weapon (ITEMS.md 2).
+   Models: KayKit's `axe_1handed`, `wand` and `spellbook_closed` by `gm-tools content
+   import prop`; the LowPoly Medieval Weapons pack's `Spear` and `Bow_Wooden` by
+   `scripts/dev/blender-obj-prop.py` (900 and 728 triangles). Holds: the axe and the wand
+   in the fist like the sword (turned 90° about X, scaled 0.6 and 0.5); the spear along
+   the arm like the crossbow (turned 90° about Y, down at rest and a thrust when the arm
+   comes up, turned back in the view); the bow the plain hold, so it stands upright when
+   the arm is raised to aim; the focus upright with its cover out. Sheathed, each takes the
+   sword's place on the back with its own fit, so the spear slings point-up over the right
+   shoulder and the bow stands upright along the back. Not done: arrows as a stack (the firearm's reserve is
+   gun-mode machinery), the quiver, and whether a preset should gain one of them, which
+   is the director's.

@@ -156,7 +156,7 @@ a file with some textured and some flat primitives is refused: it must be one or
 other). Our own hammer, musket and pistol are made this way (`gm-tools content synth`).
 
 **Both hands** (content v10, 2026-10-13, EQUIPMENT.md 3): `held = "two"` on a weapon
-(the staff) says that worn it takes the left hand too (ITEMS.md 2); the manifest carries
+(the staff; the spear and the bow since content v12, 2026-10-14) says that worn it takes the left hand too (ITEMS.md 2); the manifest carries
 it (`HELD_TWO`), and the hold itself (both fists on the grip) is a later phase's: the prop
 is drawn in the right fist. Sheathing to the back out of a fight is not a row's doing: it
 is the zone's state of the body (LOOK.md 6.7, `Look.sheathed`), and every weapon rests on

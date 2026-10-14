@@ -364,9 +364,10 @@ of a hanging arm and is tipped 12° towards the elbow, so a sword at rest is lev
 tip a little raised; its edge follows the knuckles. (v1 laid the blade on along the arm:
 a sword pointing at the ground like a walking stick. The director, playing it: "it should
 be perpendicular to the arm, like held in hand": 11.4.) What is not swung is laid
-otherwise by its row's `fit` (CONTENT.md 3.1), a turn about glTF's Y: the **crossbow** and
-the **musket** lie along the arm (carried muzzle down, levelled when the arm is raised),
-the **staff** stands 20° nearer upright than a blade.
+otherwise by its row's `fit` (CONTENT.md 3.1), a turn about glTF's Y: the **crossbow**,
+the **musket** and the **spear** lie along the arm (carried muzzle or point down, levelled
+when the arm is raised: a thrust), the **staff** stands 20° nearer upright than a blade, and
+the **bow** takes the plain hold so that it stands upright when the arm is raised to aim.
 
 The animation set gains one thing: in the **cast** stance the arms are raised from where
 they hang (a turn about the shoulders' axis) instead of swept round from the T-pose, so
