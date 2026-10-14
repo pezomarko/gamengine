@@ -194,6 +194,11 @@ pub struct Brain {
     /// Progress towards the goal: the distance a second ago, and a sidestep while stuck.
     goal_check: (u32, f32),
     sidestep_until: u32,
+    /// Progress on foot, whatever the behaviour: where the bot stood a second ago. A bot
+    /// that asks to walk and gets nowhere is against something (2026-10-14, the director:
+    /// "bots in arena are stuck, and often get stuck at obstacles"): it sidesteps for half
+    /// a second, hops, and a patrol picks a new heading.
+    move_check: (u32, Vec3),
     /// A sparring partner fights until this tick, and the health it last saw of itself.
     spar_until: u32,
     last_health: i32,
@@ -218,6 +223,7 @@ impl Brain {
             goal: None,
             goal_check: (0, f32::MAX),
             sidestep_until: 0,
+            move_check: (0, Vec3::ZERO),
             spar_until: 0,
             last_health: i32::MAX,
         }
@@ -245,6 +251,35 @@ impl Brain {
     }
 
     pub fn think(&mut self, v: &View<'_>) -> Input {
+        let (me, tick) = (v.me.mv.origin, v.tick);
+        let mut input = self.decide(v);
+        // Against something (see `move_check`); the goal walk keeps its own check.
+        if self.goal.is_none() && v.alive {
+            if input.forward > 0.0 {
+                if tick >= self.move_check.0 {
+                    if (me - self.move_check.1).truncate().length() < 6.0 {
+                        self.sidestep_until = tick + self.hz / 2;
+                        self.strafe = if self.rng.below(2) == 0 { 1.0 } else { -1.0 };
+                        self.jump_until = tick + 2;
+                        self.next_turn = tick;
+                    }
+                    self.move_check = (tick + self.hz, me);
+                }
+            } else {
+                self.move_check = (tick + self.hz, me);
+            }
+            if tick < self.sidestep_until {
+                input.side = self.strafe;
+                input.forward = 0.3;
+            }
+            if tick < self.jump_until {
+                input.buttons |= buttons::JUMP;
+            }
+        }
+        input
+    }
+
+    fn decide(&mut self, v: &View<'_>) -> Input {
         let me = v.me.mv.origin;
         let eye = v.me.eye();
         let tick = v.tick;
