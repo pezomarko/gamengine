@@ -49,11 +49,15 @@ assets/content/
   README.md                   the tables, as now
   VERSION                     the content's version: a number, bumped by whoever changes a table
   abilities.toml  builds.toml  creatures.toml  trials.toml  items.toml   (rows; see 3)
+  avatars.toml                the official looks: one row per frame and armour class (3.2)
   LICENSES.md                 every file that is not ours: where from, which licence
   models/
     props/<key>.glb           a thing held: sword, dagger, hammer, staff, crossbow, musket
-    creatures/<key>.glb       a creature on the standard rig (Phase 16)
-    avatars/<frame>_<armour>.glb   the official look of a frame in an armour class (Phase 16)
+    creatures/<key>.glb       a creature on the standard rig (Phase 17)
+    avatars/<key>.glb         the official look of a frame in an armour class (3.2; the row
+                              in avatars.toml names the key: striker_mail since 2026-10-13)
+    armour/<key>_<frame>.glb  an armour's overlay for that frame's body (3.3: cuirass_striker,
+                              robe_striker since 2026-10-13)
   icons/<key>.png             32 × 32 pictures that override the baked ones (optional; a
                               key's `/` is `_` in the file name: `status_burn.png`)
   ui/
@@ -64,6 +68,8 @@ assets/content/
 assets/built/content/         what `gm-tools content build` writes (committed, 5.4)
   manifest.gmc                every entry by key: files, hashes, icon keys, held, fits
   props/<key>.gmm             ingested props
+  avatars/<frame>_<armour>.gmm   ingested official avatars
+  armour/<key>_<frame>.gmm   ingested armour overlays
   ui.gma ui2.gma ui3.gma ui4.gma   the atlases, one per UI scale (LOOK.md 2.2)
 ```
 
@@ -80,19 +86,26 @@ each the key of a file in 2:
 | `[[ability]]` | `icon` | `icons/<icon>.png`; absent: a glyph from the verbs (LOOK.md 3.4) |
 | | `prop` | the prop drawn in the hand while this ability is the primary and nothing is worn (a sword build with no sword still swings one) |
 | | `sound` | the patch (SOUND.md 2) its cues use; absent: the patch of its verb kind as today |
-| `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template |
+| `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template; for an armour, `models/armour/<model>_<frame>.glb`, its overlay (3.3) |
 | | `icon` | absent: baked from `model` (5.3); absent both: a glyph of the template's kind |
-| | `held` | `right` (default), `left`, `back`: which `prop_*` bone (MODELS.md 2) |
+| | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `two` (both hands, EQUIPMENT.md 3: content v10), `back`: which `prop_*` bone (MODELS.md 2) |
+| | `place` | an armour's place on the body (EQUIPMENT.md 5.2, content v10): `chest` (default), `head`, `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring` |
+| | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
 | `[[creature]]` | `model` | `models/creatures/<model>.glb`; absent: the frame's mannequin |
 | | `icon` | its portrait; absent: baked from the model |
 | `[[build]]` | `icon` | the archetype's picture on the new-character screen; absent: baked from the frame's avatar or mannequin |
-| the frame × armour table (new, `avatars.toml`, Phase 15) | `model` | `models/avatars/<frame>_<armour>.glb`: the official look, worn when a character has no model of its own |
+| `[[avatar]]` (`avatars.toml`, since 2026-10-13) | `frame`, `armour`, `model` | `models/avatars/<model>.glb`: the official look of that frame in that armour class, worn by every character of the pair that has no model of its own; one row per pair at most |
 
 Since content v3 (2026-10-07, MODES.md 11.1) `[[template]]` has a third `kind`, `stack`:
 no layers, a `cap` (the most one holder carries, 1–1,000) and an optional `heals`; a
-firearm's `ammo` names one. A stack has no model or icon yet: a glyph of its kind.
+firearm's `ammo` names one. A stack has no model or icon yet: a glyph of its kind. Since
+content v9 (2026-10-13, ITEMS.md 2) a fourth, `shield`: worn in the left hand (`held =
+"left"`), guarding like an armour, its model a prop like a weapon's. Since content v10
+(the same evening, EQUIPMENT.md 5.4) a fifth, `trinket`: no model, built round a
+catalyst (`layers` without `core` and `frame`), its `place` the neck (an amulet, the
+elements taken) or a finger (a ring, the elements dealt).
 
 Order matters where it did before and nowhere new: `abilities.toml` is **append-only**
 (stored builds name abilities by their place; README). Items are named by their **key**
@@ -142,19 +155,69 @@ way the low-poly packs come) gets a texture made for it: every flat colour becom
 a file with some textured and some flat primitives is refused: it must be one or the
 other). Our own hammer, musket and pistol are made this way (`gm-tools content synth`).
 
-Two-handed holds and sheathing to the back out of a fight are `held` values a later phase
-can act on. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
+**Both hands** (content v10, 2026-10-13, EQUIPMENT.md 3): `held = "two"` on a weapon
+(the staff; the spear and the bow since content v12, 2026-10-14) says that worn it takes the left hand too (ITEMS.md 2); the manifest carries
+it (`HELD_TWO`), and the hold itself (both fists on the grip) is a later phase's: the prop
+is drawn in the right fist. Sheathing to the back out of a fight is not a row's doing: it
+is the zone's state of the body (LOOK.md 6.7, `Look.sheathed`), and every weapon rests on
+`prop_back` the same way; `gm-tools content look KEY --back` shows it. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
 its slot, and the prop of a build's **guard** ability is drawn in the left hand (`shield_wall`
 holds `shield`, ours: `gm-tools content synth shield`, built in hand space already, its face
 along +Y). `gm-tools content look KEY --left` is the fitting room for it, and offline
 `gm-client --offline --prop KEY --off KEY` holds one in each hand.
 
-### 3.2 Creatures and official avatars (Phase 15)
+### 3.2 Creatures and official avatars
 
 The same `.glb` rules as an upload (MODELS.md 3 and 4): on the standard rig, T-pose, one
 texture, the frame's envelope. A creature is checked against the envelope of *its* frame
 (creatures are builds, COMPANIONS.md 8.1). Nothing else differs: the ingestion is
 `gm_ingest::ingest` as the hub runs it.
+
+**Official avatars** (built 2026-10-13, the first of Phase 17's items): `avatars.toml` holds
+`[[avatar]]` rows of `frame`, `armour` and `model`; `build` ingests `models/avatars/<model>.glb`
+for that frame exactly as the hub would an upload (the envelope: a Quaternius warrior had to be
+scaled to put its head pivot in the striker's band and thinned 10% front to back to stay under
+150% of the mannequin's side coverage) and writes `avatars/<frame>_<armour>.gmm`, named in the
+manifest with its hash. A client loads it from the bundle like a prop, the first time it is
+asked for (natively a read, in a browser a fetch), and every body of that frame and class
+without a model of its own wears it instead of the mannequin: a player's upload still wins, a
+refused or missing one still falls back, and the mannequin remains for every pair without a
+row. The look is untinted (its armour is painted on; the class is in the gait, MODELS.md 9),
+auras and hits tint it as any model. The pair's portrait (5.3) is baked from it, not from the
+mannequin. A rigged pack rarely comes on this rig: `scripts/dev/glb-retarget.py` renames
+nodes, unlinks subtrees and scales a `.glb` per axis with its skin kept consistent (no
+Blender), and `scripts/dev/blender-quaternius-warrior.py` is the Blender pass that made the
+first one (bones renamed, the IK feet and the thighs reparented, the face decimated, the sword
+split off as a prop).
+
+### 3.3 Armour overlays (2026-10-13)
+
+An armour is seen on the body (LOOK.md 6.6): its template's `model` names
+`models/armour/<model>_<frame>.glb` for each frame it was made for, a **skinned piece on
+the standard rig** (MODELS.md 2 and 3: metres, +Y up, facing +Z, the T-pose, one texture)
+cut for that frame's official avatar and sharing its rest pose exactly, so that drawn with
+the body's pose it sits where it was cut. It is ingested as an overlay: the pose check and
+the rig's rules as a body, the budgets of the **overlay** row of 4, no envelope (it covers
+part of a body). `covers` on the row names the bones whose part of the body is hidden
+under it. A frame without a file is drawn bare; `build` refuses a model with no file for
+any frame. One overlay a place (EQUIPMENT.md 5.2, content v10): the row's `place` says
+which, and a body wears up to seven at once, drawn in the order of `Place::BODY`. The
+ranger set on the striker is the first cut: `cuirass` (the jerkin and its belts),
+`pauldrons`, `bracers`, `hood`, `trousers`, `boots`, made by
+`scripts/dev/places-pipeline.sh` (the hero's Blender pass exporting each as its own
+file); the back's `cape` (2026-10-14) is ours, a cloth plane the same pass hangs from the
+shoulders and skins to the chest, the spine and the hips, with a 64² swatch for its
+texture (LOOK.md 6.6, LICENSES.md). The overlays and the avatars are fetched a file at a time as they are first
+seen, so they are counted apart from the bundle (`budgets.toml [content]
+max_wear_bytes`, LOOK.md 8) and the bundle's own cap holds the manifest, the atlases
+and the props. The first two are the Fantasy outfits' leather jerkin with its pauldrons and
+bracers (the cuirass) and cloth tunic (the robe) on the striker, cut by
+`scripts/dev/blender-quaternius-hero.py` (the same pass that makes the body: one armature,
+every part decimated to its budget, each outfit pushed 12 mm out so the body does not
+come through) and atlased by `scripts/dev/gltf-atlas.py`; `scripts/dev/hero-pipeline.sh`
+runs the whole pipeline from the packs. The offline fitting room is `gm-client --offline
+--worn KEY` (with `--prop` and `--off` for the hands; `--headless --crowd N` for a
+picture).
 
 ## 4. Kinds and budgets
 
@@ -163,6 +226,7 @@ texture, the frame's envelope. A creature is checked against the envelope of *it
 | avatar (player upload, official) | ≤ 3,500 | ≤ 1024², BC1 | ≤ 1,572,864 | the frame's envelope | 24 bones, T-pose |
 | creature | ≤ 3,500 | ≤ 1024² | ≤ 1,572,864 | its frame's envelope | 24 bones |
 | **prop** | **≤ 1,000** | **≤ 256²** | **≤ 131,072** | **≤ 96 u from the grip** (3 m) | none: every vertex on bone 0, weight 255 (LOOK.md 6) |
+| **overlay** (3.3) | **≤ 1,500** | **≤ 512²** | **≤ 262,144** | the box of a body | 24 bones, T-pose, the frame it was cut for (`FLAG_OVERLAY`) |
 
 The `.gmm` header's `frame` byte is **255 for a prop** and a flag bit (`FLAG_PROP`, bit 2)
 says so; `bone_mask` is 1 and the pivots are zero. The strict reader (MODELS.md 5) accepts a
@@ -270,7 +334,7 @@ rebuilt in the same commit.
   The manifest and the atlas are fetched at start (the screens before the game use them;
   until they arrive the toolkit draws with its built-in font and plain plates: principle 4);
   props are loaded when first seen, one at a time, like avatars, through the same model
-  cache, **from the bundle and never from the hub**: the cache gets a second source (the
+  cache, and the official avatars the same way (3.2), **from the bundle and never from the hub**: the cache gets a second source (the
   bundle's directory or URL, by file name, checked against the manifest's hash), and a
   prop the bundle lacks is logged once and never asked for again. The hub holds no
   official content and is not asked for any.
@@ -293,6 +357,7 @@ For the first props (Phase 14) three sources were weighed on 2026-10-03:
 | CC0 packs on itch.io/OpenGameArt (KayKit *Fantasy Weapons*, *Medieval Weapons – Small Low Poly Pack*, *50 Low Poly Swords*, Quaternius *Medieval Weapons* and *Guns*) | stylised low-poly, flat or palette-shaded, 100–800 triangles | none; CC0 needs no attribution, and LICENSES.md names them anyway | in the budget as they are; glTF or GLB offered by most (Quaternius ships FBX/OBJ/Blend, which the tool does not read) |
 | A 3D-generation service (Tripo, Meshy: image or text to a textured mesh; free tiers exist) | "realistic" textured meshes, 5–30k triangles, PBR maps | an account the director opens; a decimation to ≤ 1,000 triangles and a bake of the base colour, which the tool does not do yet | the base-colour texture is what this renderer draws (half-lambert, one texture, MODELS.md 9): a scan-like model is flattened to its diffuse anyway |
 | Procedural in the tool (a sword from blade, guard, grip and pommel parameters; a texture painted by an image model, Gemini's `gemini-3-pro-image`) | ours, consistent, parametric | code | the mannequin and the sounds were made this way; the look is "programmer's" |
+| *(2026-10-13, for the bodies)* Quaternius *RPG Characters* (CC0: warrior, wizard, rogue, ranger, monk, cleric, each rigged, with a weapon mesh and a painted 1024 atlas) and KayKit *Adventurers* (CC0: knight, mage, rogue, barbarian) | Quaternius: human proportions, 1.5k-tri bodies with a 2.7k-tri face; KayKit: chibi, 4.1k-tri bodies | a retarget (the rig's names and hierarchy, the scale into the envelope: `scripts/dev/glb-retarget.py`) and a decimation of the face (Blender, headless in Docker) | the KayKit bodies are over the triangle budget and too short in the head for every frame; the Quaternius warrior passed as the striker in mail at 2,946 triangles (3.2) |
 
 **Recommendation**: the CC0 packs for Phase 14 (fetched by a pinned script with SHA-256
 checks like `scripts/fetch-ericw-tools.sh`, the chosen files committed under
@@ -414,6 +479,13 @@ Five findings on the servers and the pipeline (LOOK.md 11.2 has the client's sev
   averaging and texel fetches on top of the rasteriser's IEEE basics.
 
 ## 13. What was measured (2026-10-03, the reference machine)
+
+- **2026-10-13, the official avatar** (3.2): the striker in mail from Quaternius' warrior is
+  **415,970 bytes** ingested (2,946 triangles, 3,376 vertices, a 1024² BC1 atlas, 20 bones),
+  its source `.glb` 866,940 bytes in the repository; the bundle is **1,629,589 bytes** in 15
+  files (content v8: the new sword's `.gmm` is 33,335 bytes, 712 triangles). The offline
+  town with sixteen armed bodies, one of them the avatar, on the Radeon iGPU: 495 fps,
+  2.97 ms at the 99th percentile, 60 MB RSS.
 
 - The bundle: **114,614 bytes** in 8 files; the atlas 512 × 176, **58,985 bytes**
   (33 pieces, 3 faces of 105 glyphs each, 22 icons: 6 baked from props, 16 portraits of the

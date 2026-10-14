@@ -42,6 +42,10 @@ pub struct CharacterSummary {
     pub play_seconds: u32,
     /// The model the character wears (MODELS.md 6), whatever its status.
     pub model: Option<ModelId>,
+    /// The keys of the templates worn in its places (ITEMS.md 2, `PLACE_NAMES`; empty
+    /// for nothing), so the selector draws the character as the zone does (CLIENT.md
+    /// 4.2). Since `PLAYER_VERSION` 9; twelve since 11.
+    pub worn: [String; PLACES],
 }
 
 /// What a zone is told about a character's avatar: the id clients fetch by and the frame the
@@ -784,6 +788,14 @@ pub enum ZoneEconOp {
     /// each other (PARTY.md 6): the zone vouches for that, and the hub opens the trade
     /// (calling off any trade either still had open). Answered `Id`.
     TradeOpen { a: CharacterId, b: CharacterId },
+    /// `Wear`, into a named place (`PLACE_WEAPON`, `PLACE_OFF`, `PLACE_ARMOUR`): a sword
+    /// into the left hand beside another (ITEMS.md 2). Refused in words when the item
+    /// does not go there. v13.
+    WearIn {
+        character: CharacterId,
+        item: ItemId,
+        place: u8,
+    },
 }
 
 /// An open stall as its zone shows it: where it is and who keeps it.
@@ -810,7 +822,63 @@ pub enum ContractOutcome {
 /// Where an item is worn (ITEMS.md 2); `PLACE_NONE` for what is not (a component).
 pub const PLACE_NONE: u8 = 0;
 pub const PLACE_WEAPON: u8 = 1;
+/// The chest (the body, before the other places came).
 pub const PLACE_ARMOUR: u8 = 2;
+/// The off hand (ITEMS.md 2): a shield, or a one-handed weapon beside another. v8.
+pub const PLACE_OFF: u8 = 3;
+/// The body's other places and the trinkets (EQUIPMENT.md 5). v11.
+pub const PLACE_HEAD: u8 = 4;
+pub const PLACE_HANDS: u8 = 5;
+pub const PLACE_LEGS: u8 = 6;
+pub const PLACE_FEET: u8 = 7;
+pub const PLACE_BACK: u8 = 8;
+pub const PLACE_SHOULDERS: u8 = 9;
+pub const PLACE_NECK: u8 = 10;
+pub const PLACE_RING: u8 = 11;
+pub const PLACE_RING2: u8 = 12;
+/// How many places a character has (EQUIPMENT.md 5; `gm_content::items::PLACES`): the
+/// width of a reading's `templates` and a character's `worn`, in the order weapon, off,
+/// armour (the chest), head, hands, legs, feet, back, shoulders, neck, ring, ring2.
+pub const PLACES: usize = 12;
+/// The indices, in `templates`, of the body's places an overlay is drawn for, in the
+/// order the wire's `Look.worn` lists them (`gm_content::items::Place::BODY`).
+pub const BODY_INDICES: [usize; 7] = [2, 3, 4, 5, 6, 7, 8];
+/// The place names, by index, as the hub's `worn.slot` and a UI script name them.
+pub const PLACE_NAMES: [&str; PLACES] = [
+    "weapon",
+    "off",
+    "armour",
+    "head",
+    "hands",
+    "legs",
+    "feet",
+    "back",
+    "shoulders",
+    "neck",
+    "ring",
+    "ring2",
+];
+/// A place's code (`PLACE_*`) from its index in `templates`, and back.
+pub fn place_code(index: usize) -> u8 {
+    match index {
+        0 => PLACE_WEAPON,
+        1 => PLACE_OFF,
+        2 => PLACE_ARMOUR,
+        3 => PLACE_HEAD,
+        4 => PLACE_HANDS,
+        5 => PLACE_LEGS,
+        6 => PLACE_FEET,
+        7 => PLACE_BACK,
+        8 => PLACE_SHOULDERS,
+        9 => PLACE_NECK,
+        10 => PLACE_RING,
+        11 => PLACE_RING2,
+        _ => PLACE_NONE,
+    }
+}
+pub fn place_index(code: u8) -> Option<usize> {
+    (0..PLACES).find(|i| place_code(*i) == code)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ItemSummary {
@@ -818,12 +886,17 @@ pub struct ItemSummary {
     pub template: String,
     /// `(layer, material)` in layer order.
     pub components: Vec<(String, String)>,
-    /// Where it is worn: `PLACE_WEAPON`, `PLACE_ARMOUR`, or `PLACE_NONE`.
+    /// Where it is worn when nobody says: `PLACE_WEAPON`, `PLACE_OFF`, `PLACE_ARMOUR`, or
+    /// `PLACE_NONE`.
     pub place: u8,
+    /// It may be worn in the off hand as well (a one-handed weapon, ITEMS.md 2): the bag
+    /// takes it dropped on the left hand's slot. Player protocol v8.
+    pub off: bool,
     /// Its edge there, per mille per damage type in `DamageType`'s order (ITEMS.md 3.2).
     pub edge: [u16; 9],
-    /// Its holder wears it now.
+    /// Its holder wears it now; and where (`PLACE_*`, `PLACE_NONE` when not). v8.
     pub worn: bool,
+    pub worn_in: u8,
     /// What it is, in words: `a weapon, 220 of 250`; `a core, for crafting`.
     pub what: String,
     /// What it does, in words, the strongest first: `slash +11.0%`. A screen shows these
@@ -838,6 +911,15 @@ pub struct ItemSummary {
     /// is not a weapon. False, `does` ends with the hub's words for it, and the hub
     /// refuses to wear it. Player protocol v5.
     pub fits: bool,
+    /// Whose hands a weapon is for, true for everyone and whoever asks (ITEMS.md 2,
+    /// EQUIPMENT.md 2): the presets whose kits hold its model, by their class names,
+    /// `Blade, Ironclad`; `no preset's` for a weapon no preset holds; empty for anything
+    /// that is not a weapon (armour, shields, parts and stacks fit everyone). Player
+    /// protocol v10, hub protocol 14.
+    pub hands: String,
+    /// A weapon that takes both hands when worn (EQUIPMENT.md 3): the left hand's slot
+    /// shows it ghosted while it is worn. v10.
+    pub both_hands: bool,
 }
 
 /// A reading of what a character's worn items do to damage (ITEMS.md 3.3). `seq` orders
@@ -847,10 +929,11 @@ pub struct ItemSummary {
 pub struct GearReading {
     pub seq: u64,
     pub gear: Gear,
-    /// The keys of the templates worn, by place (weapon, armour); empty for nothing (LOOK.md
-    /// 6.2: keys, so that a hub and a zone on different content versions disagree about
-    /// nothing but what to draw). v1.9.
-    pub templates: [String; 2],
+    /// The keys of the templates worn, by place (`PLACE_NAMES`: weapon, off hand, the
+    /// chest, head, hands, legs, feet, back, shoulders, neck, two rings); empty for
+    /// nothing (LOOK.md 6.2: keys, so that a hub and a zone on different content versions
+    /// disagree about nothing but what to draw). v1.9; three since v13; twelve since v15.
+    pub templates: [String; PLACES],
     /// The stacks in the inventory (MODES.md 11.2): a firearm's reserve is the quantity of
     /// the one its `ammo` names, the kits are the ones that heal. v11.
     pub stacks: Vec<StackReading>,
@@ -982,6 +1065,8 @@ pub struct TradeOffer {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+// A gear reading is twelve names wide (EQUIPMENT.md 5), and lives in two variants.
+#[allow(clippy::large_enum_variant)]
 pub enum EconReply {
     Done,
     Id(i64),
@@ -1150,6 +1235,7 @@ pub enum HubResponse {
 
 /// Hub → zone, on unidirectional streams (HUB.md 3.4).
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+#[allow(clippy::large_enum_variant)]
 pub enum HubNotice {
     Claimed {
         character: CharacterId,
@@ -1223,7 +1309,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 12;
+pub const HUB_VERSION: u8 = 15;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

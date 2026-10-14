@@ -34,16 +34,27 @@ pub enum BodyKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct Look {
     pub held: u16,
-    pub worn: u16,
+    /// The overlays worn on the body (LOOK.md 6.6, EQUIPMENT.md 5.2), one a body place in
+    /// the order chest, head, hands, legs, feet, back, shoulders (v20; one before).
+    pub worn: [u16; BODY_PLACES],
     pub off: u16,
+    /// Out of a fight (v21, LOOK.md 6.7, EQUIPMENT.md 5.3): `held` rests on the back, at
+    /// `prop_back`, instead of in the right fist. The zone sets it when the body has
+    /// neither fought nor swung for the fight lock's ten seconds (ITEMS.md 5), and clears
+    /// it the tick it does either; a gun build's is never set.
+    pub sheathed: bool,
 }
+
+/// The body's places an overlay is drawn for (`gm_content::items::Place::BODY`).
+pub const BODY_PLACES: usize = 7;
 
 impl Look {
     pub const NONE: u16 = u16::MAX;
     pub const EMPTY: Look = Look {
         held: Look::NONE,
-        worn: Look::NONE,
+        worn: [Look::NONE; BODY_PLACES],
         off: Look::NONE,
+        sheathed: false,
     };
 }
 
@@ -264,6 +275,14 @@ pub enum FromClient {
     // v10 (GM.md 2).
     /// Something only a game master may ask (the zone says `Gm(Refused)` to anyone else).
     Gm(GmOp),
+    // v19 (ITEMS.md 2).
+    /// `Wear`, into a named place: `gm_hub_proto::PLACE_WEAPON` (the right hand), `PLACE_OFF`
+    /// (the left), `PLACE_ARMOUR`. A sword goes into the left hand beside another this way;
+    /// answered by `WearResult` as `Wear` is.
+    WearIn {
+        item: i64,
+        place: u8,
+    },
 }
 
 /// What a game master may do to a running zone (GM.md 2): tune its timings, make a body
@@ -826,8 +845,9 @@ mod tests {
                     kind: BodyKind::Companion { owner: i },
                     look: Look {
                         held: (i % 7) as u16,
-                        worn: Look::NONE,
+                        worn: [Look::NONE; BODY_PLACES],
                         off: if i % 2 == 0 { 3 } else { Look::NONE },
+                        sheathed: i % 3 == 0,
                     },
                 })
                 .collect(),

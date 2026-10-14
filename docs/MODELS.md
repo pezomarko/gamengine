@@ -50,7 +50,8 @@ feet, world units (32 u = 1 m). A model stands in T-pose: arms along ±Y, legs a
 
 **Required**: `hips`, `spine`, `chest`, `head`, both `upper_arm`, `forearm`, `thigh` and `shin`.
 The rest are optional; a missing optional bone behaves as its parent. `prop_*` are attachment
-points that follow their parent today.
+points that follow their parent today: `prop_r` and `prop_l` the hands' (LOOK.md 6.3, 6.5),
+`prop_back` the sheathed weapon's, behind the chest (LOOK.md 6.7).
 
 A bone is its **pivot** (the joint's rest position in model space) and nothing else. Animation
 is a model-space rotation per bone about its pivot, composed down the hierarchy:
@@ -130,6 +131,11 @@ payload                          one zlib stream to the end of the file:
   indices      u16 each, a multiple of 3
   texture      BC1 blocks, largest mip first, down to the level whose smaller side is 4
 ```
+
+**An overlay** (2026-10-13, CONTENT.md 3.3) is a body's container with flag bit 3 set
+(`FLAG_OVERLAY`): a frame, the rig, pivots, skinned vertices as a body's, within an
+overlay's budgets (1,500 triangles, 512², 262,144 bytes); never a prop as well. A reader
+that wants a body refuses it, and a client draws it only over a body of its frame.
 
 **A prop** (Phase 14, CONTENT.md 4) is the same container with flag bit 2 set
 (`FLAG_PROP`), `frame` 255, `bone_mask` 1, zero pivots, every vertex on bone 0 with weight
@@ -324,7 +330,13 @@ stagger) and time to 24 bone rotations, cross-faded over 120 ms on a state chang
 placeholder art (PLAN.md 9: animation is human work); the contract is that it is **shared**.
 
 The mannequin is generated from the rig (jointed segments, 784 triangles), tinted by
-armour class: cloth pale, leather brown, mail steel, plate dark iron.
+armour class: cloth pale, leather brown, mail steel, plate dark iron. Since 2026-10-13 a
+body without a model of its own wears the **official avatar** of its frame and armour class
+when the content bundle has one (CONTENT.md 3.2: `avatars.toml`, the striker in mail first),
+untinted; the mannequin stands for the pairs without one and for whatever is refused. The
+armour a character **wears** is drawn over the body as an overlay with the body's pose
+(LOOK.md 6.6), and the parts of the body it covers are not drawn (a mask of bones in the
+block's spare number; the shader drops the triangle whole).
 
 What a custom model must not hide is drawn by the client around it: **armour class is in the
 gait** (the heavier the class, the longer and heavier the stride, the smaller the arm swing:

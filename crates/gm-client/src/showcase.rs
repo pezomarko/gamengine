@@ -82,16 +82,69 @@ fn slot_word(slot: Slot) -> &'static str {
     }
 }
 
-/// `frame in armour  |  aspects  |  mode`, the line under the name.
-pub fn ribbon(b: &Build) -> String {
+/// A preset's name as a class is called (EQUIPMENT.md 2): its first letter up.
+pub fn capitalised(name: &str) -> String {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// What class a build is (EQUIPMENT.md 2): the preset it is, by its class name; `Custom`
+/// otherwise, and `Custom (a Blade)` when every ability of a preset's kit is in it. The
+/// content names the presets; without it nothing is said.
+pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
+    let Some(pack) = pack else {
+        return String::new();
+    };
+    if let Some(p) = pack.builds.iter().find(|p| &p.build == b) {
+        return capitalised(&p.name);
+    }
+    let kit: Vec<u16> = b.slots().into_iter().map(|(i, _)| i).collect();
+    let near = pack.builds.iter().find(|p| {
+        p.build.frame == b.frame && p.build.slots().into_iter().all(|(i, _)| kit.contains(&i))
+    });
+    match near {
+        Some(p) => {
+            let name = capitalised(&p.name);
+            let article = match name.chars().next() {
+                Some('A' | 'E' | 'I' | 'O' | 'U') => "an",
+                _ => "a",
+            };
+            format!("Custom ({article} {name})")
+        }
+        None => "Custom".to_string(),
+    }
+}
+
+/// `Class  |  frame in armour`, the equipment's line under the name (EQUIPMENT.md 4.1):
+/// the ribbon without the aspects and the mode, which the selector says.
+pub fn short_ribbon(class: &str, b: &Build) -> String {
+    let body = format!("{} in {}", frame_name(b.frame), b.armour.name());
+    if class.is_empty() {
+        body
+    } else {
+        format!("{class}  |  {body}")
+    }
+}
+
+/// `Class  |  frame in armour  |  aspects  |  mode`, the line under the name; the class
+/// leads it when the content is here to name one.
+pub fn ribbon(class: &str, b: &Build) -> String {
     let aspects: Vec<&str> = b.aspects.iter().map(|e| e.name()).collect();
     let aspects = if aspects.is_empty() {
         "no aspect".to_string()
     } else {
         aspects.join(" and ")
     };
+    let lead = if class.is_empty() {
+        String::new()
+    } else {
+        format!("{class}  |  ")
+    };
     format!(
-        "{} in {}  |  {}  |  {} mode",
+        "{lead}{} in {}  |  {}  |  {} mode",
         frame_name(b.frame),
         b.armour.name(),
         aspects,
@@ -133,7 +186,10 @@ pub fn selector<C: Canvas>(
     let top = m + 2.0 * s;
     let head = Rect::new(m, top, w - 2.0 * m, ui.title_line());
     let (name, ribbon_text) = match shown {
-        Some(sh) => (sh.name.to_string(), ribbon(sh.build)),
+        Some(sh) => (
+            sh.name.to_string(),
+            ribbon(&class_name(sh.pack, sh.build), sh.build),
+        ),
         None => (String::new(), String::new()),
     };
     let mut y = top;
@@ -424,11 +480,32 @@ mod tests {
         let pack = gm_core::sim::test_content::pack(TickRate::COMBAT);
         let ironclad = &pack.builds[0].build;
         assert_eq!(
-            ribbon(ironclad),
+            ribbon("", ironclad),
             "colossus in plate  |  ground  |  action mode"
+        );
+        assert_eq!(
+            ribbon(&class_name(Some(&pack), ironclad), ironclad),
+            "Ironclad  |  colossus in plate  |  ground  |  action mode"
         );
         let mut neutral = ironclad.clone();
         neutral.aspects = gm_core::matrix::Aspects::default();
-        assert!(ribbon(&neutral).contains("|  no aspect  |"));
+        assert!(ribbon("", &neutral).contains("|  no aspect  |"));
+    }
+
+    /// EQUIPMENT.md 2: a preset is its class; a build with a preset's whole kit in it
+    /// is a custom build of that class; anything else is custom; nothing without content.
+    #[test]
+    fn a_build_is_named_by_the_preset_it_is_or_contains() {
+        let pack = gm_core::sim::test_content::pack(TickRate::COMBAT);
+        let ironclad = pack.builds[0].build.clone();
+        assert_eq!(class_name(Some(&pack), &ironclad), "Ironclad");
+        assert_eq!(class_name(None, &ironclad), "");
+        let mut heavier = ironclad.clone();
+        heavier.attributes.str_ = heavier.attributes.str_.saturating_sub(1);
+        heavier.attributes.con += 1;
+        assert_eq!(class_name(Some(&pack), &heavier), "Custom (an Ironclad)");
+        let mut other = ironclad.clone();
+        other.frame = gm_core::vocab::ArchetypeFrame::Caster;
+        assert_eq!(class_name(Some(&pack), &other), "Custom");
     }
 }

@@ -163,7 +163,11 @@ async fn statistics_replays_reports_reputation_and_bans() {
     .await;
 
     // Five players: two hands, two aim locks, and a third lock that travels on after half
-    // a minute. The first hand reports whoever it sees after ten seconds.
+    // a minute. The first hand reports whoever it sees after ten seconds. Everyone judged
+    // plays the shade and keeps knife range: the statistics judge shots the client aimed,
+    // the shade's knife is the one bolt an action build throws, and a lock shows at range,
+    // not at a dagger's (a frostweaver's shards are aimed by the zone, RPG mode, and its
+    // frames say nothing: ANTICHEAT.md 4). The blade shoots nothing.
     let players = [
         (
             "hand-a@example.com",
@@ -177,7 +181,7 @@ async fn statistics_replays_reports_reputation_and_bans() {
             "hand-b@example.com",
             "HandB",
             AimModel::Sharp,
-            "frostweaver",
+            "shade",
             0,
             false,
         ),
@@ -193,7 +197,7 @@ async fn statistics_replays_reports_reputation_and_bans() {
             "lock-b@example.com",
             "LockB",
             AimModel::Lock,
-            "frostweaver",
+            "shade",
             0,
             false,
         ),
@@ -223,7 +227,11 @@ async fn statistics_replays_reports_reputation_and_bans() {
             bot: BotConfig {
                 name: String::new(),
                 seed: 40 + i as u64,
-                behaviour: Behaviour::Duelist,
+                behaviour: if preset == "shade" {
+                    Behaviour::Skirmisher
+                } else {
+                    Behaviour::Duelist
+                },
                 rate: TickRate::COMBAT,
                 run_ticks: 0,
                 build: None,
@@ -352,6 +360,14 @@ async fn statistics_replays_reports_reputation_and_bans() {
     .unwrap() else {
         panic!("aim report")
     };
+    for r in &everyone {
+        println!(
+            "everyone: {}: rules {:?}: {}",
+            r.email,
+            r.rules,
+            r.stats.line()
+        );
+    }
     let traveller = everyone
         .iter()
         .find(|r| r.email == "traveller@example.com")

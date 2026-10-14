@@ -9,6 +9,7 @@ description = "gamengine content loader: abilities and builds authored in TOML, 
 
 [dependencies]
 gm-core = { workspace = true }
+gm-model = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }

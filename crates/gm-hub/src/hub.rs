@@ -24,10 +24,10 @@ use gm_hub_proto::protocol::{
     AccountId, BuildChoice, CHANNEL_PARTY, CHANNEL_WHISPER, CLOCK_SKEW_SECS, CharacterId,
     ContractOutcome, EconOp, EconReply, GearReading, HASH_PERMITS, HUB_PREAMBLE, HUB_VERSION,
     HiredAvatar, HubError, HubNotice, HubRequest, HubResponse, ItemSummary, ListingSummary,
-    LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef, PLACE_ARMOUR,
-    PLACE_NONE, PLACE_WEAPON, PartyNews, PartyReply, SESSION_LIFETIMES, SayTo, SessionId,
-    StackReading, StallSummary, TOKEN_VALID_SECS, TavernEntry, TradeOffer, ZoneEconOp, ZoneId,
-    ZonePartyOp, ZoneSummary, ZoneTicket, now_secs,
+    LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef, PLACE_NONE,
+    PartyNews, PartyReply, SESSION_LIFETIMES, SayTo, SessionId, StackReading, StallSummary,
+    TOKEN_VALID_SECS, TavernEntry, TradeOffer, ZoneEconOp, ZoneId, ZonePartyOp, ZoneSummary,
+    ZoneTicket, now_secs, place_code, place_index,
 };
 
 use crate::conduct::Conduct;
@@ -1785,14 +1785,71 @@ pub fn hands(cfg: &HubConfig, build: &Build) -> Vec<String> {
     out
 }
 
-/// The hands of a character's stored build, read now.
-async fn hands_of(hub: &Hub, character: CharacterId) -> Result<Vec<String>, HubError> {
+/// What the answers that show items need of the asker (ITEMS.md 2, EQUIPMENT.md 2): the
+/// asker's own hands, and every preset's by its class name, so that an item can say
+/// whose it is whoever asks.
+#[derive(Clone, Debug, Default)]
+pub struct Hands {
+    pub own: Vec<String>,
+    pub presets: Vec<(String, Vec<String>)>,
+}
+
+/// A preset's name as a class is called (EQUIPMENT.md 2): its first letter up.
+pub fn class_name(preset: &str) -> String {
+    let mut chars = preset.chars();
+    match chars.next() {
+        Some(c) => c.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// Every preset's hands, by its class name.
+pub fn preset_hands(cfg: &HubConfig) -> Vec<(String, Vec<String>)> {
+    cfg.content
+        .builds
+        .iter()
+        .map(|b| (class_name(&b.name), hands(cfg, &b.build)))
+        .collect()
+}
+
+/// Whose hands a weapon of `template` is for, in words (EQUIPMENT.md 2): the classes
+/// whose kits hold its model, `Blade, Ironclad`; `no preset's` when none does; nothing
+/// for what is not a weapon.
+pub fn hands_words(
+    content: &ItemContent,
+    presets: &[(String, Vec<String>)],
+    template: &str,
+) -> String {
+    let Some(t) = content.template(template) else {
+        return String::new();
+    };
+    if !t.deals() {
+        return String::new();
+    }
+    let model = content.model(template).unwrap_or(template);
+    let names: Vec<&str> = presets
+        .iter()
+        .filter(|(_, held)| held.iter().any(|m| m == model))
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if names.is_empty() {
+        "no preset's".to_string()
+    } else {
+        names.join(", ")
+    }
+}
+
+/// The hands of a character's stored build, read now, and every preset's.
+async fn hands_of(hub: &Hub, character: CharacterId) -> Result<Hands, HubError> {
     let row = hub
         .db
         .character(character)
         .await?
         .ok_or(HubError::NotFound)?;
-    Ok(hands(&hub.cfg, &row.build))
+    Ok(Hands {
+        own: hands(&hub.cfg, &row.build),
+        presets: preset_hands(&hub.cfg),
+    })
 }
 
 /// An item as a person is shown it: where it is worn, what it does there and the words
@@ -1801,9 +1858,11 @@ async fn hands_of(hub: &Hub, character: CharacterId) -> Result<Vec<String>, HubE
 fn item_summary(
     content: &ItemContent,
     pack: &gm_core::build::ContentPack,
-    hands: &[String],
+    hands: &Hands,
     i: crate::economy::Item,
 ) -> ItemSummary {
+    let whose = hands_words(content, &hands.presets, &i.template);
+    let hands = &hands.own[..];
     let mut view = content.view(
         &i.template,
         i.components
@@ -1848,15 +1907,19 @@ fn item_summary(
         quantity: i.quantity,
         cap,
         fits,
+        hands: whose,
+        both_hands: content.two_handed(&i.template),
         id: i.id,
         template: i.template,
-        place: match view.place {
-            Some(Place::Weapon) => PLACE_WEAPON,
-            Some(Place::Armour) => PLACE_ARMOUR,
-            None => PLACE_NONE,
-        },
+        place: view.place.map_or(PLACE_NONE, |p| place_code(p.index())),
+        off: view.off,
         edge: view.edge,
         worn: i.worn,
+        worn_in: i
+            .worn_in
+            .as_deref()
+            .and_then(Place::parse)
+            .map_or(PLACE_NONE, |p| place_code(p.index())),
         what: view.what,
         does: view.does,
         components: i
@@ -1870,7 +1933,7 @@ fn item_summary(
 fn trade_offer(
     content: &ItemContent,
     pack: &gm_core::build::ContentPack,
-    hands: &[String],
+    hands: &Hands,
     (coin, accepted, items): (i64, bool, Vec<crate::economy::Item>),
 ) -> TradeOffer {
     TradeOffer {
@@ -1925,7 +1988,7 @@ async fn tell_zone_of_items(hub: &Hub, character: CharacterId) {
 fn holder_reply(
     content: &ItemContent,
     pack: &gm_core::build::ContentPack,
-    hands: &[String],
+    hands: &Hands,
     (coin, items): (i64, Vec<crate::economy::Item>),
 ) -> EconReply {
     EconReply::Holder {
@@ -1959,7 +2022,7 @@ async fn econ_op(
         | EconOp::Storage
         | EconOp::TradeView { .. }
         | EconOp::StallView { .. } => hands_of(hub, me).await?,
-        _ => Vec::new(),
+        _ => Hands::default(),
     };
     match op {
         EconOp::Inventory => e
@@ -2354,10 +2417,31 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
         // its row held: a claim elsewhere sees the change or comes first (ITEMS.md 3.3).
         ZoneEconOp::Wear { character, item } => {
             let hands = hands_of(hub, character).await?;
-            e.wear(character, zone, item, &hub.cfg.items, &hands)
+            e.wear(character, zone, item, &hub.cfg.items, &hands.own, None)
                 .await
                 .map(|r| EconReply::Gear(reading(r)))
                 .map_err(econ_err)
+        }
+        ZoneEconOp::WearIn {
+            character,
+            item,
+            place,
+        } => {
+            let Some(place) = place_index(place).map(|i| Place::ALL[i]) else {
+                return Err(HubError::Invalid("no such place".into()));
+            };
+            let hands = hands_of(hub, character).await?;
+            e.wear(
+                character,
+                zone,
+                item,
+                &hub.cfg.items,
+                &hands.own,
+                Some(place),
+            )
+            .await
+            .map(|r| EconReply::Gear(reading(r)))
+            .map_err(econ_err)
         }
         ZoneEconOp::TakeOff { character, item } => e
             .take_off(character, zone, item, &hub.cfg.items)

@@ -23,8 +23,8 @@ use gm_hub_proto::player::PlayerRequest;
 use gm_model::ModelId;
 use gm_net::client::ClientState;
 use gm_net::control::{
-    BodyKind, BuildChoice, EncounterState, FromClient, FromZone, GmNews, Look, Order, SquadEntry,
-    StallEntry,
+    BODY_PLACES, BodyKind, BuildChoice, EncounterState, FromClient, FromZone, GmNews, Look, Order,
+    SquadEntry, StallEntry,
 };
 use gm_net::snapshot::{EntityKind, SpawnInfo};
 use gm_net::transport::fnv1a64;
@@ -480,8 +480,12 @@ struct App {
     /// `--prop FILE` or `--prop KEY` offline: the own body holds it (the fitting room of
     /// CONTENT.md 9), once it is on the GPU.
     offline_prop: Option<usize>,
+    /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
+    offline_worn: Vec<(usize, u32)>,
     /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
     offline_off: Option<usize>,
+    /// Offline (`--sheathed`): the own prop rests on the back (LOOK.md 6.7).
+    offline_sheathed: bool,
     /// The window, from its creation: the renderer on it (`active`) may come later.
     window: Option<Arc<Window>>,
     bsp: Bsp,
@@ -742,6 +746,36 @@ fn held_prop(
     prop_slot(content, active, props, look.held)
 }
 
+/// What a body wears (LOOK.md 6.6): the overlay of its armour's model for its frame, as a
+/// slot of the character renderer, and the bones the overlay covers; nothing and 0 while
+/// it loads, for a frame the bundle has no overlay for, or without a renderer.
+fn worn_overlay(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    props: &[String],
+    look: Look,
+    frame: u8,
+) -> ([Option<usize>; BODY_PLACES], u32) {
+    let mut worn = [None; BODY_PLACES];
+    let mut hide = 0;
+    let Some(active) = active else {
+        return (worn, 0);
+    };
+    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    for (i, index) in look.worn.iter().enumerate() {
+        let Some(key) = props.get(*index as usize) else {
+            continue;
+        };
+        if let Some(slot) =
+            content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
+        {
+            worn[i] = Some(slot);
+            hide |= content.covers(key);
+        }
+    }
+    (worn, hide)
+}
+
 /// The off hand's prop (LOOK.md 6.5), the same way.
 fn off_prop(
     content: &mut Content,
@@ -752,27 +786,58 @@ fn off_prop(
     prop_slot(content, active, props, look.off)
 }
 
-/// The prop of an ability of the hub's pack (the selector's body, CLIENT.md 4.2: no zone
-/// has sent a prop list yet): the manifest's prop for the ability's key, as a slot of the
-/// character renderer, when the bundle has it.
-fn ability_prop(
-    content: &mut Content,
-    active: Option<&mut Active>,
-    pack: Option<&ContentPack>,
-    ability: Option<u16>,
-) -> Option<usize> {
-    let key = &pack?.abilities.get(ability? as usize)?.key;
-    let prop = content
+/// The prop of a template a character wears, on the selector (CLIENT.md 4.2: no zone has
+/// sent a prop list yet, the hub's list names the templates): the manifest's model for
+/// the template's key, as a slot of the character renderer, when the bundle has it;
+/// nothing for an empty place or a template the bundle does not know.
+fn template_model(content: &Content, template: Option<&str>) -> Option<String> {
+    let key = template.filter(|t| !t.is_empty())?;
+    content
         .manifest
         .as_ref()?
-        .abilities
+        .templates
         .iter()
-        .find(|a| &a.key == key)?
-        .prop
-        .clone()?;
+        .find(|t| t.key == key)?
+        .model
+        .clone()
+}
+
+fn template_prop(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    template: Option<&str>,
+) -> Option<usize> {
+    let model = template_model(content, template)?;
     let active = active?;
     let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
-    content.prop(&prop, |model| Some(characters.add_model(gpu, model)))
+    content.prop(&model, |m| Some(characters.add_model(gpu, m)))
+}
+
+/// The overlays of the armour a character wears, on the selector (LOOK.md 6.6,
+/// EQUIPMENT.md 5.2): one a body place from the hub's list of what is worn, and the
+/// bones they cover between them.
+fn template_overlay(
+    content: &mut Content,
+    active: Option<&mut Active>,
+    worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
+    frame: u8,
+) -> ([Option<usize>; BODY_PLACES], u32) {
+    let mut out = [None; BODY_PLACES];
+    let mut hide = 0;
+    let (Some(worn), Some(active)) = (worn, active) else {
+        return (out, 0);
+    };
+    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    for (i, index) in gm_hub_proto::protocol::BODY_INDICES.iter().enumerate() {
+        let Some(model) = template_model(content, Some(worn[*index].as_str())) else {
+            continue;
+        };
+        if let Some(slot) = content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
+            out[i] = Some(slot);
+            hide |= content.covers(&model);
+        }
+    }
+    (out, hide)
 }
 
 fn prop_slot(
@@ -866,7 +931,9 @@ fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, start: Start)
         view_model: None,
         content: start.content,
         offline_prop: None,
+        offline_worn: Vec::new(),
         offline_off: None,
+        offline_sheathed: false,
         front_up: start.front.is_some() && start.online.is_none(),
         title: None,
         hub: start.hub,
@@ -1628,10 +1695,11 @@ pub(crate) fn facing(
         if free || off.abs() <= FACING_BACKPEDAL_DEG {
             target = travel;
         }
-    } else if free && !anim::acts(anim) {
-        if let Some(drawn) = drawn {
-            return drawn;
-        }
+    } else if free
+        && !anim::acts(anim)
+        && let Some(drawn) = drawn
+    {
+        return drawn;
     }
     let Some(drawn) = drawn else {
         return target.rem_euclid(360.0);
@@ -2775,6 +2843,34 @@ impl App {
             self.offline_off = slot;
             a.avatars.crowd_off = slot;
         }
+        // `--worn KEY[,KEY...]`: armours' overlays on the striker's body, own and crowd
+        // (the fitting room of the overlays, CONTENT.md 3.3, EQUIPMENT.md 5.2).
+        if let Some(keys) = self.opts.worn.clone() {
+            let a = self.active.as_mut().expect("just made");
+            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let mut worn = Vec::new();
+            for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                let slot = self
+                    .content
+                    .overlay(key, 1, |model| Some(characters.add_model(gpu, model)));
+                match slot {
+                    Some(s) => worn.push((s, self.content.covers(key))),
+                    None => {
+                        log::warn!("--worn {key}: the bundle has no such overlay for the striker")
+                    }
+                }
+            }
+            self.offline_worn = worn.clone();
+            a.avatars.crowd_worn = worn;
+        }
+        // `--sheathed`: the prop on the back, own and crowd (the fitting room of the
+        // sheath, LOOK.md 6.7).
+        if self.opts.sheathed {
+            self.offline_sheathed = true;
+            if let Some(a) = self.active.as_mut() {
+                a.avatars.crowd_sheathed = true;
+            }
+        }
         // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
         if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
             self.set_grab(true);
@@ -2834,8 +2930,17 @@ impl App {
             .min_by(|a, b| far(a).total_cmp(&far(b)))
     }
 
-    /// `I`: the inventory of the character being played.
+    /// `I`: the inventory of the character being played; with it up already, the bag's
+    /// grid shown or hidden beside the equipment (EQUIPMENT.md 4).
     fn open_inventory(&mut self) {
+        if let Some(bag) = &mut self.bag
+            && bag.page == crate::bag::Page::Inventory
+        {
+            if !bag.toggle_grid() {
+                self.bag = None;
+            }
+            return;
+        }
         match self.owner() {
             Some((hub, session, character)) => {
                 self.bag = Some(Bag::inventory(hub, session, character, Instant::now()));
@@ -2843,6 +2948,28 @@ impl App {
                 self.release_keys();
             }
             None => self.note("there is no inventory without a hub"),
+        }
+    }
+
+    /// `O`: the equipment of the character being played (EQUIPMENT.md 4): what the body
+    /// wears, with the places at its sides; with the inventory up already, shown or
+    /// hidden beside the bag.
+    fn open_equipment(&mut self) {
+        if let Some(bag) = &mut self.bag
+            && bag.page == crate::bag::Page::Inventory
+        {
+            if !bag.toggle_equip() {
+                self.bag = None;
+            }
+            return;
+        }
+        match self.owner() {
+            Some((hub, session, character)) => {
+                self.bag = Some(Bag::equipment(hub, session, character, Instant::now()));
+                self.menu = None;
+                self.release_keys();
+            }
+            None => self.note("there is no equipment without a hub"),
         }
     }
 
@@ -3052,6 +3179,7 @@ impl App {
             }
             Key::Tab if self.rpg_mode() => self.rpg_cycle(),
             Key::Inventory => self.open_inventory(),
+            Key::Equipment => self.open_equipment(),
             Key::People => self.open_people(),
             Key::Use => self.open_stall(),
             Key::Gm => self.open_gm(),
@@ -3256,6 +3384,7 @@ impl App {
                 price,
             },
             BagAction::Wear { item } => FromClient::Wear { item },
+            BagAction::WearIn { item, place } => FromClient::WearIn { item, place },
             BagAction::TakeOff { item } => FromClient::TakeOff { item },
         };
         if let Some(o) = &mut self.online {
@@ -3291,6 +3420,7 @@ impl App {
             MenuAction::None => {}
             MenuAction::Resume => self.menu = None,
             MenuAction::Inventory => self.open_inventory(),
+            MenuAction::Equipment => self.open_equipment(),
             MenuAction::People => self.open_people(),
             MenuAction::Gm => self.open_gm(),
             MenuAction::Character => self.open_character(),
@@ -4611,6 +4741,13 @@ impl App {
                         frame_dt,
                     );
                     self.facings.insert(e.id, yaw);
+                    let worn = worn_overlay(
+                        &mut self.content,
+                        self.active.as_mut(),
+                        &o.props,
+                        o.looks.get(&e.id).copied().unwrap_or_default(),
+                        frame,
+                    );
                     self.bodies.push(Body {
                         key: e.id,
                         origin: e.pos,
@@ -4637,6 +4774,9 @@ impl App {
                             &o.props,
                             o.looks.get(&e.id).copied().unwrap_or_default(),
                         ),
+                        worn: worn.0,
+                        hide: worn.1,
+                        sheathed: o.looks.get(&e.id).is_some_and(|l| l.sheathed),
                     });
                 }
                 EntityKind::Projectile => {
@@ -4885,13 +5025,13 @@ impl App {
                 }
                 self.view_kick = (self.view_kick - frame_dt * 6.0).max(0.0);
                 self.view_stride += own_travel / 64.0;
-                // The gun mode's hand is known here before the zone says so.
+                // The gun mode's hand is known here before the zone says so. A weapon
+                // on the back (LOOK.md 6.7) is not in the view: the hand is empty.
+                let own_look = o.looks.get(&c.my_id).copied().unwrap_or_default();
                 let key = match gun_hand_prop(&self.content, o.pack.as_ref(), c) {
                     Some(key) => Some(key),
-                    None => o
-                        .props
-                        .get(o.looks.get(&c.my_id).copied().unwrap_or_default().held as usize)
-                        .cloned(),
+                    None if own_look.sheathed => None,
+                    None => o.props.get(own_look.held as usize).cloned(),
                 };
                 let fit = key
                     .as_deref()
@@ -4947,6 +5087,13 @@ impl App {
                     frame_dt,
                 );
                 self.facings.insert(OWN, yaw);
+                let worn = worn_overlay(
+                    &mut self.content,
+                    self.active.as_mut(),
+                    &o.props,
+                    o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                    gm_model::rig::frame_index(build.frame),
+                );
                 self.bodies.push(Body {
                     key: OWN,
                     origin: centre,
@@ -4973,6 +5120,9 @@ impl App {
                         &o.props,
                         o.looks.get(&c.my_id).copied().unwrap_or_default(),
                     ),
+                    worn: worn.0,
+                    hide: worn.1,
+                    sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                 });
                 Some((camera, self.sim.yaw, self.sim.pitch))
             }
@@ -5772,6 +5922,9 @@ impl App {
                         // Offline (`--prop FILE`, CONTENT.md 9): the prop to look at.
                         prop: self.offline_prop,
                         off: self.offline_off,
+                        worn: crate::avatars::places(&self.offline_worn).0,
+                        hide: crate::avatars::places(&self.offline_worn).1,
+                        sheathed: self.offline_sheathed,
                     });
                     (
                         third_person_camera(
@@ -5869,6 +6022,20 @@ impl App {
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
             self.content
                 .poll(|model| Some(characters.add_model(gpu, model)));
+        }
+        // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
+        // of their frame and armour class: natively a file is read the first time it is
+        // asked for, in a browser it is fetched like a prop and lands through `poll`.
+        {
+            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            for frame in 0..4u8 {
+                for armour in 0..4u8 {
+                    let slot = self.content.avatar(frame, armour, |model| {
+                        Some(characters.add_model(gpu, model))
+                    });
+                    a.avatars.set_official(frame, armour, slot);
+                }
+            }
         }
         a.avatars.begin_frame();
         if let Some(v) = self.view_model.take() {
@@ -5977,7 +6144,7 @@ impl App {
                 _ if self.title.is_some() => "title",
                 (Some(front), _, _) if self.front_up => front.screen.name(),
                 (_, Some(menu), _) => menu.page.name(),
-                (_, _, Some(bag)) => bag.page.name(),
+                (_, _, Some(bag)) => bag.name(),
                 _ if self.people.is_some() => self.people.as_ref().map_or("", |p| p.page.name()),
                 _ if self.gm_page.is_some() => self.gm_page.as_ref().map_or("", |g| g.name()),
                 _ if self.character_page.is_some() => {
@@ -6031,13 +6198,36 @@ impl App {
                     self.people = None;
                     self.gm_page = None;
                 }
+                // Who wears it, for the equipment's ribbon (EQUIPMENT.md 4.1): the
+                // class the content names, and the build.
+                let (class, ribbon) = self
+                    .online
+                    .as_ref()
+                    .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
+                    .map(|(build, pack)| {
+                        let class = crate::showcase::class_name(pack, build);
+                        let ribbon = crate::showcase::short_ribbon(&class, build);
+                        (class, ribbon)
+                    })
+                    .unwrap_or_default();
                 match (&mut self.bag, &self.hub) {
                     (Some(bag), Some(hub)) if self.menu.is_none() => {
                         let looks = crate::bag::ItemLooks {
                             manifest: self.content.manifest.as_ref(),
                         };
-                        bag_action =
-                            bag.frame_with(&mut ui, hub, keeps_stall, Instant::now(), looks);
+                        let wearer = crate::bag::Wearer {
+                            name: &me,
+                            ribbon: &ribbon,
+                            class: &class,
+                        };
+                        bag_action = bag.frame_with(
+                            &mut ui,
+                            hub,
+                            keeps_stall,
+                            Instant::now(),
+                            looks,
+                            wearer,
+                        );
                     }
                     _ => {}
                 }
@@ -6136,6 +6326,7 @@ impl App {
                         // A page's tab is closed and made fullscreen by the browser.
                         let offers = Offers {
                             inventory: playing && hub.is_some() && self.character.is_some(),
+                            equipment: playing && hub.is_some() && self.character.is_some(),
                             people: playing,
                             gm: playing && self.online.as_ref().is_some_and(|o| o.gm),
                             travel: playing && hub.is_some(),
@@ -6192,13 +6383,17 @@ impl App {
         // rectangle by a camera of its own.
         let doll_draws: Vec<CharacterDraw> = match (self.ui.paperdolls.first(), &self.online) {
             // The selector's body (CLIENT.md 4.2): the character or the archetype shown,
-            // in the open, with the props of its weapon and its guard.
+            // in the open, with what it wears (the hub's list names the templates), as
+            // the zone draws it; an archetype stands bare, as a new character enters.
             (Some(doll), _) if self.front_up && doll.rect.w > 1.0 && doll.rect.h > 1.0 => {
                 match self.front.as_ref().and_then(|f| f.shown()) {
-                    Some((pack, build, model)) => {
-                        let prop =
-                            ability_prop(&mut self.content, Some(a), pack, Some(build.primary));
-                        let off = ability_prop(&mut self.content, Some(a), pack, build.guard);
+                    Some((build, model, worn)) => {
+                        let frame = gm_model::rig::frame_index(build.frame);
+                        let place = |i: usize| worn.map(|w| w[i].as_str());
+                        let prop = template_prop(&mut self.content, Some(a), place(0));
+                        let off = template_prop(&mut self.content, Some(a), place(1));
+                        let (overlay, hide) =
+                            template_overlay(&mut self.content, Some(a), worn, frame);
                         let body = Body {
                             key: DOLL,
                             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -6206,7 +6401,7 @@ impl App {
                             pitch: 0.0,
                             anim: gm_core::sim::anim::IDLE,
                             crouched: false,
-                            frame: gm_model::rig::frame_index(build.frame),
+                            frame,
                             armour: build.armour as u8,
                             aspects: build.aspects.0,
                             status: 0,
@@ -6215,6 +6410,11 @@ impl App {
                             lit: 0.0,
                             prop,
                             off,
+                            worn: overlay,
+                            hide,
+                            // The selector shows the weapon in the hand (CLIENT.md 4.2):
+                            // a showcase, not a body in the world.
+                            sheathed: false,
                         };
                         a.avatars
                             .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
@@ -6225,6 +6425,13 @@ impl App {
             (Some(doll), Some(o)) if doll.rect.w > 1.0 && doll.rect.h > 1.0 => match &o.client {
                 Some(c) => {
                     let build = &c.sheet.build;
+                    let worn = worn_overlay(
+                        &mut self.content,
+                        Some(a),
+                        &o.props,
+                        o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                        gm_model::rig::frame_index(build.frame),
+                    );
                     let body = Body {
                         key: DOLL,
                         origin: Vec3::new(0.0, 0.0, 24.0),
@@ -6251,6 +6458,9 @@ impl App {
                             &o.props,
                             o.looks.get(&c.my_id).copied().unwrap_or_default(),
                         ),
+                        worn: worn.0,
+                        hide: worn.1,
+                        sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                     };
                     a.avatars
                         .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
@@ -6656,6 +6866,7 @@ impl ApplicationHandler for App {
                         match code {
                             // The inventory, and the stall the body stands at.
                             KeyCode::KeyI if !event.repeat => self.ui_key(Key::Inventory),
+                            KeyCode::KeyO if !event.repeat => self.ui_key(Key::Equipment),
                             KeyCode::KeyE if !event.repeat => self.ui_key(Key::Use),
                             KeyCode::KeyP if !event.repeat => self.ui_key(Key::People),
                             KeyCode::KeyG if !event.repeat => self.ui_key(Key::Gm),

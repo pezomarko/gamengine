@@ -26,10 +26,13 @@ pub struct TemplateLook {
     pub kind: String,
     pub model: Option<String>,
     pub icon: Option<String>,
-    /// `right` (the default), `left` or `back`.
+    /// `right` (the default), `left`, `either` or `back` (CONTENT.md 3).
     pub held: String,
     pub fit: Fit,
     pub fit_view: Option<Fit>,
+    /// An armour's overlay: the standard bones whose part of the body it covers
+    /// (CONTENT.md 3.3), as a mask over the rig.
+    pub covers: u32,
     pub retired: bool,
 }
 
@@ -54,6 +57,31 @@ pub struct BuildLook {
     pub icon: Option<String>,
 }
 
+/// A row of `avatars.toml` (CONTENT.md 3.2): the official look of a frame in an armour
+/// class, worn by every character of that frame and class that has no model of its own.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AvatarLook {
+    pub frame: gm_core::vocab::ArchetypeFrame,
+    pub armour: gm_core::matrix::ArmourClass,
+    /// `models/avatars/<model>.glb`.
+    pub model: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AvatarsFile {
+    #[serde(default)]
+    avatar: Vec<AvatarRow>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AvatarRow {
+    frame: String,
+    armour: String,
+    model: String,
+}
+
 /// Every look field of the content, by key, and the props list a zone sends.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Looks {
@@ -62,6 +90,8 @@ pub struct Looks {
     pub materials: Vec<MaterialLook>,
     pub creatures: Vec<CreatureLook>,
     pub builds: Vec<BuildLook>,
+    /// The official avatars, at most one per frame and armour class (CONTENT.md 3.2).
+    pub avatars: Vec<AvatarLook>,
     /// The keys of every `ability.prop` and `template.model`, in order of first appearance
     /// (LOOK.md 6.2): a `Look.held` on the wire is an index into this list.
     pub props: Vec<String>,
@@ -100,6 +130,7 @@ impl Looks {
             &read("builds.toml", true)?,
             &read("creatures.toml", true)?,
             &read("items.toml", true)?,
+            &read("avatars.toml", true)?,
         )
     }
 
@@ -108,6 +139,7 @@ impl Looks {
         builds: &str,
         creatures: &str,
         items: &str,
+        avatars: &str,
     ) -> Result<Looks, ContentError> {
         fn parse<T: serde::de::DeserializeOwned>(
             text: &str,
@@ -126,6 +158,11 @@ impl Looks {
         };
         let cf: CreaturesFile = parse(creatures, "creatures.toml")?;
         let it: items::ItemContent = parse(items, "items.toml")?;
+        let vf: AvatarsFile = if avatars.trim().is_empty() {
+            AvatarsFile::default()
+        } else {
+            parse(avatars, "avatars.toml")?
+        };
         let mut looks = Looks::default();
         let mut props: Vec<String> = Vec::new();
         let mut name_prop = |key: &Option<String>, owner: &str| -> Result<(), ContentError> {
@@ -162,12 +199,26 @@ impl Looks {
         }
         for t in &it.templates {
             name_prop(&t.model, &format!("template {}", t.id))?;
-            let held = t.held.clone().unwrap_or_else(|| "right".into());
-            if !["right", "left", "back"].contains(&held.as_str()) {
+            let held = t.held().to_string();
+            if !["right", "left", "either", "back", "two"].contains(&held.as_str()) {
                 return Err(ContentError::Invalid(format!(
-                    "template {}: held must be right, left or back, not `{held}`",
+                    "template {}: held must be right, left, either, back or two, not `{held}`",
                     t.id
                 )));
+            }
+            if !t.covers.is_empty() && t.kind != "armour" {
+                return Err(ContentError::Invalid(format!(
+                    "template {}: only an armour covers the body",
+                    t.id
+                )));
+            }
+            for bone in &t.covers {
+                if gm_model::rig::bone_by_name(bone).is_none() {
+                    return Err(ContentError::Invalid(format!(
+                        "template {}: covers `{bone}`, which is no bone of the rig (MODELS.md 2)",
+                        t.id
+                    )));
+                }
             }
             if let Some(v) = &t.icon
                 && !valid_key(v)
@@ -197,6 +248,7 @@ impl Looks {
                 held,
                 fit: t.fit.unwrap_or_default(),
                 fit_view: t.fit_view,
+                covers: items::covers_mask(&t.covers),
                 retired: t.retired,
             });
         }
@@ -255,6 +307,50 @@ impl Looks {
                 icon: b.icon.clone(),
             });
         }
+        for v in &vf.avatar {
+            use gm_core::vocab::ArchetypeFrame;
+            let frame = match v.frame.as_str() {
+                "colossus" => ArchetypeFrame::Colossus,
+                "striker" => ArchetypeFrame::Striker,
+                "caster" => ArchetypeFrame::Caster,
+                "infiltrator" => ArchetypeFrame::Infiltrator,
+                other => {
+                    return Err(ContentError::Invalid(format!(
+                        "avatar: frame `{other}` is not colossus, striker, caster or infiltrator"
+                    )));
+                }
+            };
+            let Some(armour) = gm_core::matrix::ArmourClass::ALL
+                .into_iter()
+                .find(|a| a.name() == v.armour)
+            else {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {}: armour `{}` is not cloth, leather, mail or plate",
+                    v.frame, v.armour
+                )));
+            };
+            if !valid_key(&v.model) {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {} {}: model `{}` is not a key",
+                    v.frame, v.armour, v.model
+                )));
+            }
+            if looks
+                .avatars
+                .iter()
+                .any(|a| a.frame == frame && a.armour == armour)
+            {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {} {}: two rows; a frame has one look per armour class",
+                    v.frame, v.armour
+                )));
+            }
+            looks.avatars.push(AvatarLook {
+                frame,
+                armour,
+                model: v.model.clone(),
+            });
+        }
         if props.len() >= NONE as usize {
             return Err(ContentError::Invalid("too many props".into()));
         }
@@ -271,16 +367,17 @@ impl Looks {
     }
 
     /// What a body holds (LOOK.md 6.1): the model of the weapon template it wears, else the
-    /// prop of its primary ability (by the ability's place in the pack), else nothing. A
-    /// template or an ability the content does not know is an empty hand.
-    pub fn held(&self, worn_weapon: Option<&str>, primary: Option<usize>) -> u16 {
+    /// prop of the ability in its hand (by the ability's place in the pack: the gun mode's
+    /// firearm, which is no item yet), else nothing. A template or an ability the content
+    /// does not know is an empty hand; a melee build with no weapon worn holds nothing.
+    pub fn held(&self, worn_weapon: Option<&str>, ability: Option<usize>) -> u16 {
         if let Some(t) = worn_weapon
             && let Some(look) = self.templates.iter().find(|l| l.key == t)
             && let Some(model) = &look.model
         {
             return self.prop_index(model);
         }
-        if let Some(i) = primary
+        if let Some(i) = ability
             && let Some(a) = self.abilities.get(i)
             && let Some(prop) = &a.prop
         {
@@ -289,14 +386,27 @@ impl Looks {
         NONE
     }
 
-    /// What a body holds in its off hand (LOOK.md 6.5): the prop of its guard ability (by
-    /// the ability's place in the pack), else nothing. A shield wall holds a shield.
-    pub fn off(&self, guard: Option<usize>) -> u16 {
-        if let Some(i) = guard
-            && let Some(a) = self.abilities.get(i)
-            && let Some(prop) = &a.prop
+    /// What a body holds in its off hand (LOOK.md 6.5): the model of the item worn there
+    /// (a shield, a second sword), else nothing. A guard ability puts nothing in the hand
+    /// since 2026-10-13: a shield wall without a shield worn is an empty hand.
+    pub fn off(&self, worn_off: Option<&str>) -> u16 {
+        if let Some(t) = worn_off
+            && let Some(look) = self.templates.iter().find(|l| l.key == t)
+            && let Some(model) = &look.model
         {
-            return self.prop_index(prop);
+            return self.prop_index(model);
+        }
+        NONE
+    }
+
+    /// What a body wears on it (LOOK.md 6.6): the model of its armour's template, which
+    /// a client draws as an overlay over the body, else nothing.
+    pub fn worn(&self, armour: Option<&str>) -> u16 {
+        if let Some(t) = armour
+            && let Some(look) = self.templates.iter().find(|l| l.key == t)
+            && let Some(model) = &look.model
+        {
+            return self.prop_index(model);
         }
         NONE
     }
@@ -343,6 +453,20 @@ strikes = "blunt"
 layers = ["core", "frame"]
 model = "hammer_plain"
 held = "back"
+[[template]]
+id = "shield"
+kind = "shield"
+guards = "physical"
+layers = ["core", "frame"]
+model = "shield_round"
+held = "left"
+[[template]]
+id = "cuirass"
+kind = "armour"
+guards = "physical"
+layers = ["core", "frame"]
+model = "cuirass_leather"
+covers = ["spine", "chest"]
 [[material]]
 id = "core/iron"
 edge = 30
@@ -351,21 +475,37 @@ tint = [0.8, 0.8, 0.85]
 
     #[test]
     fn props_are_listed_by_first_appearance_and_a_body_holds_what_it_wears_or_swings() {
-        let looks = Looks::load_str(ABILITIES, "", "", ITEMS).unwrap();
-        assert_eq!(looks.props, ["sword_plain", "hammer_plain", "sword_iron"]);
-        // Worn: the item's model. Bare: the primary's prop. Neither: nothing.
+        let looks = Looks::load_str(ABILITIES, "", "", ITEMS, "").unwrap();
+        assert_eq!(
+            looks.props,
+            [
+                "sword_plain",
+                "hammer_plain",
+                "sword_iron",
+                "shield_round",
+                "cuirass_leather"
+            ]
+        );
+        // Worn: the item's model. Bare: the prop of the ability in hand (the gun mode's
+        // firearm), which a zone names only then. Neither: nothing.
         assert_eq!(looks.held(Some("sword"), Some(0)), 2);
         assert_eq!(looks.held(None, Some(0)), 0);
         assert_eq!(looks.held(None, Some(1)), 1);
         assert_eq!(looks.held(None, Some(2)), NONE);
-        assert_eq!(looks.held(Some("cuirass"), Some(0)), 0);
+        assert_eq!(looks.held(None, None), NONE);
         assert_eq!(looks.held(Some("nothing"), None), NONE);
         assert_eq!(looks.held(None, Some(99)), NONE);
-        // The off hand (LOOK.md 6.5): the guard's prop; a guard without one, or none, is empty.
-        assert_eq!(looks.off(Some(1)), 1);
-        assert_eq!(looks.off(Some(2)), NONE);
+        // The off hand (LOOK.md 6.5): what is worn there, else nothing.
+        assert_eq!(looks.off(Some("shield")), 3);
+        assert_eq!(looks.off(Some("sword")), 2);
         assert_eq!(looks.off(None), NONE);
+        assert_eq!(looks.off(Some("nothing")), NONE);
+        // The body (LOOK.md 6.6): the armour's overlay, by the same list.
+        assert_eq!(looks.worn(Some("cuirass")), 4);
+        assert_eq!(looks.worn(Some("sword")), 2);
+        assert_eq!(looks.worn(None), NONE);
         assert_eq!(looks.templates[1].held, "back");
+        assert_eq!(looks.templates[3].covers, (1 << 1) | (1 << 2));
         assert_eq!(looks.templates[0].fit.turn, [0.0, 90.0, 0.0]);
         assert_eq!(looks.materials[0].tint, Some([0.8, 0.8, 0.85]));
         assert_eq!(looks.abilities[2].sound.as_deref(), Some("whoosh"));
@@ -376,9 +516,30 @@ tint = [0.8, 0.8, 0.85]
         assert!(valid_key("sword_iron") && valid_key("core/iron") && valid_key("m5x7"));
         assert!(!valid_key("Sword") && !valid_key("a b") && !valid_key("a/b/c") && !valid_key(""));
         let bad = ABILITIES.replace("sword_plain", "Sword Plain");
-        assert!(Looks::load_str(&bad, "", "", ITEMS).is_err());
+        assert!(Looks::load_str(&bad, "", "", ITEMS, "").is_err());
         let bad = ITEMS.replace("held = \"back\"", "held = \"teeth\"");
-        assert!(Looks::load_str(ABILITIES, "", "", &bad).is_err());
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        let bad = ITEMS.replace("covers = [\"spine\", \"chest\"]", "covers = [\"tail\"]");
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        let bad = ITEMS.replace("held = \"back\"", "held = \"back\"\ncovers = [\"chest\"]");
+        assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
+        // An avatar row names a frame, an armour class and a key, once per pair.
+        let one = "[[avatar]]\nframe = \"striker\"\narmour = \"mail\"\nmodel = \"striker_mail\"\n";
+        let looks = Looks::load_str(ABILITIES, "", "", ITEMS, one).unwrap();
+        assert_eq!(looks.avatars.len(), 1);
+        assert_eq!(looks.avatars[0].model, "striker_mail");
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{one}")).is_err());
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &one.replace("mail", "silk")).is_err());
+        assert!(
+            Looks::load_str(
+                ABILITIES,
+                "",
+                "",
+                ITEMS,
+                &one.replace("striker\"", "giant\"")
+            )
+            .is_err()
+        );
     }
 
     #[test]

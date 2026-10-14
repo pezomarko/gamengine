@@ -30,6 +30,10 @@ pub struct ItemTemplate {
     /// `elements` (the five).
     #[serde(default)]
     pub guards: Option<String>,
+    /// An armour's place on the body (EQUIPMENT.md 5.2): `chest` (the default), `head`,
+    /// `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring`.
+    #[serde(default)]
+    pub place: Option<String>,
     /// A stack (MODES.md 11.1): the most of it one holder carries (the strict limit), and
     /// what one of it heals when it is a kit. No layers, no materials.
     #[serde(default)]
@@ -44,14 +48,39 @@ pub struct ItemTemplate {
     pub model: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Which hand (CONTENT.md 3): `right` (the default), `left`, `either` (a one-handed
+    /// weapon worn in the right hand, or in the left beside another), `two` (both hands,
+    /// EQUIPMENT.md 3: worn, it takes the left hand too), `back`.
     #[serde(default)]
     pub held: Option<String>,
     #[serde(default)]
     pub fit: Option<Fit>,
     #[serde(default)]
     pub fit_view: Option<Fit>,
+    /// An armour's overlay (CONTENT.md 3.3): the standard bones (MODELS.md 2) whose part
+    /// of the body it covers, hidden under it when it is worn.
+    #[serde(default)]
+    pub covers: Vec<String>,
     #[serde(default)]
     pub retired: bool,
+}
+
+impl ItemTemplate {
+    /// Whether an item of this template sharpens what its wearer deals (a weapon, a ring)
+    /// or dulls what it takes (an armour, a shield, an amulet): ITEMS.md 3.2, EQUIPMENT.md
+    /// 5.4.
+    pub fn deals(&self) -> bool {
+        self.kind == "weapon" || (self.kind == "trinket" && self.place.as_deref() == Some("ring"))
+    }
+
+    pub fn held(&self) -> &str {
+        self.held.as_deref().unwrap_or("right")
+    }
+
+    /// Worn, it takes both hands (EQUIPMENT.md 3).
+    pub fn two_handed(&self) -> bool {
+        self.held() == "two"
+    }
 }
 
 /// How a prop's file is moved into hand space (CONTENT.md 3.1): metres, degrees about
@@ -103,6 +132,9 @@ const KINDS: [&str; 9] = [
 pub struct ItemView {
     /// Where it is worn; `None` for a part, and for what this content does not know.
     pub place: Option<Place>,
+    /// It may be worn in the off hand as well (ITEMS.md 2: a one-handed weapon `held =
+    /// "either"`), beside its `place`.
+    pub off: bool,
     /// Its edge per damage type, per mille (zeros for what is not worn).
     pub edge: [u16; 9],
     /// What it is: `a weapon, 220 of 250`, `a core, for crafting`.
@@ -114,14 +146,14 @@ pub struct ItemView {
 /// An edge in per mille as what it does (ITEMS.md 3.1): a weapon deals that much more of
 /// the kind, an armour takes what `SCALE / (SCALE + edge)` leaves off it; in tenths of a
 /// per cent, rounded.
-fn per_cent(place: Place, edge: u16) -> String {
+fn per_cent(deals: bool, edge: u16) -> String {
     let e = edge as u32;
-    match place {
-        Place::Weapon => {
+    match deals {
+        true => {
             let more = (e * 1000 + Gear::SCALE / 2) / Gear::SCALE;
             format!("+{}.{}%", more / 10, more % 10)
         }
-        Place::Armour => {
+        false => {
             let off = (e * 1000 + (Gear::SCALE + e) / 2) / (Gear::SCALE + e);
             format!("-{}.{}%", off / 10, off % 10)
         }
@@ -130,7 +162,7 @@ fn per_cent(place: Place, edge: u16) -> String {
 
 /// The edges in words, the strongest first. Kinds of one group that share an edge are
 /// said together (`physical`, `elements`, or `other elements` beside one that stands out).
-fn words(place: Place, edge: &[u16; 9]) -> Vec<String> {
+fn words(deals: bool, edge: &[u16; 9]) -> Vec<String> {
     let mut said: Vec<(u16, String)> = Vec::new();
     for (group, name) in [(&PHYSICAL[..], "physical"), (&ELEMENTS[..], "elements")] {
         let of = |v: u16| group.iter().filter(|k| edge[**k as usize] == v).count();
@@ -163,29 +195,141 @@ fn words(place: Place, edge: &[u16; 9]) -> Vec<String> {
     }
     said.sort_by_key(|(v, _)| std::cmp::Reverse(*v));
     said.into_iter()
-        .map(|(v, what)| format!("{what} {}", per_cent(place, v)))
+        .map(|(v, what)| format!("{what} {}", per_cent(deals, v)))
         .collect()
 }
 
-/// Where an item is worn (ITEMS.md 2).
+/// Where an item is worn (ITEMS.md 2, EQUIPMENT.md 5): the two hands, the body's six
+/// places and the back, the three trinkets. `Armour` is the chest, named as it was when
+/// it was the whole body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Place {
     Weapon,
+    Off,
     Armour,
+    Head,
+    Hands,
+    Legs,
+    Feet,
+    Back,
+    Shoulders,
+    Neck,
+    Ring,
+    Ring2,
 }
 
+/// How many places a character has (`Place::ALL`).
+pub const PLACES: usize = 12;
+
 impl Place {
+    /// Every place, in the order of a reading's `templates` and the hub's list.
+    pub const ALL: [Place; PLACES] = [
+        Place::Weapon,
+        Place::Off,
+        Place::Armour,
+        Place::Head,
+        Place::Hands,
+        Place::Legs,
+        Place::Feet,
+        Place::Back,
+        Place::Shoulders,
+        Place::Neck,
+        Place::Ring,
+        Place::Ring2,
+    ];
+    /// The body's places (EQUIPMENT.md 5.2 and 5.3): where an overlay is drawn, in the
+    /// order `Look.worn` lists them on the wire.
+    pub const BODY: [Place; 7] = [
+        Place::Armour,
+        Place::Head,
+        Place::Hands,
+        Place::Legs,
+        Place::Feet,
+        Place::Back,
+        Place::Shoulders,
+    ];
+
     pub fn name(self) -> &'static str {
         match self {
             Place::Weapon => "weapon",
+            Place::Off => "off",
             Place::Armour => "armour",
+            Place::Head => "head",
+            Place::Hands => "hands",
+            Place::Legs => "legs",
+            Place::Feet => "feet",
+            Place::Back => "back",
+            Place::Shoulders => "shoulders",
+            Place::Neck => "neck",
+            Place::Ring => "ring",
+            Place::Ring2 => "ring2",
         }
     }
 
     pub fn parse(name: &str) -> Option<Place> {
-        match name {
-            "weapon" => Some(Place::Weapon),
-            "armour" => Some(Place::Armour),
+        Place::ALL.into_iter().find(|p| p.name() == name)
+    }
+
+    /// The place's index in a reading's `templates` (ITEMS.md 3.3).
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The place in a person's words: where a thing does not go.
+    pub fn in_words(self) -> &'static str {
+        match self {
+            Place::Weapon => "the right hand",
+            Place::Off => "the left hand",
+            Place::Armour => "the body",
+            Place::Head => "the head",
+            Place::Hands => "the hands",
+            Place::Legs => "the legs",
+            Place::Feet => "the feet",
+            Place::Back => "the back",
+            Place::Shoulders => "the shoulders",
+            Place::Neck => "the neck",
+            Place::Ring => "a finger",
+            Place::Ring2 => "the other finger",
+        }
+    }
+
+    /// What the place counts for of its item's edge (EQUIPMENT.md 5.5), as a fraction:
+    /// the right hand whole, the left hand half, the body by its parts (the chest 8 of
+    /// 20, the legs 5, the head 3, the hands 2, the feet, the back and the shoulders 1
+    /// each), the trinkets half. A two-hander in the right hand counts 1.5 (3), which
+    /// is the reading's to say, not the place's.
+    pub fn share(self) -> (u32, u32) {
+        match self {
+            Place::Weapon => (1, 1),
+            Place::Off => (1, 2),
+            Place::Armour => (8, 20),
+            Place::Legs => (5, 20),
+            Place::Head => (3, 20),
+            Place::Hands => (2, 20),
+            Place::Feet | Place::Back | Place::Shoulders => (1, 20),
+            Place::Neck | Place::Ring | Place::Ring2 => (1, 2),
+        }
+    }
+
+    /// An armour's `place` word (EQUIPMENT.md 5.2); nothing said is the chest.
+    pub fn of_armour(word: Option<&str>) -> Option<Place> {
+        match word.unwrap_or("chest") {
+            "chest" => Some(Place::Armour),
+            "head" => Some(Place::Head),
+            "hands" => Some(Place::Hands),
+            "legs" => Some(Place::Legs),
+            "feet" => Some(Place::Feet),
+            "back" => Some(Place::Back),
+            "shoulders" => Some(Place::Shoulders),
+            _ => None,
+        }
+    }
+
+    /// A trinket's `place` word (EQUIPMENT.md 5.4): `neck`, or `ring` (either finger).
+    pub fn of_trinket(word: Option<&str>) -> Option<Place> {
+        match word? {
+            "neck" => Some(Place::Neck),
+            "ring" => Some(Place::Ring),
             _ => None,
         }
     }
@@ -198,6 +342,15 @@ fn physical(kind: &str) -> Option<DamageType> {
         "blunt" => Some(DamageType::Blunt),
         _ => None,
     }
+}
+
+/// A list of standard bone names (MODELS.md 2, matched as the ingest matches joints) as a
+/// bit mask over the rig; a name the rig does not know is skipped.
+pub fn covers_mask(names: &[String]) -> u32 {
+    names
+        .iter()
+        .filter_map(|n| gm_model::rig::bone_by_name(n))
+        .fold(0, |m, b| m | (1 << b))
 }
 
 fn element(name: &str) -> Option<DamageType> {
@@ -277,9 +430,64 @@ impl ItemContent {
 
     /// Where an item of this template is worn; `None` for a component, and for a template
     /// this content does not know.
+    pub fn template(&self, id: &str) -> Option<&ItemTemplate> {
+        self.templates.iter().find(|t| t.id == id)
+    }
+
     pub fn place(&self, template: &str) -> Option<Place> {
         let t = self.templates.iter().find(|t| t.id == template)?;
-        Place::parse(&t.kind)
+        Self::default_place(t)
+    }
+
+    /// Where an item of this template goes when nobody says (ITEMS.md 2, EQUIPMENT.md 5):
+    /// a weapon into the right hand (the left when it is `held = "left"`), a shield into
+    /// the left, an armour onto its place of the body, a trinket onto the neck or the
+    /// first finger; a stack or a part nowhere.
+    fn default_place(t: &ItemTemplate) -> Option<Place> {
+        match t.kind.as_str() {
+            "weapon" if t.held() == "left" => Some(Place::Off),
+            "weapon" => Some(Place::Weapon),
+            "shield" => Some(Place::Off),
+            "armour" => Place::of_armour(t.place.as_deref()),
+            "trinket" => Place::of_trinket(t.place.as_deref()),
+            _ => None,
+        }
+    }
+
+    /// Whether an item of `template` may be worn in `place` (ITEMS.md 2): a weapon in the
+    /// hand its `held` names, and in either when it says so; a shield in the off hand; an
+    /// armour on its place of the body; a ring on either finger. `false` for a template
+    /// this content does not know.
+    pub fn may_wear_in(&self, template: &str, place: Place) -> bool {
+        let Some(t) = self.templates.iter().find(|t| t.id == template) else {
+            return false;
+        };
+        match (t.kind.as_str(), place) {
+            ("weapon", Place::Weapon) => t.held() != "left",
+            ("weapon", Place::Off) => matches!(t.held(), "left" | "either"),
+            ("shield", Place::Off) => true,
+            ("trinket", Place::Ring2) => Self::default_place(t) == Some(Place::Ring),
+            ("armour" | "trinket", p) => Self::default_place(t) == Some(p),
+            _ => false,
+        }
+    }
+
+    /// Whether an item of `template` takes both hands when worn (EQUIPMENT.md 3); false
+    /// for a template this content does not know.
+    pub fn two_handed(&self, template: &str) -> bool {
+        self.templates
+            .iter()
+            .find(|t| t.id == template)
+            .is_some_and(|t| t.two_handed())
+    }
+
+    /// The template's `covers` (CONTENT.md 3.3) as a mask of standard bones; unknown
+    /// names are refused by the look loader, so here they count for nothing.
+    pub fn covers(&self, template: &str) -> u32 {
+        self.templates
+            .iter()
+            .find(|t| t.id == template)
+            .map_or(0, |t| covers_mask(&t.covers))
     }
 
     /// The prop an item of this template puts in the hand (CONTENT.md 3): what a build's
@@ -327,28 +535,30 @@ impl ItemContent {
         materials: impl IntoIterator<Item = &'a str>,
     ) -> Option<(Place, [u16; 9], u16)> {
         let t = self.templates.iter().find(|t| t.id == template)?;
-        let place = Place::parse(&t.kind)?;
+        let place = Self::default_place(t)?;
         let known: Vec<&Material> = materials
             .into_iter()
             .filter_map(|id| self.materials.iter().find(|m| m.id == id))
             .filter(|m| t.layers.iter().any(|l| l == m.layer()))
             .collect();
-        // What the item is for.
+        // What the item is for. A trinket (EQUIPMENT.md 5.4) has no core: it is for the
+        // elements, and its catalyst says which one it reaches most.
         let mut made_for = [false; 9];
-        match place {
-            Place::Weapon => {
-                if let Some(kind) = t.strikes.as_deref().and_then(physical) {
-                    made_for[kind as usize] = true;
-                }
+        if t.kind == "trinket" {
+            for kind in &ELEMENTS {
+                made_for[*kind as usize] = true;
             }
-            Place::Armour => {
-                let kinds = match t.guards.as_deref() {
-                    Some("elements") => &ELEMENTS[..],
-                    _ => &PHYSICAL[..],
-                };
-                for kind in kinds {
-                    made_for[*kind as usize] = true;
-                }
+        } else if t.deals() {
+            if let Some(kind) = t.strikes.as_deref().and_then(physical) {
+                made_for[kind as usize] = true;
+            }
+        } else {
+            let kinds = match t.guards.as_deref() {
+                Some("elements") => &ELEMENTS[..],
+                _ => &PHYSICAL[..],
+            };
+            for kind in kinds {
+                made_for[*kind as usize] = true;
             }
         }
         let core = made_for;
@@ -394,16 +604,20 @@ impl ItemContent {
     ) -> ItemView {
         let materials = components.clone().into_iter().map(|(_, m)| m);
         match self.edges(template, materials) {
-            Some((place, edge, whole)) => ItemView {
-                place: Some(place),
-                edge,
-                what: format!(
-                    "{} {}, {whole} of {MAX_EDGE_PER_MILLE}",
-                    if place == Place::Weapon { "a" } else { "an" },
-                    place.name()
-                ),
-                does: words(place, &edge),
-            },
+            Some((place, edge, whole)) => {
+                let t = self.templates.iter().find(|t| t.id == template);
+                let (kind, deals) = t.map_or(("weapon", true), |t| (t.kind.as_str(), t.deals()));
+                ItemView {
+                    place: Some(place),
+                    off: place != Place::Off && self.may_wear_in(template, Place::Off),
+                    edge,
+                    what: format!(
+                        "{} {kind}, {whole} of {MAX_EDGE_PER_MILLE}",
+                        if kind == "armour" { "an" } else { "a" },
+                    ),
+                    does: words(deals, &edge),
+                }
+            }
             None => match self.stack(template) {
                 Some((_, heals)) => ItemView {
                     what: format!("{template}, a stack"),
@@ -465,8 +679,32 @@ impl ItemContent {
             if self.templates[..i].iter().any(|o| o.id == t.id) {
                 return bad(format!("template {:?} is defined twice", t.id));
             }
-            if !["weapon", "armour", "stack"].contains(&t.kind.as_str()) {
+            if !["weapon", "armour", "shield", "stack", "trinket"].contains(&t.kind.as_str()) {
                 return bad(format!("template {:?}: unknown kind {:?}", t.id, t.kind));
+            }
+            // Its place (EQUIPMENT.md 5): an armour's on the body, a trinket's on the neck
+            // or a finger, nothing else's named.
+            match t.kind.as_str() {
+                "armour" if Place::of_armour(t.place.as_deref()).is_none() => {
+                    return bad(format!(
+                        "template {:?}: an armour's place is chest, head, hands, legs, feet, back or shoulders",
+                        t.id
+                    ));
+                }
+                "trinket" if Place::of_trinket(t.place.as_deref()).is_none() => {
+                    return bad(format!(
+                        "template {:?}: a trinket's place is neck or ring",
+                        t.id
+                    ));
+                }
+                "armour" | "trinket" => {}
+                _ if t.place.is_some() => {
+                    return bad(format!(
+                        "template {:?}: only an armour or a trinket names a place",
+                        t.id
+                    ));
+                }
+                _ => {}
             }
             if t.kind == "stack" {
                 // A stack (MODES.md 11.1): a cap within the hub's column, a heal within
@@ -502,20 +740,53 @@ impl ItemContent {
                         t.id
                     ));
                 }
-                (_, None, Some("physical" | "elements")) => {}
-                _ => {
+                // A trinket is for the elements by nature (EQUIPMENT.md 5.4): it names
+                // neither.
+                ("trinket", None, None) => {}
+                ("trinket", _, _) => {
                     return bad(format!(
-                        "template {:?}: an armour guards against physical or elements, and strikes with nothing",
+                        "template {:?}: a trinket strikes with nothing and guards against nothing",
                         t.id
                     ));
                 }
+                (_, None, Some("physical" | "elements")) => {}
+                _ => {
+                    return bad(format!(
+                        "template {:?}: an armour or a shield guards against physical or elements, and strikes with nothing",
+                        t.id
+                    ));
+                }
+            }
+            // A shield is worn in the left hand and nowhere else; a weapon in the hand its
+            // `held` names (ITEMS.md 2).
+            if t.kind == "shield" && t.held() != "left" {
+                return bad(format!("template {:?}: a shield is held left", t.id));
+            }
+            if !["right", "left", "either", "back", "two"].contains(&t.held()) {
+                return bad(format!(
+                    "template {:?}: held must be right, left, either, back or two",
+                    t.id
+                ));
+            }
+            if t.two_handed() && t.kind != "weapon" {
+                return bad(format!(
+                    "template {:?}: only a weapon takes both hands",
+                    t.id
+                ));
             }
             for layer in &t.layers {
                 if !LAYERS.contains(&layer.as_str()) {
                     return bad(format!("template {:?}: unknown layer {layer:?}", t.id));
                 }
             }
-            for needed in ["core", "frame"] {
+            // A weapon, an armour and a shield are built round a core on a frame; a
+            // trinket round a catalyst (EQUIPMENT.md 5.4).
+            let needed: &[&str] = if t.kind == "trinket" {
+                &["catalyst"]
+            } else {
+                &["core", "frame"]
+            };
+            for needed in needed {
                 if !t.layers.iter().any(|l| l == needed) {
                     return bad(format!("template {:?} must take a {needed}", t.id));
                 }
@@ -634,6 +905,44 @@ mod tests {
             let (_, edges, _) = items.edges(&t.id, all).unwrap();
             assert!(edges.iter().all(|e| *e <= 250), "{}", t.id);
         }
+        // The three places (ITEMS.md 2): a sword goes into the right hand, and may go
+        // into the left; a shield into the left only; a cuirass onto the body only.
+        assert_eq!(items.place("shield"), Some(Place::Off));
+        assert!(
+            items.may_wear_in("sword", Place::Weapon) && items.may_wear_in("sword", Place::Off)
+        );
+        assert!(!items.may_wear_in("sword", Place::Armour));
+        assert!(
+            items.may_wear_in("shield", Place::Off) && !items.may_wear_in("shield", Place::Weapon)
+        );
+        assert!(
+            items.may_wear_in("cuirass", Place::Armour)
+                && !items.may_wear_in("cuirass", Place::Off)
+        );
+        assert!(
+            !items.may_wear_in("hammer", Place::Off) && !items.may_wear_in("lute", Place::Weapon)
+        );
+        // A shield guards like an armour and is said as a shield; a sword says it may go
+        // into the off hand too, a shield (there by nature) does not.
+        let (place, shield, whole) = items.edges("shield", plain).unwrap();
+        assert_eq!((place, whole), (Place::Off, 220));
+        assert_eq!(shield, [220, 220, 220, 0, 0, 0, 0, 0, 0]);
+        let view = items.view("shield", [("core", "core/iron"), ("frame", "frame/oak")]);
+        assert_eq!(view.what, "a shield, 40 of 250");
+        assert_eq!(view.does, ["physical -2.0%"]);
+        assert!(!view.off);
+        assert!(
+            items
+                .view("sword", [("core", "core/iron"), ("frame", "frame/oak")])
+                .off
+        );
+        assert!(
+            !items
+                .view("cuirass", [("core", "core/iron"), ("frame", "frame/oak")])
+                .off
+        );
+        assert_eq!(items.covers("cuirass"), (1 << 1) | (1 << 2));
+        assert_eq!(items.covers("sword"), 0);
         // A stack (MODES.md 11.1) is worn nowhere, has a cap, and a kit heals.
         assert_eq!(items.place("ball"), None);
         assert_eq!(items.edges("ball", []), None);
@@ -688,6 +997,28 @@ mod tests {
         assert_eq!(items.view("lute", best).what, "nothing this world knows");
         assert_eq!(items.layers("crossbow").unwrap().len(), 4);
         assert_eq!(items.layers("lute"), None);
+    }
+
+    /// EQUIPMENT.md 3: `held = "two"` is a weapon's, goes into the right hand and never
+    /// the left; `either` goes into both.
+    #[test]
+    fn a_two_handed_weapon_goes_right_and_nowhere_else() {
+        let items = load_items(Path::new(DIR)).expect("items load");
+        assert!(items.two_handed("staff") && !items.two_handed("sword"));
+        assert!(
+            items.may_wear_in("staff", Place::Weapon) && !items.may_wear_in("staff", Place::Off)
+        );
+        assert!(
+            items.may_wear_in("sword", Place::Weapon) && items.may_wear_in("sword", Place::Off)
+        );
+        assert!(!items.two_handed("nothing"));
+        let text = std::fs::read_to_string(Path::new(DIR).join("items.toml")).unwrap();
+        let bad = text.replace(
+            "id = \"shield\"\nkind = \"shield\"",
+            "id = \"shield\"\nkind = \"shield\"\nheld = \"two\"",
+        );
+        assert!(bad != text);
+        assert!(load_items_str(&bad).is_err(), "a shield in both hands");
     }
 
     #[test]

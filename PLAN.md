@@ -529,7 +529,7 @@ All item and coin movements are DB transactions; escrow states are enforced by c
 | 14 | The look: the content standard and its tool (`docs/CONTENT.md`: every item, ability and creature a row with its model, picture and sound; `gm-tools content check/build/report/import`; a committed bundle); weapons as props drawn in hands (the first models from a CC0 pack, a musket beside the crossbow) and a first-person view model; the toolkit's skin, icons and real fonts; the inventory, storage, stall and trade as grids with tooltips and drag, an equip panel with a paperdoll; a HUD with a portrait, party frames and a hotbar showing cooldowns; silver and gold only (`docs/LOOK.md`) | a character seen by another holds the sword it wears; the inventory is a grid of pictures and a drag onto the weapon slot wears a sword; the hotbar shows each ability's state; `gm-tools content build` reproduces the committed bundle byte for byte; on the desktop and in a browser, inside the budgets of both (the browser's raised to 2 MiB by the director). **Done 2026-10-03** (11.10) |
 | 15 | The three modes *(proposed 2026-10-07, the director's correction of 4.1; built the same day)* (`docs/MODES.md`), in three parts played one after another: **action** (the mode in the build and fixed on the client, `V` gone; the magnet, chains, cancels, the dodge with its untouchable window, knockdown and launch under diminishing returns, the combo counter), **gun** (the firearm block: magazine, reload, cycle, recoil pattern and cone, the head band, three weapons in hand, the ammo HUD; a musketeer preset, a pistol), **rpg** (the target and its frame, target-actions that walk the body into range on the nav grid and aim by the zone, the repeating primary, the ground click, the orbit camera; `range` in content; the aim statistics skipping RPG bodies) | a sword chained three times into a knockdown and a roll through a firebolt; a spray controlled against its pattern and a crouched headshot at 1,500 u; a frostweaver that clicks a dummy, presses the shard, walks into range and lands it; the character's mode never changes in play. **Done 2026-10-07** (11.10) |
 | 16 | *(proposed 2026-10-03, renumbered 2026-10-07; the director wants it)* The content editor: `gm-tools content edit`, native only, on the client's toolkit over the same TOML files (CONTENT.md 10): the tables as lists, a row as a form with the validation of `check` as it is typed, a model or a picture imported by path and fitted in the 3D view of `look`, links to abilities and materials picked from lists, saved back as text with the diff shown | an item is added, given a model and a picture, priced and made wearable without a text editor, and the result is a one-row diff in git that `check` accepts |
-| 17 | *(proposed 2026-10-03, renumbered 2026-10-07)* The body's look: official avatars per frame and armour class replacing the mannequin, creature models (the Warden, the sentinels), portraits baked from them, the armour overlay in `Look.worn`; sounds per ability as content (SOUND.md 9's open item); the first content pass (more weapons and materials with their pictures) | nobody in the town is a grey mannequin unless their model is refused; the Warden is a creature to look at; every ability of the content has its own picture and sound |
+| 17 | *(proposed 2026-10-03, renumbered 2026-10-07; the first item built 2026-10-13: `avatars.toml`, the striker in mail from Quaternius' CC0 warrior, its sword, CONTENT.md 3.2)* The body's look: official avatars per frame and armour class replacing the mannequin, creature models (the Warden, the sentinels), portraits baked from them, the armour overlay in `Look.worn`; sounds per ability as content (SOUND.md 9's open item); the first content pass (more weapons and materials with their pictures) | nobody in the town is a grey mannequin unless their model is refused; the Warden is a creature to look at; every ability of the content has its own picture and sound |
 | ∞ | Content, balance, ops, community | permanent |
 
 ### 11.9 First concrete step
@@ -1041,7 +1041,16 @@ ranges are the spread over repeated runs):
   corrects a handful of times a second); the sight sweep was quadratic (3.5 ms a tick at 200 players:
   now the four nearest on screen, 0.3 ms); **uneven frame delivery hid the lock** (one gate run in nine:
   under load four of six lock programs escaped, until each tick's view was held against its own world and
-  the cheat model stopped counting its own frames).
+  the cheat model stopped counting its own frames). **The gate's own programs went unjudged for six days**
+  (2026-10-07 to 2026-10-13): Phase 15c made an RPG body's aim the zone's and the analysis skip it, and the
+  gate's two locks (the hub test's too) played the frostweaver, an RPG build, so they fired nothing the
+  analysis saw (shots=0 for every frostweaver, hand or program), the gate failed and the hub test with it,
+  unseen under CI's older reds. The programs now play the shade, the one action build with a bolt the
+  client aims, and keep knife range (`gm-bot --behaviour skirmisher`, the list cycled per bot like the
+  builds): at a dagger's distance a lock was 4 of 9 moving shots, at 200 u it is 31 of 32; the honest
+  shades skirmish too (five kits against two hand models, so plain and sharp hands both get it) and none
+  is flagged. The musketeer was tried first and is no use here: over the wire without a hub a gun has
+  its magazine and no reserve, one shot a life.
 - Reviews (ANTICHEAT.md 12). **Google AI Studio again answered HTTP 402** (credits depleted), so both
   reviews were done by independent agents. Design review: 19 findings, 13 accepted, 5 in part, 1 rejected
   (view-time targets, the muzzle, party-only hostility in wild zones, steadiness instead of error for the
@@ -1421,8 +1430,8 @@ GUI editor he wants is Phase 16 since 2026-10-07):
   fetches landed in an inbox nobody polled; a grid picked listings by the item's id instead of the
   listing's; an unknown list must not drop the pick the first answer fills.
 - Known limits: armour is not drawn on the body (Phase 17 since 2026-10-07), no icons for abilities and statuses yet
-  (their names stand in; CONTENT.md 8's image model is the plan), a weapon is always held (never
-  sheathed), the view model shares the world's depth (clips into a wall pressed against), the tavern and
+  (their names stand in; CONTENT.md 8's image model is the plan), a weapon was always held (never
+  sheathed) until 2026-10-14 (LOOK.md 6.7), the view model shares the world's depth (clips into a wall pressed against), the tavern and
   people pages are rows still, a left hand holds nothing, no scrollbar on the hotbar's statuses.
 - **The same evening, after the director played it** (LOOK.md 11.4: "the new UI is ultra low res ... the
   sword as an extension of the arm is wrong"). The phase's screenshots had been taken at 1280 × 720 and
@@ -1605,6 +1614,82 @@ the rewind, so the head band moves with the body; the drop is 16 u for the eye, 
 alike; every body carries a `CROUCHED` flag and is drawn squatting, its name and numbers lower; the world
 hull is unchanged.
 
+**2026-10-13, Phase 17's first body** (the director: "we currently only have fat stickman like figure as
+placeholder, pick one class, and do good model for it, also weapon"; CONTENT.md 3.2, 7 and 13): the
+**striker in mail** (the blade) is Quaternius' CC0 *RPG Characters* warrior, and the blade's `sword` is that
+warrior's sword in place of KayKit's. Content gained `avatars.toml` (`[[avatar]]`: frame, armour, model; one
+row per pair), `build` ingests it as the hub ingests an upload for that frame and writes
+`avatars/<frame>_<armour>.gmm`, the manifest (format 3) names it with its hash, the pair's portrait is baked
+from it, and the client (windowed, headless and the browser's fetch path) wears it for every body of the pair
+that has no model of its own, untinted, before the mannequin. The pack came as FBX, Blend and glTF with a rig
+of its own: `scripts/dev/blender-quaternius-warrior.py` (Blender 3.3 headless in Docker: bones renamed to
+MODELS.md 2, the IK feet and the thighs reparented under the shins and the hips, the 2,682-triangle face
+decimated to 938, the sword split off, animations dropped) and `scripts/dev/glb-retarget.py` (numpy, no
+Blender: rename, unlink, a per-axis world scale that recomputes the inverse bind matrices) made it fit:
+uniformly 0.675 for the head pivot's band and 0.9 front to back for the side-coverage cap, which the
+envelope of MODELS.md 4 refused at 153% and takes at 137%. KayKit's Adventurers were weighed and lost
+(chibi: 4,712 triangles and a head pivot under every frame's band). Measured in CONTENT.md 13. Not done:
+the other fifteen pairs, creature models, the armour overlay, sounds per ability (the rest of Phase 17).
+
+**2026-10-13, the lean hero, three places and the armour overlay** (the director: "we need something better,
+more relatable ... lean crusader, not short legged samurai like. Also We need mechanism to not only equip
+sword, but also armor so it's visible. Lets do Armor, Left hand and right hand equips ... weapon is separate
+model and equipable"; ITEMS.md 2, LOOK.md 6.5 and 6.6, CONTENT.md 3.3): the striker in mail is now Quaternius'
+CC0 *Universal Base Characters* hero (1.81 m, the Superhero proportions: long legs, a lean athlete) in the
+*Fantasy outfits'* trousers and boots, made by `scripts/dev/blender-quaternius-hero.py` and `gltf-atlas.py`
+with `prop_r`, `prop_l` and `prop_back` bones added where the fist closes; it needed no scaling (head pivot
+51.6 u, top 58.9 u). A character has **three places**: the right hand, the left hand (`off`, migration 0014)
+and the body; a sword is `held = "either"` and goes into the left hand by `WearIn` (protocol v19, hub 13,
+players 8), a `shield` kind goes there by nature, and the off hand's edges add to the weapon's or the
+armour's under the same cap of 250. The armour is **seen**: an armour template's `model` is an overlay
+(`models/armour/<model>_<frame>.glb`, a skinned piece on the rig cut for that frame's body, `FLAG_OVERLAY`,
+1,500 triangles, 512², 262,144 bytes, no envelope), `Look.worn` carries it, the client draws it over the body
+with the body's pose and leaves out the body's parts it `covers` (a bone mask in the block, the triangle
+dropped whole in the fragment shader). The first two overlays are the outfits' leather jerkin with pauldrons
+and bracers (the cuirass) and cloth tunic (the robe); the shield is the *LowPoly Medieval Weapons* heater.
+The bag has three slots. The director's first test: "he still holds the sword even though inventory shows
+no sword equipped, not even possesses a sword" — the bare hand held the primary ability's prop since Phase
+14; since then a hand holds what is worn in it and nothing else (LOOK.md 6.1; bots fight bare-handed until
+something hands them swords; the gun mode's hand still draws the ability's prop). And "login screen still
+shows char with sword, not char as it is ingame": the hub's character list names the templates worn
+(`CharacterSummary.worn`, players' 9) and the selector draws those, with the armour's overlay. Not done: the plate and mail of a real crusader (the packs' free tiers have no
+knight; the Source tier of *Modular Character Outfits - Fantasy* has one), overlays for the other three
+frames, the other fifteen avatar pairs, creature models, sounds.
+
+**2026-10-13, the evening: classes by name, the equipment window, both hands** (the director: "our blade
+class can't equip greatsword or 2 swords? can we at least have some char/class names and show restrictions on
+equipables then? also change how inventory looks, we need better representation of character and equipped
+items, like separate from main window we could have char preview and slots in it to equip things. Then lay
+down proposal of all equipment types"; then "now this seems like a good plan, please implement it";
+`docs/EQUIPMENT.md`, Gemini-reviewed, its steps 1 to 3 built): the greatsword was the fit rule's doing (the
+blade's kit holds a sword and nothing else) and two swords worked by one undiscoverable drag. Now a preset's
+name is its **class** (`Blade`, capitalised; `Custom`, `Custom (an Ironclad)` for a build with a preset's kit
+in it: `showcase::class_name`, from the content), leading the selector's ribbon; every weapon says **whose
+hands** it is for (`ItemSummary.hands`, the presets whose kits hold its model, `PLAYER_VERSION` 10,
+`HUB_VERSION` 14), one the build's hands are not for is drawn dim with the warning's rim and a drop of it on a
+hand says why; the **equipment** is a panel of its own beside the bag (`O`; `I` the bag; each shown or hidden
+alone; the body in the open between two columns of places, what is worn in words, Take off; a wearable thing
+dragged out of the bag opens it); **Wear** puts a second one-hander into the empty left hand; `held = "two"`
+(the staff, content v10) takes both hands and is ghosted in the left slot; the left hand counts for half and a
+two-hander for 1.5 under the one cap (ITEMS.md 3.1). Later the same evening, **the body places and the trinkets** (EQUIPMENT.md 10, step 4): twelve places
+(the two hands, the chest as `armour`, head, hands, legs, feet, back, shoulders, neck, two fingers), each
+counting for its share of its item's edge under the one cap (`Place::share`: the chest 8 of 20, the legs 5,
+the head 3, the hands 2, the rest 1; the left hand and the trinkets half; a two-hander 1.5), migration 0015,
+`PLACES` = 12 on the hub's wire (`HUB_VERSION` 15, `PLAYER_VERSION` 11), `Look.worn` an array of seven
+(protocol v20) drawn as one overlay a place with the union of their covers; `kind = "trinket"` (an amulet,
+a ring) built round a catalyst; the ranger set cut into one overlay a place (`scripts/dev/places-pipeline.sh`:
+hood, pauldrons, bracers, trousers, boots, the cuirass the jerkin alone); the bundle's cap counts the
+manifest, atlases and props, the avatars and overlays apart under `max_wear_bytes`. **2026-10-14** (step 6,
+EQUIPMENT.md 10): the cape, ours (a cloth plane the hero's Blender pass hangs from the shoulders, 192
+triangles, two-sided, a 64² swatch; `covers` nothing), and the sheathed weapon: `Look.sheathed` (protocol
+v21), set by the zone when an RPG body has neither fought nor swung for the fight lock's ten seconds and
+cleared the tick it does, drawn at `prop_back` with the sheath's grip (`gm_model::pose::prop_attach_back`:
+over the right shoulder, 32° from upright down the back); no view model while sheathed; `gm-tools content
+look KEY --back` and `gm-client --offline --prop KEY --sheathed` are its fitting rooms. The same day the four
+weapons of EQUIPMENT.md 5.6 (the axe, the spear, the bow, the wand with a focus in the left hand) became
+primaries a custom build may take (content v12; no preset's kit changes); arrows as a stack and the quiver
+are not done.
+
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
 set are **proposed** in `docs/MATRIX.md` 12 (implemented and measured; the director confirms or changes
@@ -1663,7 +1748,7 @@ director **decided** on 2026-10-03: finished CC0 models may be reused and the lo
 Tales of Pirates and Ether Saga, with Counter-Strike 1.6's standard (not its assets) for weapons; a GUI
 editor is wanted (Phase 16 since 2026-10-07); the browser's megabyte may be doubled or tripled (WEB.md 9: 2 MiB); drag and
 drop and keyboard shortcuts are both musts; top gear is tens of gold. As built and open to change: a
-weapon is always held (never sheathed), the two faces (Fira Sans Medium, MedievalSharp), party frames for
+weapon rests on the back out of a fight since 2026-10-14 (ten seconds, the fight lock's; LOOK.md 6.7), the two faces (Fira Sans Medium, MedievalSharp), party frames for
 members present in the zone only, the view model's place. (The marks on a body were decided on
 2026-10-03: names over heads instead of the cube, a ring instead of the plate, LOOK.md 13.)
 The three modes are **proposed** in `docs/MODES.md` 9 (2026-10-07: the presets' modes, hitscan or a bolt at 20,000 u/s, the head band, whether an RPG body's aim is the zone's, whether a mode change is a respec, the diminishing returns on controls); the stacks' caps and prices of MODES.md 11.6 were decided as proposed the same day.

@@ -92,6 +92,8 @@ impl AskBucket {
     }
 }
 
+// A gear reading is twelve names wide (EQUIPMENT.md 5), in `Worn`.
+#[allow(clippy::large_enum_variant)]
 pub enum ClientEvent {
     Join {
         name: String,
@@ -164,6 +166,8 @@ pub enum ClientEvent {
         id: EntityId,
         item: i64,
         on: bool,
+        /// Where it goes when the client said (`FromClient::WearIn`): a `PLACE_*`.
+        place: Option<u8>,
     },
     /// `tell`: the client is waiting for this answer. (An answer that came after the
     /// zone stopped waiting is still what the character wears, and is applied.)
@@ -803,13 +807,33 @@ async fn handle_connection(
                             break;
                         }
                     }
-                    Ok(Some(msg @ (FromClient::Wear { .. } | FromClient::TakeOff { .. }))) => {
+                    Ok(Some(
+                        msg @ (FromClient::Wear { .. }
+                        | FromClient::WearIn { .. }
+                        | FromClient::TakeOff { .. }),
+                    )) => {
                         if !asks.take(Instant::now()) {
                             continue;
                         }
                         let ev = match msg {
-                            FromClient::Wear { item } => ClientEvent::Wear { id, item, on: true },
-                            FromClient::TakeOff { item } => ClientEvent::Wear { id, item, on: false },
+                            FromClient::Wear { item } => ClientEvent::Wear {
+                                id,
+                                item,
+                                on: true,
+                                place: None,
+                            },
+                            FromClient::WearIn { item, place } => ClientEvent::Wear {
+                                id,
+                                item,
+                                on: true,
+                                place: Some(place),
+                            },
+                            FromClient::TakeOff { item } => ClientEvent::Wear {
+                                id,
+                                item,
+                                on: false,
+                                place: None,
+                            },
                             _ => unreachable!("matched above"),
                         };
                         if tx.send(ev).await.is_err() {

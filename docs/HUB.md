@@ -376,6 +376,34 @@ it does not know goes on to the next: one stream, one notice.
 
 ### 3.9 Possessions (ITEMS.md)
 
+- **Twelve places** (EQUIPMENT.md 5; `HUB_VERSION` 15, `PLAYER_VERSION` 11, protocol
+  v20, migration 0015, 2026-10-13): `worn.slot` takes the twelve names (`PLACE_NAMES`),
+  `GearReading.templates` and `CharacterSummary.worn` are twelve wide (`PLACES`), the
+  codes `PLACE_HEAD` to `PLACE_RING2` name the new places on the wire (`place_code`,
+  `place_index`), and the reading counts each place for its share (`Place::share`). A
+  ring goes onto the free finger first, as a one-hander into the free hand. A trinket is
+  crafted round one catalyst and no core (`check_parts`).
+
+- **Whose hands, and both hands** (EQUIPMENT.md 2 and 3; `HUB_VERSION` 14,
+  `PLAYER_VERSION` 10, 2026-10-13): `ItemSummary.hands`, the classes whose preset kits
+  hold a weapon's model (`Blade, Ironclad`; `no preset's`; empty for what is not a
+  weapon), true for everyone and whoever asks, beside `fits` (the asker's own hands);
+  `ItemSummary.both_hands` for a `held = "two"` weapon. `wear` puts a second one-hander
+  into the empty left hand (EQUIPMENT.md 4.4), takes the left hand's thing off under a
+  two-hander and a two-hander off under a left-hand thing (EQUIPMENT.md 3); the
+  reading counts the left hand for half and a two-hander for 1.5 (EQUIPMENT.md 5.5).
+
+- **What is worn, on the list** (`PLAYER_VERSION` 9, 2026-10-13): `CharacterSummary.worn:
+  [String; 3]`, the keys of the templates worn in the three places (empty for nothing),
+  read with the character's row (three scalar subqueries on `worn`), so the selector
+  draws a character as its zone does (CLIENT.md 4.2) instead of its preset's props.
+
+- **The off hand** (ITEMS.md 2; `HUB_VERSION` 13, `PLAYER_VERSION` 8, 2026-10-13): a
+  third place, `worn.slot = 'off'` (migration 0014), for a shield or a one-handed weapon
+  beside another. `ZoneEconOp::WearIn { character, item, place }` puts a thing into a
+  named place; `GearReading.templates` is three wide; `ItemSummary` says where a thing is
+  worn (`worn_in`) and whether it may go into the off hand (`off`).
+
 - **The item bar** (LOOK.md 3.2, ITEMS.md 4; `HUB_VERSION` 12, `PLAYER_VERSION` 7,
   2026-10-08): a small record a character, `bars (character_id, cell_1..cell_4 text)`,
   one row once the character has arranged it (migration 0013). `EconOp::Bar` reads it

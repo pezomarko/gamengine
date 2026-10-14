@@ -229,6 +229,8 @@ pub enum Key {
     People,
     /// And `K`: the character's page (MATRIX.md 9.1): the points and the kit.
     Character,
+    /// And `O`: the equipment (EQUIPMENT.md 4): what the body wears, beside the bag.
+    Equipment,
     /// And `G`: the game master's page (GM.md 4), for whom the zone granted it.
     Gm,
     /// And `F`: the kit (MODES.md 11.3), the one key of the game itself a script presses.
@@ -257,6 +259,7 @@ impl Key {
             "E" => Key::Use,
             "P" => Key::People,
             "K" => Key::Character,
+            "O" => Key::Equipment,
             "G" => Key::Gm,
             "F" => Key::Kit,
             _ => return None,
@@ -502,6 +505,8 @@ pub struct SlotThing {
     pub worn: bool,
     /// Drawn dim: it cannot be acted on now.
     pub off: bool,
+    /// Drawn with the warning's rim (EQUIPMENT.md 2): a weapon these hands are not for.
+    pub bad: bool,
     /// It cannot be dragged (a listing at another's stall is bought, not moved).
     pub fixed: bool,
     pub mark: Option<SlotMark>,
@@ -634,6 +639,16 @@ impl<'a, C: Canvas> Ui<'a, C> {
 
     pub fn size(&self) -> (f32, f32) {
         self.canvas.size()
+    }
+
+    /// A drag in progress (LOOK.md 2.4): the grid or slot it came from and the id of
+    /// what is dragged, once the press has moved far enough to be one.
+    pub fn dragging(&self) -> Option<(&str, i64)> {
+        self.state
+            .drag
+            .as_ref()
+            .filter(|d| d.live)
+            .map(|d| (d.grid.as_str(), d.id))
     }
 
     /// The height of a line of text, a button and a field at this scale.
@@ -1765,6 +1780,9 @@ impl<'a, C: Canvas> Ui<'a, C> {
                 );
             }
             self.canvas.layer(LAYER_INK);
+            if thing.bad {
+                self.outline(cell, WARN);
+            }
             let inner = cell.inset(2.0 * s);
             let tint = if thing.off {
                 [0.5, 0.5, 0.5, 1.0]
@@ -2095,14 +2113,11 @@ impl<'a, C: Canvas> Ui<'a, C> {
         }
     }
 
-    /// A rectangle a body is drawn into by the app (LOOK.md 5): a dark well now, the body
-    /// over it on layer 1; a drag across it turns the body.
-    pub fn paperdoll(&mut self, r: Rect) {
-        self.paperdoll_in(r, true);
-    }
-
-    /// The same body in the open: no well, drawn over what is behind the screen (the
-    /// map behind the selector, CLIENT.md 4.2).
+    /// A rectangle a body is drawn into by the app (LOOK.md 5), in the open: no well,
+    /// drawn over what is behind the screen (the map behind the selector, CLIENT.md
+    /// 4.2; the equipment's panel, EQUIPMENT.md 4); a drag across it turns the body.
+    /// (The dark well of Phase 14 is `paperdoll_in(r, true)`, which no screen draws
+    /// since the equipment window.)
     pub fn paperdoll_open(&mut self, r: Rect) {
         self.paperdoll_in(r, false);
     }
@@ -2390,32 +2405,51 @@ pub mod tests {
     pub fn tidy_in(canvas: &Recorder, state: &UiState, need: f32, whole: bool) {
         let scale = scale_for(canvas.size, need, 0);
         let (w, h) = canvas.size;
-        let panel = if whole {
-            Rect::new(0.0, 0.0, w, h)
+        // The panels: every plate drawn in the panel's colour (the inventory draws two
+        // side by side, EQUIPMENT.md 4); the first rect at least.
+        let panels: Vec<Rect> = if whole {
+            vec![Rect::new(0.0, 0.0, w, h)]
         } else {
-            canvas.rects.first().expect("a panel was drawn").0
+            let plates: Vec<Rect> = canvas
+                .rects
+                .iter()
+                .filter(|(_, c)| *c == PLATE)
+                .map(|(r, _)| *r)
+                .collect();
+            if plates.is_empty() {
+                vec![canvas.rects.first().expect("a panel was drawn").0]
+            } else {
+                plates
+            }
         };
-        assert!(
-            whole || panel.h <= PANEL_HIGH * scale + 0.5,
-            "{}: a panel of {} units is taller than the scale rule knows of",
-            state.screen,
-            panel.h / scale
-        );
-        assert!(
-            panel.x >= 0.0 && panel.y >= 0.0 && panel.x + panel.w <= w && panel.y + panel.h <= h,
-            "{}: the panel {panel:?} is not inside a frame of {w}x{h}",
-            state.screen
-        );
+        for panel in &panels {
+            assert!(
+                whole || panel.h <= PANEL_HIGH * scale + 0.5,
+                "{}: a panel of {} units is taller than the scale rule knows of",
+                state.screen,
+                panel.h / scale
+            );
+            assert!(
+                panel.x >= 0.0
+                    && panel.y >= 0.0
+                    && panel.x + panel.w <= w
+                    && panel.y + panel.h <= h,
+                "{}: the panel {panel:?} is not inside a frame of {w}x{h}",
+                state.screen
+            );
+        }
         let inside = |r: &Rect| {
-            r.x >= panel.x - 0.5
-                && r.y >= panel.y - 0.5
-                && r.x + r.w <= panel.x + panel.w + 0.5
-                && r.y + r.h <= panel.y + panel.h + 0.5
+            panels.iter().any(|panel| {
+                r.x >= panel.x - 0.5
+                    && r.y >= panel.y - 0.5
+                    && r.x + r.w <= panel.x + panel.w + 0.5
+                    && r.y + r.h <= panel.y + panel.h + 0.5
+            })
         };
         for seen in &state.seen {
             assert!(
                 inside(&seen.rect),
-                "{} at {w}x{h}: {:?} at {:?} is outside the panel {panel:?}",
+                "{} at {w}x{h}: {:?} at {:?} is outside the panels {panels:?}",
                 state.screen,
                 seen.text,
                 seen.rect
@@ -2570,7 +2604,7 @@ pub mod tests {
         let s = scale_for(canvas.size(), 100.0, 0);
         let show = |canvas: &mut Recorder, st: &mut UiState, input: &UiInput| {
             let mut ui = Ui::begin(canvas, st, input, "equip", 100.0);
-            ui.paperdoll(r);
+            ui.paperdoll_in(r, true);
             ui.end();
         };
         show(&mut canvas, &mut st, &input);

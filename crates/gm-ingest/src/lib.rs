@@ -22,7 +22,7 @@ pub mod write;
 use std::path::Path;
 
 use gm_core::vocab::ArchetypeFrame;
-use gm_model::format::{self, FLAG_CUTOUT, FLAG_TWO_SIDED, limits};
+use gm_model::format::{self, FLAG_CUTOUT, FLAG_OVERLAY, FLAG_TWO_SIDED, limits};
 use gm_model::{Model, ModelId, rig};
 use serde::{Deserialize, Serialize};
 
@@ -193,6 +193,124 @@ pub fn ingest(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Ingested>
             id,
             gmm,
             preview,
+            model,
+        }),
+    )
+}
+
+/// Validate an armour overlay (CONTENT.md 3.3 and 4) made for `frame` and re-encode it: a
+/// body's file on the standard rig in the T-pose, under an overlay's budgets (triangles,
+/// texture, bytes), with no envelope (it covers part of a body, not all of one) and no
+/// preview. The report's `frame` is the frame's name with `overlay` after it.
+pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Ingested>) {
+    let mut report = Report {
+        frame: format!("{} overlay", rig::frame_name(frame)),
+        ..Default::default()
+    };
+    if upload.len() > MAX_UPLOAD_BYTES {
+        report.violations.push(format!(
+            "the upload is {} bytes; the limit is {MAX_UPLOAD_BYTES}",
+            upload.len()
+        ));
+        return (report, None);
+    }
+    let src = match source::read(upload) {
+        Ok(s) => s,
+        Err(violations) => {
+            report.violations = violations;
+            return (report, None);
+        }
+    };
+    report.notes = src.notes.clone();
+    let facts = &mut report.facts;
+    facts.triangles = src.mesh.triangles() as u32;
+    facts.vertices = src.mesh.positions.len() as u32;
+    facts.source_joints = src.source_joints as u32;
+    facts.bones = src.mesh.bone_mask.count_ones();
+    facts.source_texture = [src.texture.width(), src.texture.height()];
+    facts.cutout = src.cutout.is_some();
+    facts.two_sided = src.two_sided;
+    let v = &mut report.violations;
+    if src.mesh.triangles() > limits::OVERLAY_MAX_TRIANGLES {
+        v.push(format!(
+            "{} triangles; an overlay's budget is {}",
+            src.mesh.triangles(),
+            limits::OVERLAY_MAX_TRIANGLES
+        ));
+    }
+    envelope::check_pose(&src.mesh.pivots, src.mesh.bone_mask, frame, v);
+    if src.mesh.triangles() > limits::OVERLAY_MAX_TRIANGLES || src.mesh.triangles() == 0 {
+        return (report, None);
+    }
+    let atlas = texture::build_capped(
+        &src.texture,
+        src.base_color,
+        src.cutout,
+        limits::OVERLAY_MAX_TEXTURE,
+    );
+    let (scale, vertices) = format::quantize_vertices(
+        &src.mesh.positions,
+        &src.mesh.normals,
+        &src.mesh.uvs,
+        &src.mesh.joints,
+        &src.mesh.weights,
+    );
+    let model = Model {
+        flags: FLAG_OVERLAY
+            | if src.cutout.is_some() { FLAG_CUTOUT } else { 0 }
+            | if src.two_sided { FLAG_TWO_SIDED } else { 0 },
+        frame: rig::frame_index(frame),
+        scale,
+        average: atlas.average,
+        bone_mask: src.mesh.bone_mask,
+        pivots: src.mesh.pivots.map(|p| p.to_array()),
+        vertices,
+        indices: src.mesh.indices.iter().map(|i| *i as u16).collect(),
+        tex_w: atlas.w,
+        tex_h: atlas.h,
+        texture: atlas.bc1,
+    };
+    report.facts.texture = [atlas.w as u32, atlas.h as u32];
+    let gmm = match model.encode() {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            report
+                .violations
+                .push(format!("the overlay cannot be stored: {e}"));
+            return (report, None);
+        }
+    };
+    if gmm.len() > limits::OVERLAY_MAX_FILE_BYTES {
+        report.violations.push(format!(
+            "the overlay is {} bytes; the limit is {}",
+            gmm.len(),
+            limits::OVERLAY_MAX_FILE_BYTES
+        ));
+        return (report, None);
+    }
+    report.facts.bytes = gmm.len() as u32;
+    let top = (0..model.vertices.len())
+        .map(|i| model.position(i).z)
+        .fold(0.0f32, f32::max);
+    report.facts.top = top;
+    let model = match Model::decode(&gmm) {
+        Ok(m) => m,
+        Err(e) => {
+            report
+                .violations
+                .push(format!("the overlay does not read back: {e}"));
+            return (report, None);
+        }
+    };
+    let id = format::model_id(&gmm);
+    report.ok = true;
+    report.id = format::id_hex(&id);
+    (
+        report,
+        Some(Ingested {
+            id,
+            gmm,
+            preview: Vec::new(),
             model,
         }),
     )

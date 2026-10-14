@@ -23,6 +23,12 @@ pub enum Behaviour {
     /// Use the whole kit: melee kits close in and guard, ranged kits kite, actives fire when
     /// their shape says so. The arena acceptance test runs this on both sides.
     Duelist,
+    /// The duelist that keeps its distance with whatever it can throw: a kit with a bolt in
+    /// either hand kites at three quarters of the bolt's range (the knife's 225 u) where the
+    /// duelist would close in with its dagger. The anti-cheat gate runs its programs on
+    /// this: a shot is judged at range, where a lock shows, not at a dagger's (ANTICHEAT.md
+    /// 10).
+    Skirmisher,
     /// A town: walk a while, stand a while, stay near where one arrived, never fight.
     Stroll,
     /// A dungeon: lead a squad through the creature posts of the map (`raid::Raid` thinks
@@ -34,6 +40,23 @@ pub enum Behaviour {
     /// `SPAR_LEASH` from home (back it walks, then it stands again). Strollers, who never
     /// swing, are left alone whatever their team.
     Spar,
+}
+
+impl Behaviour {
+    /// The name on the command line (`gm-bot --behaviour`).
+    pub fn parse(s: &str) -> Option<Behaviour> {
+        Some(match s {
+            "wander" => Behaviour::Wander,
+            "hunter" => Behaviour::Hunter,
+            "hold" => Behaviour::Hold,
+            "duelist" => Behaviour::Duelist,
+            "skirmisher" => Behaviour::Skirmisher,
+            "stroll" => Behaviour::Stroll,
+            "raid" => Behaviour::Raid,
+            "spar" => Behaviour::Spar,
+            _ => return None,
+        })
+    }
 }
 
 /// How near an enemy must be for its windup to wake a sparring partner.
@@ -123,6 +146,17 @@ fn swing_of(kit: &Kit) -> Option<(&MeleeArc, u16)> {
             _ => None,
         },
     )
+}
+
+/// How far the bolt of kit slot `slot` flies, in units: its speed over its lifetime.
+fn bolt_range(kit: &Kit, slot: u8, hz: u32) -> Option<f32> {
+    kit.abilities[slot as usize]
+        .steps
+        .iter()
+        .find_map(|s| match &s.verb {
+            Verb::Projectile(p) => Some(p.speed * p.lifetime as f32 / hz.max(1) as f32),
+            _ => None,
+        })
 }
 
 /// The harmful shot among the two weapon slots: its kit slot and button.
@@ -341,16 +375,21 @@ impl Brain {
                     }
                 }
             }
-            Behaviour::Duelist | Behaviour::Spar => {
+            Behaviour::Duelist | Behaviour::Spar | Behaviour::Skirmisher => {
                 let spar = self.behaviour == Behaviour::Spar;
                 // Ranged is the weapon's, not the frame's (MATRIX.md 10): a caster with a
-                // staff closes in, a striker with a crossbow or a musket keeps away.
-                let ranged = v.kit.primary.is_some_and(|i| {
-                    matches!(
-                        v.kit.abilities[i as usize].steps.first().map(|s| &s.verb),
-                        Some(Verb::Projectile(_))
-                    )
-                });
+                // staff closes in, a striker with a crossbow or a musket keeps away. A
+                // skirmisher is ranged by whatever it can throw, at that bolt's range.
+                let thrown = (self.behaviour == Behaviour::Skirmisher)
+                    .then(|| shot.and_then(|(si, _)| bolt_range(v.kit, si, self.hz)))
+                    .flatten();
+                let ranged = thrown.is_some()
+                    || v.kit.primary.is_some_and(|i| {
+                        matches!(
+                            v.kit.abilities[i as usize].steps.first().map(|s| &s.verb),
+                            Some(Verb::Projectile(_))
+                        )
+                    });
                 let home = if spar && v.alive {
                     Some(*self.home.get_or_insert(me))
                 } else {
@@ -399,7 +438,11 @@ impl Brain {
                     self.strafe = if self.rng.next_f32() < 0.5 { 1.0 } else { -1.0 };
                     self.next_strafe = tick + 40 + self.rng.below(60);
                 }
-                let want = if ranged { 320.0 } else { reach * 0.7 };
+                let want = match thrown {
+                    Some(range) => (range * 0.75).min(320.0),
+                    None if ranged => 320.0,
+                    None => reach * 0.7,
+                };
                 if d > want + 20.0 {
                     forward = 1.0;
                 } else if ranged && d < want - 80.0 {

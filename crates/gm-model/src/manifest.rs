@@ -7,7 +7,7 @@
 use bitcode::{Decode, Encode};
 
 /// The format's own version: a client refuses a manifest of another.
-pub const MANIFEST_VERSION: u32 = 2;
+pub const MANIFEST_VERSION: u32 = 4;
 /// The most entries any list may have: a bound before anything is allocated.
 pub const MAX_ENTRIES: usize = 4096;
 
@@ -22,6 +22,10 @@ pub struct Manifest {
     pub creatures: Vec<CreatureEntry>,
     pub builds: Vec<BuildEntry>,
     pub props: Vec<PropEntry>,
+    /// The official avatars (CONTENT.md 3.2), one per frame and armour class at most.
+    pub avatars: Vec<AvatarEntry>,
+    /// The armour overlays (CONTENT.md 3.3): a template's model per frame it was made for.
+    pub overlays: Vec<OverlayEntry>,
     /// Icon keys of the statuses, by status name (`burn`, `chill`, ...).
     pub statuses: Vec<IconEntry>,
     /// Portraits by `<frame>_<armour>` (`striker_mail`).
@@ -39,10 +43,14 @@ pub struct AtlasEntry {
     pub bytes: u32,
 }
 
-/// Which hand (CONTENT.md 3): `right`, `left`, `back`.
+/// Which hand (CONTENT.md 3): `right`, `left`, `back`, `either` (the right, or the left
+/// beside another).
 pub const HELD_RIGHT: u8 = 0;
 pub const HELD_LEFT: u8 = 1;
 pub const HELD_BACK: u8 = 2;
+pub const HELD_EITHER: u8 = 3;
+/// Both hands (EQUIPMENT.md 3): worn, it takes the left hand too.
+pub const HELD_TWO: u8 = 4;
 
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct TemplateEntry {
@@ -56,7 +64,25 @@ pub struct TemplateEntry {
     pub held: u8,
     /// Where the view model sits (LOOK.md 6.4): move (metres), turn (degrees), scale.
     pub fit_view: Option<[f32; 7]>,
+    /// An armour: the standard bones whose part of the body its overlay covers
+    /// (CONTENT.md 3.3), a bit per bone; the body hides those under it.
+    pub covers: u32,
     pub retired: bool,
+}
+
+/// An armour overlay (CONTENT.md 3.3): a skinned piece on the standard rig, made for one
+/// frame, drawn over a body of that frame with the body's pose when the armour is worn.
+#[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
+pub struct OverlayEntry {
+    /// The template's model key (`models/armour/<key>_<frame>.glb` in the sources).
+    pub key: String,
+    /// `rig::frame_index`.
+    pub frame: u8,
+    /// The file under the bundle: `armour/<key>_<frame>.gmm`.
+    pub file: String,
+    pub sha256: [u8; 32],
+    pub bytes: u32,
+    pub triangles: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
@@ -98,6 +124,23 @@ pub struct PropEntry {
     pub triangles: u32,
 }
 
+/// An official avatar: the look of a frame in an armour class, worn by every character of
+/// that frame and class without a model of its own (MODELS.md 1, CONTENT.md 3.2).
+#[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
+pub struct AvatarEntry {
+    /// `rig::frame_index`.
+    pub frame: u8,
+    /// `ArmourClass as u8`.
+    pub armour: u8,
+    /// The model's key (`models/avatars/<key>.glb` in the sources).
+    pub key: String,
+    /// The file under the bundle: `avatars/<frame>_<armour>.gmm`.
+    pub file: String,
+    pub sha256: [u8; 32],
+    pub bytes: u32,
+    pub triangles: u32,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct IconEntry {
     pub key: String,
@@ -131,6 +174,8 @@ impl Manifest {
             m.creatures.len(),
             m.builds.len(),
             m.props.len(),
+            m.avatars.len(),
+            m.overlays.len(),
             m.statuses.len(),
             m.portraits.len(),
             m.atlases.len(),
@@ -169,6 +214,20 @@ impl Manifest {
         self.props.iter().find(|p| p.key == key)
     }
 
+    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index).
+    pub fn avatar(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
+        self.avatars
+            .iter()
+            .find(|a| a.frame == frame && a.armour == armour)
+    }
+
+    /// The overlay of an armour's model for a frame (`rig::frame_index`).
+    pub fn overlay(&self, key: &str, frame: u8) -> Option<&OverlayEntry> {
+        self.overlays
+            .iter()
+            .find(|o| o.key == key && o.frame == frame)
+    }
+
     pub fn creature(&self, key: &str) -> Option<&CreatureEntry> {
         self.creatures.iter().find(|c| c.key == key)
     }
@@ -204,7 +263,16 @@ mod tests {
                 icon: Some("sword".into()),
                 held: HELD_RIGHT,
                 fit_view: None,
+                covers: 0,
                 retired: false,
+            }],
+            overlays: vec![OverlayEntry {
+                key: "cuirass".into(),
+                frame: 1,
+                file: "armour/cuirass_striker.gmm".into(),
+                sha256: [3; 32],
+                bytes: 90_000,
+                triangles: 1200,
             }],
             props: vec![PropEntry {
                 key: "sword_iron".into(),
@@ -212,6 +280,15 @@ mod tests {
                 sha256: [7; 32],
                 bytes: 1234,
                 triangles: 48,
+            }],
+            avatars: vec![AvatarEntry {
+                frame: 1,
+                armour: 2,
+                key: "striker_mail".into(),
+                file: "avatars/striker_mail.gmm".into(),
+                sha256: [9; 32],
+                bytes: 415_970,
+                triangles: 2946,
             }],
             ..Default::default()
         };
@@ -222,6 +299,16 @@ mod tests {
             Some("sword_iron")
         );
         assert!(m.template("axe").is_none());
+        assert_eq!(
+            m.avatar(1, 2).map(|a| a.file.as_str()),
+            Some("avatars/striker_mail.gmm")
+        );
+        assert!(m.avatar(1, 3).is_none());
+        assert_eq!(
+            m.overlay("cuirass", 1).map(|o| o.file.as_str()),
+            Some("armour/cuirass_striker.gmm")
+        );
+        assert!(m.overlay("cuirass", 0).is_none() && m.overlay("robe", 1).is_none());
         let old = Manifest {
             format: 0,
             ..m.clone()

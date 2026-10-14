@@ -42,10 +42,20 @@ pub fn run(opts: &Options) -> Result<(), Error> {
     let (w, h) = (opts.width.max(1), opts.height.max(1));
     let mut renderer = Renderer::new(&gpu, FORMAT, &mesh, (w, h));
     let mut avatars = Avatars::new(&gpu, &mut renderer.characters, opts, &bsp, None)?;
+    let mut content = crate::content::Content::load(&crate::install_root().join(&opts.assets));
+    // The official avatars of the bundle (CONTENT.md 3.2), worn as the windowed client
+    // wears them: a frame's look in an armour class before its mannequin.
+    for frame in 0..4u8 {
+        for armour in 0..4u8 {
+            let slot = content.avatar(frame, armour, |model| {
+                Some(renderer.characters.add_model(&gpu, model))
+            });
+            avatars.set_official(frame, armour, slot);
+        }
+    }
     // `--prop KEY` and `--off KEY` (CONTENT.md 9): the crowd armed from the bundle, as the
     // windowed client arms it, so a screenshot shows a prop in each hand.
     if opts.prop.is_some() || opts.off.is_some() {
-        let mut content = crate::content::Content::load(&crate::install_root().join(&opts.assets));
         let mut slot_of = |key: &Option<String>| {
             let key = key.as_ref()?;
             let slot = content.prop(key, |model| {
@@ -59,6 +69,21 @@ pub fn run(opts: &Options) -> Result<(), Error> {
         avatars.crowd_prop = slot_of(&opts.prop);
         avatars.crowd_off = slot_of(&opts.off);
     }
+    // `--worn KEY[,KEY...]`: the crowd's strikers wear the overlays (LOOK.md 6.6,
+    // EQUIPMENT.md 5.2).
+    if let Some(keys) = &opts.worn {
+        for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+            let slot = content.overlay(key, 1, |model| {
+                Some(renderer.characters.add_model(&gpu, model))
+            });
+            match slot {
+                Some(s) => avatars.crowd_worn.push((s, content.covers(key))),
+                None => log::warn!("--worn {key}: the bundle has no such overlay for the striker"),
+            }
+        }
+    }
+    // `--sheathed`: the crowd's props on their backs (LOOK.md 6.7).
+    avatars.crowd_sheathed = opts.sheathed;
     let target = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("offscreen"),
         size: wgpu::Extent3d {

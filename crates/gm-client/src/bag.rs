@@ -16,8 +16,9 @@
 
 use gm_hub_proto::player::{PlayerEcon, PlayerEconReply, PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{
-    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_NONE, PLACE_WEAPON,
-    SessionId,
+    CharacterId, HubError, ItemSummary, ListingSummary, PLACE_ARMOUR, PLACE_BACK, PLACE_FEET,
+    PLACE_HANDS, PLACE_HEAD, PLACE_LEGS, PLACE_NAMES, PLACE_NECK, PLACE_NONE, PLACE_OFF,
+    PLACE_RING, PLACE_RING2, PLACE_SHOULDERS, PLACE_WEAPON, SessionId, place_index,
 };
 use web_time::{Duration, Instant};
 
@@ -54,6 +55,11 @@ impl ItemLooks<'_> {
             icon: self.icon(item),
             worn: item.worn,
             mark: item.worn.then_some(SlotMark::Worn),
+            // A weapon this build's hands are not for looks it (EQUIPMENT.md 2): dim,
+            // with the warning's rim. It is still picked, dragged (to store, to sell)
+            // and read.
+            off: !item.fits,
+            bad: !item.fits,
             ..Default::default()
         }
     }
@@ -68,6 +74,10 @@ pub(crate) fn tooltip_lines(
     let mut lines = vec![(name(item), ui::FOCUS), (item.what.clone(), ui::TEXT)];
     for d in &item.does {
         lines.push((d.clone(), ui::TEXT));
+    }
+    // Whose hands a weapon is for (EQUIPMENT.md 2): the hub's words, true for everyone.
+    if !item.hands.is_empty() {
+        lines.push((format!("hands: {}", item.hands), ui::FOCUS));
     }
     if let (true, Some(worn)) = (item.place != PLACE_NONE && !item.worn, worn) {
         let now = worn
@@ -102,6 +112,21 @@ const PATIENCE: Duration = Duration::from_secs(12);
 /// What a row has room for of a price: the units that do not fit are in the line under
 /// the list, and the row says that there are more.
 const PRICE_CHARS: usize = 14;
+/// The two panels of the inventory, in units (EQUIPMENT.md 4): the bag, and the
+/// equipment with the body between two columns of places, `EQUIP_ROWS` slots tall.
+pub const BAG_UNITS: f32 = 300.0;
+pub const EQUIP_UNITS: f32 = 300.0;
+const EQUIP_ROWS: f32 = 6.0;
+
+/// Who wears it (EQUIPMENT.md 4.1): the name over the body, the class line under it
+/// (`showcase::short_ribbon`) and the class alone for a panel the line does not fit,
+/// from the character being played; empty where nothing is known.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Wearer<'a> {
+    pub name: &'a str,
+    pub ribbon: &'a str,
+    pub class: &'a str,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
@@ -137,6 +162,11 @@ pub enum BagAction {
     /// Put this item of the inventory on, or take it off (ITEMS.md 2).
     Wear {
         item: i64,
+    },
+    /// Put it on in a named place (`PLACE_*`): a sword into the left hand.
+    WearIn {
+        item: i64,
+        place: u8,
     },
     TakeOff {
         item: i64,
@@ -216,6 +246,10 @@ impl Asked {
 
 pub struct Bag {
     pub page: Page,
+    /// The inventory's two panels (EQUIPMENT.md 4): the bag's grid and the equipment,
+    /// each shown or hidden on its own; neither shown, the screen closes.
+    pub show_grid: bool,
+    pub show_equip: bool,
     session: SessionId,
     character: CharacterId,
     /// `None` until the hub has said.
@@ -346,6 +380,11 @@ pub(crate) fn name(item: &ItemSummary) -> String {
 }
 
 /// The row's word for it: the strongest thing it does, or what it is.
+/// A place's name, as the equipment's slots and the UI scripts call it (EQUIPMENT.md 4).
+fn place_name(code: u8) -> &'static str {
+    place_index(code).map_or("", |i| PLACE_NAMES[i])
+}
+
 pub(crate) fn headline(item: &ItemSummary) -> &str {
     item.does.first().unwrap_or(&item.what)
 }
@@ -367,6 +406,8 @@ impl Bag {
     fn new(page: Page, session: SessionId, character: CharacterId, now: Instant) -> Bag {
         Bag {
             page,
+            show_grid: true,
+            show_equip: false,
             session,
             character,
             coin: None,
@@ -396,7 +437,7 @@ impl Bag {
         self.bar.as_deref()
     }
 
-    /// The inventory of the character being played.
+    /// The inventory of the character being played: the bag alone.
     pub fn inventory(
         hub: &dyn HubApi,
         session: SessionId,
@@ -407,6 +448,42 @@ impl Bag {
         bag.read(hub, List::Inventory);
         bag.ask(hub, Ask::Bar, PlayerEcon::Bar);
         bag
+    }
+
+    /// The equipment of the character being played, alone (EQUIPMENT.md 4): the same
+    /// screen with the bag's grid hidden.
+    pub fn equipment(
+        hub: &dyn HubApi,
+        session: SessionId,
+        character: CharacterId,
+        now: Instant,
+    ) -> Bag {
+        let mut bag = Bag::inventory(hub, session, character, now);
+        bag.show_grid = false;
+        bag.show_equip = true;
+        bag
+    }
+
+    /// The name a UI script waits for (CLIENT.md 9): the page's, or `equipment` for the
+    /// inventory with the bag's grid hidden.
+    pub fn name(&self) -> &'static str {
+        match self.page {
+            Page::Inventory if !self.show_grid => "equipment",
+            page => page.name(),
+        }
+    }
+
+    /// `I` while the inventory is up: the bag's grid shown or hidden. `false`: nothing
+    /// is shown any more, and the screen should close.
+    pub fn toggle_grid(&mut self) -> bool {
+        self.show_grid = !self.show_grid;
+        self.show_grid || self.show_equip
+    }
+
+    /// `O` while the inventory is up: the equipment shown or hidden; as `toggle_grid`.
+    pub fn toggle_equip(&mut self) -> bool {
+        self.show_equip = !self.show_equip;
+        self.show_grid || self.show_equip
     }
 
     /// The stall the body stands at.
@@ -682,10 +759,17 @@ impl Bag {
         keeps_stall: bool,
         now: Instant,
     ) -> BagAction {
-        self.frame_with(ui, hub, keeps_stall, now, ItemLooks::default())
+        self.frame_with(
+            ui,
+            hub,
+            keeps_stall,
+            now,
+            ItemLooks::default(),
+            Wearer::default(),
+        )
     }
 
-    /// The same, with the bundle's pictures.
+    /// The same, with the bundle's pictures and who wears it.
     pub fn frame_with<C: Canvas>(
         &mut self,
         ui: &mut Ui<'_, C>,
@@ -693,6 +777,7 @@ impl Bag {
         keeps_stall: bool,
         now: Instant,
         looks: ItemLooks<'_>,
+        wearer: Wearer<'_>,
     ) -> BagAction {
         self.now = now;
         // The zone takes one request of a kind in a second and may drop what comes
@@ -704,7 +789,7 @@ impl Bag {
             self.say("the zone did not answer: try again", true);
         }
         let action = match self.page {
-            Page::Inventory => self.inventory_page(ui, hub, keeps_stall, looks),
+            Page::Inventory => self.inventory_page(ui, hub, keeps_stall, looks, wearer),
             Page::Storage => self.storage_page(ui, hub, looks),
             Page::Price => self.price_page(ui, hub),
             Page::Stall => self.stall_page(ui, hub, looks),
@@ -803,16 +888,20 @@ impl Bag {
         }
     }
 
-    /// The inventory (LOOK.md 4): the 24 slots as a grid, the equip panel beside it (a
-    /// paperdoll with the weapon and armour slots), the picked thing in full under them,
-    /// and the buttons. A drag onto a slot wears; a drag of a worn thing into the grid
-    /// takes it off; the buttons do the same (ITEMS.md 6 and LOOK.md 1.3).
+    /// The inventory (LOOK.md 4, EQUIPMENT.md 4): two panels side by side, each shown or
+    /// hidden on its own. The **equipment**: the body in the open with its places at its
+    /// sides, what is worn in words, **Take off**, **Bag**, **Close**. The **bag**: the
+    /// purse, the 24 slots as a grid, the item bar, the picked thing in full, and the
+    /// buttons. A drag from the bag onto a place wears; a worn thing dragged into the
+    /// grid comes off; the buttons do the same (ITEMS.md 6 and LOOK.md 1.3). A wearable
+    /// thing dragged out of the bag while the equipment is hidden opens it beside the bag.
     fn inventory_page<C: Canvas>(
         &mut self,
         ui: &mut Ui<'_, C>,
         hub: &dyn HubApi,
         keeps_stall: bool,
         looks: ItemLooks<'_>,
+        wearer: Wearer<'_>,
     ) -> BagAction {
         let s = ui.scale;
         let gap = 5.0 * s;
@@ -822,18 +911,7 @@ impl Bag {
         let cols = 6usize;
         let grid_h = 4.0 * side + 3.0 * 2.0 * s;
         let bar_h = side + line;
-        let inner =
-            line + gap + grid_h + gap + bar_h + gap + 3.0 * line + gap + 2.0 * line + gap + h;
-        let panel = Rect::centred(ui.size(), PANEL_UNITS * s, ui.panel_height(inner, true));
-        let inner = ui.panel(panel, "inventory");
-        let mut col = Column::new(inner, gap);
-        Self::purse(ui, col.take(line), "coin", self.coin);
         let items: Vec<ItemSummary> = self.items.clone().unwrap_or_default();
-        let things: Vec<SlotThing> = items.iter().map(|i| looks.thing(i)).collect();
-        let area = col.take(grid_h);
-        let grid_w = cols as f32 * side + (cols - 1) as f32 * 2.0 * s;
-        let grid = Rect::new(area.x, area.y, grid_w, area.h);
-        let mut sel = items.get(self.picked).map(|i| i.id);
         let worn_list = self.items.clone();
         let tip = |t: &SlotThing| {
             items
@@ -842,209 +920,420 @@ impl Bag {
                 .map(|i| tooltip_lines(i, worn_list.as_deref()))
                 .unwrap_or_default()
         };
-        ui.grid(
-            grid,
-            "items",
-            cols,
-            INVENTORY_SLOTS,
-            &things,
-            &mut sel,
-            0.0,
-            &tip,
-        );
-        // (An empty or unknown list leaves the pick as it was: the first thing is picked
-        // when the list arrives, as a list's first row was.)
-        if !items.is_empty() {
-            self.picked = sel
-                .and_then(|id| items.iter().position(|i| i.id == id))
-                .unwrap_or(NONE);
+        // A wearable thing on its way out of the bag opens the equipment (EQUIPMENT.md
+        // 4.1): whoever never pressed its key finds the places by picking a sword up.
+        if !self.show_equip
+            && let Some(("items", id)) = ui.dragging()
+            && items
+                .iter()
+                .any(|i| i.id == id && i.place != PLACE_NONE && !i.worn)
+        {
+            self.show_equip = true;
         }
-        // The equip panel: the paperdoll between the two places (LOOK.md 4).
-        let ex = grid.x + grid_w + gap;
-        let ew = (area.x + area.w - ex).max(0.0);
-        let slot_w = side;
-        let doll = Rect::new(ex, area.y, (ew - slot_w - gap).max(0.0), area.h);
-        if doll.w >= 20.0 * s {
-            ui.paperdoll(doll);
+        if !self.show_grid && !self.show_equip {
+            return BagAction::Close;
         }
-        let weapon = items.iter().find(|i| i.worn && i.place == PLACE_WEAPON);
-        let armour = items.iter().find(|i| i.worn && i.place == PLACE_ARMOUR);
-        let sx = area.x + area.w - slot_w;
-        let weapon_slot = Rect::new(sx, area.y, slot_w, side);
-        let armour_slot = Rect::new(sx, area.y + side + gap, slot_w, side);
-        let wt = weapon.map(|i| looks.thing(i));
-        let at = armour.map(|i| looks.thing(i));
-        let dropped_on_weapon = ui.drop_slot(weapon_slot, "weapon", wt.as_ref(), &tip);
-        let dropped_on_armour = ui.drop_slot(armour_slot, "armour", at.as_ref(), &tip);
-        let dropped_in_grid = ui.dropped("items");
-        // The item bar (LOOK.md 3.2, ITEMS.md 4): its four cells as slots under the grid,
-        // each with the stack set on it (dim with none carried) and its key beneath; a
-        // stack dragged from the grid onto one sets it, a cell dragged into the grid
-        // empties it, a cell dragged onto another swaps them.
-        let bar_area = col.take(bar_h);
-        let mut cells: Vec<Option<String>> = self.bar.clone().unwrap_or_default();
-        cells.resize(gm_core::sim::BAR_CELLS, None);
-        ui.small(
-            bar_area.x + 14.0 * s,
-            bar_area.y + 2.0 * s,
-            ui::FAINT,
-            "bar",
-        );
-        let mut dropped_on_bar: Vec<Option<(String, i64)>> = Vec::new();
-        let bar_things: Vec<Option<SlotThing>> = cells
+        // Where the two panels stand: side by side in the middle of the frame, or the
+        // one shown alone there.
+        let (fw, fh) = ui.size();
+        let bag_w = BAG_UNITS * s;
+        let equip_w = EQUIP_UNITS * s;
+        let between = 10.0 * s;
+        let bag_inner =
+            line + gap + grid_h + gap + bar_h + gap + 3.0 * line + gap + 2.0 * line + gap + h;
+        let bag_h = ui.panel_height(bag_inner, true);
+        // The equipment's rows sit closer than the bag's, and its slots two dots apart
+        // like a grid's cells: six of them with the ribbon, the words, the notice and
+        // the buttons fit under `PANEL_HIGH` that way.
+        let egap = 3.0 * s;
+        let slot_gap = 2.0 * s;
+        let body_h = EQUIP_ROWS * side + (EQUIP_ROWS - 1.0) * slot_gap;
+        let mut equip_inner = line + egap + body_h + egap + 3.0 * line + egap + h;
+        if !self.show_grid {
+            equip_inner += 2.0 * line + egap;
+        }
+        let equip_h = ui.panel_height(equip_inner, true);
+        let total = match (self.show_equip, self.show_grid) {
+            (true, true) => equip_w + between + bag_w,
+            (true, false) => equip_w,
+            _ => bag_w,
+        };
+        let x0 = ((fw - total) * 0.5).round();
+        let equip_rect = Rect::new(x0, ((fh - equip_h) * 0.5).round(), equip_w, equip_h);
+        let bag_x = if self.show_equip {
+            x0 + equip_w + between
+        } else {
+            x0
+        };
+        let bag_rect = Rect::new(bag_x, ((fh - bag_h) * 0.5).round(), bag_w, bag_h);
+        let may_change = self.ready() && self.wearing.free(self.now);
+        let picked = items.get(self.picked).cloned();
+        let worn = picked.as_ref().is_some_and(|i| i.worn);
+
+        // The equipment (EQUIPMENT.md 4.1 and 5): the body's places down the left in
+        // the order of the body (head, chest, back, hands, legs, feet), the hands and the
+        // trinkets down the right (right hand, left hand, shoulders, neck, two rings).
+        // The body stands between them in the open, turned by a drag.
+        const LEFT: [u8; 6] = [
+            PLACE_HEAD,
+            PLACE_ARMOUR,
+            PLACE_BACK,
+            PLACE_HANDS,
+            PLACE_LEGS,
+            PLACE_FEET,
+        ];
+        const RIGHT: [u8; 6] = [
+            PLACE_WEAPON,
+            PLACE_OFF,
+            PLACE_SHOULDERS,
+            PLACE_NECK,
+            PLACE_RING,
+            PLACE_RING2,
+        ];
+        let worn_in = |code: u8| items.iter().find(|i| i.worn && i.worn_in == code);
+        let mut dropped_on: Vec<(u8, Option<(String, i64)>)> = Vec::new();
+        let (mut take_off, mut want_bag, mut close_equip) = (false, false, false);
+        let weapon = worn_in(PLACE_WEAPON);
+        if self.show_equip {
+            let title = if wearer.name.is_empty() {
+                "equipment"
+            } else {
+                wearer.name
+            };
+            let inner = ui.panel(equip_rect, title);
+            let mut col = Column::new(inner, egap);
+            // The class line, or the class alone where the line does not fit.
+            let r = col.take(line);
+            let said = if ui.text_width(wearer.ribbon) <= r.w {
+                wearer.ribbon
+            } else {
+                wearer.class
+            };
+            ui.label(r.x, r.y, r.w, ui::FAINT, said);
+            let area = col.take(body_h);
+            let well = Rect::new(
+                area.x + side + egap,
+                area.y,
+                (area.w - 2.0 * (side + egap)).max(0.0),
+                area.h,
+            );
+            if well.w >= 20.0 * s {
+                ui.paperdoll_open(well);
+            }
+            let at = |column: f32, row: usize| {
+                Rect::new(column, area.y + row as f32 * (side + slot_gap), side, side)
+            };
+            // Under a two-hander the left hand shows it ghosted (EQUIPMENT.md 3): dim,
+            // with `both hands` beneath. Dragged into the grid it comes off like any
+            // worn thing, and a thing dropped there takes it off at the hub.
+            let two = weapon.is_some_and(|i| i.both_hands);
+            let right = area.x + area.w - side;
+            for (x, codes) in [(area.x, LEFT), (right, RIGHT)] {
+                for (row, code) in codes.into_iter().enumerate() {
+                    let r = at(x, row);
+                    let ghost = code == PLACE_OFF && two && worn_in(PLACE_OFF).is_none();
+                    let thing = match (worn_in(code), ghost) {
+                        (Some(i), _) => Some(looks.thing(i)),
+                        (None, true) => weapon.map(|i| {
+                            let mut t = looks.thing(i);
+                            t.off = true;
+                            t.mark = None;
+                            t
+                        }),
+                        (None, false) => None,
+                    };
+                    dropped_on.push((
+                        code,
+                        ui.drop_slot(r, place_name(code), thing.as_ref(), &tip),
+                    ));
+                    if ghost {
+                        ui.small(r.x + r.w, r.y + r.h + 2.0 * s, ui::FAINT, "both hands");
+                    }
+                }
+            }
+            // What is worn, in the hub's words (ITEMS.md 6): the hands a line each, the
+            // rest of the body and the trinkets by name on the third.
+            let said = col.take(3.0 * line);
+            let words = |i: Option<&ItemSummary>| match i {
+                Some(i) => format!("{}  {}", name(i), headline(i)),
+                None => "nothing".to_string(),
+            };
+            let rest: Vec<String> = LEFT
+                .iter()
+                .chain(RIGHT[2..].iter())
+                .filter_map(|code| worn_in(*code))
+                .map(name)
+                .collect();
+            let rest = if rest.is_empty() {
+                "nothing".to_string()
+            } else {
+                rest.join(", ")
+            };
+            for (row, text) in [
+                format!("right hand: {}", words(weapon)),
+                format!("left hand: {}", words(worn_in(PLACE_OFF))),
+                format!("body: {rest}"),
+            ]
             .iter()
             .enumerate()
-            .map(|(i, t)| {
-                let template = t.as_deref()?;
-                let carried = items
-                    .iter()
-                    .find(|it| it.template == template && it.cap > 0);
-                let mut thing = match carried {
-                    Some(it) => looks.thing(it),
-                    None => SlotThing {
-                        id: -(i as i64) - 1,
-                        name: template.to_string(),
-                        said: template.to_string(),
-                        off: true,
-                        ..Default::default()
-                    },
-                };
-                thing.count = Some(carried.map_or(0, |it| it.quantity));
-                thing.mark = None;
-                Some(thing)
-            })
-            .collect();
-        for (i, key) in crate::app::BAR_KEYS.iter().enumerate() {
-            let r = Rect::new(
-                bar_area.x + 22.0 * s + i as f32 * (side + gap),
-                bar_area.y,
-                side,
-                side,
-            );
-            let name = format!("bar {key}");
-            dropped_on_bar.push(ui.drop_slot(r, &name, bar_things[i].as_ref(), &tip));
-            ui.small(r.x + r.w, r.y + r.h + 2.0 * s, ui::FAINT, key);
+            {
+                ui.label(said.x, said.y + row as f32 * line, said.w, ui::TEXT, text);
+            }
+            if !self.show_grid {
+                self.notice_lines(ui, col.take(2.0 * line));
+            }
+            let row = ui.buttons(col.take(h), &["Take off", "Bag", "Close"]);
+            take_off = ui.button_if(row[0], "Take off", may_change && worn);
+            want_bag = ui.button(row[1], "Bag");
+            close_equip = ui.button(row[2], "Close");
         }
-        let mut arranged = cells.clone();
-        let mut changed = false;
-        for (i, dropped) in dropped_on_bar.iter().enumerate() {
-            let Some((from, id)) = dropped else { continue };
-            if from == "items" {
-                if let Some(it) = items.iter().find(|it| it.id == *id && it.cap > 0) {
-                    // A kind sits on one cell: dragged onto another it moves there.
-                    for cell in arranged.iter_mut() {
-                        if cell.as_deref() == Some(it.template.as_str()) {
-                            *cell = None;
+
+        // The bag (ITEMS.md 6.1, LOOK.md 4).
+        let mut dropped_in_grid = None;
+        let (mut change, mut sell, mut store, mut storage, mut want_equip, mut close_bag) =
+            (false, false, false, false, false, false);
+        if self.show_grid {
+            let inner = ui.panel(bag_rect, "inventory");
+            let mut col = Column::new(inner, gap);
+            Self::purse(ui, col.take(line), "coin", self.coin);
+            let things: Vec<SlotThing> = items.iter().map(|i| looks.thing(i)).collect();
+            let area = col.take(grid_h);
+            let grid_w = cols as f32 * side + (cols - 1) as f32 * 2.0 * s;
+            let grid = Rect::new(area.x, area.y, grid_w, area.h);
+            let mut sel = items.get(self.picked).map(|i| i.id);
+            ui.grid(
+                grid,
+                "items",
+                cols,
+                INVENTORY_SLOTS,
+                &things,
+                &mut sel,
+                0.0,
+                &tip,
+            );
+            // (An empty or unknown list leaves the pick as it was: the first thing is
+            // picked when the list arrives, as a list's first row was.)
+            if !items.is_empty() {
+                self.picked = sel
+                    .and_then(|id| items.iter().position(|i| i.id == id))
+                    .unwrap_or(NONE);
+            }
+            dropped_in_grid = ui.dropped("items");
+            // The item bar (LOOK.md 3.2, ITEMS.md 4): its four cells as slots under the
+            // grid, each with the stack set on it (dim with none carried) and its key
+            // beneath; a stack dragged from the grid onto one sets it, a cell dragged
+            // into the grid empties it, a cell dragged onto another swaps them.
+            let bar_area = col.take(bar_h);
+            let mut cells: Vec<Option<String>> = self.bar.clone().unwrap_or_default();
+            cells.resize(gm_core::sim::BAR_CELLS, None);
+            ui.small(
+                bar_area.x + 14.0 * s,
+                bar_area.y + 2.0 * s,
+                ui::FAINT,
+                "bar",
+            );
+            let mut dropped_on_bar: Vec<Option<(String, i64)>> = Vec::new();
+            let bar_things: Vec<Option<SlotThing>> = cells
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    let template = t.as_deref()?;
+                    let carried = items
+                        .iter()
+                        .find(|it| it.template == template && it.cap > 0);
+                    let mut thing = match carried {
+                        Some(it) => looks.thing(it),
+                        None => SlotThing {
+                            id: -(i as i64) - 1,
+                            name: template.to_string(),
+                            said: template.to_string(),
+                            off: true,
+                            ..Default::default()
+                        },
+                    };
+                    thing.count = Some(carried.map_or(0, |it| it.quantity));
+                    thing.mark = None;
+                    Some(thing)
+                })
+                .collect();
+            for (i, key) in crate::app::BAR_KEYS.iter().enumerate() {
+                let r = Rect::new(
+                    bar_area.x + 22.0 * s + i as f32 * (side + gap),
+                    bar_area.y,
+                    side,
+                    side,
+                );
+                let name = format!("bar {key}");
+                dropped_on_bar.push(ui.drop_slot(r, &name, bar_things[i].as_ref(), &tip));
+                ui.small(r.x + r.w, r.y + r.h + 2.0 * s, ui::FAINT, key);
+            }
+            let mut arranged = cells.clone();
+            let mut changed = false;
+            for (i, dropped) in dropped_on_bar.iter().enumerate() {
+                let Some((from, id)) = dropped else { continue };
+                if from == "items" {
+                    if let Some(it) = items.iter().find(|it| it.id == *id && it.cap > 0) {
+                        // A kind sits on one cell: dragged onto another it moves there.
+                        for cell in arranged.iter_mut() {
+                            if cell.as_deref() == Some(it.template.as_str()) {
+                                *cell = None;
+                            }
                         }
+                        arranged[i] = Some(it.template.clone());
+                        changed = true;
                     }
-                    arranged[i] = Some(it.template.clone());
+                } else if let Some(k) = crate::app::BAR_KEYS
+                    .iter()
+                    .position(|key| *from == format!("bar {key}"))
+                    && k != i
+                {
+                    arranged.swap(i, k);
                     changed = true;
                 }
-            } else if let Some(k) = crate::app::BAR_KEYS
-                .iter()
-                .position(|key| *from == format!("bar {key}"))
-                && k != i
+            }
+            if let Some((from, _)) = &dropped_in_grid
+                && let Some(k) = crate::app::BAR_KEYS
+                    .iter()
+                    .position(|key| *from == format!("bar {key}"))
             {
-                arranged.swap(i, k);
+                arranged[k] = None;
                 changed = true;
             }
-        }
-        if let Some((from, _)) = &dropped_in_grid
-            && let Some(k) = crate::app::BAR_KEYS
-                .iter()
-                .position(|key| *from == format!("bar {key}"))
-        {
-            arranged[k] = None;
-            changed = true;
-        }
-        if changed && self.ready() {
-            self.bar = Some(arranged.clone());
-            self.ask(
-                hub,
-                Ask::Change("the bar is set"),
-                PlayerEcon::SetBar { cells: arranged },
+            if changed && self.ready() {
+                self.bar = Some(arranged.clone());
+                self.ask(
+                    hub,
+                    Ask::Change("the bar is set"),
+                    PlayerEcon::SetBar { cells: arranged },
+                );
+                self.notice.clear();
+            }
+            let nothing =
+                Self::nothing(self.items.is_some(), items.is_empty(), "nothing is carried");
+            Self::detail(
+                ui,
+                col.take(3.0 * line),
+                picked.as_ref(),
+                self.items.as_deref(),
+                nothing,
             );
-            self.notice.clear();
+            self.notice_lines(ui, col.take(2.0 * line));
+            // What is worn comes off whatever it is; what is not must have a place to go
+            // and fit this build's hands (ITEMS.md 2: the hub said so, and its words are
+            // in the item's lines above).
+            let wearable = picked
+                .as_ref()
+                .is_some_and(|i| i.worn || (i.place != PLACE_NONE && i.fits));
+            let wear = if worn { "Take off" } else { "Wear" };
+            let row = ui.buttons(
+                col.take(h),
+                &[wear, "Sell", "Store", "Storage", "Equipment", "Close"],
+            );
+            change = ui.button_if(row[0], wear, may_change && wearable);
+            // What is worn is not for sale, and there must be a stall to sell at.
+            let loose = picked.is_some() && !worn;
+            sell = ui.button_if(row[1], "Sell", self.ready() && loose && keeps_stall);
+            store = ui.button_if(row[2], "Store", self.ready() && loose);
+            storage = ui.button(row[3], "Storage");
+            want_equip = ui.button(row[4], "Equipment");
+            close_bag = ui.button(row[5], "Close");
         }
-        let picked = items.get(self.picked).cloned();
-        let nothing = Self::nothing(self.items.is_some(), items.is_empty(), "nothing is carried");
-        Self::detail(
-            ui,
-            col.take(3.0 * line),
-            picked.as_ref(),
-            self.items.as_deref(),
-            nothing,
-        );
-        self.notice_lines(ui, col.take(2.0 * line));
-        let ready = self.ready();
-        let worn = picked.as_ref().is_some_and(|i| i.worn);
-        // What is worn comes off whatever it is; what is not must have a place to go and
-        // fit this build's hands (ITEMS.md 2: the hub said so, and its words are in the
-        // item's lines above).
-        let wearable = picked
-            .as_ref()
-            .is_some_and(|i| i.worn || (i.place != PLACE_NONE && i.fits));
-        let wear = if worn { "Take off" } else { "Wear" };
-        let row = ui.buttons(col.take(h), &[wear, "Sell", "Store", "Storage", "Close"]);
-        let may_change = ready && self.wearing.free(self.now);
-        let change = ui.button_if(row[0], wear, may_change && wearable);
-        // What is worn is not for sale, and there must be a stall to sell at.
-        let loose = picked.is_some() && !worn;
-        if ui.button_if(row[1], "Sell", ready && loose && keeps_stall)
-            && let Some(item) = &picked
-        {
+
+        // Escape closes the screen whole, as it does every screen (EQUIPMENT.md 4.3; a
+        // script's Escape must mean one thing); each panel's Close closes it alone, and
+        // the last one closes the screen.
+        if ui.key(Key::Escape) {
+            return BagAction::Close;
+        }
+        if close_equip {
+            self.show_equip = false;
+        }
+        if close_bag {
+            self.show_grid = false;
+        }
+        if want_bag {
+            self.show_grid = true;
+        }
+        if want_equip {
+            self.show_equip = true;
+        }
+        if !self.show_grid && !self.show_equip {
+            return BagAction::Close;
+        }
+        if sell && let Some(item) = &picked {
             self.page = Page::Price;
             self.selling = Some(item.id);
             self.price = Default::default();
             self.notice.clear();
             ui.focus("field", "gold");
         }
-        if ui.button_if(row[2], "Store", ready && loose)
-            && let Some(item) = &picked
-        {
+        if store && let Some(item) = &picked {
             let op = PlayerEcon::StorageDeposit { item: item.id };
             self.ask(hub, Ask::Change("it is in the storage"), op);
             self.notice.clear();
         }
-        if ui.button(row[3], "Storage") {
+        if storage {
             self.page = Page::Storage;
             self.notice.clear();
             self.read(hub, List::Storage);
-        }
-        if ui.button(row[4], "Close") || ui.key(Key::Escape) {
-            return BagAction::Close;
         }
         // Drops do what the buttons do, through the same gate: an unworn thing onto its
         // place wears it; a worn thing dragged into the grid comes off.
         // A thing dropped on a slot must be for that slot (a cuirass on the weapon slot is
         // nothing; the zone would refuse it, and the screen does not ask).
-        let for_slot = |dropped: Option<(String, i64)>, place: u8| {
-            dropped
-                .filter(|(from, _)| from == "items")
-                .map(|(_, id)| id)
-                .and_then(|id| items.iter().find(|i| i.id == id))
-                .filter(|i| !i.worn && i.place == place && i.fits)
-                .cloned()
+        // The left hand takes what goes there by nature (a shield) and what may go there
+        // beside the right hand's (a one-handed weapon, `off`).
+        // The second finger takes a ring (EQUIPMENT.md 5.4).
+        let for_place = |i: &ItemSummary, code: u8| {
+            i.place == code
+                || (code == PLACE_OFF && i.off)
+                || (code == PLACE_RING2 && i.place == PLACE_RING)
         };
-        let dropped_to_wear =
-            for_slot(dropped_on_weapon, PLACE_WEAPON).or(for_slot(dropped_on_armour, PLACE_ARMOUR));
+        let mut dropped_to_wear: Option<(ItemSummary, u8)> = None;
+        let mut refused: Option<String> = None;
+        for (code, dropped) in &dropped_on {
+            let Some((from, id)) = dropped else { continue };
+            if from != "items" {
+                continue;
+            }
+            let Some(i) = items.iter().find(|i| i.id == *id) else {
+                continue;
+            };
+            // A weapon dropped on a hand that is not for it says why, in the hub's words
+            // (EQUIPMENT.md 2): a drop that is silently nothing reads as "can't equip".
+            if !i.fits {
+                refused = i.does.last().cloned();
+            } else if !i.worn && for_place(i, *code) && dropped_to_wear.is_none() {
+                dropped_to_wear = Some((i.clone(), *code));
+            }
+        }
+        if let Some(why) = refused {
+            self.say(why, true);
+        }
         let dropped_to_take_off = dropped_in_grid
-            .filter(|(from, _)| from == "weapon" || from == "armour")
+            .filter(|(from, _)| PLACE_NAMES.contains(&from.as_str()))
             .map(|(_, id)| id)
             .and_then(|id| items.iter().find(|i| i.id == id))
             .filter(|i| i.worn)
             .cloned();
-        if may_change && let Some(item) = dropped_to_wear {
+        if may_change && let Some((item, place)) = dropped_to_wear {
             self.wearing.begin(item.id, self.now);
             self.notice.clear();
-            return BagAction::Wear { item: item.id };
+            return if place == item.place {
+                BagAction::Wear { item: item.id }
+            } else {
+                BagAction::WearIn {
+                    item: item.id,
+                    place,
+                }
+            };
         }
         if may_change && let Some(item) = dropped_to_take_off {
             self.wearing.begin(item.id, self.now);
             self.notice.clear();
             return BagAction::TakeOff { item: item.id };
         }
-        match (change, picked) {
+        match (change || take_off, picked) {
             (true, Some(item)) => {
                 self.wearing.begin(item.id, self.now);
                 self.notice.clear();
@@ -1359,9 +1648,13 @@ mod tests {
             place: if whole { PLACE_WEAPON } else { PLACE_NONE },
             edge: [0; 9],
             worn: false,
+            worn_in: PLACE_NONE,
+            off: false,
             quantity: 1,
             cap: 0,
             fits: true,
+            hands: String::new(),
+            both_hands: false,
             what: if whole {
                 "a weapon, 250 of 250".to_string()
             } else {
@@ -1516,13 +1809,7 @@ mod tests {
 
         fn frame(&mut self, bag: &mut Bag, input: &UiInput, hub: &Hub) -> BagAction {
             let mut canvas = Recorder::new(1280.0, 720.0);
-            let mut ui = Ui::begin(
-                &mut canvas,
-                &mut self.st,
-                input,
-                bag.page.name(),
-                PANEL_UNITS,
-            );
+            let mut ui = Ui::begin(&mut canvas, &mut self.st, input, bag.name(), PANEL_UNITS);
             let action = bag.frame(&mut ui, hub, self.keeps, self.t);
             ui.end();
             action
@@ -1683,6 +1970,128 @@ mod tests {
         run.look(&mut bag, &hub);
         assert!(run.shows("this build's hands are for the sword: not a staff"));
         assert!(!run.offers("Wear") && run.offers("Store"));
+    }
+
+    /// ITEMS.md 2: the equip panel has three slots; a sword dropped on the left hand's is
+    /// worn there (`WearIn`), on the right hand's as itself (`Wear`); a cuirass is nothing
+    /// to the left hand; and what is worn in each hand sits in its own slot.
+    #[test]
+    fn a_sword_dropped_on_the_left_hand_is_worn_there() {
+        let hub = shop();
+        {
+            let mut shop = hub.0.borrow_mut();
+            for i in &mut shop.items {
+                if i.template == "sword" {
+                    i.off = true;
+                }
+            }
+            let mut cuirass = item(9, "cuirass", &["physical -9.9%"], &BEST[..2]);
+            cuirass.place = PLACE_ARMOUR;
+            cuirass.what = "an armour, 220 of 250".into();
+            shop.items.push(cuirass);
+        }
+        let mut run = Run::new(false);
+        let mut bag = Bag::inventory(&hub, S, ME, run.t);
+        // The bag alone has no places (EQUIPMENT.md 4): the equipment beside it has.
+        run.look(&mut bag, &hub);
+        assert!(!run.offers("weapon") && run.offers("Equipment"));
+        assert_eq!(run.click(&mut bag, "Equipment", &hub), BagAction::None);
+        run.look(&mut bag, &hub);
+        assert!(bag.show_equip && bag.show_grid);
+        assert!(run.offers("weapon") && run.offers("off") && run.offers("armour"));
+        // The plain sword onto the left hand: worn there, not in its own place.
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +2.0%", "off", &hub),
+            BagAction::WearIn {
+                item: 2,
+                place: PLACE_OFF
+            }
+        );
+        assert_eq!(bag.worn(&hub, 2, Ok(())), None);
+        run.pass(ZONE_GAP + Duration::from_millis(1));
+        // The best sword onto the right hand: its own place.
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +11.0%", "weapon", &hub),
+            BagAction::Wear { item: 1 }
+        );
+        assert_eq!(bag.worn(&hub, 1, Ok(())), None);
+        run.pass(ZONE_GAP + Duration::from_millis(1));
+        // A cuirass dropped on the left hand is nothing; on the body it is worn.
+        assert_eq!(
+            run.drag(&mut bag, "cuirass  physical -9.9%", "off", &hub),
+            BagAction::None
+        );
+        assert_eq!(
+            run.drag(&mut bag, "cuirass  physical -9.9%", "armour", &hub),
+            BagAction::Wear { item: 9 }
+        );
+        assert_eq!(bag.worn(&hub, 9, Ok(())), None);
+        // Worn in each hand, each sits in its own slot, said by the slot's name.
+        {
+            let mut shop = hub.0.borrow_mut();
+            shop.items[0].worn = true;
+            shop.items[0].worn_in = PLACE_WEAPON;
+            shop.items[1].worn = true;
+            shop.items[1].worn_in = PLACE_OFF;
+        }
+        let mut bag = Bag::inventory(&hub, S, ME, run.t);
+        bag.show_equip = true;
+        run.look(&mut bag, &hub);
+        assert!(run.shows("sword  slash +11.0%  worn") && run.shows("sword  slash +2.0%  worn"));
+        assert!(
+            run.st.seen.iter().any(|s| s.text == "weapon: sword"),
+            "{:?}",
+            run.st.seen
+        );
+        assert!(
+            run.st.seen.iter().any(|s| s.text == "off: sword"),
+            "{:?}",
+            run.st.seen
+        );
+        assert!(
+            run.shows("right hand: sword  slash +11.0%")
+                && run.shows("left hand: sword  slash +2.0%")
+        );
+        assert!(run.shows("body: nothing"));
+    }
+
+    /// EQUIPMENT.md 4: the equipment opens alone (`O`), named `equipment` for scripts,
+    /// with the places and what is worn; **Bag** opens the grid beside it; a wearable
+    /// thing dragged out of the bag opens the equipment when it is hidden; each
+    /// panel's Close closes it alone, and the last one closes the screen.
+    #[test]
+    fn the_equipment_stands_alone_or_beside_the_bag() {
+        let hub = shop();
+        let mut run = Run::new(false);
+        let mut bag = Bag::equipment(&hub, S, ME, run.t);
+        assert_eq!(bag.name(), "equipment");
+        run.look(&mut bag, &hub);
+        assert!(run.offers("weapon") && run.offers("off") && run.offers("armour"));
+        assert!(run.shows("right hand: nothing") && !run.offers("items"));
+        assert_eq!(run.click(&mut bag, "Bag", &hub), BagAction::None);
+        assert_eq!(bag.name(), "inventory");
+        run.look(&mut bag, &hub);
+        assert!(run.shows("2 g 15 s") && run.offers("weapon"));
+        // The equipment's Close leaves the bag; the bag's Close ends the screen.
+        assert_eq!(run.click(&mut bag, "Close", &hub), BagAction::None);
+        assert!(bag.show_grid && !bag.show_equip);
+        run.look(&mut bag, &hub);
+        assert!(!run.offers("weapon") && run.offers("Wear"));
+        // A sword dragged out of the bag opens the equipment, and lands on its hand.
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +11.0%", "Storage", &hub),
+            BagAction::None
+        );
+        assert!(bag.show_equip, "the drag opened the equipment");
+        run.look(&mut bag, &hub);
+        assert_eq!(
+            run.drag(&mut bag, "sword  slash +11.0%", "weapon", &hub),
+            BagAction::Wear { item: 1 }
+        );
+        assert_eq!(bag.worn(&hub, 1, Ok(())), None);
+        run.pass(ZONE_GAP + Duration::from_millis(1));
+        assert_eq!(run.click(&mut bag, "Close", &hub), BagAction::None);
+        assert_eq!(run.click(&mut bag, "Close", &hub), BagAction::Close);
     }
 
     #[test]
@@ -2153,6 +2562,11 @@ mod tests {
             price.selling = Some(4);
             price.price = ["99999999".into(), "99".into()];
             pages.extend([storage, price]);
+            // The equipment alone, and both panels side by side (EQUIPMENT.md 4), with
+            // the ribbon as long as a class line gets.
+            let mut both = Bag::inventory(&hub, S, ME, t);
+            both.show_equip = true;
+            pages.extend([Bag::equipment(&hub, S, ME, t), both]);
             // The stall as its keeper sees it (the answer is made when it is asked for),
             // and one whose keeper's name is as long as a name gets.
             hub.0.borrow_mut().mine = true;
@@ -2178,15 +2592,19 @@ mod tests {
                     }
                     let mut canvas = Recorder::new(size.0, size.1);
                     let input = UiInput::default();
-                    let mut ui =
-                        Ui::begin(&mut canvas, &mut st, &input, bag.page.name(), PANEL_UNITS);
-                    bag.frame(&mut ui, &hub, true, t);
+                    let mut ui = Ui::begin(&mut canvas, &mut st, &input, bag.name(), PANEL_UNITS);
+                    let wearer = Wearer {
+                        name: "A name of twenty-four b.",
+                        ribbon: "Custom (a Frostweaver)  |  infiltrator in leather",
+                        class: "Custom (a Frostweaver)",
+                    };
+                    bag.frame_with(&mut ui, &hub, true, t, ItemLooks::default(), wearer);
                     ui.end();
                     tidy(&canvas, &st, PANEL_UNITS);
                     assert!(
                         st.clipped.is_empty() && st.cut_cells.is_empty(),
                         "{} at {size:?}, round {round}: cut {:?} {:?}",
-                        bag.page.name(),
+                        bag.name(),
                         st.clipped,
                         st.cut_cells
                     );

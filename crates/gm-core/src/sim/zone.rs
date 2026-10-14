@@ -986,20 +986,20 @@ impl Zone {
             }
             // An item's use that ended in the frames (MODES.md 11.3): what its stack does,
             // a heal for now, and the word to the server (which tells the hub).
-            if let Some(cell) = p.mover.used.take() {
-                if p.alive {
-                    let before = p.health;
-                    let heals = p.bar_heals.get(cell as usize).copied().unwrap_or(0);
-                    p.health = (p.health + heals.max(0)).min(p.max_health());
-                    let healed = p.health - before;
-                    self.events.push(ZoneEvent::ItemUsed { id, cell });
-                    if healed > 0 {
-                        self.events.push(ZoneEvent::Healed {
-                            target: id,
-                            source: id,
-                            amount: healed,
-                        });
-                    }
+            if let Some(cell) = p.mover.used.take()
+                && p.alive
+            {
+                let before = p.health;
+                let heals = p.bar_heals.get(cell as usize).copied().unwrap_or(0);
+                p.health = (p.health + heals.max(0)).min(p.max_health());
+                let healed = p.health - before;
+                self.events.push(ZoneEvent::ItemUsed { id, cell });
+                if healed > 0 {
+                    self.events.push(ZoneEvent::Healed {
+                        target: id,
+                        source: id,
+                        amount: healed,
+                    });
                 }
             }
             // A heal's use begun this step at full health is cleared (MODES.md 11.3): a

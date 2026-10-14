@@ -161,9 +161,12 @@ no copy. No screen in a browser has a Quit button: the tab is closed by the brow
 ### 4.2 Characters
 
 The **selector** (since 2026-10-09; `showcase.rs`): one character across the whole frame,
-over the map turning behind the screens. In the middle its body as the zone would draw
-it, idle, with the prop of its weapon and the prop of its guard (a shield for a shield
-wall), in the open with no well under it (the paperdoll of LOOK.md 5, `paperdoll_open`),
+over the map turning behind the screens. In the middle its body as the zone draws it,
+idle, with what it wears (since 2026-10-13 the hub's list names the templates worn in its
+three places, HUB.md 3.9: the props in its hands and its armour's overlay; until then the
+props of its primary and its guard, which the director saw as "char with sword, not char
+as it is ingame"; an archetype on the new-character screen stands bare, as it will
+enter), in the open with no well under it (the paperdoll of LOOK.md 5, `paperdoll_open`),
 turned by a drag across it; its name over it in the title face, under the name a
 line that reads the build (`striker in mail  |  water  |  action mode`), and under that
 what it is: the preset's name or "custom", where the character is (`in town`, or `not
@@ -239,8 +242,10 @@ The HUD as before, and:
 - **Keys** says what the keys do: nothing else tells a new player.
 - **Enter** opens the chat line (5).
 - **I** opens the inventory (ITEMS.md 6.1; under its grid the item bar's four cells, LOOK.md
-  3.2, arranged by drag), and **E** the stall the body stands at (ITEMS.md 6): screens
-  like the menu's, with the body standing while one is up.
+  3.2, arranged by drag), **O** the equipment (EQUIPMENT.md 4: the body with its places,
+  beside the bag when that is up; `C` is the gun mode's crouch, so not that key), and
+  **E** the stall the body stands at (ITEMS.md 6): screens like the menu's, with the body
+  standing while one is up.
 - **K** opens the character (MATRIX.md 9.1): the thirty attribute points with what each
   buys, the frame, the armour, the aspects and the kit, edited anywhere; "Wear it" is
   offered beside the trainer (the client knows one by a body nothing hurts), or anywhere
@@ -449,7 +454,7 @@ wait screen characters        until that screen is up
 field email                   give the field with that label the keyboard (a click on it)
 type someone@example.com      characters, as if typed
 key Enter                     Enter | Escape | Tab | BackTab | Backspace | Delete | Left | Right | Up | Down | Home | End | PageUp | PageDown
-                              | I | E | P | K | G (the game's own keys that open a screen)
+                              | I | O | E | P | K | G (the game's own keys that open a screen)
                               | F (the first item cell, the kit's, MODES.md 11.3: pressed for one frame of the game, as a person's key is)
 click "New character"         the button, row, box or grid cell with that text
 dclick "Aldric"               the same, twice
@@ -465,8 +470,9 @@ quit                          print `ui-script: ok` and end the program
 ```
 
 Screens are named `login`, `characters`, `new character`, `entering`, `game`, `chat`,
-`menu`, `travel`, `settings`, `keys`, `title`, `inventory`, `storage`, `price`, `stall`
-(ITEMS.md 6), and `people`, `trade`, `tavern` (PARTY.md 8). A line that waits (`wait`, `expect`, `click`,
+`menu`, `travel`, `settings`, `keys`, `title`, `inventory`, `equipment` (the inventory
+with the bag's grid hidden, EQUIPMENT.md 4), `storage`, `price`, `stall` (ITEMS.md 6),
+and `people`, `trade`, `tavern` (PARTY.md 8). A line that waits (`wait`, `expect`, `click`,
 `where`) gives up after 30 seconds (longer than the screens themselves keep trying): the
 script then fails with its line and what the screen showed instead, and the client exits
 with an error. After every line the script lets two drawn frames pass, so that the next

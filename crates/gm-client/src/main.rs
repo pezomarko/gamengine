@@ -88,6 +88,12 @@ pub struct Options {
     /// `--off KEY`: offline, the own body holds this prop of the bundle in its left hand
     /// (LOOK.md 6.5: a shield), and the crowd too.
     pub off: Option<String>,
+    /// `--worn KEY[,KEY...]`: offline, the own body and the crowd wear these armours'
+    /// overlays (LOOK.md 6.6, EQUIPMENT.md 5.2: one a body place), on the striker's body.
+    pub worn: Option<String>,
+    /// `--sheathed`: offline, the own body and the crowd carry `--prop` on the back, as
+    /// a body out of a fight does (LOOK.md 6.7): the fitting room of the sheath.
+    pub sheathed: bool,
     /// Offline: this many bodies standing in front of the start.
     pub crowd: u32,
     /// Ingested models for the crowd to wear, cycled.
@@ -132,7 +138,7 @@ pub struct Options {
 
 const USAGE: &str = "gm-client [--map PATH] [--palette PATH] [--connect ADDR --cert PATH [--name NAME] [--build NAME] [--team N]] \
 [--third-person] [--bench N] [--no-vsync] [--present fifo|relaxed|mailbox|immediate] [--max-fps N] [--headless] [--software] \
-[--size WxH] [--screenshot out.ppm] [--seconds N] [--avatar FILE.gmm] [--prop KEY] [--off KEY] [--crowd N [--crowd-dir DIR]] \
+[--size WxH] [--screenshot out.ppm] [--seconds N] [--avatar FILE.gmm] [--prop KEY] [--off KEY] [--worn KEY] [--sheathed] [--crowd N [--crowd-dir DIR]] \
 [--cache-dir DIR] [--cache-mb N] [--vram-mb N] [--start X,Y,Z,YAW] [--script fight|walk] [--report] [--travel-to ZONE [--travel-after SECS]] \
 [--sound-dump FILE.wav]\n\
        gm-client --replay FILE.gmr [--follow NAME] [--from SECS] [--maps-dir DIR] [--third-person] [--headless --screenshot out.ppm]\n\
@@ -172,6 +178,8 @@ impl Default for Options {
             avatar: None,
             prop: None,
             off: None,
+            worn: None,
+            sheathed: false,
             crowd: 0,
             crowd_dir: None,
             cache_dir: None,
@@ -263,6 +271,8 @@ fn parse_args() -> Result<Options, String> {
             "--avatar" => o.avatar = Some(PathBuf::from(value("--avatar")?)),
             "--prop" => o.prop = Some(value("--prop")?.to_string()),
             "--off" => o.off = Some(value("--off")?.to_string()),
+            "--worn" => o.worn = Some(value("--worn")?.to_string()),
+            "--sheathed" => o.sheathed = true,
             "--crowd" => {
                 o.crowd = value("--crowd")?
                     .parse()

@@ -418,15 +418,19 @@ Acceptance:
    with no frame and no damage lost at the cut.
 2. **A real zone** (`scripts/check-anticheat.sh`): the arena with `--replay-dir`, 12 bots
    whose view moves like a hand (half of them "sharp": they lead their shots) and 4 that aim
-   by program (2 locks, 2 flicks, with kits that shoot), 90 s, one bot reporting another.
+   by program (2 locks, 2 flicks, all shades that keep knife range, `--behaviour
+   skirmisher`: the knife is the one bolt an action build throws by the client's hand, and
+   a lock shows at range, not at a dagger's; a frostweaver's shards are the zone's, section
+   4, and the locks that played it from 2026-10-07 to 2026-10-13 were never judged), 90 s,
+   one bot reporting another.
    Passes when all four programs are flagged by the rule made for them (a lock by `lock`, a
    flick by `flick`) and none of the twelve hands by any; a fight and a report were written;
    `gm-tools replay info` reads each; `gm-tools replay aim` recomputes, for every
    participant of every file, exactly the line the zone logged for that file; the costs are
    inside the budgets; and the client renders the fight headless from a program's eyes.
 3. **Through the hub** (`--online`, `crates/gm-server/tests/anticheat.rs`): two hands and
-   two locks play in a recorded arena, and a third lock travels on to a zone that records
-   nothing after half a minute; their numbers and the replays are in the database (the
+   two locks play in a recorded arena (skirmishing shades but the reporting hand, a blade),
+   and a third lock travels on to a zone that records nothing after half a minute; their numbers and the replays are in the database (the
    traveller's too: the arena reported them when the other zone claimed the character); the
    aim report flags the two locks by `lock` and neither hand; the fight's replay comes back
    as the bytes the zone wrote and analyses to what the hub was told; a report was filed,

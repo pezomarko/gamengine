@@ -36,15 +36,42 @@ simulation knew of none, and no screen showed one.
 
 ## 2. What is worn
 
-A character has two places: **weapon** and **armour**. A template's `kind` says which one an
-item goes into (`items.toml`: `weapon` or `armour`; a component is neither and cannot be
-worn). One item in each, or none. "Worn" in this document is about items; the avatar model a
-character wears is MODELS.md's.
+A character has **twelve places** (EQUIPMENT.md 5, the evening of 2026-10-13; three
+that afternoon, two before): **weapon** (the right hand), **off** (the left hand), the
+body's seven, **armour** (the chest, named as it was when it was the whole body),
+**head**, **hands**, **legs**, **feet**, **back**, **shoulders**, and the trinkets'
+three, **neck**, **ring**, **ring2** (the two fingers). A template's `kind` says where
+an item goes (`items.toml`: `weapon`, `shield`, `armour`, `trinket`; a component is
+none of these and cannot be worn): a weapon into the right hand, or into the left when
+its row says `held = "left"`; a shield into the left; an armour onto the place of the
+body its row's `place` names (the chest when it names none); an amulet onto the neck; a
+ring onto the first finger, or the second when the first is taken, or either by name.
+Each place counts for its share of the item's edge (3.1). A one-handed weapon whose row says `held =
+"either"` (the sword, the dagger) goes into the right hand when nobody says, and into the
+left when the person says so (`WearIn`, below): two swords, a sword and a shield, one or
+both hands empty. One item in each place, or none. "Worn" in this document is about
+items; the avatar model a character wears is MODELS.md's, and what the worn items look
+like on it is LOOK.md 6 (the weapon in the right fist, the off hand's thing in the left,
+the armour as an overlay over the body).
 
 - **Wear** an item: it must be in the character's own inventory and of a kind that is worn.
   It takes its place; whatever was there is taken off. Wearing what is worn already changes
   nothing. An item on offer in a trade leaves the offer (both accepts are cleared and the
-  offer's version moves on, as when an offered item is destroyed).
+  offer's version moves on, as when an offered item is destroyed). **Wear in** a named
+  place (`WearIn { item, place }`): the same, into the right hand, the left hand or the
+  body as asked; an item that does not go there is refused in words ("a cuirass does not
+  go on the left hand"), and a sword worn in the right hand and asked into the left moves
+  there (it is one item: it leaves the place it was in).
+- **The empty hand** (EQUIPMENT.md 4.4, 2026-10-13): a plain **Wear** of a one-handed
+  weapon (`held = "either"`) goes into the **left hand** when another one-hander is in
+  the right hand and the left is free, so that a second sword is one Wear; otherwise
+  into its own place, where it takes what was there. `WearIn` names the hand as before.
+- **Both hands** (EQUIPMENT.md 3, 2026-10-13): a weapon whose row says `held = "two"`
+  (the staff) takes both hands. Worn, it empties the left hand (what was there stays in
+  the bag like anything taken off); a thing worn into the left hand takes it off. One
+  rule both ways, in the hub's `wear`. The bag shows it ghosted in the left hand's slot
+  with `both hands` beneath. The two-handed hold itself (both fists on the grip) is
+  Phase 17's animation work: until then it is drawn in the right fist.
 - **Take off** an item: its place is empty again. Taking off what is not worn changes nothing
   and is no error; an item whose template the content no longer knows comes off like any
   other.
@@ -56,20 +83,27 @@ character wears is MODELS.md's.
   is worn only when an ability of the character's build has the template's `model` as
   its `prop` (CONTENT.md 3; `gm_hub::hub::hands`, `economy::fits`). The musketeer's hands
   are for the musket, the pistol and the dagger; the blade's for the sword; a caster's for
-  the staff. A weapon nobody in the build swings would sharpen a kind of blow the body
+  the staff; the axe, the spear, the bow and the wand (EQUIPMENT.md 5.6, 2026-10-14) are a
+  custom build's that slots their ability. A caster's **focus** (the closed spellbook) is a
+  `shield` by kind that guards the elements: worn in the left hand by anyone, like a
+  shield. A weapon nobody in the build swings would sharpen a kind of blow the body
   never deals and put the wrong prop in its hand (LOOK.md 6.1 prefers the worn weapon's
   model), so the hub refuses it in words, "this build's hands are for the musket, the
   pistol and the dagger: not a staff", and says the same of the item wherever it is shown
   (`ItemSummary.fits` false, the words last in `does`: the inventory, the storage, a stall's
   listing, a trade), so the bag offers no Wear for it and takes no drop of it on the weapon
-  slot. Armour, parts and stacks fit everyone. The rule is the build's, not the item's: the
+  slot. Armour, shields, parts and stacks fit everyone; a weapon in the left hand wants
+  the hands as a weapon in the right does. The rule is the build's, not the item's: the
   item stays unbound, sells to whoever holds one, and the same sword fits every build whose
   abilities hold a sword. A respec that leaves a worn weapon behind keeps it on until it is taken off (an
   open point; the trainer could take it off at the `Respawned`).
 - A companion (a hired avatar, a recruit) fights in **nothing** in v1 (9).
 
 Stored as `worn (character_id, slot, item_id)`, one row per filled place, the item unique
-(migration 0009). What holds the rule that a worn item stays with its wearer:
+(migration 0009; the `off` slot since migration 0014). What is shown says where an item is
+worn (`ItemSummary.worn_in`, a `PLACE_*`) and whether it may go into the off hand beside
+its own place (`ItemSummary.off`), so the bag's three slots show what is in each and take
+what may be dropped on them. What holds the rule that a worn item stays with its wearer:
 
 | What | How |
 |---|---|
@@ -115,6 +149,18 @@ edge of 220 is 11% more dealt, or 9.9% less taken (2000/2220).
   knockback, stagger build-up, stamina costs, a block's stamina cost.
 - A body with nothing worn has all sixteen at 0, and `gear` is 1: every result measured
   before Phase 11 stands.
+- **A place counts for its share** (EQUIPMENT.md 5.5, 2026-10-13; `Place::share`): the
+  right hand whole, the left hand half, the chest 8 of 20, the legs 5, the head 3, the
+  hands 2, the feet, the back and the shoulders 1 each, the neck and each ring half; a
+  two-hander in the right hand 1.5. Each is applied to the item's edge before the sum,
+  and each of the sixteen numbers is capped at 250 as before, so the bounds above
+  stand: a top cuirass alone is 88 of `taken` (0.4 × 220) where it was 110, a full top
+  set of the body 220, and a top shield's 110 on top of it is clamped; two swords of
+  iron and oak deal 3.0% more slash instead of 2.0%, the best sword in each hand 11.0%
+  (220 + 110 is still 250); a staff of iron and oak deals 3.0% more blunt, what a sword
+  in each hand comes to. A ring adds half its edge to the elements dealt, an amulet half
+  to the elements taken (a trinket's edge is its catalyst's element and its gems over
+  every element, EQUIPMENT.md 5.4). The shares are proposed numbers (9).
 
 ### 3.2 From materials to the sixteen numbers
 
@@ -134,6 +180,7 @@ material's edge into the kinds of damage the item is for, and into no other:
 | `crossbow` | weapon | strikes pierce | shard, core, frame, gem |
 | `cuirass` | armour | guards physical | shard, core, frame, gem |
 | `robe` | armour | guards elements | shard, core, catalyst, frame, gem |
+| `shield` | shield | guards physical | shard, core, frame, gem |
 
 (`dagger` is new in Phase 11: the dagger ability had no weapon.) Nothing in the rule names
 an ability or a build. A hammer does nothing for a sword's blows; a staff with an ember
@@ -173,7 +220,9 @@ become, not what they do.
 ### 3.3 Where the numbers travel
 
 - `Gear { dealt: [u16; 8], taken: [u16; 8] }` (`gm_core::matrix`), indexed in the order of
-  `DamageType`. The zone clamps each to 250 whatever it is told.
+  `DamageType`. The zone clamps each to 250 whatever it is told. The reading names the
+  templates worn by place, three since hub protocol 13 (weapon, off, armour): what the
+  zone tells everybody to draw (LOOK.md 6.2).
 - **At the claim**: the hub reads what the character wears *after* it made the character
   that zone's, and `Claimed` carries the reading.
 - **While the character plays**: its gear changes only through its zone (5). The hub's
@@ -225,6 +274,7 @@ the content's looks beside the pack
 | `EconOp::StallUnlist { listing }` | a session | `Done` | out of it again, under the same rule; the inventory must have room |
 | `ZoneEconOp::StallBuy { character, stall, listing, price }` | a zone | `Done` | 5 |
 | `ZoneEconOp::Wear { character, item }`, `TakeOff { character, item }` | a zone | `Gear(GearReading { seq, gear })` | 2, 3.3; a weapon the build's hands do not hold is `Invalid` with the words of 2 |
+| `ZoneEconOp::WearIn { character, item, place }` | a zone | the same | 2: into `PLACE_WEAPON`, `PLACE_OFF` or `PLACE_ARMOUR`; an item that does not go there is `Invalid` in words. Hub protocol 13, players' protocol 8 (`ItemSummary.off`, `.worn_in`), 2026-10-13 |
 
 - **`EconOp::StallBuy` is gone**, as `EconOp::StallOpen` went in Phase 6: a session could
   buy from anywhere, and a program with no body at any stall could buy every underpriced
@@ -267,6 +317,7 @@ the content's looks beside the pack
 |---|---|---|
 | `FromClient::StallBuy { stall, listing, price }` | client → zone | `BuyResult { listing, result }`, always |
 | `FromClient::Wear { item }`, `TakeOff { item }` | client → zone | `WearResult { item, result }`, always |
+| `FromClient::WearIn { item, place }` | client → zone | the same (protocol v19, 2026-10-13: a sword into the left hand) |
 
 - **Buying.** The zone checks that the buyer is alive and in person (not a ghost), that the
   stall is one of its open stalls, and that the buyer stands at it: its feet within
@@ -277,7 +328,9 @@ the content's looks beside the pack
 - **Wearing.** The zone checks that the body is alive and in person, and **not in a
   fight**: it has neither dealt nor taken damage for **10 s** (`GEAR_AFTER_FIGHT`; a pulse
   of a status counts for both). Then it asks the hub, applies the answer at once, and logs
-  it (`gear character=… dealt=[…] taken=[…]`).
+  it (`gear character=… dealt=[…] taken=[…]`). The same ten seconds sheathe the weapon
+  on the back (LOOK.md 6.7; a swing or a cast begun counts there too, since a body
+  swinging at nothing is not out of a fight to look at).
 - **Gates** (PROTOCOL.md 8): one request at a time and one a second per player, for the
   stall requests (open, close, buy) and, apart from them, for wearing. A request the gate
   stops is **answered** ("one thing at a time: try again in a moment"): somebody is looking
@@ -357,7 +410,26 @@ in full: what it is and its budget (`a weapon, 250 of 250`), everything it does,
 worn in its place now (`you wear: slash +2.0%`, or that nothing is), and what it is made
 of. Buttons: **Wear** / **Take off** (asked of the zone; one a second), **Sell** (when the
 character keeps a stall in this zone and the item is not worn), **Store** (into the
-account's storage), **Storage**, **Close**.
+account's storage), **Storage**, **Equipment**, **Close**. Since the evening of
+2026-10-13 (EQUIPMENT.md 4) the screen is **two panels side by side**, each shown or
+hidden on its own: the **bag** (all of the above) and the **equipment**: the name and
+the class line over the body in the open (the paperdoll of LOOK.md 5, turned by a drag),
+the twelve places as slots in two columns of six at its sides (the body's down the left
+in the order of the body: `head`, `armour`, `back`, `hands`, `legs`, `feet`; the hands
+and the trinkets down the right: `weapon`, `off`, `shoulders`, `neck`, `ring`, `ring2`),
+what is worn in words under it (`right hand: sword  slash +2.0%`, `left hand: nothing`,
+and the rest by name on a third line, `body: cuirass, hood, boots`), and **Take off**,
+**Bag**, **Close**. `O` opens the equipment alone (its screen is named
+`equipment`), `I` the bag alone; each key shows or hides its panel while the other is
+up; **Bag** and **Equipment** open the other; a wearable thing dragged out of the bag
+while the equipment is hidden opens it beside the bag; Escape closes the screen whole, and
+each panel's Close closes it alone, the last one ending the screen. A thing dragged onto its slot is
+worn (`Wear`); a one-handed weapon dragged onto the left hand is worn there (`WearIn`,
+2: the second sword); a worn thing dragged into the grid comes off. The **Wear** button
+puts a thing into its own place, or a second one-hander into the empty hand (2). A
+weapon this build's hands are not for is drawn dim with the warning's rim, says
+`hands: Blade, Ironclad` in its tooltip (whose it is, EQUIPMENT.md 2), and dropped on a
+hand says why on the notice line instead of nothing.
 
 Under the grid, **the item bar** (LOOK.md 3.2): the four cells as drop slots named `bar
 F`, `bar 8`, `bar 9`, `bar 0`, each with the stack set on it (dim, `×0`, while none is
@@ -465,7 +537,10 @@ by clicking: a UI script presses the keys of screens, not of a fight.
 
 ## 9. Proposed numbers and open decisions
 
-Proposed, for the director: two places; **a place counts for half** (the scale of 2000);
+Proposed, for the director: twelve places and the share of each (EQUIPMENT.md 5.5,
+2026-10-13: the left hand half, the body by its parts, the trinkets half, a two-hander
+1.5, under the one cap of 250);
+**a place counts for half** (the scale of 2000);
 the layer table of 3.2, what each weapon strikes with and each armour guards against; that
 pulses take no gear; 120 units of reach; the fight lock of 10 s; one change a second; five
 economy requests a second per account; that worn items are locked out of every movement.

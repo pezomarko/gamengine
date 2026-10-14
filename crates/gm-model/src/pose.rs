@@ -111,6 +111,35 @@ pub fn prop_attach_left(pivots: &[Vec3; BONES], skin: &[Mat4; BONES]) -> Mat4 {
     skin[at] * Mat4::from_translation(pivots[at]) * grip_left()
 }
 
+/// The sheath (LOOK.md 6.7, EQUIPMENT.md 5.3): how a prop rests on the back out of a
+/// fight. The grip stands over the right shoulder, `SHEATH_LIFT` above and to the right of
+/// `prop_back` (which is behind the chest, MODELS.md 2), and the business end (+X of the
+/// prop) runs down across the back towards the left hip, `SHEATH_TILT_DEG` from upright;
+/// the flat (±Z) lies against the back, so the edge (+Y) shows sideways. Model units:
+/// up, and to the right (−Y of model space, which faces +X with +Y to its left).
+pub const SHEATH_TILT_DEG: f32 = 32.0;
+pub const SHEATH_LIFT: Vec3 = Vec3::new(0.0, -5.0, 10.0);
+
+/// See [`SHEATH_TILT_DEG`]: the prop's axes in the back bone's space.
+pub fn grip_back() -> Mat4 {
+    let (sin, cos) = SHEATH_TILT_DEG.to_radians().sin_cos();
+    // +X (the business end) down and to the left; +Z (the flat) out of the back (−X of
+    // the body); +Y = Z × X, a proper rotation.
+    Mat4::from_cols(
+        glam::Vec4::new(0.0, sin, -cos, 0.0),
+        glam::Vec4::new(0.0, -cos, -sin, 0.0),
+        glam::Vec4::new(-1.0, 0.0, 0.0, 0.0),
+        glam::Vec4::W,
+    )
+}
+
+/// Where a sheathed prop is drawn (LOOK.md 6.7): the skinning matrix of `prop_back`, the
+/// translation to that bone's pivot lifted over the shoulder, the back grip.
+pub fn prop_attach_back(pivots: &[Vec3; BONES], skin: &[Mat4; BONES]) -> Mat4 {
+    let at = crate::rig::bone::PROP_BACK;
+    skin[at] * Mat4::from_translation(pivots[at] + SHEATH_LIFT) * grip_back()
+}
+
 /// The skinning matrix of every bone: `D(bone) = D(parent) · T(pivot) · R · T(−pivot)`, with
 /// the body offset applied at the root. A bone missing from `mask` behaves as its parent.
 pub fn skin_matrices(pivots: &[Vec3; BONES], mask: u32, pose: &Pose) -> [Mat4; BONES] {
@@ -169,6 +198,41 @@ mod tests {
             "{blade:?}"
         );
         assert!(g.transform_vector3(Vec3::Y).y < -0.95);
+    }
+
+    #[test]
+    fn the_sheath_is_a_rotation_that_lays_a_blade_down_the_back() {
+        let g = grip_back();
+        assert!(
+            (g.determinant() - 1.0).abs() < 1e-6,
+            "a rotation, not a mirror"
+        );
+        assert!((g * g.transpose()).abs_diff_eq(Mat4::IDENTITY, 1e-6));
+        // The business end runs down and to the left of the body (−Z, +Y), the flat (+Z
+        // of the prop) faces out of the back (−X).
+        let blade = g.transform_vector3(Vec3::X);
+        assert!(
+            blade.z < -0.8 && blade.y > 0.4 && blade.x.abs() < 1e-6,
+            "{blade:?}"
+        );
+        assert!(g.transform_vector3(Vec3::Z).x < -0.99);
+        // On the standing mannequin the grip is over the right shoulder, behind the body,
+        // and the tip of a blade a metre long ends near the left hip, still behind it.
+        let pivots = rig::rest_pivots(ArchetypeFrame::Striker);
+        let skin = skin_matrices(&pivots, ALL_BONES, &Pose::REST);
+        let at = prop_attach_back(&pivots, &skin);
+        let grip = at.transform_point3(Vec3::ZERO);
+        let tip = at.transform_point3(Vec3::X * 32.0);
+        let shoulder = pivots[bone::UPPER_ARM_R];
+        assert!(
+            grip.z > shoulder.z && grip.y < 0.0 && grip.x < 0.0,
+            "{grip:?}"
+        );
+        assert!(
+            tip.z < pivots[bone::HIPS].z + 4.0 && tip.z > pivots[bone::THIGH_L].z - 8.0,
+            "{tip:?}"
+        );
+        assert!(tip.y > 0.0 && (tip.x - grip.x).abs() < 1e-4, "{tip:?}");
     }
 
     #[test]

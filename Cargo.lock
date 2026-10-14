@@ -1510,6 +1510,7 @@ name = "gm-content"
 version = "0.1.0"
 dependencies = [
  "gm-core",
+ "gm-model",
  "serde",
  "thiserror 2.0.21",
  "toml",

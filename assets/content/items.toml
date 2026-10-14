@@ -10,6 +10,12 @@
 # counts for its element; shard, frame and gems count for the kinds the core and the
 # catalyst reach and for no other. An item is for one build and not for another.
 
+# Where it is worn (ITEMS.md 2): a weapon in the right hand (`held = "either"`: or in the
+# left beside another, two swords; `held = "two"`: both hands, EQUIPMENT.md 3), a shield
+# (`kind = "shield"`) in the left, an armour on the body. An armour's `model` is its overlay (models/armour/<model>_<frame>.glb, CONTENT.md
+# 3.3), drawn over the body with the body's pose; `covers` names the standard bones whose
+# part of the body is hidden under it.
+#
 # Looks (CONTENT.md 3): `model` is the prop drawn in the hand of whoever wears one
 # (models/props/<model>.glb), fitted into hand space by `fit` (metres, degrees about glTF's
 # X, Y, Z in that order, a scale: the grip ends at the origin, the business end along +Z).
@@ -27,7 +33,8 @@ kind = "weapon"
 strikes = "slash"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "sword"
-fit = { turn = [90, 0, 0], scale = 0.6 }
+held = "either"                              # one in each hand: the crusader's way (ITEMS.md 2)
+fit = { turn = [90, 0, 0], scale = 0.36 }   # Quaternius' warrior sword (LICENSES.md): 3.2 m along +Y as it comes
 
 # The colossus's greatsword (MATRIX.md 16), ours (`gm-tools content synth greatsword`): in
 # metres already, held like the hammer.
@@ -44,6 +51,7 @@ kind = "weapon"
 strikes = "slash"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "dagger"
+held = "either"
 fit = { turn = [90, 0, 0], scale = 0.55 }
 
 [[template]]
@@ -53,13 +61,57 @@ strikes = "blunt"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "hammer"
 
+# A staff takes both hands (EQUIPMENT.md 3): worn, it empties the left hand, and a shield
+# or a second weapon worn afterwards takes it off; its edge counts for both hands.
 [[template]]
 id = "staff"
 kind = "weapon"
 strikes = "blunt"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "staff"
+held = "two"
 fit = { move = [0.0, 0.0, 0.3], turn = [90, -20, 0], scale = 0.6 }
+
+# The weapons of EQUIPMENT.md 5.6 (2026-10-14). The axe and the wand are KayKit's, along
+# +Y as they come (LICENSES.md); the spear and the bow are the LowPoly Medieval Weapons
+# pack's, cut into hand space by scripts/dev/blender-obj-prop.py (the grip at the origin,
+# the length along +Z). The spear lies along the arm like the crossbow, down at rest and
+# levelled into a thrust when the arm comes up, and is turned back to the look in the
+# view; the bow takes the plain hold, so it stands upright when the arm is raised to aim.
+[[template]]
+id = "axe"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "axe"
+held = "either"
+fit = { turn = [90, 0, 0], scale = 0.6 }
+
+[[template]]
+id = "spear"
+kind = "weapon"
+strikes = "pierce"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "spear"
+held = "two"
+fit = { turn = [0, 90, 0] }
+fit_view = { turn = [0, -90, 0] }
+
+[[template]]
+id = "bow"
+kind = "weapon"
+strikes = "pierce"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "bow"
+held = "two"
+
+[[template]]
+id = "wand"
+kind = "weapon"
+strikes = "blunt"                            # the bolt is a blow of force (abilities.toml: wand)
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "wand"
+fit = { turn = [90, 0, 0], scale = 0.5 }
 
 [[template]]
 id = "crossbow"
@@ -90,17 +142,118 @@ model = "pistol"
 fit = { turn = [0, 88, 0] }
 fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye: a short thing
 
+# The body's places (EQUIPMENT.md 5.2): `place` names where an armour goes (the chest when
+# nothing is said), each an overlay of its own on the striker from the Fantasy outfits'
+# ranger set (LICENSES.md), each counting for its share of the body (5.5).
 [[template]]
 id = "cuirass"
 kind = "armour"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
+model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
+covers = ["spine", "chest"]
+
+[[template]]
+id = "hood"
+kind = "armour"
+place = "head"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "hood"                               # the ranger's hood: cloth, over the hair
+covers = []
+
+[[template]]
+id = "pauldrons"
+kind = "armour"
+place = "shoulders"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "pauldrons"                          # the ranger's pauldrons, one a shoulder
+covers = []
+
+[[template]]
+id = "bracers"
+kind = "armour"
+place = "hands"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "bracers"                            # the ranger's bracers
+covers = ["forearm_l", "forearm_r", "hand_l", "hand_r"]
+
+[[template]]
+id = "trousers"
+kind = "armour"
+place = "legs"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "trousers"                           # the ranger's trousers, over the body's own
+covers = ["thigh_l", "thigh_r", "shin_l", "shin_r"]
+
+[[template]]
+id = "boots"
+kind = "armour"
+place = "feet"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "boots"                              # the ranger's boots, over the body's shoes
+covers = ["foot_l", "foot_r", "toe_l", "toe_r"]
+
+# The back (EQUIPMENT.md 5.3): a cape, ours (the hero's Blender pass hangs a cloth plane
+# from the shoulders, skinned to the chest, the spine and the hips), over the body and
+# covering nothing. The sheathed weapon rests on the back whether or not one is worn.
+[[template]]
+id = "cape"
+kind = "armour"
+place = "back"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "cape"                               # a cloth cape off the shoulders, ours (LICENSES.md)
+covers = []
 
 [[template]]
 id = "robe"
 kind = "armour"
 guards = "elements"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "robe"                               # the cloth tunic with sleeves, on the striker
+covers = ["spine", "chest"]
+
+# A shield (ITEMS.md 2): worn in the left hand by anyone, guarding like an armour; a
+# shield wall's own shield is the same model, held bare (abilities.toml).
+[[template]]
+id = "shield"
+kind = "shield"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "shield"
+held = "left"
+
+# A caster's focus (EQUIPMENT.md 5.4 and 5.6): worn in the left hand like a shield and by
+# anyone (a shield fits all hands), guarding against the elements; KayKit's closed
+# spellbook.
+[[template]]
+id = "focus"
+kind = "shield"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "focus"
+held = "left"
+fit = { turn = [90, 0, 0], scale = 0.7 }   # upright, the cover out, as a shield's face
+
+# Trinkets (EQUIPMENT.md 5.4): numbers only, nothing drawn, built round a catalyst (the
+# element) with gems. An amulet on the neck lowers what its wearer takes of the elements;
+# a ring (either finger) raises what it deals of them. Each counts for half (5.5).
+[[template]]
+id = "amulet"
+kind = "trinket"
+place = "neck"
+layers = ["catalyst", "gem"]
+
+[[template]]
+id = "ring"
+kind = "trinket"
+place = "ring"
+layers = ["catalyst", "gem"]
 
 # Stacks (MODES.md 11.1): one row and one slot, merged up to the cap, which is the strict
 # limit of what a body carries. A firearm names the stack its reserve is drawn from

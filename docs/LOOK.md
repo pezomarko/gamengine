@@ -272,7 +272,7 @@ runs), and shows its things in grids instead of rows:
 
 | Page | Grid(s) | Besides |
 |---|---|---|
-| inventory | the 24 slots, 6 × 4 | the purse as two coins with numbers (gold, silver: PLAN.md 5.1 as corrected); the **equip** panel beside the grid: the paperdoll (5) with the weapon and armour slots at its side; the picked thing's words under them (three lines) and the tooltip on hover; **Wear**/**Take off**, **Sell**, **Store**, **Storage**, **Close**; a drag onto the weapon or armour slot wears, a worn thing dragged into the grid comes off |
+| inventory | the 24 slots, 6 × 4, in the **bag** panel | the purse as two coins with numbers (gold, silver: PLAN.md 5.1 as corrected); the picked thing's words under the grid (three lines) and the tooltip on hover; **Wear**/**Take off**, **Sell**, **Store**, **Storage**, **Equipment**, **Close**. Beside it, shown or hidden on its own (EQUIPMENT.md 4, 2026-10-13), the **equipment** panel: the body in the open (5, `paperdoll_open`) between two columns of places (`armour` left; `weapon`, `off` right), the name and the class line over it, what is worn in words under it, **Take off**, **Bag**, **Close**; `O` opens it alone as the screen `equipment`. A drag onto a place wears, a worn thing dragged into the grid comes off |
 | storage | the 60 slots, 8 across, scrolled | **Take**, **Back** (a drag between storage and inventory is Phase 15's: the two are pages, not one screen) |
 | stall | the keeper's 12 listings, 6 × 2, the price under each cell | the buyer's purse, the picked thing's words and price, **Buy** / **Take back**; a listing is picked, never dragged |
 | price | two fields: gold, silver | **List it**, the whole said back in words |
@@ -286,8 +286,8 @@ An empty equip slot says what goes in it whole (`weapon`, `armour`), in small pr
 the word is wider than the slot.
 
 A grid cell is found by `ui.find` by the words its row had, so `click "sword  slash
-+2.0%"` still picks it, and the equip panel's slots are found as `weapon: sword` and
-`armour: nothing`.
++2.0%"` still picks it, and the equipment's slots are found as `weapon: sword`,
+`armour: nothing`, `head: hood` and so on by the twelve place names (EQUIPMENT.md 5).
 
 ## 5. Bodies drawn into a screen
 
@@ -312,9 +312,15 @@ abilities looked up in the manifest (`ability_prop`), since no zone has sent a p
 ### 6.1 What is held
 
 A body holds **one prop**, chosen by the zone and sent as an index (4): the `model` of the
-weapon it wears (ITEMS.md 2) if it wears one, else the `prop` of its primary ability
-(CONTENT.md 3), else nothing. Companions and creatures hold their primary's prop (a hired
-avatar wears no gear yet: ITEMS.md 9). A stall keeper holds nothing in v1.
+weapon it wears (ITEMS.md 2) if it wears one, else nothing. Until 2026-10-13 a bare hand
+held the `prop` of the primary ability (CONTENT.md 3), so a blade with no sword to its name
+held one; the director tested it ("he still holds the sword even though inventory shows
+no sword") and since then **what is not in the inventory is not in the hand**: a player
+holds and wears what the hub's gear reading names (6.2) and nothing else, bots included
+(the arena's duelists fight bare-handed until something hands them swords). The ability's
+`prop` is drawn in one place only: the gun mode's hand (6.4: a firearm is no item yet).
+The selector draws the same (CLIENT.md 4.2): the hub's list says what is worn. A stall
+keeper holds nothing in v1.
 
 ### 6.2 On the wire (protocol v8, hub v1.9)
 
@@ -326,11 +332,12 @@ avatar wears no gear yet: ITEMS.md 9). A stall keeper holds nothing in v1.
   to change content, and its clients reconnect and get the new pack).
 - `PlayerEntry` (the `Players` message) gains **`look: Look { held: u16, worn: u16 }`**:
   indices into `props` (`NONE = u16::MAX`; an index past the list is read as `NONE`);
-  `worn` is always `NONE` in Phase 14 and is the armour overlay of Phase 15.
+  `worn` was always `NONE` until 2026-10-13 and is the armour overlay since (6.6).
   **`FromZone::Look { id, look }`**, appended at the end of the enum (ITEMS.md's lesson),
   when a body's look changes.
-- `GearReading` (hub → zone) gains **`templates: [String; 2]`**, the **keys** of the
-  templates worn by place (empty when nothing is worn): a hub and a zone on different
+- `GearReading` (hub → zone) gains **`templates: [String; 2]`** (three since hub protocol
+  13: weapon, off hand, armour), the **keys** of the templates worn by place (empty when
+  nothing is worn): a hub and a zone on different
   content versions then disagree about nothing but what to draw; the zone maps a key it
   knows to its `model` key, then to the prop index, and one it does not know to an empty
   hand. One more reading when wear changes is one `Look` to everybody who has the body
@@ -357,9 +364,10 @@ of a hanging arm and is tipped 12° towards the elbow, so a sword at rest is lev
 tip a little raised; its edge follows the knuckles. (v1 laid the blade on along the arm:
 a sword pointing at the ground like a walking stick. The director, playing it: "it should
 be perpendicular to the arm, like held in hand": 11.4.) What is not swung is laid
-otherwise by its row's `fit` (CONTENT.md 3.1), a turn about glTF's Y: the **crossbow** and
-the **musket** lie along the arm (carried muzzle down, levelled when the arm is raised),
-the **staff** stands 20° nearer upright than a blade.
+otherwise by its row's `fit` (CONTENT.md 3.1), a turn about glTF's Y: the **crossbow**,
+the **musket** and the **spear** lie along the arm (carried muzzle or point down, levelled
+when the arm is raised: a thrust), the **staff** stands 20° nearer upright than a blade, and
+the **bow** takes the plain hold so that it stands upright when the arm is raised to aim.
 
 The animation set gains one thing: in the **cast** stance the arms are raised from where
 they hang (a turn about the shoulders' axis) instead of swept round from the T-pose, so
@@ -424,6 +432,88 @@ model, the back of the fist's side) then stands out of the back of the hand, and
 guard stance, which already raises the left forearm across the chest, raises the shield in
 front. The fitting room draws it: `gm-tools content look shield --left`.
 
+**Worn there** (2026-10-13, ITEMS.md 2): the item worn in the off hand, its template's
+`model` as the right hand's does (a shield, a second sword), else `NONE` (6.1: the guard's
+prop went with the primary's the same day; a shield wall raises a shield when one is
+worn); a gun build's stays `NONE`. The zone reads it from the reading's second template.
+
+### 6.6 The armour overlay (2026-10-13)
+
+The director: "We need mechanism to not only equip sword, but also armor so it's visible
+... weapon is separate model and equipable", and the games he named do it the way every
+modular character does: the weapon is a rigid thing on a socket of the hand (6.3, the
+`prop_r` and `prop_l` bones are those sockets), and the armour is **a skinned piece on the
+same skeleton**, drawn with the body's pose, that replaces the part of the body it covers
+(Skyrim's armour meshes, WoW's geosets, Unity's and Unreal's modular characters with one
+rig and a mesh per slot). Here:
+
+- An armour template's `model` is its **overlay** (CONTENT.md 3.3): `models/armour/<model>_
+  <frame>.glb`, a body's file on the standard rig in the T-pose, made for one frame's
+  body, ingested as an overlay (`gm_ingest::ingest_overlay`: the pose check, an overlay's
+  budgets of 1,500 triangles, a 512² texture and 262,144 bytes, no envelope) to
+  `armour/<model>_<frame>.gmm`, `FLAG_OVERLAY` set (MODELS.md 5), named in the manifest by
+  model and frame.
+- On the wire it is **`Look.worn`** (6.2: since protocol v20 an array of seven, one a
+  body place in the order chest, head, hands, legs, feet, back, shoulders, EQUIPMENT.md
+  5.2; each the index of that armour template's model in the pack's `props`, `NONE` for
+  nothing), set by the zone from the reading's templates of those places. Companions
+  and creatures wear nothing.
+- The client draws each as **a further `CharacterDraw`** with the body's `world`,
+  `pose`, tint and light and the overlay's own pivots (which are the body's: the file
+  was made on it), after the body, and the body's mask is the union of what they
+  `cover`; a body of another frame than an overlay was made for wears that one not
+  (the bundle has none for it), and a player's own model of that frame wears it as the
+  official avatar does (the envelope keeps the bodies alike). The first cut of the
+  other places is the ranger's: the hood, the pauldrons, the bracers, the trousers and
+  the boots (`scripts/dev/places-pipeline.sh`), the cuirass the jerkin alone.
+- **What it covers is not drawn** (`covers` in the row: the standard bones whose part of
+  the body is under it, `TemplateEntry.covers` as a mask). The body's draw carries the
+  mask in the block's spare number (`scale.w`, 24 bits, exact in a float); the vertex
+  shader marks a vertex whose first joint is in it, flat across the triangle from the
+  provoking vertex, and the fragment shader discards the triangle whole: nothing is
+  stretched or torn at the edge, and the hero's chest does not come through his jerkin.
+  The mannequin, whose segments the overlay was not cut for, is drawn whole under it.
+- The icon of an armour is baked from its overlay (CONTENT.md 5.3), the first frame's.
+
+Offline, `gm-client --offline --worn KEY[,KEY...]` puts the overlays on the own body and
+the crowd's strikers (headless too: the fitting room of the overlays), beside `--prop`
+and `--off`.
+
+**The back** (2026-10-14, EQUIPMENT.md 5.3): the `cape` is the first overlay that is
+ours and not a pack's: a cloth plane hung from the shoulder line down the back to the
+knees, as far out as the body's back is at each height and never nearer than the row
+above, its edges brought a little forward round the sides, skinned by height to `chest`,
+`spine` and `hips`, two-sided, 192 triangles, with a 64² swatch (red cloth, a gold hem)
+for its texture (`cape_mesh` in `scripts/dev/blender-quaternius-hero.py`,
+`scripts/dev/places-pipeline.sh`). It covers nothing. The sheathed weapon (6.7) lies over
+it: `prop_back` is further out than the cape.
+
+### 6.7 The sheathed weapon (2026-10-14)
+
+Out of a fight the right hand's weapon is **sheathed on the back** (EQUIPMENT.md 5.3,
+step 6 of its plan; until then "a weapon is always held" was a known limit). The zone
+decides: an RPG body that has neither dealt nor taken damage nor begun a swing or a cast
+(`Player.acting`) for the fight lock's ten seconds (`GEAR_AFTER_FIGHT`, ITEMS.md 5: the one
+timer the body keeps, and the one that lets gear change) has its weapon on its back; the
+tick it does any of those it is in the fist again. On the wire it is **`Look.sheathed`**
+(protocol v21, PROTOCOL.md 33), sent as every look is: on the change, when the body holds
+something, and in the roster; a gun build's is never set (its hand is 6.4's). The pass
+costs the tick loop one look at each session's body.
+
+Drawn: the held prop's `CharacterDraw` takes **`prop_back`'s** skinning matrix instead
+of `prop_r`'s (`gm_model::pose::prop_attach_back`), at that bone's pivot lifted
+`SHEATH_LIFT` (10 units up, 5 to the right: over the right shoulder) with **the sheath's
+grip** (`grip_back`): the business end runs down across the back towards the left hip,
+`SHEATH_TILT_DEG` (32°) from upright, the flat against the back, the edge sideways; a
+two-hander lies the same way. The off hand's prop stays in the left hand (a shield on the
+arm). The own first-person view shows no view model while the own weapon is sheathed. The
+selector's body keeps its weapon in its hand (CLIENT.md 4.2: a showcase); the paperdoll
+of the equipment window draws the look as the zone says it. Nothing is animated: the
+weapon is in one place or the other, and the swing that brings it out is the swing
+itself. The fitting room of the sheath: `gm-tools content look KEY --back` on the
+mannequin, and offline `gm-client --offline --prop KEY --sheathed` (own body and crowd,
+`--headless` for a picture).
+
 ## 7. The purse: silver and gold
 
 The director dropped copper (2026-10-03). The ledger's integer is **silver**; **100 silver =
@@ -453,7 +543,7 @@ two gem sockets: no casino, PLAN.md 0.) The screens show two coins (`coin_gold`,
 | `max_native_added_bytes` | 262,144 | the native client |
 | `max_page_ms` | 0.8 | inventory with the paperdoll, a frame on the iGPU (today 0.36–0.47 ms for a page) |
 | `max_hud_ms` | 0.15 | the hotbar, statuses, portrait and party frames, a frame on the iGPU |
-| `max_prop_draw_ms` | 0.5 | 100 bodies holding props in the town over the same scene without (the avatars gate's scene) |
+| `max_prop_draw_ms` | 0.5 | 100 bodies holding props in the town over the same scene without (the avatars gate's scene); the real GPU's number (`check-look.sh --gate-fps`): the software GPU pays per triangle, and the 712-triangle sword of 2026-10-13 costs it 13 ms over 48 bodies, reported there and not gated |
 | `min_fps` | 60 | the avatars gate with every body armed |
 
 `scripts/check-look.sh [--desktop] [--browser] [--gate-fps]`: (1) `gm-tools content check
