@@ -484,6 +484,8 @@ struct App {
     offline_worn: Vec<(usize, u32)>,
     /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
     offline_off: Option<usize>,
+    /// Offline (`--sheathed`): the own prop rests on the back (LOOK.md 6.7).
+    offline_sheathed: bool,
     /// The window, from its creation: the renderer on it (`active`) may come later.
     window: Option<Arc<Window>>,
     bsp: Bsp,
@@ -931,6 +933,7 @@ fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, start: Start)
         offline_prop: None,
         offline_worn: Vec::new(),
         offline_off: None,
+        offline_sheathed: false,
         front_up: start.front.is_some() && start.online.is_none(),
         title: None,
         hub: start.hub,
@@ -2860,6 +2863,14 @@ impl App {
             self.offline_worn = worn.clone();
             a.avatars.crowd_worn = worn;
         }
+        // `--sheathed`: the prop on the back, own and crowd (the fitting room of the
+        // sheath, LOOK.md 6.7).
+        if self.opts.sheathed {
+            self.offline_sheathed = true;
+            if let Some(a) = self.active.as_mut() {
+                a.avatars.crowd_sheathed = true;
+            }
+        }
         // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
         if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
             self.set_grab(true);
@@ -4765,6 +4776,7 @@ impl App {
                         ),
                         worn: worn.0,
                         hide: worn.1,
+                        sheathed: o.looks.get(&e.id).is_some_and(|l| l.sheathed),
                     });
                 }
                 EntityKind::Projectile => {
@@ -5013,13 +5025,13 @@ impl App {
                 }
                 self.view_kick = (self.view_kick - frame_dt * 6.0).max(0.0);
                 self.view_stride += own_travel / 64.0;
-                // The gun mode's hand is known here before the zone says so.
+                // The gun mode's hand is known here before the zone says so. A weapon
+                // on the back (LOOK.md 6.7) is not in the view: the hand is empty.
+                let own_look = o.looks.get(&c.my_id).copied().unwrap_or_default();
                 let key = match gun_hand_prop(&self.content, o.pack.as_ref(), c) {
                     Some(key) => Some(key),
-                    None => o
-                        .props
-                        .get(o.looks.get(&c.my_id).copied().unwrap_or_default().held as usize)
-                        .cloned(),
+                    None if own_look.sheathed => None,
+                    None => o.props.get(own_look.held as usize).cloned(),
                 };
                 let fit = key
                     .as_deref()
@@ -5110,6 +5122,7 @@ impl App {
                     ),
                     worn: worn.0,
                     hide: worn.1,
+                    sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                 });
                 Some((camera, self.sim.yaw, self.sim.pitch))
             }
@@ -5911,6 +5924,7 @@ impl App {
                         off: self.offline_off,
                         worn: crate::avatars::places(&self.offline_worn).0,
                         hide: crate::avatars::places(&self.offline_worn).1,
+                        sheathed: self.offline_sheathed,
                     });
                     (
                         third_person_camera(
@@ -6398,6 +6412,9 @@ impl App {
                             off,
                             worn: overlay,
                             hide,
+                            // The selector shows the weapon in the hand (CLIENT.md 4.2):
+                            // a showcase, not a body in the world.
+                            sheathed: false,
                         };
                         a.avatars
                             .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
@@ -6443,6 +6460,7 @@ impl App {
                         ),
                         worn: worn.0,
                         hide: worn.1,
+                        sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                     };
                     a.avatars
                         .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)

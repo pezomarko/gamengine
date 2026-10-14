@@ -714,15 +714,20 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
 
     // The body's places and the trinkets (EQUIPMENT.md 5): each counts for its share
     // under the one cap. A hood of iron and oak guards the elements (40 on each, 3 of
-    // 20: 6); boots the blows (40, 1 of 20: 2); a ring of ember and quartz deals fire
-    // 40 and the other elements 10, for half; an amulet of rime and quartz takes the
-    // same off water. The second ring goes onto the other finger by itself.
+    // 20: 6); boots the blows (40, 1 of 20: 2); a cape the elements for the back's 1 of
+    // 20 (2); a ring of ember and quartz deals fire 40 and the other elements 10, for
+    // half; an amulet of rime and quartz takes the same off water. The second ring goes
+    // onto the other finger by itself.
     let hood = direct
         .grant_item(smith, "hood", &iron, room("hood").as_deref())
         .await
         .unwrap();
     let boots = direct
         .grant_item(smith, "boots", &iron, room("boots").as_deref())
+        .await
+        .unwrap();
+    let cape = direct
+        .grant_item(smith, "cape", &iron, room("cape").as_deref())
         .await
         .unwrap();
     let ember_ring = strings(&["catalyst/ember", "gem/quartz"]);
@@ -743,15 +748,16 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         )
         .await
         .unwrap();
-    for item in [hood, boots, ring_a, ring_b, amulet] {
+    for item in [hood, boots, cape, ring_a, ring_b, amulet] {
         wear(&town, smith, item).await.unwrap();
     }
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert_eq!(
-        [hood, boots, ring_a, ring_b, amulet].map(|i| find(&have, i).worn_in),
+        [hood, boots, cape, ring_a, ring_b, amulet].map(|i| find(&have, i).worn_in),
         [
             gm_hub::protocol::PLACE_HEAD,
             gm_hub::protocol::PLACE_FEET,
+            gm_hub::protocol::PLACE_BACK,
             gm_hub::protocol::PLACE_RING,
             gm_hub::protocol::PLACE_RING2,
             gm_hub::protocol::PLACE_NECK
@@ -760,7 +766,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(find(&have, ring_a).what, "a trinket, 40 of 250");
     let gear = wear(&town, smith, amulet).await.unwrap();
     assert_eq!(gear.dealt, [220, 0, 0, 230, 10, 10, 10, 10, 10]);
-    assert_eq!(gear.taken, [110, 110, 110, 11, 26, 11, 11, 11, 11]);
+    assert_eq!(gear.taken, [110, 110, 110, 13, 28, 13, 13, 13, 13]);
     // A thing asked onto a place that is not its own is refused in words; a ring onto
     // the second finger by name goes there, and takes what was there.
     assert_eq!(
@@ -772,8 +778,9 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         .unwrap();
     assert_eq!(reading.templates[10], "", "the first finger is bare");
     assert_eq!(reading.templates[11], "ring");
+    assert_eq!(reading.templates[7], "cape", "the back");
     assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring_b).worn);
-    for item in [hood, boots, ring_a, amulet] {
+    for item in [hood, boots, cape, ring_a, amulet] {
         take_off(&town, smith, item).await.unwrap();
     }
     assert_eq!(

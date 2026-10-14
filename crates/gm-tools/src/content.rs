@@ -69,6 +69,9 @@ pub enum ContentCmd {
         /// In the left hand (LOOK.md 6.5: a shield), with the right one empty.
         #[arg(long)]
         left: bool,
+        /// On the back (LOOK.md 6.7: the sheathed weapon), with both hands empty.
+        #[arg(long)]
+        back: bool,
     },
     /// Write one of the tool's own flat-coloured props as a .glb (CONTENT.md 7: the
     /// procedural source): sword, greatsword, shield, hammer, musket, pistol.
@@ -139,6 +142,7 @@ pub fn run(cmd: ContentCmd) -> Result<()> {
             dir,
             out,
             left,
+            back,
         } => {
             let bundle = build(&dir)?;
             let Some(model) = bundle.props.get(&key) else {
@@ -147,10 +151,11 @@ pub fn run(cmd: ContentCmd) -> Result<()> {
                     bundle.props.keys().cloned().collect::<Vec<_>>().join(", ")
                 );
             };
-            let (w, h, rgba) = fitting_room(model, left);
+            let (w, h, rgba) = fitting_room(model, left, back);
             std::fs::write(&out, gm_ingest::write::png(w, h, &rgba))
                 .with_context(|| format!("writing {}", out.display()))?;
-            println!("content: {key} in the hand, {w} x {h} -> {}", out.display());
+            let place = if back { "on the back" } else { "in the hand" };
+            println!("content: {key} {place}, {w} x {h} -> {}", out.display());
             Ok(())
         }
         ContentCmd::Synth { what, out } => {
@@ -1054,8 +1059,9 @@ const STANCES: [(u8, f32, f32, bool); 11] = [
 ];
 
 /// The striker's mannequin holding `prop` in every stance, seen from the front (top row)
-/// and from its right (bottom row): RGBA, its width and height.
-fn fitting_room(prop: &Model, left: bool) -> (u32, u32, Vec<u8>) {
+/// and from its right (bottom row): RGBA, its width and height. `left`: in the left hand;
+/// `back`: sheathed on the back (LOOK.md 6.7).
+fn fitting_room(prop: &Model, left: bool, back: bool) -> (u32, u32, Vec<u8>) {
     use gm_ingest::raster::{self, Dir, ModelSoup, Soup, Window};
     let frame = gm_core::vocab::ArchetypeFrame::Striker;
     let mesh = mannequin::build(frame, &mannequin::Shape::MANNEQUIN);
@@ -1100,7 +1106,9 @@ fn fitting_room(prop: &Model, left: bool) -> (u32, u32, Vec<u8>) {
         let body_normals: Vec<glam::Vec3> = (0..mesh.normals.len())
             .map(|i| skin[mesh.joints[i][0] as usize].transform_vector3(mesh.normals[i]))
             .collect();
-        let attach = if left {
+        let attach = if back {
+            gm_model::pose::prop_attach_back(&mesh.pivots, &skin)
+        } else if left {
             gm_model::pose::prop_attach_left(&mesh.pivots, &skin)
         } else {
             gm_model::pose::prop_attach(&mesh.pivots, &skin)

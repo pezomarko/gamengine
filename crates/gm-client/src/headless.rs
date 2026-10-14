@@ -82,6 +82,8 @@ pub fn run(opts: &Options) -> Result<(), Error> {
             }
         }
     }
+    // `--sheathed`: the crowd's props on their backs (LOOK.md 6.7).
+    avatars.crowd_sheathed = opts.sheathed;
     let target = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("offscreen"),
         size: wgpu::Extent3d {

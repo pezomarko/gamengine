@@ -301,6 +301,7 @@ fn look_of(
     looks: &gm_content::looks::Looks,
     zone: &Zone,
     hub_slots: &std::collections::BTreeMap<u32, HubSlot>,
+    sheaths: &HashMap<EntityId, bool>,
     body: u32,
 ) -> Look {
     let player = zone.player(body);
@@ -316,6 +317,7 @@ fn look_of(
             held: looks.held(None, in_hand),
             worn: [Look::NONE; gm_net::control::BODY_PLACES],
             off: Look::NONE,
+            sheathed: false,
         };
     }
     let worn = |place: usize| {
@@ -327,11 +329,35 @@ fn look_of(
     // The hands hold what is worn in them and nothing else (LOOK.md 6.1, 6.5): no sword
     // in the inventory, no sword in the hand. The body (LOOK.md 6.6, EQUIPMENT.md 5.2):
     // an overlay a place, in the order the wire lists them.
+    // Out of a fight the weapon rests on the back (LOOK.md 6.7): the sheath pass of the
+    // tick loop keeps the state; a body it has not judged yet stands as it entered, armed.
     Look {
         held: looks.held(worn(0), None),
         worn: std::array::from_fn(|i| looks.worn(worn(gm_hub_proto::protocol::BODY_INDICES[i]))),
         off: looks.off(worn(1)),
+        sheathed: sheaths.get(&body).copied().unwrap_or(false),
     }
+}
+
+/// Whether a body's weapon rests on its back (LOOK.md 6.7, EQUIPMENT.md 5.3): it has
+/// neither dealt nor taken damage nor begun a swing or a cast for the fight lock's ten
+/// seconds (`GEAR_AFTER_FIGHT`, ITEMS.md 5: the one timer the body keeps). `armed_at` is
+/// the tick it last did either, as the pass remembers it; a dead body keeps its state.
+fn sheathed_now(
+    p: &gm_core::sim::Player,
+    armed_at: &mut Option<gm_core::tick::Tick>,
+    now: gm_core::tick::Tick,
+    fight: gm_core::tick::Tick,
+) -> bool {
+    if p.acting != 0 {
+        *armed_at = Some(now);
+    }
+    if let Some(at) = p.fought_at
+        && armed_at.is_none_or(|a| gm_core::sim::tick_delta(at, a) > 0)
+    {
+        *armed_at = Some(at);
+    }
+    !armed_at.is_some_and(|at| (gm_core::sim::tick_delta(now, at).max(0) as u32) < fight)
 }
 
 fn wire_kind(kind: gm_ai::BodyKind) -> BodyKind {
@@ -645,6 +671,10 @@ pub async fn run_with_web(
     let mut hub_slots: BTreeMap<EntityId, HubSlot> = BTreeMap::new();
     // The gun hand each player was last seen with (MODES.md 3.7): a change is a `Look`.
     let mut hands_seen: HashMap<EntityId, u8> = HashMap::new();
+    // Whether each player's weapon rests on its back (LOOK.md 6.7), and the tick it last
+    // fought or swung: a change of the first is a `Look`.
+    let mut sheaths: HashMap<EntityId, bool> = HashMap::new();
+    let mut armed: HashMap<EntityId, Option<gm_core::tick::Tick>> = HashMap::new();
     let mut revoked: Vec<(ModelId, Instant)> = Vec::new();
     // The market: open stalls by id (the hub is their owner; this is its mirror).
     let mut stalls: BTreeMap<i64, StallSummary> = BTreeMap::new();
@@ -886,6 +916,8 @@ pub async fn run_with_web(
                         }
                         hub_slots.remove(&old);
                         hands_seen.remove(&old);
+                        sheaths.remove(&old);
+                        armed.remove(&old);
                         party_waits.remove(&old);
                         trade_asks.retain(|asker, (asked, _)| *asker != old && *asked != old);
                         // (The old session's own leave finds nothing left to announce.)
@@ -1016,7 +1048,7 @@ pub async fn run_with_web(
                     }
                     session.model = model;
                     session.announced = zone.player(id).and_then(|p| session.wears(p.frame()));
-                    let look = look_of(&cfg.looks, &zone, &hub_slots, id);
+                    let look = look_of(&cfg.looks, &zone, &hub_slots, &sheaths, id);
                     for s in sessions.values() {
                         s.send_control(FromZone::PlayerInfo {
                             id,
@@ -1072,7 +1104,7 @@ pub async fn run_with_web(
                             team: zone.player(s.id).map_or(0, |p| p.team()),
                             model: s.announced,
                             kind: BodyKind::Human,
-                            look: look_of(&cfg.looks, &zone, &hub_slots, s.id),
+                            look: look_of(&cfg.looks, &zone, &hub_slots, &sheaths, s.id),
                         })
                         .collect();
                     roster.extend(director.driven().into_iter().map(|(body, name, kind)| {
@@ -1082,7 +1114,7 @@ pub async fn run_with_web(
                             team: zone.player(body).map_or(0, |p| p.team()),
                             model: companion_models.get(&body).map(|m| m.id),
                             kind: wire_kind(kind),
-                            look: look_of(&cfg.looks, &zone, &hub_slots, body),
+                            look: look_of(&cfg.looks, &zone, &hub_slots, &sheaths, body),
                         }
                     }));
                     sessions[&id].send_control(FromZone::Roster(roster));
@@ -1391,6 +1423,8 @@ pub async fn run_with_web(
                         }
                         hub_slots.remove(&id);
                         hands_seen.remove(&id);
+                        sheaths.remove(&id);
+                        armed.remove(&id);
                         parties.left(character, Instant::now());
                         party_waits.remove(&id);
                         trade_asks.retain(|asker, (asked, _)| *asker != id && *asked != id);
@@ -1773,7 +1807,8 @@ pub async fn run_with_web(
                                     // What it held before the reading, then the reading
                                     // (Gemini's review: measured after, the look never
                                     // changed and nobody was told).
-                                    let before = look_of(&cfg.looks, &zone, &hub_slots, body);
+                                    let before =
+                                        look_of(&cfg.looks, &zone, &hub_slots, &sheaths, body);
                                     if let Some(slot) = hub_slots.get_mut(&body) {
                                         slot.gear_seq = reading.seq;
                                         slot.worn = reading.templates.clone();
@@ -1789,7 +1824,8 @@ pub async fn run_with_web(
                                         "gear"
                                     );
                                     // What it holds may have changed with it (LOOK.md 6.2).
-                                    let look = look_of(&cfg.looks, &zone, &hub_slots, body);
+                                    let look =
+                                        look_of(&cfg.looks, &zone, &hub_slots, &sheaths, body);
                                     if look != before {
                                         info!(character, body, held = look.held, "look");
                                         for s in sessions.values() {
@@ -2601,7 +2637,30 @@ pub async fn run_with_web(
             }
             let held = p.mover.held;
             if hands_seen.insert(s.id, held) != Some(held) {
-                let look = look_of(&cfg.looks, &zone, &hub_slots, s.id);
+                let look = look_of(&cfg.looks, &zone, &hub_slots, &sheaths, s.id);
+                for other in sessions.values() {
+                    other.send_control(FromZone::Look { id: s.id, look });
+                }
+            }
+        }
+        // The sheath (LOOK.md 6.7, EQUIPMENT.md 5.3): an RPG body's weapon rests on its
+        // back once it has neither fought nor swung for the fight lock's ten seconds, and
+        // is in its fist again the tick it does either; everyone is told when that
+        // changes and the body holds something. (A gun build's hand is its own, above.)
+        let fight = rate.ms_to_ticks(cfg.gear_after_fight.as_millis() as u32);
+        for s in sessions.values() {
+            let Some(p) = zone.player(s.id) else {
+                continue;
+            };
+            if p.sheet.kit.mode == gm_core::vocab::Mode::Gun || !p.alive || p.ghost {
+                continue;
+            }
+            let now = sheathed_now(p, armed.entry(s.id).or_default(), zone.tick, fight);
+            if sheaths.insert(s.id, now) != Some(now) {
+                let look = look_of(&cfg.looks, &zone, &hub_slots, &sheaths, s.id);
+                if look.held == Look::NONE {
+                    continue;
+                }
                 for other in sessions.values() {
                     other.send_control(FromZone::Look { id: s.id, look });
                 }
@@ -2622,7 +2681,7 @@ pub async fn run_with_web(
                 DirectorEvent::Spawned { id, name, kind } => {
                     let team = zone.player(id).map_or(0, |p| p.team());
                     let model = companion_models.get(&id).map(|m| m.id);
-                    let look = look_of(&cfg.looks, &zone, &hub_slots, id);
+                    let look = look_of(&cfg.looks, &zone, &hub_slots, &sheaths, id);
                     for s in sessions.values() {
                         s.send_control(FromZone::PlayerInfo {
                             id,
@@ -2841,7 +2900,7 @@ pub async fn run_with_web(
                     }
                     // A respec may hold another weapon (the primary's prop, LOOK.md 6.1):
                     // everyone is told either way, in one message or the other.
-                    let look = look_of(&cfg.looks, &zone, &hub_slots, id);
+                    let look = look_of(&cfg.looks, &zone, &hub_slots, &sheaths, id);
                     if let Some((name, team, model)) = wears {
                         for s in sessions.values() {
                             s.send_control(FromZone::PlayerInfo {

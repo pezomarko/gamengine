@@ -325,7 +325,9 @@ the content's looks beside the pack
 - **Wearing.** The zone checks that the body is alive and in person, and **not in a
   fight**: it has neither dealt nor taken damage for **10 s** (`GEAR_AFTER_FIGHT`; a pulse
   of a status counts for both). Then it asks the hub, applies the answer at once, and logs
-  it (`gear character=… dealt=[…] taken=[…]`).
+  it (`gear character=… dealt=[…] taken=[…]`). The same ten seconds sheathe the weapon
+  on the back (LOOK.md 6.7; a swing or a cast begun counts there too, since a body
+  swinging at nothing is not out of a fight to look at).
 - **Gates** (PROTOCOL.md 8): one request at a time and one a second per player, for the
   stall requests (open, close, buy) and, apart from them, for wearing. A request the gate
   stops is **answered** ("one thing at a time: try again in a moment"): somebody is looking

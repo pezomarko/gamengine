@@ -158,8 +158,9 @@ other). Our own hammer, musket and pistol are made this way (`gm-tools content s
 **Both hands** (content v10, 2026-10-13, EQUIPMENT.md 3): `held = "two"` on a weapon
 (the staff) says that worn it takes the left hand too (ITEMS.md 2); the manifest carries
 it (`HELD_TWO`), and the hold itself (both fists on the grip) is a later phase's: the prop
-is drawn in the right fist. Sheathing to the back out of a fight is a `held` value a later
-phase can act on. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
+is drawn in the right fist. Sheathing to the back out of a fight is not a row's doing: it
+is the zone's state of the body (LOOK.md 6.7, `Look.sheathed`), and every weapon rests on
+`prop_back` the same way; `gm-tools content look KEY --back` shows it. **The off hand** (2026-10-09, LOOK.md 6.5): an ability may carry a `prop` whatever
 its slot, and the prop of a build's **guard** ability is drawn in the left hand (`shield_wall`
 holds `shield`, ours: `gm-tools content synth shield`, built in hand space already, its face
 along +Y). `gm-tools content look KEY --left` is the fitting room for it, and offline
@@ -204,7 +205,9 @@ which, and a body wears up to seven at once, drawn in the order of `Place::BODY`
 ranger set on the striker is the first cut: `cuirass` (the jerkin and its belts),
 `pauldrons`, `bracers`, `hood`, `trousers`, `boots`, made by
 `scripts/dev/places-pipeline.sh` (the hero's Blender pass exporting each as its own
-file). The overlays and the avatars are fetched a file at a time as they are first
+file); the back's `cape` (2026-10-14) is ours, a cloth plane the same pass hangs from the
+shoulders and skins to the chest, the spine and the hips, with a 64² swatch for its
+texture (LOOK.md 6.6, LICENSES.md). The overlays and the avatars are fetched a file at a time as they are first
 seen, so they are counted apart from the bundle (`budgets.toml [content]
 max_wear_bytes`, LOOK.md 8) and the bundle's own cap holds the manifest, the atlases
 and the props. The first two are the Fantasy outfits' leather jerkin with its pauldrons and

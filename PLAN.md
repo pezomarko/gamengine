@@ -1430,8 +1430,8 @@ GUI editor he wants is Phase 16 since 2026-10-07):
   fetches landed in an inbox nobody polled; a grid picked listings by the item's id instead of the
   listing's; an unknown list must not drop the pick the first answer fills.
 - Known limits: armour is not drawn on the body (Phase 17 since 2026-10-07), no icons for abilities and statuses yet
-  (their names stand in; CONTENT.md 8's image model is the plan), a weapon is always held (never
-  sheathed), the view model shares the world's depth (clips into a wall pressed against), the tavern and
+  (their names stand in; CONTENT.md 8's image model is the plan), a weapon was always held (never
+  sheathed) until 2026-10-14 (LOOK.md 6.7), the view model shares the world's depth (clips into a wall pressed against), the tavern and
   people pages are rows still, a left hand holds nothing, no scrollbar on the hotbar's statuses.
 - **The same evening, after the director played it** (LOOK.md 11.4: "the new UI is ultra low res ... the
   sword as an extension of the arm is wrong"). The phase's screenshots had been taken at 1280 × 720 and
@@ -1679,8 +1679,13 @@ the head 3, the hands 2, the rest 1; the left hand and the trinkets half; a two-
 (protocol v20) drawn as one overlay a place with the union of their covers; `kind = "trinket"` (an amulet,
 a ring) built round a catalyst; the ranger set cut into one overlay a place (`scripts/dev/places-pipeline.sh`:
 hood, pauldrons, bracers, trousers, boots, the cuirass the jerkin alone); the bundle's cap counts the
-manifest, atlases and props, the avatars and overlays apart under `max_wear_bytes`. Not done: a cape for
-the back and the sheathed weapon (EQUIPMENT.md 6, step 6).
+manifest, atlases and props, the avatars and overlays apart under `max_wear_bytes`. **2026-10-14** (step 6,
+EQUIPMENT.md 10): the cape, ours (a cloth plane the hero's Blender pass hangs from the shoulders, 192
+triangles, two-sided, a 64² swatch; `covers` nothing), and the sheathed weapon: `Look.sheathed` (protocol
+v21), set by the zone when an RPG body has neither fought nor swung for the fight lock's ten seconds and
+cleared the tick it does, drawn at `prop_back` with the sheath's grip (`gm_model::pose::prop_attach_back`:
+over the right shoulder, 32° from upright down the back); no view model while sheathed; `gm-tools content
+look KEY --back` and `gm-client --offline --prop KEY --sheathed` are its fitting rooms.
 
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
@@ -1740,7 +1745,7 @@ director **decided** on 2026-10-03: finished CC0 models may be reused and the lo
 Tales of Pirates and Ether Saga, with Counter-Strike 1.6's standard (not its assets) for weapons; a GUI
 editor is wanted (Phase 16 since 2026-10-07); the browser's megabyte may be doubled or tripled (WEB.md 9: 2 MiB); drag and
 drop and keyboard shortcuts are both musts; top gear is tens of gold. As built and open to change: a
-weapon is always held (never sheathed), the two faces (Fira Sans Medium, MedievalSharp), party frames for
+weapon rests on the back out of a fight since 2026-10-14 (ten seconds, the fight lock's; LOOK.md 6.7), the two faces (Fira Sans Medium, MedievalSharp), party frames for
 members present in the zone only, the view model's place. (The marks on a body were decided on
 2026-10-03: names over heads instead of the cube, a ring instead of the plate, LOOK.md 13.)
 The three modes are **proposed** in `docs/MODES.md` 9 (2026-10-07: the presets' modes, hitscan or a bolt at 20,000 u/s, the head band, whether an RPG body's aim is the zone's, whether a mode change is a respec, the diminishing returns on controls); the stacks' caps and prices of MODES.md 11.6 were decided as proposed the same day.

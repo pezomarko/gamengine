@@ -478,6 +478,41 @@ Offline, `gm-client --offline --worn KEY[,KEY...]` puts the overlays on the own 
 the crowd's strikers (headless too: the fitting room of the overlays), beside `--prop`
 and `--off`.
 
+**The back** (2026-10-14, EQUIPMENT.md 5.3): the `cape` is the first overlay that is
+ours and not a pack's: a cloth plane hung from the shoulder line down the back to the
+knees, as far out as the body's back is at each height and never nearer than the row
+above, its edges brought a little forward round the sides, skinned by height to `chest`,
+`spine` and `hips`, two-sided, 192 triangles, with a 64² swatch (red cloth, a gold hem)
+for its texture (`cape_mesh` in `scripts/dev/blender-quaternius-hero.py`,
+`scripts/dev/places-pipeline.sh`). It covers nothing. The sheathed weapon (6.7) lies over
+it: `prop_back` is further out than the cape.
+
+### 6.7 The sheathed weapon (2026-10-14)
+
+Out of a fight the right hand's weapon is **sheathed on the back** (EQUIPMENT.md 5.3,
+step 6 of its plan; until then "a weapon is always held" was a known limit). The zone
+decides: an RPG body that has neither dealt nor taken damage nor begun a swing or a cast
+(`Player.acting`) for the fight lock's ten seconds (`GEAR_AFTER_FIGHT`, ITEMS.md 5: the one
+timer the body keeps, and the one that lets gear change) has its weapon on its back; the
+tick it does any of those it is in the fist again. On the wire it is **`Look.sheathed`**
+(protocol v21, PROTOCOL.md 33), sent as every look is: on the change, when the body holds
+something, and in the roster; a gun build's is never set (its hand is 6.4's). The pass
+costs the tick loop one look at each session's body.
+
+Drawn: the held prop's `CharacterDraw` takes **`prop_back`'s** skinning matrix instead
+of `prop_r`'s (`gm_model::pose::prop_attach_back`), at that bone's pivot lifted
+`SHEATH_LIFT` (10 units up, 5 to the right: over the right shoulder) with **the sheath's
+grip** (`grip_back`): the business end runs down across the back towards the left hip,
+`SHEATH_TILT_DEG` (32°) from upright, the flat against the back, the edge sideways; a
+two-hander lies the same way. The off hand's prop stays in the left hand (a shield on the
+arm). The own first-person view shows no view model while the own weapon is sheathed. The
+selector's body keeps its weapon in its hand (CLIENT.md 4.2: a showcase); the paperdoll
+of the equipment window draws the look as the zone says it. Nothing is animated: the
+weapon is in one place or the other, and the swing that brings it out is the swing
+itself. The fitting room of the sheath: `gm-tools content look KEY --back` on the
+mannequin, and offline `gm-client --offline --prop KEY --sheathed` (own body and crowd,
+`--headless` for a picture).
+
 ## 7. The purse: silver and gold
 
 The director dropped copper (2026-10-03). The ledger's integer is **silver**; **100 silver =

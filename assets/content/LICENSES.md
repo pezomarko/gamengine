@@ -19,6 +19,7 @@ Props under `props/`, official avatars under `avatars/`, armour overlays under `
 | `armour/hood_striker.glb` | the same pack (`Male_Ranger_Head_Hood.gltf`), the same scripts: the head's overlay, 639 triangles | CC0 1.0 |
 | `armour/trousers_striker.glb` | the same pack (`Male_Ranger_Legs.gltf`), the same scripts: the legs' overlay, 564 triangles | CC0 1.0 |
 | `armour/boots_striker.glb` | the same pack (`Male_Ranger_Feet_Boots.gltf`), the same scripts: the feet's overlay, under 1,500 triangles | CC0 1.0 |
+| `armour/cape_striker.glb` | ours: a cloth plane hung from the shoulders down the back to the knees, following the body's profile and wrapped a little round it, skinned to `chest`, `spine` and `hips` by height, two-sided, 192 triangles, made in the same Blender pass (`cape` in `scripts/dev/blender-quaternius-hero.py`); its 64² swatch (red cloth, a gold hem) is drawn by `scripts/dev/places-pipeline.sh` | CC-BY-SA 4.0 |
 | `armour/robe_striker.glb` | the same pack (`Male_Peasant_Body.gltf`, the sleeves of `Male_Peasant_Arms.gltf`, `T_Peasant_BaseColor.png`), the same scripts: the robe's overlay, 1,500 triangles | CC0 1.0 |
 | `props/dagger.glb` | the same pack (`dagger.gltf` + `rogue_texture.png`) | CC0 1.0 |
 | `props/staff.glb` | the same pack (`staff.gltf` + `mage_texture.png`) | CC0 1.0 |

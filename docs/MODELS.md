@@ -50,7 +50,8 @@ feet, world units (32 u = 1 m). A model stands in T-pose: arms along ±Y, legs a
 
 **Required**: `hips`, `spine`, `chest`, `head`, both `upper_arm`, `forearm`, `thigh` and `shin`.
 The rest are optional; a missing optional bone behaves as its parent. `prop_*` are attachment
-points that follow their parent today.
+points that follow their parent today: `prop_r` and `prop_l` the hands' (LOOK.md 6.3, 6.5),
+`prop_back` the sheathed weapon's, behind the chest (LOOK.md 6.7).
 
 A bone is its **pivot** (the joint's rest position in model space) and nothing else. Animation
 is a model-space rotation per bone about its pivot, composed down the hierarchy:

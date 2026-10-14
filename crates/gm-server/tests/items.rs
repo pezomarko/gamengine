@@ -805,11 +805,36 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
             .await,
         Ok(())
     );
+    // Out of a fight the sword rests on the back (LOOK.md 6.7, EQUIPMENT.md 5.3): the
+    // fight lock that let the buyer wear it is the sheath's timer too, so everyone is
+    // told it holds the sword sheathed; the next swing brings it into the fist the tick
+    // it begins, and everyone is told that as well.
+    let sword_prop = gm_content::looks::Looks::load_dir(Path::new(CONTENT))
+        .expect("looks")
+        .prop_index("sword");
+    let buyer_id = buyer_hand.shared.lock().unwrap().id;
+    smith_hand
+        .until("the buyer's sword on its back", |s| {
+            s.heard.iter().any(|m| {
+                matches!(m, FromZone::Look { id, look }
+                    if *id == buyer_id && look.held == sword_prop && look.sheathed)
+            })
+        })
+        .await;
+    smith_hand.shared.lock().unwrap().heard.clear();
     let armed = hit(&buyer_hand).await;
     assert!(
         moved(1.11).contains(&armed) && armed > bare,
         "{bare} in nothing, {armed} with the sword"
     );
+    smith_hand
+        .until("the buyer's sword in its fist", |s| {
+            s.heard.iter().any(|m| {
+                matches!(m, FromZone::Look { id, look }
+                    if *id == buyer_id && look.held == sword_prop && !look.sheathed)
+            })
+        })
+        .await;
     // What is not one's own is not put on, nor what cannot be worn at all; and of two
     // requests at once the gate stops one and answers both.
     assert_eq!(

@@ -6,6 +6,9 @@
 #       --python scripts/dev/blender-quaternius-hero.py -- BASE.gltf PARTS_DIR OUT_DIR \
 #       [body eyes brows hair legs feet ranger_body belt pauldron bracer peasant_body sleeves]
 #
+# The cape (EQUIPMENT.md 5.3) is ours, made here and not from a pack: a cloth plane hung
+# from the shoulders down the back to the knees (`cape`), see cape_mesh below.
+#
 # PARTS_DIR holds the outfit parts (Male_Peasant_*, Male_Ranger_*, the whole Male_Ranger for
 # its bracers) and the base pack's Hair_Buzzed rigged to the head bone.
 #
@@ -31,7 +34,8 @@ argv = sys.argv[sys.argv.index('--') + 1:]
 base, parts, out = argv[0], argv[1], argv[2]
 ratios = dict(zip(['body', 'eyes', 'brows', 'hair', 'legs', 'feet', 'ranger_body', 'belt', 'pauldron',
                    'bracer', 'peasant_body', 'sleeves', 'hood', 'ranger_legs', 'boots'],
-                  [0.215, 0.2, 0.1, 0.3, 0.5, 0.17, 0.23, 0.12, 0.11, 0.08, 0.28, 0.3, 0.3, 0.5, 0.17]))
+                  [0.215, 0.2, 0.1, 0.3, 0.5, 0.17, 0.23, 0.12, 0.11, 0.08, 0.28, 0.3, 0.3, 0.5, 0.16]))
+# (The boots at 0.17 are 1,559 triangles, over an overlay's 1,500; 0.16 is the committed 1,467.)
 INFLATE = 0.012
 for k, v in zip(list(ratios), argv[3:]):
     ratios[k] = float(v)
@@ -204,6 +208,82 @@ p.parent = chest
 p.use_connect = False
 bpy.ops.object.mode_set(mode='OBJECT')
 
+
+def cape_mesh():
+    """The cape (EQUIPMENT.md 5.3): a grid of cloth hung from the shoulder line (just under
+    the neck) down the back to the knees, each row as far out as the body's back is at that
+    height and 2.5 cm more, never nearer than the row above (it hangs), its edges brought
+    forward round the sides most at the shoulders; skinned by height to the chest, the
+    spine and the hips. Two-sided, one material (MI_Cape, a swatch in the atlas), UVs
+    across and down."""
+    head = {n: (arm.matrix_world @ arm.data.bones[n].head_local).copy()
+            for n in ['hips', 'spine', 'chest', 'neck', 'upper_arm_l', 'shin_l']}
+    top = head['neck'].z - 0.03
+    bottom = head['shin_l'].z + 0.02
+    half_top = abs(head['upper_arm_l'].x) * 0.80
+    half_bottom = half_top * 1.35
+    cols, rows = 9, 13
+    pts = [o.matrix_world @ v.co for o in [body] + legs for v in o.data.vertices]
+
+    def weights_at(z):
+        c, s, h = head['chest'].z, head['spine'].z, head['hips'].z
+        if z >= c:
+            return {'chest': 1.0}
+        if z >= s:
+            k = (z - s) / (c - s)
+            return {'chest': k, 'spine': 1.0 - k}
+        if z >= h:
+            k = (z - h) / (s - h)
+            return {'spine': k, 'hips': 1.0 - k}
+        return {'hips': 1.0}
+
+    verts, uvs, weights = [], [], []
+    prev = None
+    for r in range(rows):
+        t = r / (rows - 1)
+        z = top + (bottom - top) * t
+        half = half_top + (half_bottom - half_top) * t
+        band = [p.y for p in pts if abs(p.z - z) < 0.06 and abs(p.x) < half]
+        y = (max(band) if band else (prev if prev is not None else head['chest'].y)) + 0.025
+        if prev is not None and y < prev:
+            y = prev
+        prev = y
+        for c in range(cols):
+            u = c / (cols - 1)
+            wrap = (abs(u - 0.5) * 2.0) ** 2 * (0.07 * (1.0 - t) + 0.015)
+            verts.append(((u - 0.5) * 2.0 * half, y - wrap, z))
+            uvs.append((u, 1.0 - t))
+            weights.append(weights_at(z))
+    faces = []
+    for r in range(rows - 1):
+        for c in range(cols - 1):
+            a = r * cols + c
+            faces.append((a, a + 1, a + cols + 1, a + cols))   # the normal out of the back (+Y)
+    me = bpy.data.meshes.new('Cape')
+    me.from_pydata(verts, [], faces)
+    me.update()
+    uv = me.uv_layers.new(name='UVMap')
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            uv.data[li].uv = uvs[me.loops[li].vertex_index]
+    mat = bpy.data.materials.new('MI_Cape')
+    mat.use_backface_culling = False
+    me.materials.append(mat)
+    ob = bpy.data.objects.new('Cape', me)
+    bpy.context.collection.objects.link(ob)
+    ob.parent = arm
+    ob.matrix_parent_inverse = arm.matrix_world.inverted()
+    ob.modifiers.new('Armature', 'ARMATURE').object = arm
+    for name in ['chest', 'spine', 'hips']:
+        g = ob.vertex_groups.new(name=name)
+        for i, w in enumerate(weights):
+            if name in w:
+                g.add([i], w[name], 'REPLACE')
+    return ob
+
+
+cape = cape_mesh()
+
 for o in bpy.data.objects:
     if o.type == 'MESH':
         o.data.update()
@@ -231,5 +311,6 @@ export('bracers', bracer)
 export('hood', hood)
 export('trousers', ranger_legs)
 export('boots', boots)
+export('cape', [cape])
 export('robe', peasant_body + [sleeves])
 print('DONE')

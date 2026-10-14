@@ -38,6 +38,11 @@ pub struct Look {
     /// the order chest, head, hands, legs, feet, back, shoulders (v20; one before).
     pub worn: [u16; BODY_PLACES],
     pub off: u16,
+    /// Out of a fight (v21, LOOK.md 6.7, EQUIPMENT.md 5.3): `held` rests on the back, at
+    /// `prop_back`, instead of in the right fist. The zone sets it when the body has
+    /// neither fought nor swung for the fight lock's ten seconds (ITEMS.md 5), and clears
+    /// it the tick it does either; a gun build's is never set.
+    pub sheathed: bool,
 }
 
 /// The body's places an overlay is drawn for (`gm_content::items::Place::BODY`).
@@ -49,6 +54,7 @@ impl Look {
         held: Look::NONE,
         worn: [Look::NONE; BODY_PLACES],
         off: Look::NONE,
+        sheathed: false,
     };
 }
 
@@ -841,6 +847,7 @@ mod tests {
                         held: (i % 7) as u16,
                         worn: [Look::NONE; BODY_PLACES],
                         off: if i % 2 == 0 { 3 } else { Look::NONE },
+                        sheathed: i % 3 == 0,
                     },
                 })
                 .collect(),

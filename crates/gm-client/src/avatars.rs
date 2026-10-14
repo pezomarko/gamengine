@@ -87,6 +87,9 @@ pub struct Body {
     /// the bones whose parts of the body they cover between them, not drawn.
     pub worn: [Option<usize>; BODY_PLACES],
     pub hide: u32,
+    /// Out of a fight (LOOK.md 6.7): `prop` rests on the back at `prop_back` instead of
+    /// in the right fist.
+    pub sheathed: bool,
 }
 
 /// Overlays in the body's places in the order given, and the bones they cover between
@@ -135,6 +138,8 @@ pub struct Avatars {
     pub crowd_off: Option<usize>,
     /// And on its body (`--worn`): the overlay and what it covers.
     pub crowd_worn: Vec<(usize, u32)>,
+    /// And the prop on its back instead of in its fist (`--sheathed`, LOOK.md 6.7).
+    pub crowd_sheathed: bool,
     /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
     /// loaded: a body without a model of its own wears one before it is the mannequin.
     officials: [[Option<usize>; 4]; 4],
@@ -251,6 +256,7 @@ impl Avatars {
             crowd_prop: None,
             crowd_off: None,
             crowd_worn: Vec::new(),
+            crowd_sheathed: false,
             officials: [[None; 4]; 4],
         })
     }
@@ -343,14 +349,20 @@ impl Avatars {
         let world = Mat4::from_translation(feet) * Mat4::from_rotation_z(body.yaw.to_radians());
         let light = light_at(bsp, body.origin);
         // What it holds, in its right hand: the prop's own draw, placed by the wearer's
-        // skinning matrix of `prop_r` at that bone's pivot (LOOK.md 6.3).
+        // skinning matrix of `prop_r` at that bone's pivot (LOOK.md 6.3); out of a fight
+        // on its back, at `prop_back` with the sheath's grip (LOOK.md 6.7).
         if let Some(info) = characters.info(slot)
             && (body.prop.is_some() || body.off.is_some())
         {
             let skin = gm_model::skin_matrices(&info.pivots, info.mask, &pose);
+            let right = if body.sheathed {
+                gm_model::pose::prop_attach_back(&info.pivots, &skin)
+            } else {
+                gm_model::pose::prop_attach(&info.pivots, &skin)
+            };
             // And the off hand's (LOOK.md 6.5): a shield on `prop_l` with the left grip.
             for (held, attach) in [
-                (body.prop, gm_model::pose::prop_attach(&info.pivots, &skin)),
+                (body.prop, right),
                 (
                     body.off,
                     gm_model::pose::prop_attach_left(&info.pivots, &skin),
@@ -542,6 +554,7 @@ impl Avatars {
                 } else {
                     0
                 },
+                sheathed: self.crowd_sheathed,
             };
             self.push(&body, dt, bsp, characters, boxes);
             // Running on the spot: feed the stride the animator would have seen.
@@ -656,6 +669,7 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         off: None,
         worn: [None; BODY_PLACES],
         hide: 0,
+        sheathed: false,
     }
 }
 

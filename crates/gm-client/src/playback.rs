@@ -253,6 +253,7 @@ impl Playback {
                         off: None,
                         worn: [None; BODY_PLACES],
                         hide: 0,
+                        sheathed: false,
                     });
                 }
                 EntityKind::Projectile => boxes.push(EntityDraw {

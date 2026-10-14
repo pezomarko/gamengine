@@ -157,6 +157,18 @@ layers = ["shard", "core", "frame", "gem"]
 model = "boots"                              # the ranger's boots, over the body's shoes
 covers = ["foot_l", "foot_r", "toe_l", "toe_r"]
 
+# The back (EQUIPMENT.md 5.3): a cape, ours (the hero's Blender pass hangs a cloth plane
+# from the shoulders, skinned to the chest, the spine and the hips), over the body and
+# covering nothing. The sheathed weapon rests on the back whether or not one is worn.
+[[template]]
+id = "cape"
+kind = "armour"
+place = "back"
+guards = "elements"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "cape"                               # a cloth cape off the shoulders, ours (LICENSES.md)
+covers = []
+
 [[template]]
 id = "robe"
 kind = "armour"

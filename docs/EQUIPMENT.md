@@ -1,8 +1,9 @@
 # Equipment: the places, the hands, the character window (v0, PROPOSED 2026-10-13)
 
 Status: **proposed 2026-10-13 and taken** (the director: "now this seems like a good
-plan, please implement it"); section 10 says what is built. The sections above it stay as
-proposed, with the review's corrections. Written the evening of 2026-10-13 after
+plan, please implement it"); **built in full by 2026-10-14**: section 10 says what is
+built, step by step. The sections above it stay as proposed, with the review's
+corrections. Written the evening of 2026-10-13 after
 the director played the lean hero with three places (ITEMS.md 2, LOOK.md 6.5 and 6.6):
 "our blade class can't equip greatsword or 2 swords? can we at least have some char/class
 names and show restrictions on equipables then? also change how inventory looks, we need
@@ -257,7 +258,9 @@ row's `covers` stays per template (a hood covers nothing, a great helm the head)
 Out of a fight the right hand's weapon is **sheathed** to `prop_back` (CONTENT.md 3.1
 named it) whether or not the back place holds anything; the back place is for what is
 worn there, not where the sword rests. The cape is where a guild's colour and a title's
-badge would be drawn, if either is ever wanted (not proposed here).
+badge would be drawn, if either is ever wanted (not proposed here). (As built, 10 step 6:
+the cape is ours, made in the hero's Blender pass since no pack has one; the quiver waits
+for the bow of 5.6.)
 
 ### 5.4 The trinkets (three places; no model)
 
@@ -527,7 +530,32 @@ Steps 1 to 3 of section 6, in that order, one commit:
 
 Measured: the hub's items and economy tests (the hub test wears a hood, boots, two rings
 and an amulet and reads `[220, 0, 0, 230, 10, 10, 10, 10, 10]` dealt and `[110, 110,
-110, 11, 26, 11, 11, 11, 11]` taken beside the sword, the shield and the cuirass), the
-zone's items test, the client's 115 unit tests, the content's and the tool's pass;
-clippy is clean. Not yet: step 6 (a cape for the back place, which has no model in the
-packs, and the sheathed weapon at `prop_back`).
+110, 11, 26, 11, 11, 11, 11]` taken beside the sword, the shield and the cuirass; with
+the cape of step 6 the elements taken are 13 and 28), the zone's items test, the
+client's 115 unit tests, the content's and the tool's pass; clippy is clean.
+
+5. **The back** (5.3; step 6 of section 6, 2026-10-14). **The cape**: no pack we hold has
+   one, so it is ours: `cape_mesh` in the hero's Blender pass hangs a grid of cloth (9 by
+   13, 192 triangles) from the shoulder line down the back to the knees, each row as far
+   out as the body's back is at that height and 2.5 cm more and never nearer than the
+   row above, the edges brought forward round the sides most at the shoulders, skinned
+   by height to `chest`, `spine` and `hips`, two-sided, its texture a 64² swatch of red
+   cloth with a gold hem drawn by `scripts/dev/places-pipeline.sh`; the row `cape`
+   (`place = "back"`, guards the elements, `covers = []`, content v11). **The sheath**:
+   `Look.sheathed` (protocol v21, PROTOCOL.md 33), the zone's state of an RPG body: set
+   once it has neither dealt nor taken damage nor begun a swing or a cast
+   (`Player.acting`) for the fight lock's ten seconds (the one timer, 8.1 finding 10),
+   cleared the tick it does any of those, told to everyone on the change when the body
+   holds something and carried in the roster; a gun build's never. The client draws the
+   held prop at `prop_back` instead of `prop_r` (`gm_model::pose::prop_attach_back`: the
+   pivot lifted 10 units up and 5 to the right, over the right shoulder, the sheath's
+   grip laying the business end down across the back towards the left hip at 32° from
+   upright, the flat against the back); a two-hander the same way; no view model in the
+   own first person while sheathed; the selector keeps the weapon in the hand. Fitting
+   rooms: `gm-tools content look KEY --back`, `gm-client --offline --prop KEY
+   --sheathed`. Tests: the zone's items test hears the buyer's sword sheathed once the
+   fight lock has let it be worn and in the fist again the tick of the next swing; the
+   hub's items test wears the cape on the back; the pose module's test proves the
+   sheath's grip a rotation that puts a metre of blade from over the right shoulder to
+   the left hip, behind the body. Open: a quiver on the back for the bow (5.6), the
+   companions' and creatures' weapons (they hold nothing yet, LOOK.md 6.1).
