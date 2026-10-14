@@ -225,7 +225,9 @@ place = "legs"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "trousers"                           # the ranger's trousers and boots in one, over the body's own
-covers = ["thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", "toe_l", "toe_r"]
+# The hips too: the band of skin between the jerkin's hem and the waistband showed whenever
+# the chest bent away from the hips (2026-10-14); the waistband is raised to cover it.
+covers = ["hips", "thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", "toe_l", "toe_r"]
 
 # The knight's plate (EQUIPMENT.md 10.7, 2026-10-14): rigid pieces of the LowPoly
 # Animated Knight pack bound whole to one bone by scripts/dev/blender-rigid-overlay.py
