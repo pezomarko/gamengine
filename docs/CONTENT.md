@@ -334,8 +334,12 @@ rebuilt in the same commit.
   content versions disagree about nothing but what to draw (a key the zone does not know is
   an empty hand).
 - **Clients** load the bundle: natively from `assets/built/content/` next to the other
-  assets; in a browser from the same path on the site (`scripts/build-web.sh` copies it with
-  the maps; the browser's HTTP cache is the cache: nothing goes through the model store).
+  assets; in a browser from the same path on the site (`scripts/build-web.sh` copies the
+  whole directory with the maps, wiping the old copy first: until 2026-10-14 it copied the
+  manifest, the atlases and the props only, and the overlays and avatars beside them were
+  whatever an earlier hand had left there, which the browser dropped as soon as the manifest's
+  hash moved on, so a body wearing the trousers stood on no legs; the browser's HTTP cache is
+  the cache: nothing goes through the model store).
   The manifest and the atlas are fetched at start (the screens before the game use them;
   until they arrive the toolkit draws with its built-in font and plain plates: principle 4);
   props are loaded when first seen, one at a time, like avatars, through the same model

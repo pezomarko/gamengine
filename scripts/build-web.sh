@@ -46,9 +46,13 @@ cp "$ROOT"/assets/maps/built/*.bsp "$ROOT"/assets/maps/built/*.lit "$OUT/assets/
 cp "$ROOT/assets/textures/palette.lmp" "$OUT/assets/textures/"
 # The content bundle (CONTENT.md 6): the manifest and the atlas are fetched at start, the
 # props when first seen.
-mkdir -p "$OUT/assets/built/content/props"
-cp "$ROOT"/assets/built/content/manifest.gmc "$ROOT"/assets/built/content/ui*.gma "$OUT/assets/built/content/"
-cp "$ROOT"/assets/built/content/props/*.gmm "$OUT/assets/built/content/props/"
+# The whole bundle, and nothing older: the browser fetches every file the manifest names
+# (the props, the armour overlays, the official avatars) from this copy and drops one
+# whose bytes are not the manifest's hash, so a stale armour/ left beside a fresh manifest
+# cost the legs under the trousers (2026-10-14).
+rm -rf "$OUT/assets/built/content"
+mkdir -p "$OUT/assets/built"
+cp -r "$ROOT/assets/built/content" "$OUT/assets/built/content"
 if ls "$ROOT"/assets/built/content/avatars/*.gmm >/dev/null 2>&1; then
   mkdir -p "$OUT/assets/built/content/avatars"
   cp "$ROOT"/assets/built/content/avatars/*.gmm "$OUT/assets/built/content/avatars/"
