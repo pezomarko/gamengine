@@ -113,6 +113,61 @@ layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "wand"
 fit = { turn = [90, 0, 0], scale = 0.5 }
 
+# The second batch (EQUIPMENT.md 10.7, 2026-10-14; the director: "we need more content
+# anyway"), a custom build's like the four above. The mace, the warhammer, the claymore
+# and the scythe are the LowPoly Medieval Weapons pack's, the katana the LowPoly Animated
+# Knight pack's, all cut into hand space by scripts/dev/blender-obj-prop.py (the grip at
+# the origin, the length along +Z: the plain hold, as the bow); the greataxe is KayKit's
+# two-handed axe, along +Y as it comes, turned like the axe.
+[[template]]
+id = "mace"
+kind = "weapon"
+strikes = "blunt"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "mace"
+held = "either"
+
+[[template]]
+id = "katana"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "katana"
+held = "either"
+
+[[template]]
+id = "claymore"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "claymore"
+held = "two"
+
+[[template]]
+id = "greataxe"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "greataxe"
+held = "two"
+fit = { turn = [90, 0, 0], scale = 0.9 }
+
+[[template]]
+id = "warhammer"
+kind = "weapon"
+strikes = "blunt"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "warhammer"
+held = "two"
+
+[[template]]
+id = "scythe"
+kind = "weapon"
+strikes = "slash"
+layers = ["shard", "core", "catalyst", "frame", "gem"]
+model = "scythe"
+held = "two"
+
 [[template]]
 id = "crossbow"
 kind = "weapon"
@@ -198,6 +253,47 @@ layers = ["shard", "core", "frame", "gem"]
 model = "boots"                              # the ranger's boots, over the body's shoes
 covers = ["foot_l", "foot_r", "toe_l", "toe_r"]
 
+# The knight's plate (EQUIPMENT.md 10.7, 2026-10-14): rigid pieces of the LowPoly
+# Animated Knight pack bound whole to one bone by scripts/dev/blender-rigid-overlay.py
+# (a helmet rides the head, the shoulder plates the chest). The helm and the barbute
+# leave the face open, so they cover nothing, like the hood; the great helm is a bucket
+# with a cross slit and hides the head.
+[[template]]
+id = "helm"
+kind = "armour"
+place = "head"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "helm"                               # the knight's open helm with a nasal and cheek guards
+covers = []
+
+[[template]]
+id = "barbute"
+kind = "armour"
+place = "head"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "barbute"                            # the knight's helm with cheek guards, the face open
+covers = []
+
+[[template]]
+id = "great_helm"
+kind = "armour"
+place = "head"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "great_helm"                         # the knight's closed helm with the cross slit: the whole head under it
+covers = ["head"]
+
+[[template]]
+id = "plate_pauldrons"
+kind = "armour"
+place = "shoulders"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "plate_pauldrons"                    # the knight's shoulder plates, one piece across both
+covers = []
+
 # The back (EQUIPMENT.md 5.3): a cape, ours (the hero's Blender pass hangs a cloth plane
 # from the shoulders, skinned to the chest, the spine and the hips), over the body and
 # covering nothing. The sheathed weapon rests on the back whether or not one is worn.
@@ -227,6 +323,27 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "shield"
 held = "left"
+
+# Two more shields (EQUIPMENT.md 10.7): KayKit's round and square shields, flat as
+# they come (the face along -Z), stood up with the face out, as the heater shield's is;
+# the buckler small and quick, the tower shield tall.
+[[template]]
+id = "buckler"
+kind = "shield"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "buckler"
+held = "left"
+fit = { turn = [-90, 0, 0], scale = 0.7 }
+
+[[template]]
+id = "tower_shield"
+kind = "shield"
+guards = "physical"
+layers = ["shard", "core", "frame", "gem"]
+model = "tower_shield"
+held = "left"
+fit = { turn = [-90, 0, 0], scale = 0.85 }
 
 # A caster's focus (EQUIPMENT.md 5.4 and 5.6): worn in the left hand like a shield and by
 # anyone (a shield fits all hands), guarding against the elements; KayKit's closed
@@ -296,6 +413,18 @@ edge = 30
 note = "the standard"
 
 [[material]]
+id = "core/bronze"
+edge = 20
+note = "warm, soft"
+tint = [0.80, 0.56, 0.32]
+
+[[material]]
+id = "core/steel"
+edge = 45
+note = "hard"
+tint = [0.74, 0.78, 0.84]
+
+[[material]]
 id = "core/dragonbone"
 edge = 60
 note = "light and hard; boss core"
@@ -311,6 +440,16 @@ note = "steady"
 id = "frame/ash"
 edge = 25
 note = "quick"
+
+[[material]]
+id = "frame/yew"
+edge = 18
+note = "springy"
+
+[[material]]
+id = "frame/ironwood"
+edge = 35
+note = "heavy, hard"
 
 [[material]]
 id = "frame/whalebone"
@@ -355,6 +494,11 @@ edge = 5
 note = "decorative"
 
 [[material]]
+id = "shard/riverglass"
+edge = 15
+note = "a dull shine"
+
+[[material]]
 id = "shard/boss_scale"
 edge = 55
 note = "thorns"
@@ -364,6 +508,11 @@ note = "thorns"
 id = "gem/quartz"
 edge = 10
 note = "plain"
+
+[[material]]
+id = "gem/garnet"
+edge = 20
+note = "wards fire"
 
 [[material]]
 id = "gem/opal"

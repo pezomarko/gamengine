@@ -331,11 +331,14 @@ read with the ability in these presets' kits:
 | sword | slash | either | have | blade | one in each hand (1) |
 | dagger | slash / pierce | either | have | shade, musketeer | |
 | greatsword | slash | two; one on the colossus | have | ironclad | 3 |
-| claymore | slash | two | weapons pack | (a striker's greatsword, if wanted) | the same ability, another look |
+| claymore | slash | two | weapons pack (built 2026-10-14, 10.7: `Sword_Big`) | a custom build's | its own ability: wider and further than the greatsword, for less |
+| katana | slash | either | knight pack (built 2026-10-14, 10.7) | a custom build's | the quickest blade |
+| mace | blunt | either | weapons pack (built 2026-10-14, 10.7: `Hammer_Small`) | a custom build's | a one-hand blow that staggers |
+| scythe | slash | two | weapons pack (built 2026-10-14, 10.7) | a custom build's | the widest sweep, three targets |
 | axe | slash | either | KayKit (built 2026-10-14) | a custom build's | a one-hand slash with more knockback |
-| double axe | slash | two | weapons pack, KayKit | nobody yet | |
+| greataxe | slash | two | KayKit `axe_2handed` (built 2026-10-14, 10.7) | a custom build's | the axe's weight twice over |
 | hammer | blunt | right | have | shaman | |
-| maul | blunt | two | weapons pack (Hammer_Double) | the `Maul` ability exists, no preset's | |
+| warhammer | blunt | two | weapons pack `Hammer_Double` (built 2026-10-14, 10.7) | a custom build's | the heaviest blow; the Warden's `maul` stays a creature's |
 | spear | pierce | two | weapons pack (built 2026-10-14) | a custom build's | reach 100, a line, not an arc |
 | staff | blunt (the bolt is the element's) | two | have | frostweaver, mender | |
 | wand | blunt (a bolt of force) | right | KayKit (built 2026-10-14) | a custom build's, with the `focus` left | |
@@ -343,7 +346,7 @@ read with the ability in these presets' kits:
 | crossbow | pierce | two | have | no preset's since MATRIX.md 15 | |
 | musket | pierce | two | have | musketeer | the gun mode |
 | pistol | pierce | either | have | musketeer | |
-| shield (round, heater, tower) | guards | left | have; more in both packs | everyone (a shield fits all hands) | |
+| shield (heater), buckler (round), tower shield (square) | guards | left | have (the buckler and the tower shield KayKit's, built 2026-10-14, 10.7) | everyone (a shield fits all hands) | |
 
 Proposed first additions, in order of what they give the roster: the **axe** (the blade
 and the ironclad gain a second one-hander with a different swing; the ironclad's
@@ -583,3 +586,40 @@ client's 115 unit tests, the content's and the tool's pass; clippy is clean.
    shoulder and the bow stands upright along the back. Not done: arrows as a stack (the firearm's reserve is
    gun-mode machinery), the quiver, and whether a preset should gain one of them, which
    is the director's.
+
+7. **The second batch** (2026-10-14, the director: "sellers for those so I can buy and
+   test with my blade, but ok we need more content anyway"). **Sellers first**: three more
+   stalls on the square from `scripts/dev/play.sh` (`sellers`, run by `people` and on its
+   own against a running stack), the **Armourer** (every body place, the shields and the
+   trinkets, which fit everyone), the **Weaponsmith** (the axe, the spear, the bow, the
+   wand and the crossbow, plain and fine: a custom build's, said so on the stall by the
+   hands rule) and the **Outfitter** (everything below, plain); a seller that still
+   carries anything is not handed more, and one whose bot is alive is left alone. **Six
+   more primaries** (content v13), appended and mirrored like 6: the **mace** (60 blunt,
+   75°, stagger 55, 180/60/340 ms, 750 ms; either hand), the **katana** (50 slash, 70°,
+   120/50/260 ms, 520 ms; either hand), the **claymore** (85 slash, 110° of 90 units, two
+   targets, 280/80/480 ms, 1 s), the **greataxe** (90 slash, 90°, two targets, knockback
+   300, 300/80/500 ms, 1.1 s), the **warhammer** (95 blunt, 100°, two targets, knockback
+   320, stagger 70, 320/90/520 ms, 1.2 s) and the **scythe** (75 slash, 150°, three targets
+   at 0.6, 300/80/500 ms, 1.1 s), the last four both hands; no preset's kit changes. **Two
+   shields**: the `buckler` and the `tower_shield` (KayKit's round and square, stood with
+   the face out: turned −90° about X, where the focus is turned +90°). **The knight's
+   plate**, the first rigid overlays: `scripts/dev/blender-rigid-overlay.py` binds a
+   flat-coloured piece whole to one bone of the striker's rig (every vertex weighed 1.0:
+   a helmet rides the `head`, the shoulder plates the `chest`), scaled to a ratio of the
+   width of the part that bone moves and centred on it, with a 64² swatch texture painted
+   from the materials' colours (an overlay wants a texture where a prop is given swatches
+   at the build); the `helm` (the open helm with a nasal, 772 triangles) and the `barbute`
+   (cheek guards, the face open, 568) cover nothing, the `great_helm` (the bucket with the
+   cross slit, 656) covers the head, the `plate_pauldrons` (96) sit across both shoulders.
+   **Six materials** between the grades (bronze 20 and steel 45 for cores, yew 18 and
+   ironwood 35 for frames, riverglass 15 for shards, garnet 20 for gems), none above its
+   layer's best, so the best craft stays 250. The icon atlas's cap goes from 640 to 768 KiB
+   (50 icons: 645,096 bytes at 4 texels a dot). Models: the LowPoly Medieval Weapons
+   pack's `Hammer_Small`, `Hammer_Double`, `Sword_Big` (the pack's `Claymore` is a thin red
+   blade that reads as a line) and `Scythe`, the knight pack's `Katana`, `Helmet1–3` and
+   `ShoulderPads`, KayKit's `axe_2handed`, `shield_round` and `shield_square`
+   (LICENSES.md). Holds chosen in the fitting room: the blades and hafts in the plain hold
+   (cut along +Z, no turn), the greataxe like the axe (90° about X, scaled 0.9). Open: the
+   quiver, the companions' and creatures' weapons, and whether a preset gains any of
+   these, which is the director's.

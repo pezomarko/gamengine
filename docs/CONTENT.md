@@ -217,7 +217,10 @@ every part decimated to its budget, each outfit pushed 12 mm out so the body doe
 come through) and atlased by `scripts/dev/gltf-atlas.py`; `scripts/dev/hero-pipeline.sh`
 runs the whole pipeline from the packs. The offline fitting room is `gm-client --offline
 --worn KEY` (with `--prop` and `--off` for the hands; `--headless --crowd N` for a
-picture).
+picture). A **rigid piece** (EQUIPMENT.md 10.7, 2026-10-14: the knight pack's helmets and
+shoulder plates) is an overlay too, bound whole to one bone by
+`scripts/dev/blender-rigid-overlay.py` with a swatch texture of its flat colours, since
+an overlay must bring its texture.
 
 ## 4. Kinds and budgets
 

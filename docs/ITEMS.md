@@ -83,7 +83,9 @@ the armour as an overlay over the body).
   is worn only when an ability of the character's build has the template's `model` as
   its `prop` (CONTENT.md 3; `gm_hub::hub::hands`, `economy::fits`). The musketeer's hands
   are for the musket, the pistol and the dagger; the blade's for the sword; a caster's for
-  the staff; the axe, the spear, the bow and the wand (EQUIPMENT.md 5.6, 2026-10-14) are a
+  the staff; the axe, the spear, the bow and the wand (EQUIPMENT.md 5.6, 2026-10-14), and the
+  mace, the katana, the claymore, the greataxe, the warhammer and the scythe (10.7, the same
+  day) are a
   custom build's that slots their ability. A caster's **focus** (the closed spellbook) is a
   `shield` by kind that guards the elements: worn in the left hand by anyone, like a
   shield. A weapon nobody in the build swings would sharpen a kind of blow the body

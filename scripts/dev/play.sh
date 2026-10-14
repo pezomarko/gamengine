@@ -11,6 +11,7 @@
 #   scripts/dev/play.sh give NAME         coin and a few items for an offline character of yours
 #   scripts/dev/play.sh gm EMAIL          make an account's characters game masters (G in the game: GM.md)
 #   scripts/dev/play.sh people            respawn the town's people and the arena's duelists (they live 23 h)
+#   scripts/dev/play.sh sellers           the armourer, the weaponsmith and the outfitter on a running stack (people spawns them too)
 #   scripts/dev/play.sh spar [N] [BUILDS] N sparring partners in the town (stand, fight back): tune on them
 #   scripts/dev/play.sh client [ARGS...]  the windowed client on this stack (ALSA_CARD=1 for sound here)
 #   scripts/dev/play.sh web               serve the browser build against this hub on http://127.0.0.1:24510
@@ -178,6 +179,7 @@ people() {
       for _ in $(seq 1 50); do [[ "$(psql "$URL" -Atc "$qm_carried" 2>/dev/null || echo 1)" == 0 ]] && break; sleep 0.2; done
     done
   fi
+  sellers
   # Bojan: joins a party when asked (P → Invite), answers a party line and a whisper, trades.
   spawn bojan --bots 1 --user bojan@bots.test --register --character Bojan --builds blade --zone town \
     --secs $BOT_SECS --behaviour hold --sociable --trade-for 300
@@ -186,6 +188,50 @@ people() {
     --builds ironclad,blade,frostweaver,shade --zone town --secs $BOT_SECS --behaviour stroll
   spawn duelists --bots 8 --user 'duelist-{i}@bots.test' --register --character 'Duelist{i}' \
     --builds ironclad,blade,frostweaver,shade --zone arena --secs $BOT_SECS --behaviour duelist
+}
+
+# The sellers of the equipment (EQUIPMENT.md 5; 2026-10-14, the director: "sellers for those
+# so I can buy and test"): two more stalls on the square, each with the twelve of its trade
+# at 1 s 20 c, plain iron and oak. The armourer: every body place, the shields and the
+# trinkets (they fit everyone, ITEMS.md 2); the weaponsmith: the weapons no preset holds
+# (the hands rule says whose they are on the stall; a custom build that slots the
+# ability wears them). Handed once, like the keeper: a seller that still carries anything
+# is not handed more. `play.sh sellers` puts them on a running stack (a seller whose bot
+# is alive is left alone).
+ARMOURER_STOCK=("cuirass core/iron,frame/oak" "hood core/iron,frame/oak" "pauldrons core/iron,frame/oak"
+  "bracers core/iron,frame/oak" "trousers core/iron,frame/oak" "boots core/iron,frame/oak"
+  "cape core/iron,frame/oak" "robe core/iron,frame/oak" "shield core/iron,frame/oak" "focus core/iron,frame/oak"
+  "amulet catalyst/rime,gem/quartz" "ring catalyst/ember,gem/quartz")
+WEAPONSMITH_STOCK=("axe core/iron,frame/oak" "spear core/iron,frame/oak" "bow core/iron,frame/oak" "wand core/iron,frame/oak"
+  "crossbow core/iron,frame/oak" "axe core/dragonbone,frame/whalebone,catalyst/basalt,gem/opal"
+  "spear core/dragonbone,frame/whalebone,catalyst/zephyr,gem/opal" "bow core/dragonbone,frame/whalebone,catalyst/umbra,gem/opal"
+  "wand core/dragonbone,frame/whalebone,catalyst/thunderstone,gem/opal" "crossbow core/dragonbone,frame/whalebone,gem/opal")
+# The outfitter (2026-10-14, the second batch, EQUIPMENT.md 10.7): the knight's
+# plate, the two shields and the six weapons, plain.
+OUTFITTER_STOCK=("helm core/iron,frame/oak" "barbute core/iron,frame/oak" "great_helm core/iron,frame/oak"
+  "plate_pauldrons core/iron,frame/oak" "buckler core/iron,frame/oak" "tower_shield core/iron,frame/oak"
+  "mace core/iron,frame/oak" "katana core/iron,frame/oak" "claymore core/iron,frame/oak"
+  "greataxe core/iron,frame/oak" "warhammer core/iron,frame/oak" "scythe core/iron,frame/oak")
+seller() { # NAME LOG STOCK...
+  local name=$1 log=$2; shift 2
+  if pgrep -f -- "--character $name " >/dev/null; then echo "$name is in the town already"; return 0; fi
+  spawn "$log" --bots 1 --user "$log@bots.test" --register --character "$name" --builds ironclad --zone town \
+    --stalls 1 --sell-at 120 --secs $BOT_SECS --behaviour stroll
+  for _ in $(seq 1 100); do /usr/bin/grep -aq "stall stands" "$D/log/$log.log" 2>/dev/null && break; sleep 0.2; done
+  local carried="select count(*) from items i join holders h on h.id = i.holder_id join characters c on c.id = h.character_id \
+      or c.id = (select owner_character from stalls s where s.holder_id = h.id) where c.name = '$name'"
+  if [[ "$(psql "$URL" -Atc "$carried" 2>/dev/null || echo 0)" == 0 ]]; then
+    local item
+    for item in "$@"; do
+      # shellcheck disable=SC2086
+      hubctl --grant-item "$name" $item >>"$D/log/grants.log" 2>&1
+    done
+  fi
+}
+sellers() {
+  seller Armourer armourer "${ARMOURER_STOCK[@]}"
+  seller Weaponsmith weaponsmith "${WEAPONSMITH_STOCK[@]}"
+  seller Outfitter outfitter "${OUTFITTER_STOCK[@]}"
 }
 
 # Sparring partners in the town: they stand where they arrive, face whoever comes at them
@@ -330,6 +376,7 @@ case "${1:-}" in
   give) shift; give "$@" ;;
   gm) shift; gm "$@" ;;
   people) people ;;
+  sellers) need; cd "$R"; hub_up || { echo "start the stack first"; exit 1; }; sellers ;;
   spar) shift; spar "$@" ;;
   client) shift; client "$@" ;;
   web) web ;;

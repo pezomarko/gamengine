@@ -29,6 +29,18 @@ Props under `props/`, official avatars under `avatars/`, armour overlays under `
 | `props/focus.glb` | the same pack (`spellbook_closed.gltf` + `mage_texture.png`), `gm-tools content import prop`: the caster's focus, worn in the left hand | CC0 1.0 |
 | `props/spear.glb` | Quaternius *LowPoly Medieval Weapons* (`OBJ/Spear.obj`), https://quaternius.com/packs/lowpolymedievalweapons.html; made by `scripts/dev/blender-obj-prop.py` (the grip two fifths up the shaft, the length along +Z, decimated to three quarters; flat colours, so `gm-tools content build` gives it swatches) | CC0 1.0 |
 | `props/bow.glb` | the same pack (`OBJ/Bow_Wooden.obj`), the same script (the grip at the handle, the length along +Z) | CC0 1.0 |
+| `props/mace.glb` | the same pack (`OBJ/Hammer_Small.obj`), the same script (the grip low on the haft, the length along +Z, decimated to 958 triangles) | CC0 1.0 |
+| `props/warhammer.glb` | the same pack (`OBJ/Hammer_Double.obj`), the same script (958 triangles) | CC0 1.0 |
+| `props/claymore.glb` | the same pack (`OBJ/Sword_Big.obj`: the pack's `Claymore` is a thin red blade that reads as a line), the same script (830 triangles) | CC0 1.0 |
+| `props/scythe.glb` | the same pack (`OBJ/Scythe.obj`), the same script (the grip at the middle of the snath, 941 triangles) | CC0 1.0 |
+| `props/katana.glb` | Quaternius *LowPoly Animated Knight* (`OBJ/Katana.obj`), https://quaternius.itch.io/lowpoly-animated-knight; the same script (512 triangles) | CC0 1.0 |
+| `props/greataxe.glb` | KayKit *Adventurers* (`axe_2handed.gltf` + `barbarian_texture.png`), `gm-tools content import prop` | CC0 1.0 |
+| `props/buckler.glb` | the same pack (`shield_round.gltf` + `knight_texture.png`), `gm-tools content import prop` | CC0 1.0 |
+| `props/tower_shield.glb` | the same pack (`shield_square.gltf` + `knight_texture.png`), `gm-tools content import prop` | CC0 1.0 |
+| `armour/helm_striker.glb` | Quaternius *LowPoly Animated Knight* (`OBJ/Helmet2.obj`, the open helm), bound whole to the striker's `head` by `scripts/dev/blender-rigid-overlay.py` (772 triangles; flat colours, so `gm-tools content build` gives it swatches) | CC0 1.0 |
+| `armour/barbute_striker.glb` | the same pack (`OBJ/Helmet1.obj`, the helm with cheek guards), the same script (568 triangles) | CC0 1.0 |
+| `armour/great_helm_striker.glb` | the same pack (`OBJ/Helmet3.obj`, the closed helm with the cross slit), the same script (656 triangles) | CC0 1.0 |
+| `armour/plate_pauldrons_striker.glb` | the same pack (`OBJ/ShoulderPads.obj`), the same script, bound to `chest` (96 triangles) | CC0 1.0 |
 | `props/hammer.glb` | ours: `gm-tools content synth hammer` | CC-BY-SA 4.0 |
 | `props/greatsword.glb` | ours: `gm-tools content synth greatsword` | CC-BY-SA 4.0 |
 | `props/shield.glb` | Quaternius *LowPoly Medieval Weapons* (`OBJ/Shield_Heater.obj`), https://quaternius.com/packs/lowpolymedievalweapons.html; made by `scripts/dev/blender-obj-prop.py` (the grip at the back strap, the face along +Y, 984 triangles; flat colours, so `gm-tools content build` gives it swatches). Until 2026-10-13 ours, `gm-tools content synth shield` | CC0 1.0 |
