@@ -1315,3 +1315,36 @@ pub fn now_secs() -> u64 {
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
+
+#[cfg(test)]
+mod names_round_trip {
+    use super::*;
+
+    #[test]
+    fn every_reason_code_comes_back_from_its_name() {
+        for code in [
+            ReasonCode::None,
+            ReasonCode::Copyright,
+            ReasonCode::Likeness,
+            ReasonCode::Sexual,
+            ReasonCode::Hateful,
+            ReasonCode::Other,
+        ] {
+            assert_eq!(ReasonCode::from_name(code.name()), Some(code));
+        }
+        assert_eq!(ReasonCode::from_name("no such reason"), None);
+    }
+
+    #[test]
+    fn every_model_status_comes_back_from_its_name() {
+        for status in [
+            ModelStatus::Pending,
+            ModelStatus::Active,
+            ModelStatus::Rejected,
+            ModelStatus::Takedown,
+        ] {
+            assert_eq!(ModelStatus::from_name(status.name()), Some(status));
+        }
+        assert_eq!(ModelStatus::from_name("no such status"), None);
+    }
+}

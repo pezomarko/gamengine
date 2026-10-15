@@ -113,6 +113,15 @@ much: bulk is how a colossus reads against an infiltrator. The
 bands of neighbouring frames still touch, because the frame table itself puts a striker and a
 caster one unit apart; what the rule guarantees is that no frame can dress as the far one.
 
+**2026-10-15, the reader's shape.** `gm_ingest::source::read_kind` reads in stages, each a
+function: `parse` (the file and its node graph), `read_rig` (the skin, the bones matched by
+name, the hierarchy checked, the inverse binds, every joint folded onto a standard bone),
+`Reading::read_geometry` (every primitive: its material, its attributes bounds-checked,
+its vertices bound and moved to model space, its triangles whatever the topology), `check`
+(one atlas or swatches, no violation left), `atlas`, `pivots`, `compact`. The committed
+content bundle is reproduced byte for byte by the staged reader (`gm-tools content check
+--built`).
+
 ## 5. The ingested model (`.gmm`)
 
 What the hub stores, what clients fetch, hash and cache. Little-endian.
