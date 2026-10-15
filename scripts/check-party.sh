@@ -447,7 +447,7 @@ browser() {
     name="Cvita$build"
     extra=""; [[ "$build" == webgl ]] && extra="&gl=1"
     script="$(printf '%s\n' 'wait screen new character' 'field name' "type $name" 'click blade' 'click Create' \
-      'wait screen characters' "expect \"$name  blade  new\"" 'quit')"
+      'wait screen characters' "expect \"blade  |  not yet in the world\"" 'quit')"
     if page "$tmp/browser-$build-new.log" "$script" --register; then
       ok "$build: a new account by the page's form and a character called $name"
     else
