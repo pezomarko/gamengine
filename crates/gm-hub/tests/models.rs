@@ -266,7 +266,9 @@ async fn models_from_upload_to_takedown() {
     let worker = match ingest_worker_exe() {
         Some(exe) => IngestMode::Worker(exe),
         None => {
-            eprintln!("no target/debug/gm-ingest-worker: run cargo build -p gm-ingest; ingesting in process");
+            eprintln!(
+                "no target/debug/gm-ingest-worker: run cargo build -p gm-ingest; ingesting in process"
+            );
             IngestMode::InProcess(gm_ingest::in_process)
         }
     };

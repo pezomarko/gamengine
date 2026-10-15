@@ -3,11 +3,11 @@
 
 use std::sync::OnceLock;
 
-use glam::Vec3;
-use gm_core::vocab::ArchetypeFrame;
 use crate::Model;
 use crate::mannequin::{self, Shape};
 use crate::rig::{self, bone};
+use glam::Vec3;
+use gm_core::vocab::ArchetypeFrame;
 
 use crate::raster::{self, Dir, ModelSoup, Soup};
 

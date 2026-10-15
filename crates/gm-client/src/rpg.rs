@@ -4,13 +4,13 @@
 //! ledger are untouched; only the aim at the target is the zone's.
 
 use glam::{Mat4, Vec3};
-use gm_nav::{NavGrid, Navigator};
 use gm_core::build::Kit;
 use gm_core::geom::ray_capsule;
 use gm_core::movement::yaw_vectors;
 use gm_core::sim::{Mover, buttons, capsule_at, sees};
 use gm_core::trace::{CollisionWorld, Hull};
 use gm_core::vocab::ArchetypeFrame;
+use gm_nav::{NavGrid, Navigator};
 
 /// What the pointer is over in the RPG mode (MODES.md 5.5), which picks the cursor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

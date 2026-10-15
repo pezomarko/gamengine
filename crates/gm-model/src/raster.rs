@@ -2,8 +2,8 @@
 //! moderator looks at (MODELS.md 10). Triangles are drawn as the game draws them: back faces
 //! are culled unless the model is two-sided, and a cutout texel is a hole.
 
-use glam::Vec3;
 use crate::{Model, bc1};
+use glam::Vec3;
 
 /// Where the camera stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

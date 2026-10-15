@@ -33,7 +33,6 @@ pub const MAX_UPLOAD_BYTES: usize = 8 * 1024 * 1024;
 /// UVs may leave the unit square by this much before they are a violation.
 const UV_SLACK: f32 = 0.01;
 
-
 pub struct Ingested {
     pub id: ModelId,
     /// The `.gmm` file.
