@@ -39,7 +39,9 @@ jobs:
           - name: swarm (32 bots over real UDP; the 200-bot gate runs on the reference machine)
             run: BOTS=32 SECS=10 scripts/check-swarm.sh
           - name: dungeon (a leader and three companions clear it on a real zone; 4 leaders at once)
-            run: SKIP_TESTS=1 LEADERS=4 scripts/check-dungeon.sh
+            run: |
+              cargo test -p gm-server --test companions --locked -- --ignored
+              SKIP_TESTS=1 LEADERS=4 scripts/check-dungeon.sh
     steps:
       - uses: actions/checkout@v4
         with:
