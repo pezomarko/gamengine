@@ -101,6 +101,10 @@ pub struct Options {
     /// `--crowd-turn DEG`: offline, the crowd turned this far from facing the start (180:
     /// their backs to the camera, the fitting room of the sheath and the armour's back).
     pub crowd_turn: f32,
+    /// `--crowd-only I`: offline, member I of the crowd alone, at the middle of its row
+    /// (the fitting room of one body: member 9 of ten is the striker in mail, the
+    /// official avatar, LOOK.md 6.6).
+    pub crowd_only: Option<u32>,
     /// The model cache (MODELS.md 8): directory, disk cap and GPU cap in MiB.
     pub cache_dir: Option<PathBuf>,
     pub cache_mb: u64,
@@ -186,6 +190,7 @@ impl Default for Options {
             crowd: 0,
             crowd_dir: None,
             crowd_turn: 0.0,
+            crowd_only: None,
             cache_dir: None,
             cache_mb: 2048,
             vram_mb: 256,
@@ -283,6 +288,13 @@ fn parse_args() -> Result<Options, String> {
                     .map_err(|e| format!("--crowd: {e}"))?
             }
             "--crowd-dir" => o.crowd_dir = Some(PathBuf::from(value("--crowd-dir")?)),
+            "--crowd-only" => {
+                o.crowd_only = Some(
+                    value("--crowd-only")?
+                        .parse()
+                        .map_err(|_| "--crowd-only wants a member's index".to_string())?,
+                )
+            }
             "--crowd-turn" => {
                 o.crowd_turn = value("--crowd-turn")?
                     .parse()

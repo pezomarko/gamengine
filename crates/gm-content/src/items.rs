@@ -61,6 +61,11 @@ pub struct ItemTemplate {
     /// of the body it covers, hidden under it when it is worn.
     #[serde(default)]
     pub covers: Vec<String>,
+    /// How an armour is seen on the body (CONTENT.md 3.3): `overlay` (the default), a
+    /// skinned piece drawn over the body with its own texture, or `patch`, cloth painted
+    /// into the official avatar's own atlas (LOOK.md 6.6), which covers no bone.
+    #[serde(default)]
+    pub look: Option<String>,
     #[serde(default)]
     pub retired: bool,
 }
@@ -76,6 +81,11 @@ impl ItemTemplate {
 
     pub fn held(&self) -> &str {
         self.held.as_deref().unwrap_or("right")
+    }
+
+    /// An armour whose look is a patch on the body's atlas (CONTENT.md 3.3).
+    pub fn is_patch(&self) -> bool {
+        self.look.as_deref() == Some("patch")
     }
 
     /// Worn, it takes both hands (EQUIPMENT.md 3).
@@ -904,7 +914,12 @@ mod tests {
                 .view("cuirass", [("core", "core/iron"), ("frame", "frame/oak")])
                 .off
         );
-        assert_eq!(items.covers("cuirass"), (1 << 1) | (1 << 2));
+        // The robe hides the chest under it; the cuirass is a patch on the skin and hides
+        // nothing (CONTENT.md 3.3).
+        assert_eq!(items.covers("robe"), (1 << 1) | (1 << 2));
+        assert_eq!(items.covers("cuirass"), 0);
+        assert!(items.template("cuirass").is_some_and(|t| t.is_patch()));
+        assert!(items.template("robe").is_some_and(|t| !t.is_patch()));
         assert_eq!(items.covers("sword"), 0);
         // A stack (MODES.md 11.1) is worn nowhere, has a cap, and a kit heals.
         assert_eq!(items.place("ball"), None);

@@ -33,6 +33,8 @@ pub struct TemplateLook {
     /// An armour's overlay: the standard bones whose part of the body it covers
     /// (CONTENT.md 3.3), as a mask over the rig.
     pub covers: u32,
+    /// An armour seen as a patch on the body's atlas (CONTENT.md 3.3), not an overlay.
+    pub patch: bool,
     pub retired: bool,
 }
 
@@ -212,6 +214,26 @@ impl Looks {
                     t.id
                 )));
             }
+            if let Some(look) = &t.look
+                && !["overlay", "patch"].contains(&look.as_str())
+            {
+                return Err(ContentError::Invalid(format!(
+                    "template {}: look must be overlay or patch, not `{look}`",
+                    t.id
+                )));
+            }
+            if t.look.is_some() && t.kind != "armour" {
+                return Err(ContentError::Invalid(format!(
+                    "template {}: only an armour has a look on the body",
+                    t.id
+                )));
+            }
+            if t.is_patch() && !t.covers.is_empty() {
+                return Err(ContentError::Invalid(format!(
+                    "template {}: a patch covers no bone (the cloth is the skin)",
+                    t.id
+                )));
+            }
             for bone in &t.covers {
                 if gm_model::rig::bone_by_name(bone).is_none() {
                     return Err(ContentError::Invalid(format!(
@@ -249,6 +271,7 @@ impl Looks {
                 fit: t.fit.unwrap_or_default(),
                 fit_view: t.fit_view,
                 covers: items::covers_mask(&t.covers),
+                patch: t.is_patch(),
                 retired: t.retired,
             });
         }

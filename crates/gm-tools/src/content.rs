@@ -18,9 +18,9 @@ use gm_model::atlas::{self, Atlas, Cell, Face, Glyph, Piece};
 use gm_model::manifest::{
     AbilityEntry, AvatarEntry, BuildEntry, CreatureEntry, HELD_BACK, HELD_EITHER, HELD_LEFT,
     HELD_RIGHT, HELD_TWO, IconEntry, MANIFEST_VERSION, Manifest, MaterialEntry, OverlayEntry,
-    PropEntry, TemplateEntry,
+    PatchEntry, PropEntry, TemplateEntry,
 };
-use gm_model::{Model, mannequin, rig, smallfont};
+use gm_model::{Model, Patch, mannequin, rig, smallfont};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -265,8 +265,10 @@ pub struct Bundle {
     /// from them).
     pub avatars: BTreeMap<String, Model>,
     /// The armour overlays as ingested (CONTENT.md 3.3), by `<model>_<frame>` (their icons
-    /// are baked from them).
+    /// are baked from them; a patch armour's cut is here for its icon alone).
     pub overlays: BTreeMap<String, Model>,
+    /// The cloth patches as ingested (CONTENT.md 3.3), by `<model>_<avatar key>`.
+    pub patches: BTreeMap<String, Patch>,
     pub facts: Vec<(String, gm_ingest::Facts)>,
 }
 
@@ -596,6 +598,8 @@ pub fn build(dir: &Path) -> Result<Bundle> {
     // The armour overlays (CONTENT.md 3.3): an armour template's model, per frame it was
     // made for (`models/armour/<model>_<frame>.glb`), ingested as a body of that frame under
     // an overlay's budgets and without the envelope. A frame without a file is not drawn.
+    // A patch armour's cut is ingested the same way for its icon, and goes no further: on
+    // the body it is its patch (below).
     let mut overlays: BTreeMap<String, Model> = BTreeMap::new();
     let mut overlay_entries: Vec<OverlayEntry> = Vec::new();
     for t in looks.templates.iter().filter(|t| t.kind == "armour") {
@@ -620,17 +624,19 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             let (report, ingested) = gm_ingest::ingest_overlay(&read(&path)?, frame);
             match ingested {
                 Some(ing) if report.ok => {
-                    let out = format!("armour/{name}.gmm");
-                    facts.push((format!("overlay/{name}"), report.facts.clone()));
-                    overlay_entries.push(OverlayEntry {
-                        key: model.clone(),
-                        frame: rig::frame_index(frame),
-                        file: out.clone(),
-                        sha256: sha(&ing.gmm),
-                        bytes: ing.gmm.len() as u32,
-                        triangles: ing.model.triangles() as u32,
-                    });
-                    files.insert(out, ing.gmm);
+                    if !t.patch {
+                        let out = format!("armour/{name}.gmm");
+                        facts.push((format!("overlay/{name}"), report.facts.clone()));
+                        overlay_entries.push(OverlayEntry {
+                            key: model.clone(),
+                            frame: rig::frame_index(frame),
+                            file: out.clone(),
+                            sha256: sha(&ing.gmm),
+                            bytes: ing.gmm.len() as u32,
+                            triangles: ing.model.triangles() as u32,
+                        });
+                        files.insert(out, ing.gmm);
+                    }
                     overlays.insert(name, ing.model);
                 }
                 _ => {
@@ -643,6 +649,72 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         if !any {
             problems.push(format!(
                 "armour {}: model `{model}` has no models/armour/{model}_<frame>.glb",
+                t.key
+            ));
+        }
+    }
+
+    // The cloth patches (CONTENT.md 3.3, LOOK.md 6.6): an armour whose look is a patch has
+    // `models/armour/<model>_<avatar key>.png` per official avatar it was baked for (by
+    // scripts/dev/blender-bake-patch.py, in that body's atlas space), ingested as that
+    // atlas is and kept only where there is cloth. A body without a file wears it unseen.
+    let mut patches: BTreeMap<String, Patch> = BTreeMap::new();
+    let mut patch_entries: Vec<PatchEntry> = Vec::new();
+    for t in looks
+        .templates
+        .iter()
+        .filter(|t| t.kind == "armour" && t.patch)
+    {
+        let Some(model) = &t.model else {
+            continue;
+        };
+        let mut any = false;
+        for a in &looks.avatars {
+            let avatar = format!("{}_{}", rig::frame_name(a.frame), a.armour.name());
+            let Some(body) = avatars.get(&avatar) else {
+                continue;
+            };
+            let name = format!("{}_{}", model.replace('/', "_"), a.model.replace('/', "_"));
+            let file = format!("models/armour/{name}.png");
+            let path = dir.join(&file);
+            if !path.is_file() {
+                continue;
+            }
+            any = true;
+            if !licensed(&format!("{name}.png")) {
+                problems.push(format!(
+                    "armour {}: {file} is not named in LICENSES.md",
+                    t.key
+                ));
+            }
+            let (report, ingested) =
+                gm_ingest::ingest_patch(&read(&path)?, a.frame, &a.model, (body.tex_w, body.tex_h));
+            match ingested {
+                Some(ing) if report.ok => {
+                    let out = format!("armour/{name}.gmp");
+                    facts.push((format!("patch/{name}"), report.facts.clone()));
+                    patch_entries.push(PatchEntry {
+                        key: model.clone(),
+                        frame: rig::frame_index(a.frame),
+                        body: a.model.clone(),
+                        file: out.clone(),
+                        sha256: sha(&ing.gmp),
+                        bytes: ing.gmp.len() as u32,
+                        blocks: ing.patch.blocks() as u32,
+                    });
+                    files.insert(out, ing.gmp);
+                    patches.insert(name, ing.patch);
+                }
+                _ => {
+                    for v in &report.violations {
+                        problems.push(format!("armour {} ({file}): {v}", t.key));
+                    }
+                }
+            }
+        }
+        if !any {
+            problems.push(format!(
+                "armour {}: model `{model}` is a patch but has no models/armour/{model}_<avatar>.png",
                 t.key
             ));
         }
@@ -725,6 +797,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                 ]
             }),
             covers: t.covers,
+            patch: t.patch,
             retired: t.retired,
         });
     }
@@ -832,6 +905,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
     }
     manifest.avatars = avatar_entries;
     manifest.overlays = overlay_entries;
+    manifest.patches = patch_entries;
     for (key, model) in &props {
         let file = format!("props/{}.gmm", key.replace('/', "_"));
         let bytes = &files[&file];
@@ -1038,6 +1112,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         props,
         avatars,
         overlays,
+        patches,
         facts,
     })
 }
@@ -1566,7 +1641,7 @@ fn compare(bundle: &Bundle, committed: &Path) -> Result<()> {
 fn print_summary(b: &Bundle) {
     let total: usize = b.files.values().map(Vec::len).sum();
     println!(
-        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} avatars, {} overlays, {} icons ({} baked), atlases {}, bundle {} files, {} bytes",
+        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} avatars, {} overlays, {} patches, {} icons ({} baked), atlases {}, bundle {} files, {} bytes",
         b.manifest.content_version,
         b.manifest.templates.len(),
         b.manifest.materials.len(),
@@ -1575,6 +1650,7 @@ fn print_summary(b: &Bundle) {
         b.manifest.props.len(),
         b.manifest.avatars.len(),
         b.manifest.overlays.len(),
+        b.manifest.patches.len(),
         b.atlases[0].icons.len(),
         b.baked.len(),
         b.atlases
@@ -1661,6 +1737,26 @@ fn report(b: &Bundle) {
             o.triangles,
             o.bytes,
             b.overlays.get(name).map_or(0, |m| m.bone_mask.count_ones())
+        );
+    }
+    println!();
+    println!(
+        "{:<24} {:<12} {:<14} {:>7} {:>9}  cover",
+        "patch", "model", "body", "blocks", "bytes"
+    );
+    for p in &b.manifest.patches {
+        let name = p
+            .file
+            .trim_start_matches("armour/")
+            .trim_end_matches(".gmp");
+        println!(
+            "{:<24} {:<12} {:<14} {:>7} {:>9}  {:.1}%",
+            name,
+            p.key,
+            p.body,
+            p.blocks,
+            p.bytes,
+            b.patches.get(name).map_or(0.0, |p| p.coverage() * 100.0)
         );
     }
     println!();
@@ -1779,10 +1875,8 @@ mod tests {
     fn an_armour_s_overlay_is_built_for_its_frame_and_the_template_says_what_it_covers() {
         let bundle = build(&sources()).expect("the content builds");
         let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
-        for (key, file) in [
-            ("cuirass", "armour/cuirass_striker.gmm"),
-            ("robe", "armour/robe_striker.gmm"),
-        ] {
+        {
+            let (key, file) = ("robe", "armour/robe_striker.gmm");
             let o = bundle.manifest.overlay(key, striker).expect(key);
             assert_eq!(o.file, file);
             let bytes = &bundle.files[&o.file];
@@ -1812,6 +1906,53 @@ mod tests {
         assert_eq!(bundle.manifest.template("shield").unwrap().held, HELD_LEFT);
         assert_eq!(bundle.manifest.template("sword").unwrap().held, HELD_EITHER);
         assert!(bundle.manifest.prop("shield").is_some());
+    }
+
+    /// CONTENT.md 3.3, LOOK.md 6.6: a patch armour is in the bundle as a `.gmp` per official
+    /// avatar it was baked for, named by model and body, covering no bone, its icon baked
+    /// from its cut, and it is no overlay.
+    #[test]
+    fn a_patch_armour_is_built_per_body_and_is_no_overlay() {
+        let bundle = build(&sources()).expect("the content builds");
+        let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
+        let avatar = bundle
+            .manifest
+            .avatar(striker, 2)
+            .expect("the striker in mail");
+        let body = Model::decode(&bundle.files[&avatar.file]).unwrap();
+        for key in ["cuirass", "trousers"] {
+            let p = bundle.manifest.patch(key, "striker_mail").expect(key);
+            assert_eq!(
+                p.file,
+                format!("armour/{key}_striker_mail.gmm").replace(".gmm", ".gmp")
+            );
+            assert_eq!(p.frame, striker);
+            let bytes = &bundle.files[&p.file];
+            assert_eq!(gm_model::model_id(bytes), p.sha256);
+            assert_eq!(bytes.len() as u32, p.bytes);
+            let patch = Patch::decode(bytes).expect("a patch the strict reader takes");
+            assert_eq!((patch.tex_w, patch.tex_h), (body.tex_w, body.tex_h));
+            assert_eq!(patch.body, "striker_mail");
+            assert_eq!(patch.blocks() as u32, p.blocks);
+            assert!(patch.blocks() > 0);
+            assert!(
+                bundle.manifest.overlay(key, striker).is_none(),
+                "a patch is no overlay"
+            );
+            let t = bundle.manifest.template(key).unwrap();
+            assert!(t.patch);
+            assert_eq!(t.covers, 0);
+            assert_eq!(t.icon.as_deref(), Some(&*format!("item/{key}")));
+            assert!(bundle.baked.contains(&format!("item/{key}")));
+        }
+        assert!(!bundle.manifest.template("robe").unwrap().patch);
+        // The composite is the body's chain with the cloth in it: the same length.
+        let mut texture = body.texture.clone();
+        let cuirass = &bundle.patches["cuirass_striker_mail"];
+        let changed = gm_model::patch::composite(&mut texture, body.tex_w, body.tex_h, &[cuirass]);
+        assert_eq!(changed, cuirass.blocks());
+        assert_eq!(texture.len(), body.texture.len());
+        assert_ne!(texture, body.texture);
     }
 
     /// LOOK.md 2.2: an atlas per density, and nothing a layout counts with differs

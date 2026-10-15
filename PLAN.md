@@ -1690,6 +1690,36 @@ weapons of EQUIPMENT.md 5.6 (the axe, the spear, the bow, the wand with a focus 
 primaries a custom build may take (content v12; no preset's kit changes); arrows as a stack and the quiver
 are not done.
 
+**2026-10-15, the cloth patch** (the audit of 2026-10-14: "equipment is built the Quake 3 way, not
+the GoldSrc or WoW way"; the director: "do it now exactly as you recommended"): the cuirass and
+the trousers are no longer skinned overlays with a 512² texture and a draw call each but
+**pixels on the official avatar's own atlas** (LOOK.md 6.6, CONTENT.md 3.3, MODELS.md 5.1):
+`scripts/dev/blender-bake-patch.py` bakes a cut onto the body's UV layout (Cycles, selected to
+active, a colour pass and a coverage pass), `gm-tools content build` keeps only the 4 × 4 BC1
+blocks with cloth in them (`.gmp`, `gm_model::patch`), and the client lays them into a copy of
+the body's chain (`patch::composite`: whole blocks copied, edge blocks decoded, merged and range
+fit again) and draws the dressed body once. The hood, the robe, the helms and the cape change
+the silhouette and stay overlays. The body's atlas was laid out again for it (the peasant legs
+in 512 × 384 instead of 256², `scripts/dev/hero-pipeline.sh`). Measured on the box:
+- **Bytes**: the cuirass 146,799 → 55,339 (10,318 blocks, 11.4% of the atlas), the trousers
+  148,118 → 24,943 (5,047 blocks, 5.4%); the bundle 2,611,070 → 2,379,135; `armour/`
+  596 → 388 KB; the avatar 375,744 → 358,385.
+- **Draws**: a striker in cuirass and trousers with a sword and a shield 6 → 4 draw calls and
+  4 → 2 textures bound (the body's composite, the props); with the hood 7 → 5.
+- **The composite**: 8.0 ms for both patches (15,365 blocks) on the box's CPU, once per body
+  and outfit, at the end of a frame; 780 KB of GPU memory per distinct outfit on a BC GPU.
+- **The browser**: WebGPU wasm 1,349,249 → 1,373,652 (+24,403), WebGL2 3,334,209 →
+  3,358,261 (+24,052), both under their caps.
+- **The look**: every combination of chest, head and legs rendered front, back and side,
+  still and through the run and the swing, before and after (`~/model-src/shots/patches/`,
+  `gm-client --crowd 10 --crowd-only 9` is the official avatar alone): no skin at the waist
+  in motion, nothing poking through; the belts and the boots lose their relief, being paint.
+- A player's own model wears a patch unseen (PLAN.md 3.1; LOOK.md 6.6); custom bodies are
+  the limit of the technique, as they were WoW's.
+- The avatar's source keeps the pack's whole armature now (the bake wants the body as the
+  cuts were made on it), so `scripts/check-budgets.sh` judges `models/avatars/*.glb` by the
+  ingestion, as it judges the armour sources since the same morning (`budget::check_avatar`).
+
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
 set are **proposed** in `docs/MATRIX.md` 12 (implemented and measured; the director confirms or changes

@@ -330,6 +330,33 @@ pub fn check_overlay(path: &Path) -> Result<Report> {
     })
 }
 
+/// An official avatar's source, `models/avatars/<frame>_<armour>.glb`, judged as `gm-tools
+/// content build` will ingest it (the avatar rules: the envelope, the pose, the budgets, the
+/// standard rig's bones). Since 2026-10-15 the file keeps the pack's whole armature, as the
+/// armour sources do: the bake of a cloth patch (CONTENT.md 3.3) wants the body exactly as
+/// the cuts were made on it, and the ingestion keeps the 24 bones it knows.
+pub fn check_avatar(path: &Path) -> Result<Report> {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    let frame = stem
+        .split_once('_')
+        .and_then(|(f, _)| gm_model::rig::frame_by_name(f))
+        .with_context(|| format!("{}: no frame in the name", path.display()))?;
+    let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let (report, _) = gm_ingest::ingest(&bytes, frame);
+    let f = &report.facts;
+    Ok(Report {
+        path: path.to_owned(),
+        summary: format!(
+            "avatar tris={} bones={} textures=[{}x{}] bytes={}",
+            f.triangles, f.bones, f.texture[0], f.texture[1], f.bytes
+        ),
+        violations: report.violations,
+    })
+}
+
 pub fn check_paths(paths: &[PathBuf], budgets: &Budgets) -> Result<Vec<Report>> {
     let mut reports = Vec::new();
     for root in paths {
@@ -347,14 +374,14 @@ pub fn check_paths(paths: &[PathBuf], budgets: &Budgets) -> Result<Vec<Report>> 
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|e| e.to_ascii_lowercase());
-            let armour = p
-                .parent()
-                .and_then(|d| d.file_name())
-                .is_some_and(|d| d == "armour");
+            let parent = p.parent().and_then(|d| d.file_name());
+            let armour = parent.is_some_and(|d| d == "armour");
+            let avatar = parent.is_some_and(|d| d == "avatars");
             match ext.as_deref() {
                 // An armour source (CONTENT.md 3.3) is cut on the pack's whole armature and keeps
                 // it until ingestion: it is checked by the overlay rules the content build applies.
                 Some("glb") | Some("gltf") if armour => reports.push(check_overlay(p)?),
+                Some("glb") | Some("gltf") if avatar => reports.push(check_avatar(p)?),
                 Some("glb") | Some("gltf") => reports.push(check_model(p, &budgets.character)?),
                 Some("gmm") => reports.push(check_gmm(p, &budgets.character)?),
                 Some("bsp") => reports.push(check_bsp(p, &budgets.map)?),
