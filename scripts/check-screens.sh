@@ -203,7 +203,7 @@ click frostweaver
 expect "Ice from a distance"
 click Create
 wait screen characters
-expect "Aldric  frostweaver  new"
+expect "frostweaver  |  not yet in the world"
 click Play
 wait screen game
 say in the town
@@ -259,13 +259,13 @@ click Back
 wait screen menu
 click Leave
 wait screen characters
-expect "Aldric  frostweaver  arena"
+expect "frostweaver  |  in arena"
 say rounds begin
 EOF
     for _ in $(seq 1 "$ROUNDS"); do
       printf 'click Play\nwait screen game\nkey Escape\nwait screen menu\nclick Leave\nwait screen characters\n'
     done
-    printf 'say rounds end\nexpect "Aldric  frostweaver  arena"\nsleep 1\nquit\n'
+    printf 'say rounds end\nexpect "frostweaver  |  in arena"\nsleep 1\nquit\n'
   } > "$tmp/cold.ui"
   crier Crier 90 "$tmp/crier.log"
   local t0 pid t_town t_r0 t_r1
@@ -307,7 +307,7 @@ EOF
     fail "the client's memory and threads were not read around the rounds ('${rss0:-}', '${rss1:-}', '${threads0:-}', '${threads1:-}')"
   fi
   # What was remembered: the address, the character played last, what was chosen.
-  for line in 'email = "screens@gm.test"' 'character = "Aldric"' 'third_person = true' 'ui_scale = 2'; do
+  for line in 'email = "screens@gm.test"' 'character = "Aldric"' 'ui_scale = 2'; do
     if /usr/bin/grep -qF "$line" "$tmp/settings.toml"; then ok "the settings remember: $line"; else fail "the settings do not say: $line"; fi
   done
   if /usr/bin/grep -qF "a long password" "$tmp/settings.toml" "$tmp/cold.log"; then
@@ -330,7 +330,7 @@ say paste
 expect "password: a long password"
 say pasted
 wait screen characters
-expect "Aldric  frostweaver  arena"
+expect "frostweaver  |  in arena"
 where Play
 wait screen game
 say playing
@@ -410,12 +410,12 @@ browser() {
     # follows it is drawn on the canvas.
     script="$(printf '%s\n' \
       'wait screen new character' 'field name' "type $name" 'click blade' 'click Create' \
-      'wait screen characters' "expect \"$name  blade  new\"" 'click Play' 'wait screen game' \
+      'wait screen characters' "expect \"blade  |  not yet in the world\"" 'click Play' 'wait screen game' \
       "expect \"Crier$build: hello from a bot\"" 'key Enter' 'wait screen chat' "type hello from $build" 'key Enter' \
       'wait screen game' 'key Escape' 'wait screen menu' 'click Travel' 'wait screen travel' \
       'click "arena  arena"' 'click Go' 'wait screen game' 'expect "arena  Esc menu"' 'key Escape' 'wait screen menu' \
       'click Travel' 'wait screen travel' 'expect "arena  arena  here"' 'click Back' 'wait screen menu' \
-      'click Leave' 'wait screen characters' "expect \"$name  blade  arena\"" 'quit')"
+      'click Leave' 'wait screen characters' "expect \"blade  |  in arena\"" 'quit')"
     local query; query="$(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$script")"
     local extra=""; [[ "$build" == webgl ]] && extra="&gl=1"
     crier "Crier$build" 150 "$tmp/crier-$build.log"

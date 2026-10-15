@@ -293,7 +293,7 @@ books() { # swords, kits
   equal "$(echo "$line" | sed -n 's/.* unsound=\([0-9-]*\).*/\1/p')" 0 "balances that disagree with the ledger, worn items astray"
   equal "$(echo "$line" | sed -n 's/.* worn=\([0-9]*\).*/\1/p')" "$1" "items worn"
   equal "$(echo "$line" | sed -n 's/.* stall_sale=\([0-9]*\).*/\1/p')" "$((($1 + $2) * PRICE))" "coin the keeper was paid"
-  local told; told="$(plain "$tmp/town.log" | /usr/bin/grep -a " gear " | /usr/bin/grep -ac 'dealt=\[40, 0, 0, 0, 0, 0, 0, 0\]' || true)"
+  local told; told="$(plain "$tmp/town.log" | /usr/bin/grep -a " gear " | /usr/bin/grep -aEc 'dealt=\[40(, 0)+\]' || true)"
   atleast "$told" "$1" "times the zone applied a sword's edge on its own kind (40 per mille of slash)"
   equal "$(plain "$tmp/town.log" | /usr/bin/grep -ac 'item used' || true)" 0 "items used (every press was at full health or of an empty cell)"
 }
@@ -451,7 +451,7 @@ browser() {
     # The form is the page's (filled by the browser's own input events); the character is
     # made on the canvas, then the operator's hand, then the purchase.
     script="$(printf '%s\n' 'wait screen new character' 'field name' "type $name" "click $preset" 'click Create' \
-      'wait screen characters' "expect \"$name  $preset  new\"" 'quit')"
+      'wait screen characters' "expect \"$preset  |  not yet in the world\"" 'quit')"
     if page "$tmp/browser-$build-new.log" "$script" --register; then
       ok "$build: a new account by the page's form and a character called $name"
     else

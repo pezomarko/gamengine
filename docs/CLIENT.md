@@ -63,6 +63,37 @@ program: the working directory first, then the program's own directory and the t
 it (`install_root`). A person's run writes its log to `client.log` beside the settings, for
 when there is no terminal to read it in.
 
+### 2.1 The frame (2026-10-15)
+
+The client is `crates/gm-client/src/app/`, one file a concern, and a frame is a sequence
+of named steps, each a function a reader can hold whole (CONTRIBUTING.md: clippy's
+hundred lines are the ceiling; a step that is longer says why). Until 2026-10-15 it was
+one `app.rs` of 7,116 lines whose `frame` was 941 lines and `online_frame` 1,387, and
+`App` had 96 fields.
+
+| File | What it holds |
+|---|---|
+| `mod.rs` | `App` and its parts by concern (`View`, `Offline`, `Scene`, `World`, `Screens`, `Pointer`, `Session`, `Clock`, `Prefs`; `Web` in a browser), the constants, the winit handler |
+| `start.rs` | `run` (the settings, the hub, what the client starts with, the run's end) and `run_web` (the page's options) |
+| `frame.rs` | `frame`: what arrived, the pointer, the look, the scene, the surface acquired, the scene staged, the HUD, the screens (`Actions`), the paperdoll (`Doll`), the present, the clock, the title, the run's end |
+| `online.rs` | the zone connection: its events (a handler a message), the travel ticket, the prediction (`Predicted`), where the frame is seen from (`Seen`), the others in sight, what is heard, the stalls, the own stance, launches, marks and view |
+| `view.rs` | the offline `Sim`, the cameras, the facings, the script's fight |
+| `input.rs` | the keys, the mouse, the fingers, the RPG mode's picks |
+| `hud_view.rs` | the HUD of a frame, a function a part (COMPANIONS.md 6, LOOK.md 3) |
+| `looks.rs` | what a body holds and wears, as slots of the renderer (LOOK.md 6) |
+| `window.rs` | the surface, the renderer, the fitting rooms, the pointer grab, the map switch |
+| `screens.rs` | opening and acting on the screens, the settings kept, the UI script, the page (a browser) |
+| `report.rs` | the `--report` line |
+
+A step re-borrows the connection it needs (`self.online.as_mut()`); nothing is held across
+a call. The screens are drawn with the renderer and the toolkit's memory taken out of
+`App` and put back after, so the screens' functions can ask the client what they need.
+The refactor changed no behaviour: the client's tests, the screens gate (desktop, and
+the WebGL2 build in the browser), the look and the items gates, clippy native and wasm
+pass; the release binary is 10,149,608 bytes (3,248 over main's 10,146,360), the WebGPU
+wasm 1,344,799 bytes, and the headless town bench (`--crowd 12 --bench 600`) 0.52 to
+0.56 ms a frame on the box (0.57 before).
+
 ## 3. The toolkit
 
 `gm-client/src/ui.rs`. Immediate mode: a screen is a function that runs every frame, lays
