@@ -98,6 +98,9 @@ pub struct Options {
     pub crowd: u32,
     /// Ingested models for the crowd to wear, cycled.
     pub crowd_dir: Option<PathBuf>,
+    /// `--crowd-turn DEG`: offline, the crowd turned this far from facing the start (180:
+    /// their backs to the camera, the fitting room of the sheath and the armour's back).
+    pub crowd_turn: f32,
     /// The model cache (MODELS.md 8): directory, disk cap and GPU cap in MiB.
     pub cache_dir: Option<PathBuf>,
     pub cache_mb: u64,
@@ -138,7 +141,7 @@ pub struct Options {
 
 const USAGE: &str = "gm-client [--map PATH] [--palette PATH] [--connect ADDR --cert PATH [--name NAME] [--build NAME] [--team N]] \
 [--third-person] [--bench N] [--no-vsync] [--present fifo|relaxed|mailbox|immediate] [--max-fps N] [--headless] [--software] \
-[--size WxH] [--screenshot out.ppm] [--seconds N] [--avatar FILE.gmm] [--prop KEY] [--off KEY] [--worn KEY] [--sheathed] [--crowd N [--crowd-dir DIR]] \
+[--size WxH] [--screenshot out.ppm] [--seconds N] [--avatar FILE.gmm] [--prop KEY] [--off KEY] [--worn KEY] [--sheathed] [--crowd N [--crowd-dir DIR] [--crowd-turn DEG]] \
 [--cache-dir DIR] [--cache-mb N] [--vram-mb N] [--start X,Y,Z,YAW] [--script fight|walk] [--report] [--travel-to ZONE [--travel-after SECS]] \
 [--sound-dump FILE.wav]\n\
        gm-client --replay FILE.gmr [--follow NAME] [--from SECS] [--maps-dir DIR] [--third-person] [--headless --screenshot out.ppm]\n\
@@ -182,6 +185,7 @@ impl Default for Options {
             sheathed: false,
             crowd: 0,
             crowd_dir: None,
+            crowd_turn: 0.0,
             cache_dir: None,
             cache_mb: 2048,
             vram_mb: 256,
@@ -279,6 +283,11 @@ fn parse_args() -> Result<Options, String> {
                     .map_err(|e| format!("--crowd: {e}"))?
             }
             "--crowd-dir" => o.crowd_dir = Some(PathBuf::from(value("--crowd-dir")?)),
+            "--crowd-turn" => {
+                o.crowd_turn = value("--crowd-turn")?
+                    .parse()
+                    .map_err(|e| format!("--crowd-turn: {e}"))?
+            }
             "--cache-dir" => o.cache_dir = Some(PathBuf::from(value("--cache-dir")?)),
             "--cache-mb" => {
                 o.cache_mb = value("--cache-mb")?

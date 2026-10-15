@@ -34,7 +34,7 @@ fn palette(block: &[u8]) -> [[u8; 4]; 4] {
 pub fn decode(blocks: &[u8], w: usize, h: usize) -> Vec<u8> {
     let mut out = vec![0u8; w * h * 4];
     let bw = w.div_ceil(4);
-    for (i, block) in blocks.chunks_exact(8).enumerate() {
+    for (i, block) in blocks.as_chunks::<8>().0.iter().enumerate() {
         let (bx, by) = (i % bw, i / bw);
         if by * 4 >= h {
             break;

@@ -185,6 +185,47 @@ for o in ranger_body + pauldron + bracer + peasant_body + [sleeves] + hood + ran
 for o in hood:
     inflate(o, 0.023)
 
+
+def clear(o, target, margin):
+    """Push every vertex of `o` that lies inside `target` (or nearer its surface than
+    `margin`) out to the surface and `margin` beyond it, along the surface's normal; the
+    rest stay. The packs' pieces were modelled on their own body, not this one: the
+    jerkin's small of the back and the shoulders sat 2-3 cm inside the hero's skin, which
+    came through where the body is drawn under the overlay (the hips, the arms)."""
+    bpy.context.view_layer.objects.active = o
+    mod = o.modifiers.new('clear', 'SHRINKWRAP')
+    mod.target = target
+    mod.wrap_method = 'NEAREST_SURFACEPOINT'
+    mod.wrap_mode = 'ABOVE_SURFACE'
+    mod.offset = margin
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+# (Not the robe: its tunic and sleeves overlap at the shoulders, and either pushed out
+# comes through the other; the tunic as it comes clears the hero's back already. Not the
+# trousers and the boots: the body's legs were cut above, so there is no surface to clear,
+# and against the torso's underside they collapsed; they fit as they come.)
+for o in ranger_body + hood:
+    clear(o, body, 0.012)
+
+
+def raise_waist(o, above, by):
+    """Stretch the waistband up: every vertex above `above` (metres, world) goes up `by`.
+    The trousers cover the hips (EQUIPMENT.md 5.2, items.toml), whose skin reaches 1.07 m
+    on the hero while the ranger's waistband stopped at 1.06: under a jerkin that lifts
+    with the chest the band between showed."""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    for v in bm.verts:
+        if (o.matrix_world @ v.co).z > above:
+            v.co += o.matrix_world.inverted().to_3x3() @ Vector((0.0, 0.0, by))
+    bm.to_mesh(o.data)
+    bm.free()
+
+
+for o in ranger_legs:
+    raise_waist(o, 1.0, 0.03)
+
 # The rig: MODELS.md 2 names, and the prop bones.
 ren = {'pelvis': 'hips', 'spine_01': 'spine', 'spine_02': 'chest', 'neck_01': 'neck', 'Head': 'head'}
 for s in 'lr':

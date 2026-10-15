@@ -145,6 +145,14 @@ Bot flags: `--bots N`, `--secs N`, `--behaviour wander|hunter|hold|duelist|skirm
 bots predict against the same BSP). The summary prints bytes/s per bot, RTT, snapshot gaps,
 reconciliation corrections, kills and the re-specs that happened.
 
+A bot on foot that asks to walk and has not moved 6 u in a second is against something: it
+sidesteps for half a second, hops, and a patrol picks a new heading (`Brain::move_check`,
+2026-10-14, the director: "bots in arena are stuck, and often get stuck at obstacles"). A
+vendor (`--stalls N`) walks to its own stall when one stands from before the restart, and
+otherwise to the first tile of the market no stall stands on, as the zone's stall roster
+says, not to tile `i * 2` of its own numbering (five sellers spawned one to a process all
+walked to the first tile, 2026-10-14).
+
 The zone accepts empty session tokens (`--open` behaviour) until the hub exists in Phase 4.
 Clients trust exactly the certificate they are given; there is no insecure mode.
 

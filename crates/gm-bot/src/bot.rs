@@ -283,6 +283,15 @@ pub async fn run_bot_on_link(
         })
         .collect();
     let mut stall_tile = cfg.stall_tile.filter(|_| !tiles.is_empty());
+    // Where the stalls of the market stand, by id (the roster at the join, then each one
+    // opened or closed): a vendor whose stall stands from before walks to it, and one
+    // without a stall yet walks to the first tile nobody stands on, not to the first tile
+    // (2026-10-14, the director: "merchants are all trying to get to first slot and not
+    // their own"). Two tiles are the same spot within half the grid's pitch.
+    let mut stall_spots: std::collections::HashMap<i64, glam::Vec3> = Default::default();
+    let near = tiles
+        .get(1)
+        .map_or(32.0, |t| (*t - tiles[0]).truncate().length() * 0.5);
     // The tick of the last stall request, and whether the zone has answered it.
     let mut stall_asked: Option<u32> = None;
     let mut stall_answered = true;
@@ -558,11 +567,41 @@ pub async fn run_bot_on_link(
                     }
                     Ok(Some(FromZone::Stalls(list))) => {
                         stalls_seen = list.iter().map(|s| s.id).collect();
+                        stall_spots = list
+                            .iter()
+                            .map(|s| (s.id, glam::Vec3::from(s.pos)))
+                            .collect();
+                        if let Some(own) = list.iter().find(|s| s.owner == cfg.name) {
+                            brain.goal = Some(glam::Vec3::from(own.pos));
+                            report.stall_opened = true;
+                            info!(name = %cfg.name, stall = own.id, "stall stands from before");
+                        } else if let Some(t) = stall_tile.as_mut()
+                            && !report.stall_opened
+                            && let Some(free) = free_tile(&tiles, *t, &stall_spots, near)
+                        {
+                            *t = free;
+                            brain.goal = Some(tiles[free as usize]);
+                        }
                     }
                     Ok(Some(FromZone::StallOpened(stall))) => {
                         stalls_seen.insert(stall.id);
+                        stall_spots.insert(stall.id, glam::Vec3::from(stall.pos));
+                        // Somebody else's, on the tile this bot was walking to: the next
+                        // free one.
+                        if stall.owner != cfg.name
+                            && !report.stall_opened
+                            && let Some(t) = stall_tile.as_mut()
+                            && brain
+                                .goal
+                                .is_some_and(|g| (g - glam::Vec3::from(stall.pos)).truncate().length() < near)
+                            && let Some(free) = free_tile(&tiles, *t, &stall_spots, near)
+                        {
+                            *t = free;
+                            brain.goal = Some(tiles[free as usize]);
+                        }
                         // Where the bot's own stall stands, for whoever sends it a buyer.
                         if stall.owner == cfg.name {
+                            brain.goal = Some(glam::Vec3::from(stall.pos));
                             info!(
                                 name = %cfg.name,
                                 stall = stall.id,
@@ -576,6 +615,7 @@ pub async fn run_bot_on_link(
                     }
                     Ok(Some(FromZone::StallClosed(id))) => {
                         stalls_seen.remove(&id);
+                        stall_spots.remove(&id);
                     }
                     // People together (PARTY.md 4): the party as the hub has it, and
                     // what a sociable bot does when it is asked something.
@@ -723,4 +763,23 @@ pub async fn run_bot_on_link(
     // Give the Bye a moment to leave before the endpoint is dropped.
     tokio::time::sleep(Duration::from_millis(20)).await;
     Ok((report, exit, map_name))
+}
+
+/// The first tile from `from` on (round the market) that no stall of `spots` stands on,
+/// two spots being one within `near`; `None` when every tile is taken.
+fn free_tile(
+    tiles: &[glam::Vec3],
+    from: u32,
+    spots: &std::collections::HashMap<i64, glam::Vec3>,
+    near: f32,
+) -> Option<u32> {
+    let n = tiles.len();
+    (0..n)
+        .map(|k| (from as usize + k) % n)
+        .find(|&k| {
+            !spots
+                .values()
+                .any(|s| (*s - tiles[k]).truncate().length() < near)
+        })
+        .map(|k| k as u32)
 }

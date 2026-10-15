@@ -64,6 +64,11 @@ pub fn run(opts: &Options) -> Result<(), Error> {
             if slot.is_none() {
                 log::warn!("--prop/--off {key}: the bundle has no such prop");
             }
+            if let Some(slot) = slot
+                && content.is_shield(key)
+            {
+                avatars.flat.insert(slot);
+            }
             slot
         };
         avatars.crowd_prop = slot_of(&opts.prop);

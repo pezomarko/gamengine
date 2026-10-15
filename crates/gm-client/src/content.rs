@@ -432,6 +432,16 @@ impl Content {
     /// What an armour's overlay covers (CONTENT.md 3.3): the standard bones whose part of
     /// the body is hidden under it, from the template whose model it is; nothing for a
     /// key no template names.
+    /// Whether the prop of this key is a shield's (LOOK.md 6.7: sheathed, it hangs flat
+    /// on the back), by the manifest's template of that model.
+    pub fn is_shield(&self, key: &str) -> bool {
+        self.manifest.as_ref().is_some_and(|m| {
+            m.templates
+                .iter()
+                .any(|t| t.model.as_deref() == Some(key) && t.kind == "shield")
+        })
+    }
+
     pub fn covers(&self, key: &str) -> u32 {
         self.manifest
             .as_ref()

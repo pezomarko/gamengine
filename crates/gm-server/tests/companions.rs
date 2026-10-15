@@ -129,6 +129,10 @@ fn flow(
     }
 }
 
+// Five minutes of bots over real time, and not repeatable bit for bit: a gate, not a unit
+// test. The nightly dungeon job runs it (`cargo test --test companions -- --ignored`,
+// gates.yml); on a loaded machine it fails at the gate with the raid unfinished.
+#[ignore = "a five-minute bot run over real time: run by the nightly dungeon gate with --ignored"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
     let Ok(url) = std::env::var("GM_TEST_DATABASE_URL") else {

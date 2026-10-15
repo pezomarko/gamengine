@@ -505,11 +505,19 @@ costs the tick loop one look at each session's body.
 
 Drawn: the held prop's `CharacterDraw` takes **`prop_back`'s** skinning matrix instead
 of `prop_r`'s (`gm_model::pose::prop_attach_back`), at that bone's pivot lifted
-`SHEATH_LIFT` (10 units up, 5 to the right: over the right shoulder) with **the sheath's
-grip** (`grip_back`): the business end runs down across the back towards the left hip,
-`SHEATH_TILT_DEG` (32°) from upright, the flat against the back, the edge sideways; a
-two-hander lies the same way. The off hand's prop stays in the left hand (a shield on the
-arm). The own first-person view shows no view model while the own weapon is sheathed. The
+`SHEATH_LIFT` (10 units up, 5 to the right, `SHEATH_OUT` = 2.5 out behind: over the right
+shoulder) with **the sheath's grip** (`grip_back`): the business end runs down across the
+back towards the left hip, `SHEATH_TILT_DEG` (32°) from upright, the flat against the
+back, the edge sideways; a two-hander lies the same way. (The hero's `prop_back` pivot is
+3 cm inside his shoulder blades, which is why the prop is carried out behind it: until
+2026-10-14 the blade ran through the skin.) **The off hand's prop goes on the back too**
+(2026-10-14, the director: "second sword is not put away"): the mirror image
+(`prop_attach_back_left`, `SHEATH_LIFT_LEFT`, `grip_back_left`), the grip over the left
+shoulder, the business end down towards the right hip, a prop's thickness further out so
+the two cross with the off hand's over the right hand's. A shield (the manifest's kind,
+`Avatars::flat`) hangs **flat on the middle of the back** instead (`prop_attach_back_flat`,
+`SHEATH_LIFT_FLAT`, `grip_back_flat`: face out, point down, over both blades). The own
+first-person view shows no view model while the own weapon is sheathed. The
 selector's body keeps its weapon in its hand (CLIENT.md 4.2: a showcase); the paperdoll
 of the equipment window draws the look as the zone says it. Nothing is animated: the
 weapon is in one place or the other, and the swing that brings it out is the swing

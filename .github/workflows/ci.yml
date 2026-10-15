@@ -1,3 +1,8 @@
+# The fast lane: what every pull request and every push to main must pass, in parallel jobs
+# that finish in minutes. The compiler is the one rust-toolchain.toml names, so a lint added
+# by a newer release never turns main red by itself. The long gates (bots over the wire,
+# screens on a display, the browser) are gates.yml: nightly and on demand, one job each, so
+# a hang in one never hides the others.
 name: ci
 
 on:
@@ -5,14 +10,46 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
-  check:
-    name: fmt, clippy, tests, assets
+  lint:
+    name: fmt, clippy (native, wasm), unused dependencies
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: lint
+      - name: "System packages (ALSA's headers: the client links the sound device, SOUND.md 4)"
+        run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy, native (warnings are errors)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Clippy, the browser target, both builds
+        run: |
+          cargo clippy -p gm-client --target wasm32-unknown-unknown --locked -- -D warnings
+          cargo clippy -p gm-client --target wasm32-unknown-unknown --features webgl --locked -- -D warnings
+      - uses: taiki-e/install-action@cargo-machete
+      - name: Unused dependencies (a crate nobody links is a crate nobody audits)
+        run: cargo machete
+
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16
@@ -24,181 +61,66 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U gm" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      # The hub's round-trip test wipes this database (HUB.md 5).
+      # The hub's tests wipe this database (HUB.md 5).
       GM_TEST_DATABASE_URL: postgres://gm:gm@localhost:5432/gm_test
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+      - uses: dtolnay/rust-toolchain@1.97.0
       - uses: Swatinem/rust-cache@v2
-      - name: "System packages (ALSA's headers: the client links the sound device, SOUND.md 4)"
+        with:
+          key: test
+      - name: System packages (ALSA's headers)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev
+      - name: Tests
+        run: cargo test --workspace --locked
+
+  assets:
+    name: assets (maps reproduced, budgets, the content bundle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: assets
+      - name: System packages (ALSA's headers, unzip for the map compiler)
         run: sudo apt-get update -q && sudo apt-get install -y -q unzip libasound2-dev
-      - name: Format
-        run: cargo fmt --all -- --check
-      - name: Clippy (warnings are errors)
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Fetch ericw-tools (pinned)
         run: scripts/fetch-ericw-tools.sh
       - name: Rebuild the maps with the pinned compiler
         run: |
-          cargo run -q -p gm-tools --locked -- map build assets/maps/src/test_room.map --out target/ci-maps
-          cargo run -q -p gm-tools --locked -- map build assets/maps/src/arena.map --out target/ci-maps
-          cargo run -q -p gm-tools --locked -- map build assets/maps/src/town.map --out target/ci-maps
-          cargo run -q -p gm-tools --locked -- map build assets/maps/src/dungeon.map --out target/ci-maps
-      - name: Tests
-        run: cargo test --workspace --locked
+          for m in test_room arena town dungeon; do
+            cargo run -q -p gm-tools --locked -- map build "assets/maps/src/$m.map" --out target/ci-maps
+          done
       - name: Asset budgets
         run: scripts/check-budgets.sh
       - name: Asset budgets self-test (an over-budget asset must fail)
         run: scripts/check-budgets.sh --self-test
-      - name: Netcode gate (turmoil, 16 bots, 150 ms, 3% loss; bytes/player/s budget)
-        run: scripts/check-netcode.sh
-      - name: "Matrix gate (8v8 arena: a dominant build is countered by re-speccing)"
-        run: scripts/check-matrix.sh
-      - name: Swarm smoke (32 bots over real UDP; the 200-bot gate runs on the reference machine)
-        run: BOTS=32 SECS=10 scripts/check-swarm.sh
-      - name: Dungeon gate (a leader and three companions clear it on a real zone; 4 leaders at once)
-        run: SKIP_TESTS=1 LEADERS=4 scripts/check-dungeon.sh
-      - name: System packages (software Vulkan, for the replay screenshot)
-        run: sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1
-      - name: Anti-cheat gate (hands and programs in a recorded arena; flags, replays, the hub path)
-        run: scripts/check-anticheat.sh --online
-      - name: System packages (a display of its own and real input, for the screens gate)
-        run: sudo apt-get install -y -q xvfb xdotool libxkbcommon-x11-0 libxcursor1 libx11-xcb1
-      - name: Screens gate (every screen at every size; the desktop client by UI script and by real keys and clicks)
-        run: KEEP="$RUNNER_TEMP/screens" scripts/check-screens.sh --desktop
-      - name: The screens gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screens-desktop
-          path: ${{ runner.temp }}/screens
-          if-no-files-found: ignore
-      - name: Items gate (the gear term, worn items at the hub and in a zone; a stall bought from and a sword worn through the desktop client)
-        run: KEEP="$RUNNER_TEMP/items" scripts/check-items.sh --desktop
-      - name: The items gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: items-desktop
-          path: ${{ runner.temp }}/items
-          if-no-files-found: ignore
-      - name: People gate (parties at the hub and in two zones; two bots through the dungeon as one party; a party, its lines, a trade and a hire through the desktop client)
-        run: KEEP="$RUNNER_TEMP/party" scripts/check-party.sh --desktop
-      - name: The people gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: party-desktop
-          path: ${{ runner.temp }}/party
-          if-no-files-found: ignore
+      - name: The content tables, and the committed bundle reproduced byte for byte (CONTENT.md 5)
+        run: cargo run -q -p gm-tools --locked -- content check --built assets/built/content
 
-  gates:
-    name: binary size, RAM, software render
+  size:
+    name: sizes (the native client, both browser builds)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release
-      - name: System packages (software Vulkan; ALSA's headers for the sound device; Xvfb for the sound gate's client)
-        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
+          key: size
+      - name: System packages (ALSA's headers, brotli for the packed sizes)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev brotli
       - name: Build release client
         run: cargo build --release -p gm-client --locked
       - name: Binary size gate
         run: SKIP_BUILD=1 scripts/check-binary-size.sh
       - name: Binary size self-test (a 1 MiB regression must fail)
         run: SKIP_BUILD=1 scripts/check-binary-size.sh --self-test
-      - name: Headless render + RAM gate (software Vulkan; fps is not gated here)
-        run: SKIP_BUILD=1 FRAMES=120 scripts/check-perf.sh --software
-      - name: Avatar gate smoke (48 distinct avatars, 16 MiB cache cap, software Vulkan)
-        run: scripts/check-avatars.sh --software
-      - name: Sound gate (the walk and the arena fight rendered to WAVs on an Xvfb of its own and read; no device)
-        run: SKIP_BUILD=1 SKIP_TESTS=1 scripts/check-sound.sh
-      - name: Look gate (the content checked, the committed bundle reproduced byte for byte, props in hands over the crowd; software Vulkan)
-        run: cargo build --release -p gm-tools --locked && SKIP_BUILD=1 SKIP_TESTS=1 scripts/check-look.sh
-
-  web:
-    name: browser client (wasm sizes, WebTransport, headless Chromium)
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: gm
-          POSTGRES_PASSWORD: gm
-          POSTGRES_DB: gm_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U gm" --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      # The screens gate's hub wipes this database (CLIENT.md 10).
-      GM_TEST_DATABASE_URL: postgres://gm:gm@localhost:5432/gm_test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: web
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: System packages (brotli for the size gate, software Vulkan for Chromium's WebGPU, ALSA's headers, Xvfb for the sound gate's native client)
-        run: sudo apt-get update -q && sudo apt-get install -y -q brotli mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
-      - name: Clippy for the browser target, both builds
-        run: |
-          cargo clippy -p gm-client --target wasm32-unknown-unknown --locked -- -D warnings
-          cargo clippy -p gm-client --target wasm32-unknown-unknown --features webgl --locked -- -D warnings
-      - name: Web gate (sizes, QUIC and WebTransport in one zone, headless Chromium on its software GPU)
-        run: CHROME=google-chrome scripts/check-web.sh --browser --software
-      - name: Screens gate in the browser (the page's form by the browser's own input, the canvas screens by script)
-        run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/screens" scripts/check-screens.sh --browser --software
-      - name: The screens gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screens-browser
-          path: ${{ runner.temp }}/screens
-          if-no-files-found: ignore
-      - name: Items gate in the browser (the same purchase in both builds)
-        run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/items" scripts/check-items.sh --browser --software
-      - name: The items gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: items-browser
-          path: ${{ runner.temp }}/items
-          if-no-files-found: ignore
-      - name: People gate in the browser (a party, its lines, a trade and a hire in both builds)
-        run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/party" scripts/check-party.sh --browser --software
-      - name: The people gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: party-browser
-          path: ${{ runner.temp }}/party
-          if-no-files-found: ignore
-      - name: "Sound gate in the browser (the fight in both builds: the context running after a click, cues started, the patches hashing as native)"
-        run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/sound" scripts/check-sound.sh --browser --software
-      - name: The sound gate's logs, when it failed
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sound-browser
-          path: ${{ runner.temp }}/sound
-          if-no-files-found: ignore
-
-  # Frame time on a real integrated GPU (PLAN.md 2.7). Enabled once a self-hosted runner exists.
-  # perf-igpu:
-  #   runs-on: [self-hosted, igpu]
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - run: scripts/check-perf.sh --gate-fps
-  #     - run: scripts/check-avatars.sh --gate-fps
+      - name: Fetch the browser build's tools (pinned)
+        run: scripts/fetch-web-tools.sh
+      - name: Browser builds and their size gate
+        run: SIZES_ONLY=1 scripts/check-web.sh

@@ -70,6 +70,8 @@ for name in webgpu webgl; do
   check_max "$(packed "$wasm")" "$(budget web max_${name}_packed_bytes)" "$name wasm packed bytes"
   check_max "$(( $(size target/web/gm-client-$name.js) + loader ))" "$(budget web max_js_bytes)" "$name JavaScript bytes (glue + loader + page)"
 done
+# SIZES_ONLY=1: the download gated, nothing run (the fast lane of ci.yml).
+[[ "${SIZES_ONLY:-}" == 1 ]] && exit $status
 
 # 3. The transports without a browser: a WebTransport session carries what a QUIC connection
 #    carries, and a zone takes clients of both kinds at once.

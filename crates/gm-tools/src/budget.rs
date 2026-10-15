@@ -306,6 +306,30 @@ pub fn check_bsp(path: &Path, b: &MapBudget) -> Result<Report> {
     })
 }
 
+/// An armour overlay source, `models/armour/<model>_<frame>.glb`, judged as `gm-tools content
+/// build` will ingest it (the overlay row of the budgets, no envelope, the standard rig's bones).
+pub fn check_overlay(path: &Path) -> Result<Report> {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    let frame = stem
+        .rsplit_once('_')
+        .and_then(|(_, f)| gm_model::rig::frame_by_name(f))
+        .with_context(|| format!("{}: no frame in the name", path.display()))?;
+    let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let (report, _) = gm_ingest::ingest_overlay(&bytes, frame);
+    let f = &report.facts;
+    Ok(Report {
+        path: path.to_owned(),
+        summary: format!(
+            "overlay tris={} bones={} textures=[{}x{}] bytes={}",
+            f.triangles, f.bones, f.texture[0], f.texture[1], f.bytes
+        ),
+        violations: report.violations,
+    })
+}
+
 pub fn check_paths(paths: &[PathBuf], budgets: &Budgets) -> Result<Vec<Report>> {
     let mut reports = Vec::new();
     for root in paths {
@@ -323,7 +347,14 @@ pub fn check_paths(paths: &[PathBuf], budgets: &Budgets) -> Result<Vec<Report>> 
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|e| e.to_ascii_lowercase());
+            let armour = p
+                .parent()
+                .and_then(|d| d.file_name())
+                .is_some_and(|d| d == "armour");
             match ext.as_deref() {
+                // An armour source (CONTENT.md 3.3) is cut on the pack's whole armature and keeps
+                // it until ingestion: it is checked by the overlay rules the content build applies.
+                Some("glb") | Some("gltf") if armour => reports.push(check_overlay(p)?),
                 Some("glb") | Some("gltf") => reports.push(check_model(p, &budgets.character)?),
                 Some("gmm") => reports.push(check_gmm(p, &budgets.character)?),
                 Some("bsp") => reports.push(check_bsp(p, &budgets.map)?),

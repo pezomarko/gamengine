@@ -1,0 +1,201 @@
+# The long gates: bots over the wire, the screens on a display, the browser, the render and
+# the sound on a software GPU. Nightly on main and on demand, one job per gate so that a hang
+# or a failure in one never hides the others, each under its own clock. They report; the
+# fast lane (ci.yml) is what a merge waits for. A gate that is red here is a bug to fix or a
+# gate to repair, in a commit of its own, the same day.
+name: gates
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "branch or commit to gate (default: main)"
+        default: main
+
+concurrency:
+  group: gates-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  sim:
+    # The gates that need no display and no database: bots in a simulated or a real network.
+    name: ${{ matrix.gate.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gate:
+          - name: netcode (turmoil, 16 bots, 150 ms, 3% loss; bytes/player/s budget)
+            run: scripts/check-netcode.sh
+          - name: "matrix (8v8 arena: a dominant build is countered by re-speccing)"
+            run: scripts/check-matrix.sh
+          - name: swarm (32 bots over real UDP; the 200-bot gate runs on the reference machine)
+            run: BOTS=32 SECS=10 scripts/check-swarm.sh
+          - name: dungeon (a leader and three companions clear it on a real zone; 4 leaders at once)
+            run: |
+              cargo test -p gm-server --test companions --locked -- --ignored
+              SKIP_TESTS=1 LEADERS=4 scripts/check-dungeon.sh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gates
+      - name: System packages (ALSA's headers)
+        run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev
+      - name: ${{ matrix.gate.name }}
+        run: ${{ matrix.gate.run }}
+
+  desktop:
+    # The gates that drive the desktop client on a display of its own, with a hub behind it.
+    name: ${{ matrix.gate.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gate:
+          - name: anti-cheat (hands and programs in a recorded arena; flags, replays, the hub path)
+            run: scripts/check-anticheat.sh --online
+            logs: anticheat
+          - name: screens (every screen at every size; by UI script and by real keys and clicks)
+            run: KEEP="$RUNNER_TEMP/logs" scripts/check-screens.sh --desktop
+            logs: screens-desktop
+          - name: items (the gear term, worn items at the hub and in a zone; a stall and a sword through the client)
+            run: KEEP="$RUNNER_TEMP/logs" scripts/check-items.sh --desktop
+            logs: items-desktop
+          - name: people (parties at the hub and in two zones; a party, a trade and a hire through the client)
+            run: KEEP="$RUNNER_TEMP/logs" scripts/check-party.sh --desktop
+            logs: party-desktop
+          - name: look (the bundle reproduced, props in hands over the crowd, the desktop client on a display)
+            run: KEEP="$RUNNER_TEMP/logs" scripts/check-look.sh --desktop
+            logs: look-desktop
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gm
+          POSTGRES_PASSWORD: gm
+          POSTGRES_DB: gm_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gm" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GM_TEST_DATABASE_URL: postgres://gm:gm@localhost:5432/gm_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gates-release
+      - name: System packages (software Vulkan, a display of its own and real input, ALSA's headers)
+        run: >-
+          sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1
+          xvfb xdotool libxkbcommon-x11-0 libxcursor1 libx11-xcb1 libasound2-dev
+      - name: ${{ matrix.gate.name }}
+        run: ${{ matrix.gate.run }}
+      - name: The gate's logs, when it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.gate.logs }}
+          path: ${{ runner.temp }}/logs
+          if-no-files-found: ignore
+
+  render:
+    # The release client on a software GPU: RAM, the avatar cache, the sound rendered to WAVs.
+    name: render, RAM, avatars, sound (software Vulkan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@1.97.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gates-release
+      - name: System packages (software Vulkan, ALSA's headers, Xvfb)
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
+      - name: Build release client
+        run: cargo build --release -p gm-client --locked
+      - name: Headless render + RAM gate (fps is not gated here)
+        run: SKIP_BUILD=1 FRAMES=120 scripts/check-perf.sh --software
+      - name: Avatar gate smoke (48 distinct avatars, 16 MiB cache cap)
+        run: scripts/check-avatars.sh --software
+      - name: Sound gate (the walk and the arena fight rendered to WAVs and read; no device)
+        run: SKIP_BUILD=1 SKIP_TESTS=1 scripts/check-sound.sh
+
+  browser:
+    # The browser client in headless Chromium on its software GPU, both builds.
+    name: ${{ matrix.gate.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gate:
+          - name: web (sizes, QUIC and WebTransport in one zone, Chromium playing by script)
+            run: CHROME=google-chrome scripts/check-web.sh --browser --software
+            logs: web-browser
+          - name: screens in the browser
+            run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/logs" scripts/check-screens.sh --browser --software
+            logs: screens-browser
+          - name: items in the browser (the same purchase in both builds)
+            run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/logs" scripts/check-items.sh --browser --software
+            logs: items-browser
+          - name: people in the browser (a party, a trade and a hire in both builds)
+            run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/logs" scripts/check-party.sh --browser --software
+            logs: party-browser
+          - name: sound in the browser (the fight in both builds)
+            run: CHROME=google-chrome SKIP_TESTS=1 KEEP="$RUNNER_TEMP/logs" scripts/check-sound.sh --browser --software
+            logs: sound-browser
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gm
+          POSTGRES_PASSWORD: gm
+          POSTGRES_DB: gm_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gm" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GM_TEST_DATABASE_URL: postgres://gm:gm@localhost:5432/gm_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gates-web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: System packages (brotli, software Vulkan for Chromium's WebGPU, ALSA's headers, Xvfb)
+        run: sudo apt-get update -q && sudo apt-get install -y -q brotli mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
+      - name: Fetch the browser build's tools (pinned)
+        run: scripts/fetch-web-tools.sh
+      - name: ${{ matrix.gate.name }}
+        run: ${{ matrix.gate.run }}
+      - name: The gate's logs, when it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.gate.logs }}
+          path: ${{ runner.temp }}/logs
+          if-no-files-found: ignore
