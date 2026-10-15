@@ -241,6 +241,8 @@ cut (9).
 ### 5.2 The body (six places; one exists)
 
 Each is an **overlay** (CONTENT.md 3.3) cut per frame, with the bones it `covers` hidden
+(since 2026-10-15 the chest's cloth and the legs' are **patches** on the official
+avatar's atlas instead, LOOK.md 6.6: one draw, nothing to hide)
 under it. The packs' modular outfits come **already cut this way** (Body, Arms, Legs,
 Feet, Head, Pauldrons: 7), so a place is a file and a row, no new mechanism.
 

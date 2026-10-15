@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use gm_model::Model;
 use gm_model::atlas::Atlas;
 use gm_model::manifest::Manifest;
+use gm_model::{Model, Patch};
 
 /// Where the bundle's files are, under the assets: `<assets>/built/content`.
 pub const DIR: &str = "built/content";
@@ -19,6 +19,9 @@ const AVATAR_PREFIX: &str = "avatar:";
 /// And an armour overlay's, before `<frame>:<key>`.
 #[cfg(target_arch = "wasm32")]
 const OVERLAY_PREFIX: &str = "overlay:";
+/// And a cloth patch's, before `<body>:<key>`.
+#[cfg(target_arch = "wasm32")]
+const PATCH_PREFIX: &str = "patch:";
 /// Where the browser's fetches land, by key: the file's bytes, or `None` for a 404.
 #[cfg(target_arch = "wasm32")]
 type Inbox<K> = std::rc::Rc<std::cell::RefCell<Vec<(K, Option<Vec<u8>>)>>>;
@@ -52,6 +55,9 @@ pub struct Content {
     pub avatars: [[Option<PropState>; 4]; 4],
     /// The armour overlays (CONTENT.md 3.3) by model key and frame, as props.
     pub overlays: HashMap<(String, u8), PropState>,
+    /// The cloth patches (CONTENT.md 3.3, LOOK.md 6.6) by model key and the official
+    /// avatar's key they were baked for, the same way; the slot is the avatars' registry's.
+    pub patches: HashMap<(String, String), PropState>,
     /// Where props are read from: a directory natively, a URL prefix in the browser.
     base: String,
     /// Files that arrived (the browser's fetches land here; natively a read is immediate).
@@ -73,6 +79,7 @@ impl Content {
             props: HashMap::new(),
             avatars: Default::default(),
             overlays: HashMap::new(),
+            patches: HashMap::new(),
             base: String::new(),
             #[cfg(target_arch = "wasm32")]
             inbox: Default::default(),
@@ -429,6 +436,122 @@ impl Content {
         }
     }
 
+    /// Whether an armour of this model key is seen as a patch on the body's atlas
+    /// (CONTENT.md 3.3), by the manifest's template of that model.
+    pub fn is_patch(&self, key: &str) -> bool {
+        self.manifest.as_ref().is_some_and(|m| {
+            m.templates
+                .iter()
+                .any(|t| t.model.as_deref() == Some(key) && t.patch)
+        })
+    }
+
+    /// The official avatar's key of a frame in an armour class (CONTENT.md 3.2), when the
+    /// bundle has one: the body a patch must have been baked for.
+    pub fn official_key(&self, frame: u8, armour: u8) -> Option<String> {
+        self.manifest
+            .as_ref()?
+            .avatar(frame, armour)
+            .map(|a| a.key.clone())
+    }
+
+    /// The patch of an armour's model for the official avatar of a frame in an armour
+    /// class (LOOK.md 6.6), by the same road as an overlay: `Some(id)` when the avatars'
+    /// registry has it (`load` puts a decoded patch there and returns its id), the first
+    /// ask starts the load, and `None` for good when the bundle has none for that body.
+    pub fn patch(
+        &mut self,
+        key: &str,
+        frame: u8,
+        armour: u8,
+        mut load: impl FnMut(&Patch) -> Option<usize>,
+    ) -> Option<usize> {
+        let body = self.official_key(frame, armour)?;
+        let at = (key.to_string(), body.clone());
+        if let Some(state) = self.patches.get(&at) {
+            return match state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+        }
+        let Some(entry) = self.manifest.as_ref().and_then(|m| m.patch(key, &body)) else {
+            self.patches.insert(at, PropState::Missing);
+            return None;
+        };
+        let (file, sha) = (entry.file.clone(), entry.sha256);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let path = std::path::Path::new(&self.base).join(&file);
+            let state = match std::fs::read(&path) {
+                Ok(bytes) => Self::decoded_patch(key, &body, &bytes, sha, &mut load),
+                Err(e) => {
+                    log::warn!("patch `{key}` for {body}: {}: {e}", path.display());
+                    PropState::Missing
+                }
+            };
+            let out = match &state {
+                PropState::Loaded(slot) => Some(*slot),
+                _ => None,
+            };
+            self.patches.insert(at, state);
+            out
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sha, &mut load);
+            let url = format!("{}/{file}", self.base);
+            let inbox = self.inbox.clone();
+            let filed = format!("{PATCH_PREFIX}{body}:{key}");
+            wasm_bindgen_futures::spawn_local(async move {
+                let bytes = match crate::web::fetch_bytes(&url).await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        log::warn!("{e}");
+                        None
+                    }
+                };
+                inbox.borrow_mut().push((filed, bytes));
+            });
+            self.patches.insert(at, PropState::Loading);
+            None
+        }
+    }
+
+    /// A patch's bytes: the file the manifest names, a patch baked for that body.
+    fn decoded_patch(
+        key: &str,
+        body: &str,
+        bytes: &[u8],
+        sha: [u8; 32],
+        load: &mut impl FnMut(&Patch) -> Option<usize>,
+    ) -> PropState {
+        if gm_model::model_id(bytes) != sha {
+            log::warn!("patch `{key}`: the file is not the one the manifest names");
+            return PropState::Missing;
+        }
+        match Patch::decode(bytes) {
+            Ok(p) if p.body == body => match load(&p) {
+                Some(slot) => {
+                    log::info!(
+                        "patch `{key}` for {body}: {} blocks, {:.1}% of the atlas",
+                        p.blocks(),
+                        p.coverage() * 100.0
+                    );
+                    PropState::Loaded(slot)
+                }
+                None => PropState::Missing,
+            },
+            Ok(_) => {
+                log::warn!("patch `{key}`: the file was baked for another body than {body}");
+                PropState::Missing
+            }
+            Err(e) => {
+                log::warn!("patch `{key}`: {e}");
+                PropState::Missing
+            }
+        }
+    }
+
     /// What an armour's overlay covers (CONTENT.md 3.3): the standard bones whose part of
     /// the body is hidden under it, from the template whose model it is; nothing for a
     /// key no template names.
@@ -452,7 +575,11 @@ impl Content {
     /// Fetches that landed since the last frame, decoded and put on the GPU (one a frame,
     /// like avatars, WEB.md 4).
     #[cfg(target_arch = "wasm32")]
-    pub fn poll(&mut self, mut load: impl FnMut(&Model) -> Option<usize>) {
+    pub fn poll(
+        &mut self,
+        mut load: impl FnMut(&Model) -> Option<usize>,
+        mut load_patch: impl FnMut(&Patch) -> Option<usize>,
+    ) {
         let arrived = {
             let mut inbox = self.inbox.borrow_mut();
             if inbox.is_empty() {
@@ -461,6 +588,27 @@ impl Content {
             inbox.remove(0)
         };
         let (key, bytes) = arrived;
+        if let Some(rest) = key.strip_prefix(PATCH_PREFIX) {
+            let Some((body, key)) = rest.split_once(':') else {
+                return;
+            };
+            let (body, key) = (body.to_string(), key.to_string());
+            let sha = self
+                .manifest
+                .as_ref()
+                .and_then(|m| m.patch(&key, &body))
+                .map(|e| e.sha256)
+                .unwrap_or([0; 32]);
+            let state = match bytes {
+                Some(bytes) => Self::decoded_patch(&key, &body, &bytes, sha, &mut load_patch),
+                None => {
+                    log::warn!("patch `{key}` for {body}: not on the site");
+                    PropState::Missing
+                }
+            };
+            self.patches.insert((key, body), state);
+            return;
+        }
         if let Some(rest) = key.strip_prefix(OVERLAY_PREFIX) {
             let (frame, key) = match rest.split_once(':') {
                 Some((f, k)) => (f.parse::<u8>().unwrap_or(255), k.to_string()),

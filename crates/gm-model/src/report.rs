@@ -25,6 +25,9 @@ pub struct Facts {
     /// Coverage relative to the frame's mannequin.
     pub coverage_front: f32,
     pub coverage_side: f32,
+    /// A patch (CONTENT.md 3.3): the blocks of the body's atlas it touches, every level.
+    #[serde(default)]
+    pub blocks: u32,
 }
 
 /// The answer to an upload (MODELS.md 4: every violation at once).

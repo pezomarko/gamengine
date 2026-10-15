@@ -22,7 +22,7 @@ use std::path::Path;
 
 use gm_core::vocab::ArchetypeFrame;
 use gm_model::format::{self, FLAG_CUTOUT, FLAG_OVERLAY, FLAG_TWO_SIDED, limits};
-use gm_model::{Model, ModelId, rig};
+use gm_model::{Model, ModelId, Patch, rig};
 // What the hub needs of an upload's answer without reading an upload lives in gm-model
 // (2026-10-15): the report's types, the envelope, the rasteriser and `verify`.
 pub use gm_model::report::{Facts, Report, Verified, WORKER_MODEL, WORKER_REPORT, verify};
@@ -284,6 +284,89 @@ pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<I
             model,
         }),
     )
+}
+
+pub struct IngestedPatch {
+    /// The `.gmp` file.
+    pub gmp: Vec<u8>,
+    pub patch: Patch,
+}
+
+/// A cloth patch (CONTENT.md 3.3, LOOK.md 6.6): the picture scripts/dev/blender-bake-patch.py
+/// baked in the atlas space of the official avatar `body` of `frame` (RGBA, its alpha the
+/// coverage, the atlas's size exactly), encoded as the body's atlas is (resampled, mipped in
+/// linear light with the coverage carried along, BC1 with the one-bit alpha) and kept only
+/// where there is cloth (`Patch::from_chain`).
+pub fn ingest_patch(
+    png: &[u8],
+    frame: ArchetypeFrame,
+    body: &str,
+    atlas: (u16, u16),
+) -> (Report, Option<IngestedPatch>) {
+    let mut report = Report {
+        frame: format!("{} patch", rig::frame_name(frame)),
+        ..Default::default()
+    };
+    if png.len() > MAX_UPLOAD_BYTES {
+        report.violations.push(format!(
+            "the picture is {} bytes; the limit is {MAX_UPLOAD_BYTES}",
+            png.len()
+        ));
+        return (report, None);
+    }
+    let img = match image::load_from_memory(png) {
+        Ok(i) => i.to_rgba8(),
+        Err(e) => {
+            report
+                .violations
+                .push(format!("the picture does not decode: {e}"));
+            return (report, None);
+        }
+    };
+    report.facts.source_texture = [img.width(), img.height()];
+    report.facts.cutout = true;
+    if (img.width(), img.height()) != (atlas.0 as u32, atlas.1 as u32) {
+        report.violations.push(format!(
+            "the picture is {} x {}; the body's atlas is {} x {} (a patch is in its texel space)",
+            img.width(),
+            img.height(),
+            atlas.0,
+            atlas.1
+        ));
+        return (report, None);
+    }
+    let a = texture::build(&img, [1.0; 4], Some(0.5));
+    let patch = Patch::from_chain(rig::frame_index(frame), body, a.w, a.h, &a.bc1);
+    report.facts.texture = [a.w as u32, a.h as u32];
+    report.facts.blocks = patch.blocks() as u32;
+    if patch.blocks() == 0 {
+        report
+            .violations
+            .push("the picture covers nothing: no texel with alpha".to_string());
+        return (report, None);
+    }
+    let gmp = match patch.encode() {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            report
+                .violations
+                .push(format!("the patch cannot be stored: {e}"));
+            return (report, None);
+        }
+    };
+    report.facts.bytes = gmp.len() as u32;
+    let patch = match Patch::decode(&gmp) {
+        Ok(p) => p,
+        Err(e) => {
+            report
+                .violations
+                .push(format!("the patch does not read back: {e}"));
+            return (report, None);
+        }
+    };
+    report.ok = true;
+    report.id = format::id_hex(&format::model_id(&gmp));
+    (report, Some(IngestedPatch { gmp, patch }))
 }
 
 /// Validate a prop's file (CONTENT.md 3.1 and 4) under `fit` and re-encode it. The report's

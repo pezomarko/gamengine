@@ -482,6 +482,32 @@ Offline, `gm-client --offline --worn KEY[,KEY...]` puts the overlays on the own 
 the crowd's strikers (headless too: the fitting room of the overlays), beside `--prop`
 and `--off`.
 
+**The patch** (2026-10-15; CONTENT.md 3.3, MODELS.md 5.1). An overlay a piece costs a
+texture and a draw call a piece, and a cloth cut for another body let the skin through
+wherever a bone it did not hide bent away under it (the hips under a lifted jerkin,
+2026-10-14). Cloth that stays inside the body's silhouette is now a **patch**: pixels in
+the official avatar's own atlas, as WoW painted a shirt on in 2004 and GoldSrc's
+bodygroups swapped a skin. The cuirass and the trousers are patches; the hood, the robe,
+the helms and the cape, which change the silhouette, stay overlays. The zone sends the
+same `Look.worn`; the client, finding the template's `patch` flag in the manifest, loads
+the patch of that model for the **official avatar of the body's frame and class**
+(`Content::patch`, `armour/<model>_<avatar>.gmp`) into the avatars' registry
+(`Avatars::add_patch`), and `Body.patches` carries the ids, one a place, beside
+`Body.worn`. A body drawn as that official avatar is drawn as the **composite** of its
+atlas and its patches (`Avatars::dressed`): the avatar's BC1 chain, kept on the CPU
+(`keep_body`), copied, the patches laid in (`gm_model::patch::composite`, the legs first
+and the chest last so the jerkin's hem lies over the waistband), uploaded as a slot of its
+own that shares the body's buffers (`Characters::add_composite`), one composite per body
+and outfit, made one a frame at the end of the frame, the body in its plain atlas until
+then, forgotten after 900 frames unworn. One draw, one texture, and no clipping: the
+cloth is the skin. A player's own model wears a patch unseen (it was not baked for that
+atlas), as PLAN.md 3.1 has it: the look is decoupled from the function, the class is in
+the gait and the ring. The mannequin wears it unseen too. The fitting room of a patch is
+the official avatar: `gm-client --offline --crowd 10 --crowd-only 9 --worn cuirass,trousers`
+(member 9 of a crowd of ten is the striker in mail, alone at the middle of its row, where
+the crowd's recipes frame member 5), `--crowd-turn 180` for its back; a patch is baked
+once from the sources (`scripts/dev/places-pipeline.sh`), not at every build.
+
 **The back** (2026-10-14, EQUIPMENT.md 5.3): the `cape` is the first overlay that is
 ours and not a pack's: a cloth plane hung from the shoulder line down the back to the
 knees, as far out as the body's back is at each height and never nearer than the row

@@ -10,6 +10,7 @@
 //! - [`atlas`]: the client's one texture of pictures (`ui.gma`, LOOK.md 2.2) and its reader.
 //! - [`smallfont`]: the five-by-seven font, face 0 of that atlas and the client's fallback.
 //! - [`manifest`]: what the content bundle holds (`manifest.gmc`, CONTENT.md 5.2).
+//! - [`patch`]: a cloth patch over a body's atlas (`.gmp`, LOOK.md 6.6) and the composite.
 //!
 //! Small on purpose: the client links this crate, and nothing here parses an upload. Uploads
 //! are `gm-ingest`'s business, in a worker process of the hub.
@@ -23,6 +24,7 @@ pub mod envelope;
 pub mod format;
 pub mod manifest;
 pub mod mannequin;
+pub mod patch;
 pub mod png;
 pub mod pose;
 pub mod raster;
@@ -31,5 +33,6 @@ pub mod rig;
 pub mod smallfont;
 
 pub use format::{Model, ModelError, ModelId, Vertex, id_from_hex, id_hex, limits, model_id};
+pub use patch::Patch;
 pub use pose::{Pose, skin_matrices};
 pub use rig::BONES;

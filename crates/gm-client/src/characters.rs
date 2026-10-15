@@ -3,7 +3,7 @@
 //! but their buffers and texture.
 
 use glam::{Mat4, Vec3};
-use gm_model::format::{Vertex, bc1_level_bytes, quantize_vertices};
+use gm_model::format::{Vertex, bc1_level_bytes, mip_count, quantize_vertices, texture_bytes};
 use gm_model::mannequin::MeshData;
 use gm_model::{BONES, Model, Pose, bc1, skin_matrices};
 use wgpu::util::DeviceExt;
@@ -348,16 +348,21 @@ impl Characters {
         })
     }
 
-    /// Upload an ingested model; returns its slot.
-    pub fn add_model(&mut self, gpu: &Gpu, model: &Model) -> usize {
+    /// A BC1 mip chain as this GPU holds it: as it is, or, without BC, decoded on the CPU
+    /// and without its largest level, which is three quarters of the memory (MODELS.md 8).
+    fn upload_chain(
+        gpu: &Gpu,
+        tex_w: u16,
+        tex_h: u16,
+        levels: &[(u32, u32, &[u8])],
+    ) -> wgpu::Texture {
         let device = &gpu.device;
-        let levels: Vec<(u32, u32, &[u8])> = model.mips().collect();
-        let texture = if gpu.bc {
+        if gpu.bc {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("model atlas"),
                 size: wgpu::Extent3d {
-                    width: model.tex_w as u32,
-                    height: model.tex_h as u32,
+                    width: tex_w as u32,
+                    height: tex_h as u32,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: levels.len() as u32,
@@ -390,8 +395,6 @@ impl Characters {
             }
             texture
         } else {
-            // No BC on this GPU: decode on the CPU and leave out the largest level, which is
-            // three quarters of the memory (MODELS.md 8).
             let skip = usize::from(levels.len() > 1);
             let kept = &levels[skip..];
             let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -414,7 +417,14 @@ impl Characters {
                 write_rgba(&gpu.queue, &texture, i as u32, *w, *h, &rgba);
             }
             texture
-        };
+        }
+    }
+
+    /// Upload an ingested model; returns its slot.
+    pub fn add_model(&mut self, gpu: &Gpu, model: &Model) -> usize {
+        let device = &gpu.device;
+        let levels: Vec<(u32, u32, &[u8])> = model.mips().collect();
+        let texture = Self::upload_chain(gpu, model.tex_w, model.tex_h, &levels);
         let gpu_model = GpuModel {
             vertices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("model vertices"),
@@ -438,6 +448,64 @@ impl Characters {
             },
         };
         self.insert(gpu_model)
+    }
+
+    /// A body's buffers under another atlas (LOOK.md 6.6: the body dressed in its patches,
+    /// one draw with one texture): a slot of its own, drawn like any other, the texture the
+    /// only memory it adds. `chain` is the body's BC1 mip chain with the cloth laid in.
+    pub fn add_composite(
+        &mut self,
+        gpu: &Gpu,
+        base: usize,
+        tex_w: u16,
+        tex_h: u16,
+        chain: &[u8],
+    ) -> Option<usize> {
+        if chain.len() != texture_bytes(tex_w, tex_h) {
+            return None;
+        }
+        let (vertices, indices, index_count, scale, two_sided, info) = {
+            let b = self.models.get(base)?.as_ref()?;
+            (
+                b.vertices.clone(),
+                b.indices.clone(),
+                b.index_count,
+                b.scale,
+                b.two_sided,
+                b.info,
+            )
+        };
+        let mut levels: Vec<(u32, u32, &[u8])> = Vec::new();
+        let mut offset = 0;
+        for i in 0..mip_count(tex_w, tex_h) {
+            let (w, h) = ((tex_w >> i) as usize, (tex_h >> i) as usize);
+            let len = bc1_level_bytes(w, h);
+            levels.push((w as u32, h as u32, &chain[offset..offset + len]));
+            offset += len;
+        }
+        let texture = Self::upload_chain(gpu, tex_w, tex_h, &levels);
+        let texture_bytes = if gpu.bc {
+            chain.len()
+        } else {
+            levels
+                .iter()
+                .skip(usize::from(levels.len() > 1))
+                .map(|(w, h, _)| *w as usize * *h as usize * 4)
+                .sum()
+        };
+        let gpu_model = GpuModel {
+            vertices,
+            indices,
+            index_count,
+            texture: self.texture_bind(&gpu.device, &texture),
+            scale,
+            two_sided,
+            info: ModelInfo {
+                gpu_bytes: texture_bytes,
+                ..info
+            },
+        };
+        Some(self.insert(gpu_model))
     }
 
     /// Upload a generated mesh with an RGBA texture (the mannequins); returns its slot.

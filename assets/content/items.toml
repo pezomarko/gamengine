@@ -207,7 +207,9 @@ kind = "armour"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
-covers = ["spine", "chest"]
+# Cloth inside the body's silhouette is pixels on the body's own atlas (LOOK.md 6.6): one
+# draw, one texture, nothing to poke through. The jerkin's cut is the icon's.
+look = "patch"
 
 [[template]]
 id = "hood"
@@ -225,9 +227,10 @@ place = "legs"
 guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "trousers"                           # the ranger's trousers and boots in one, over the body's own
-# The hips too: the band of skin between the jerkin's hem and the waistband showed whenever
-# the chest bent away from the hips (2026-10-14); the waistband is raised to cover it.
-covers = ["hips", "thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", "toe_l", "toe_r"]
+# Painted onto the body's legs (LOOK.md 6.6): the body keeps its own geometry, and the band
+# of skin between a lifted jerkin and the waistband (2026-10-14) cannot exist, the cloth being
+# the skin.
+look = "patch"
 
 # The knight's plate (EQUIPMENT.md 10.7, 2026-10-14): rigid pieces of the LowPoly
 # Animated Knight pack bound whole to one bone by scripts/dev/blender-rigid-overlay.py

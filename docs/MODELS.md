@@ -137,6 +137,35 @@ payload                          one zlib stream to the end of the file:
 overlay's budgets (1,500 triangles, 512², 262,144 bytes); never a prop as well. A reader
 that wants a body refuses it, and a client draws it only over a body of its frame.
 
+### 5.1 The cloth patch (`.gmp`, 2026-10-15)
+
+A piece of armour that stays inside the body's silhouette (the ranger's jerkin, its
+trousers; CONTENT.md 3.3, LOOK.md 6.6) is not a mesh of its own but **pixels on the
+official avatar's own atlas**, the way World of Warcraft dressed a character in 2004 and
+GoldSrc swapped a skin: the file holds, per mip level of that atlas, only the 4 × 4 BC1
+blocks the cloth touches, with the one-bit alpha saying which texels are cloth. A client
+lays them over the body's blocks (`gm_model::patch::composite`: a block the cloth fills
+whole is copied, a block it fills in part is decoded, the cloth's texels put over the
+skin's and encoded again with a range fit) and draws the dressed body with that one
+texture, one draw call. Little-endian:
+
+```
+magic "GMP1" | flags u16 (0) | frame u8 | texture format u8 (1 = BC1 sRGB) | raw_len u32
+payload, one zlib stream:
+  body         u8 length, then the official avatar's key it was baked for (`AvatarEntry.key`)
+  tex_w u16, tex_h u16, mip_count u8, 3 zero bytes      the body's atlas: the patch is in its texel space
+  per level, largest first:
+    count u32
+    gaps         count × u32: the first block's index, then each index less the one before
+    blocks       count × 8 B of BC1
+```
+
+The reader checks the key, the sides, the level count against the sides, every index
+below its level's block count and strictly rising, inflation bounded; the file is at most
+393,216 bytes. A patch is baked for **one body** and applies to no other: a client lays it
+only over the avatar whose key it names; a player's own model (MODELS.md 3) of that frame
+wears it unseen, armour class being carried by the gait and the ring (9), not the cloth.
+
 **A prop** (Phase 14, CONTENT.md 4) is the same container with flag bit 2 set
 (`FLAG_PROP`), `frame` 255, `bone_mask` 1, zero pivots, every vertex on bone 0 with weight
 255, at most 1,000 triangles, a 256² texture and 131,072 bytes, and no vertex further than

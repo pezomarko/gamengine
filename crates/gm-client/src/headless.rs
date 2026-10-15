@@ -47,8 +47,11 @@ pub fn run(opts: &Options) -> Result<(), Error> {
     // wears them: a frame's look in an armour class before its mannequin.
     for frame in 0..4u8 {
         for armour in 0..4u8 {
+            let key = content.official_key(frame, armour);
             let slot = content.avatar(frame, armour, |model| {
-                Some(renderer.characters.add_model(&gpu, model))
+                let slot = renderer.characters.add_model(&gpu, model);
+                avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+                Some(slot)
             });
             avatars.set_official(frame, armour, slot);
         }
@@ -78,6 +81,20 @@ pub fn run(opts: &Options) -> Result<(), Error> {
     // EQUIPMENT.md 5.2).
     if let Some(keys) = &opts.worn {
         for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+            // A patch armour (LOOK.md 6.6): the patch for whichever official striker the
+            // bundle has, laid into its atlas when the crowd's strikers are drawn.
+            if content.is_patch(key) {
+                let id = (0..4u8).find_map(|armour| {
+                    content.patch(key, 1, armour, |p| Some(avatars.add_patch(p.clone())))
+                });
+                match id {
+                    Some(id) => avatars.crowd_patches.push(id),
+                    None => {
+                        log::warn!("--worn {key}: the bundle has no such patch for the striker")
+                    }
+                }
+                continue;
+            }
             let slot = content.overlay(key, 1, |model| {
                 Some(renderer.characters.add_model(&gpu, model))
             });

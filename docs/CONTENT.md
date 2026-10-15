@@ -56,6 +56,7 @@ assets/content/
     creatures/<key>.glb       a creature on the standard rig (Phase 17)
     avatars/<key>.glb         the official look of a frame in an armour class (3.2; the row
                               in avatars.toml names the key: striker_mail since 2026-10-13)
+    armour/<key>_<avatar>.png an armour's patch on that official avatar's atlas (3.3: cuirass_striker_mail)
     armour/<key>_<frame>.glb  an armour's overlay for that frame's body (3.3: cuirass_striker,
                               robe_striker since 2026-10-13)
   icons/<key>.png             32 × 32 pictures that override the baked ones (optional; a
@@ -70,6 +71,7 @@ assets/built/content/         what `gm-tools content build` writes (committed, 5
   props/<key>.gmm             ingested props
   avatars/<frame>_<armour>.gmm   ingested official avatars
   armour/<key>_<frame>.gmm   ingested armour overlays
+  armour/<key>_<avatar>.gmp  the cloth patches (3.3, MODELS.md 5.1)
   ui.gma ui2.gma ui3.gma ui4.gma   the atlases, one per UI scale (LOOK.md 2.2)
 ```
 
@@ -91,6 +93,7 @@ each the key of a file in 2:
 | | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `two` (both hands, EQUIPMENT.md 3: content v10), `back`: which `prop_*` bone (MODELS.md 2) |
 | | `place` | an armour's place on the body (EQUIPMENT.md 5.2, content v10): `chest` (default), `head`, `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring` |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
+| | `look` | an armour: `overlay` (the default) or `patch`, cloth painted into the official avatar's atlas (3.3); a patch covers nothing |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
 | `[[creature]]` | `model` | `models/creatures/<model>.glb`; absent: the frame's mannequin |
@@ -224,6 +227,26 @@ shoulder plates) is an overlay too, bound whole to one bone by
 `scripts/dev/blender-rigid-overlay.py` with a swatch texture of its flat colours, since
 an overlay must bring its texture.
 
+**Patches** (2026-10-15, LOOK.md 6.6). An armour row may say `look = "patch"`: its model
+is then not an overlay on the body but **pixels on the official avatar's own atlas**, the
+way every game before 2010 dressed a crowd cheaply. It is for cloth that stays inside the
+body's silhouette (the ranger's jerkin and its belts, `cuirass`; the trousers and boots in
+one, `trousers`); what changes the silhouette (the hood, the robe, the helms, the cape)
+stays an overlay. A patch `covers` nothing: the cloth is the skin. Its source is
+`models/armour/<model>_<avatar key>.png`, one per official avatar it was baked for (3.2:
+`cuirass_striker_mail.png`), RGBA at the atlas's size, the alpha the coverage, made by
+`scripts/dev/blender-bake-patch.py` (Cycles, selected to active: the cut, with the pack's
+texture, baked onto the avatar as the repo has it, its UVs already in the atlas; a colour
+pass and a coverage pass) and `scripts/dev/patch-join.py` (the two joined, the colour pulled
+four texels past the edge); `scripts/dev/places-pipeline.sh` runs both. `build` ingests it
+as the avatar's atlas is ingested (resampled, mipped in linear light with the coverage
+carried, BC1 with the one-bit alpha, `gm_ingest::ingest_patch`) and keeps only the blocks
+with cloth in them: `armour/<model>_<avatar key>.gmp` (MODELS.md 5.1), named in the
+manifest's `patches` by model, frame and body with its hash, bytes and block count. The
+cut (`models/armour/<model>_<frame>.glb`) stays in the sources for the icon, which is
+baked from it as an overlay's is, and goes no further. The client composites (LOOK.md
+6.6); a body whose atlas the patch was not baked for wears it unseen.
+
 ## 4. Kinds and budgets
 
 | Kind | Triangles | Texture | `.gmm` bytes | Extent | Rig |
@@ -232,6 +255,7 @@ an overlay must bring its texture.
 | creature | ≤ 3,500 | ≤ 1024² | ≤ 1,572,864 | its frame's envelope | 24 bones |
 | **prop** | **≤ 1,000** | **≤ 256²** | **≤ 131,072** | **≤ 96 u from the grip** (3 m) | none: every vertex on bone 0, weight 255 (LOOK.md 6) |
 | **overlay** (3.3) | **≤ 1,500** | **≤ 512²** | **≤ 262,144** | the box of a body | 24 bones, T-pose, the frame it was cut for (`FLAG_OVERLAY`) |
+| **patch** (3.3, `.gmp`) | none | the body's atlas, its blocks only | **≤ 393,216** | none | none: the official avatar it was baked for, by key (MODELS.md 5.1) |
 
 The `.gmm` header's `frame` byte is **255 for a prop** and a flag bit (`FLAG_PROP`, bit 2)
 says so; `bone_mask` is 1 and the pivots are zero. The strict reader (MODELS.md 5) accepts a

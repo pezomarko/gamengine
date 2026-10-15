@@ -482,6 +482,8 @@ struct App {
     offline_prop: Option<usize>,
     /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
     offline_worn: Vec<(usize, u32)>,
+    /// And the patches (LOOK.md 6.6), as ids of the avatars' registry.
+    offline_patches: Vec<usize>,
     /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
     offline_off: Option<usize>,
     /// Offline (`--sheathed`): the own prop rests on the back (LOOK.md 6.7).
@@ -746,34 +748,51 @@ fn held_prop(
     prop_slot(content, active, props, look.held)
 }
 
+/// What a body wears, one a place: the overlays and the patches.
+type Worn = (
+    [Option<usize>; BODY_PLACES],
+    u32,
+    [Option<usize>; BODY_PLACES],
+);
+
 /// What a body wears (LOOK.md 6.6): the overlay of its armour's model for its frame, as a
-/// slot of the character renderer, and the bones the overlay covers; nothing and 0 while
-/// it loads, for a frame the bundle has no overlay for, or without a renderer.
+/// slot of the character renderer, and the bones the overlay covers; or, for an armour
+/// that is a patch, the patch for the official avatar of its frame and class, as an id of
+/// the avatars' registry; nothing and 0 while it loads, for a body the bundle has nothing
+/// for, or without a renderer.
 fn worn_overlay(
     content: &mut Content,
     active: Option<&mut Active>,
     props: &[String],
     look: Look,
     frame: u8,
-) -> ([Option<usize>; BODY_PLACES], u32) {
+    armour: u8,
+) -> Worn {
     let mut worn = [None; BODY_PLACES];
+    let mut patches = [None; BODY_PLACES];
     let mut hide = 0;
     let Some(active) = active else {
-        return (worn, 0);
+        return (worn, 0, patches);
     };
-    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    let (gpu, characters, avatars) = (
+        &active.gpu,
+        &mut active.renderer.characters,
+        &mut active.avatars,
+    );
     for (i, index) in look.worn.iter().enumerate() {
         let Some(key) = props.get(*index as usize) else {
             continue;
         };
-        if let Some(slot) =
+        if content.is_patch(key) {
+            patches[i] = content.patch(key, frame, armour, |p| Some(avatars.add_patch(p.clone())));
+        } else if let Some(slot) =
             content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
         {
             worn[i] = Some(slot);
             hide |= content.covers(key);
         }
     }
-    (worn, hide)
+    (worn, hide, patches)
 }
 
 /// The off hand's prop (LOOK.md 6.5), the same way.
@@ -825,23 +844,35 @@ fn template_overlay(
     active: Option<&mut Active>,
     worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
     frame: u8,
-) -> ([Option<usize>; BODY_PLACES], u32) {
+    armour: u8,
+) -> Worn {
     let mut out = [None; BODY_PLACES];
+    let mut patches = [None; BODY_PLACES];
     let mut hide = 0;
     let (Some(worn), Some(active)) = (worn, active) else {
-        return (out, 0);
+        return (out, 0, patches);
     };
-    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    let (gpu, characters, avatars) = (
+        &active.gpu,
+        &mut active.renderer.characters,
+        &mut active.avatars,
+    );
     for (i, index) in gm_hub_proto::protocol::BODY_INDICES.iter().enumerate() {
         let Some(model) = template_model(content, Some(worn[*index].as_str())) else {
             continue;
         };
-        if let Some(slot) = content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
+        if content.is_patch(&model) {
+            patches[i] = content.patch(&model, frame, armour, |p| {
+                Some(avatars.add_patch(p.clone()))
+            });
+        } else if let Some(slot) =
+            content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m)))
+        {
             out[i] = Some(slot);
             hide |= content.covers(&model);
         }
     }
-    (out, hide)
+    (out, hide, patches)
 }
 
 fn prop_slot(
@@ -940,6 +971,7 @@ fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, start: Start)
         content: start.content,
         offline_prop: None,
         offline_worn: Vec::new(),
+        offline_patches: Vec::new(),
         offline_off: None,
         offline_sheathed: false,
         front_up: start.front.is_some() && start.online.is_none(),
@@ -2860,9 +2892,24 @@ impl App {
         // (the fitting room of the overlays, CONTENT.md 3.3, EQUIPMENT.md 5.2).
         if let Some(keys) = self.opts.worn.clone() {
             let a = self.active.as_mut().expect("just made");
-            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
             let mut worn = Vec::new();
+            let mut patches = Vec::new();
             for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                if self.content.is_patch(key) {
+                    // The patch for whichever official striker the bundle has (one class).
+                    let id = (0..4u8).find_map(|armour| {
+                        self.content
+                            .patch(key, 1, armour, |p| Some(avatars.add_patch(p.clone())))
+                    });
+                    match id {
+                        Some(id) => patches.push(id),
+                        None => {
+                            log::warn!("--worn {key}: the bundle has no such patch for the striker")
+                        }
+                    }
+                    continue;
+                }
                 let slot = self
                     .content
                     .overlay(key, 1, |model| Some(characters.add_model(gpu, model)));
@@ -2874,7 +2921,9 @@ impl App {
                 }
             }
             self.offline_worn = worn.clone();
-            a.avatars.crowd_worn = worn;
+            self.offline_patches = patches.clone();
+            avatars.crowd_worn = worn;
+            avatars.crowd_patches = patches;
         }
         // `--sheathed`: the prop on the back, own and crowd (the fitting room of the
         // sheath, LOOK.md 6.7).
@@ -4760,6 +4809,7 @@ impl App {
                         &o.props,
                         o.looks.get(&e.id).copied().unwrap_or_default(),
                         frame,
+                        armour,
                     );
                     self.bodies.push(Body {
                         key: e.id,
@@ -4789,6 +4839,7 @@ impl App {
                         ),
                         worn: worn.0,
                         hide: worn.1,
+                        patches: worn.2,
                         sheathed: o.looks.get(&e.id).is_some_and(|l| l.sheathed),
                     });
                 }
@@ -5106,6 +5157,7 @@ impl App {
                     &o.props,
                     o.looks.get(&c.my_id).copied().unwrap_or_default(),
                     gm_model::rig::frame_index(build.frame),
+                    build.armour as u8,
                 );
                 self.bodies.push(Body {
                     key: OWN,
@@ -5135,6 +5187,7 @@ impl App {
                     ),
                     worn: worn.0,
                     hide: worn.1,
+                    patches: worn.2,
                     sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                 });
                 Some((camera, self.sim.yaw, self.sim.pitch))
@@ -5937,6 +5990,13 @@ impl App {
                         off: self.offline_off,
                         worn: crate::avatars::places(&self.offline_worn).0,
                         hide: crate::avatars::places(&self.offline_worn).1,
+                        patches: {
+                            let mut p = [None; BODY_PLACES];
+                            for (o, id) in p.iter_mut().zip(&self.offline_patches) {
+                                *o = Some(*id);
+                            }
+                            p
+                        },
                         sheathed: self.offline_sheathed,
                     });
                     (
@@ -6033,20 +6093,28 @@ impl App {
         #[cfg(target_arch = "wasm32")]
         {
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
-            self.content
-                .poll(|model| Some(characters.add_model(gpu, model)));
+            let avatars = &mut a.avatars;
+            self.content.poll(
+                |model| Some(characters.add_model(gpu, model)),
+                |patch| Some(avatars.add_patch(patch.clone())),
+            );
         }
         // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
         // of their frame and armour class: natively a file is read the first time it is
         // asked for, in a browser it is fetched like a prop and lands through `poll`.
         {
-            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
             for frame in 0..4u8 {
                 for armour in 0..4u8 {
+                    let key = self.content.official_key(frame, armour);
                     let slot = self.content.avatar(frame, armour, |model| {
-                        Some(characters.add_model(gpu, model))
+                        let slot = characters.add_model(gpu, model);
+                        // Its atlas stays on the CPU: the cloth patches are laid into a
+                        // copy of it when the body wears them (LOOK.md 6.6).
+                        avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+                        Some(slot)
                     });
-                    a.avatars.set_official(frame, armour, slot);
+                    avatars.set_official(frame, armour, slot);
                 }
             }
         }
@@ -6405,8 +6473,13 @@ impl App {
                         let place = |i: usize| worn.map(|w| w[i].as_str());
                         let prop = template_prop(&mut self.content, Some(a), place(0));
                         let off = template_prop(&mut self.content, Some(a), place(1));
-                        let (overlay, hide) =
-                            template_overlay(&mut self.content, Some(a), worn, frame);
+                        let (overlay, hide, patches) = template_overlay(
+                            &mut self.content,
+                            Some(a),
+                            worn,
+                            frame,
+                            build.armour as u8,
+                        );
                         let body = Body {
                             key: DOLL,
                             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -6425,6 +6498,7 @@ impl App {
                             off,
                             worn: overlay,
                             hide,
+                            patches,
                             // The selector shows the weapon in the hand (CLIENT.md 4.2):
                             // a showcase, not a body in the world.
                             sheathed: false,
@@ -6444,6 +6518,7 @@ impl App {
                         &o.props,
                         o.looks.get(&c.my_id).copied().unwrap_or_default(),
                         gm_model::rig::frame_index(build.frame),
+                        build.armour as u8,
                     );
                     let body = Body {
                         key: DOLL,
@@ -6473,6 +6548,7 @@ impl App {
                         ),
                         worn: worn.0,
                         hide: worn.1,
+                        patches: worn.2,
                         sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
                     };
                     a.avatars

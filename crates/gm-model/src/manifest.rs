@@ -7,7 +7,7 @@
 use bitcode::{Decode, Encode};
 
 /// The format's own version: a client refuses a manifest of another.
-pub const MANIFEST_VERSION: u32 = 4;
+pub const MANIFEST_VERSION: u32 = 5;
 /// The most entries any list may have: a bound before anything is allocated.
 pub const MAX_ENTRIES: usize = 4096;
 
@@ -26,6 +26,9 @@ pub struct Manifest {
     pub avatars: Vec<AvatarEntry>,
     /// The armour overlays (CONTENT.md 3.3): a template's model per frame it was made for.
     pub overlays: Vec<OverlayEntry>,
+    /// The cloth patches (CONTENT.md 3.3, LOOK.md 6.6): a template's model per official
+    /// avatar it was baked for.
+    pub patches: Vec<PatchEntry>,
     /// Icon keys of the statuses, by status name (`burn`, `chill`, ...).
     pub statuses: Vec<IconEntry>,
     /// Portraits by `<frame>_<armour>` (`striker_mail`).
@@ -67,7 +70,28 @@ pub struct TemplateEntry {
     /// An armour: the standard bones whose part of the body its overlay covers
     /// (CONTENT.md 3.3), a bit per bone; the body hides those under it.
     pub covers: u32,
+    /// An armour seen as a patch on the body's atlas (LOOK.md 6.6), not as an overlay:
+    /// its model key names `patches`, not `overlays`.
+    pub patch: bool,
     pub retired: bool,
+}
+
+/// A cloth patch (CONTENT.md 3.3): pixels of one official avatar's atlas, laid over the
+/// body's own when the armour is worn, so the dressed body is one draw with one texture.
+#[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
+pub struct PatchEntry {
+    /// The template's model key (`models/armour/<key>_<body>.png` in the sources).
+    pub key: String,
+    /// `rig::frame_index` of the body.
+    pub frame: u8,
+    /// The official avatar's key it was baked for (`AvatarEntry.key`): it fits no other.
+    pub body: String,
+    /// The file under the bundle: `armour/<key>_<body>.gmp`.
+    pub file: String,
+    pub sha256: [u8; 32],
+    pub bytes: u32,
+    /// Blocks of the atlas it touches, every level together.
+    pub blocks: u32,
 }
 
 /// An armour overlay (CONTENT.md 3.3): a skinned piece on the standard rig, made for one
@@ -176,6 +200,7 @@ impl Manifest {
             m.props.len(),
             m.avatars.len(),
             m.overlays.len(),
+            m.patches.len(),
             m.statuses.len(),
             m.portraits.len(),
             m.atlases.len(),
@@ -228,6 +253,11 @@ impl Manifest {
             .find(|o| o.key == key && o.frame == frame)
     }
 
+    /// The patch of an armour's model for an official avatar (`AvatarEntry.key`).
+    pub fn patch(&self, key: &str, body: &str) -> Option<&PatchEntry> {
+        self.patches.iter().find(|p| p.key == key && p.body == body)
+    }
+
     pub fn creature(&self, key: &str) -> Option<&CreatureEntry> {
         self.creatures.iter().find(|c| c.key == key)
     }
@@ -264,7 +294,17 @@ mod tests {
                 held: HELD_RIGHT,
                 fit_view: None,
                 covers: 0,
+                patch: false,
                 retired: false,
+            }],
+            patches: vec![PatchEntry {
+                key: "trousers".into(),
+                frame: 1,
+                body: "striker_mail".into(),
+                file: "armour/trousers_striker_mail.gmp".into(),
+                sha256: [4; 32],
+                bytes: 40_000,
+                blocks: 3000,
             }],
             overlays: vec![OverlayEntry {
                 key: "cuirass".into(),
@@ -309,6 +349,11 @@ mod tests {
             Some("armour/cuirass_striker.gmm")
         );
         assert!(m.overlay("cuirass", 0).is_none() && m.overlay("robe", 1).is_none());
+        assert_eq!(
+            m.patch("trousers", "striker_mail").map(|p| p.file.as_str()),
+            Some("armour/trousers_striker_mail.gmp")
+        );
+        assert!(m.patch("trousers", "caster_cloth").is_none());
         let old = Manifest {
             format: 0,
             ..m.clone()

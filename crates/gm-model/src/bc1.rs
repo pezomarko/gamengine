@@ -1,8 +1,9 @@
 //! BC1 (DXT1) decoding: the client's path on a GPU without BC support (MODELS.md 8), and how
-//! previews and tests look at an ingested texture. Encoding lives in `gm-ingest`.
+//! previews and tests look at an ingested texture. Encoding lives in `gm-ingest`, but for the
+//! range fit of `patch::encode_block`, which a client runs at a change of clothes.
 
 /// The four colours of a block as RGBA.
-fn palette(block: &[u8]) -> [[u8; 4]; 4] {
+pub(crate) fn palette(block: &[u8]) -> [[u8; 4]; 4] {
     let c0 = u16::from_le_bytes([block[0], block[1]]);
     let c1 = u16::from_le_bytes([block[2], block[3]]);
     let expand = |c: u16| -> [u32; 3] {
@@ -52,6 +53,13 @@ pub fn decode(blocks: &[u8], w: usize, h: usize) -> Vec<u8> {
         }
     }
     out
+}
+
+/// One block's sixteen texels, row by row.
+pub fn decode_block(block: &[u8]) -> [[u8; 4]; 16] {
+    let pal = palette(block);
+    let bits = u32::from_le_bytes([block[4], block[5], block[6], block[7]]);
+    std::array::from_fn(|i| pal[((bits >> (2 * i)) & 3) as usize])
 }
 
 /// One texel of a BC1 level, clamped to the edges.

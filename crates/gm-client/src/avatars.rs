@@ -9,11 +9,10 @@ use gm_bsp::Bsp;
 use gm_core::sim::anim;
 use gm_core::trace::{CollisionWorld, Hull};
 use gm_core::vocab::Status;
-#[cfg(not(target_arch = "wasm32"))]
 use gm_model::Model;
 use gm_model::anim::{Animator, armour_weight};
 use gm_model::mannequin::{self, ARMOUR_TINTS, MANNEQUIN_TEXTURE_SIZE, Shape};
-use gm_model::{ModelId, Pose, rig};
+use gm_model::{ModelId, Patch, Pose, patch, rig};
 
 use crate::cache::{CacheStats, ModelCache};
 #[cfg(not(target_arch = "wasm32"))]
@@ -29,6 +28,9 @@ pub const DOLL: u32 = u32::MAX - 1;
 pub const OWN: u32 = u32::MAX;
 /// Bodies not seen for this many frames lose their animation state.
 const FORGET_AFTER_FRAMES: u64 = 120;
+/// A dressed body's composite (LOOK.md 6.6) nobody has worn for this many frames leaves
+/// the GPU; its patches and its body's atlas stay, so it is a few milliseconds away.
+const COMPOSITE_FORGET_FRAMES: u64 = 900;
 /// The lightmap is stored at half brightness (`Renderer::lightmap_scale`).
 const LIGHT_SCALE: f32 = 2.0;
 /// A body is never darker than this: a silhouette must stay readable in a dark corner.
@@ -87,6 +89,11 @@ pub struct Body {
     /// the bones whose parts of the body they cover between them, not drawn.
     pub worn: [Option<usize>; BODY_PLACES],
     pub hide: u32,
+    /// The cloth patches of the armour it wears (LOOK.md 6.6), one a body place the same
+    /// way, as ids of the avatars' patch registry (`add_patch`): laid into its official
+    /// avatar's atlas, the body drawn once with the composite; a body with a model of its
+    /// own, or the mannequin, wears them unseen.
+    pub patches: [Option<usize>; BODY_PLACES],
     /// Out of a fight (LOOK.md 6.7): `prop` rests on the back at `prop_back` instead of
     /// in the right fist, and `off` beside it instead of in the left.
     pub sheathed: bool,
@@ -110,6 +117,23 @@ struct Track {
     last: Vec3,
     seen: u64,
 }
+
+/// An official avatar's atlas kept on the CPU for the composites (`keep_body`).
+struct BodyAtlas {
+    key: String,
+    tex_w: u16,
+    tex_h: u16,
+    texture: Vec<u8>,
+}
+
+/// A body's atlas with an outfit of patches in it, on the GPU.
+struct Composite {
+    slot: usize,
+    seen: u64,
+}
+
+/// A body slot and the patches worn over it, in the places' order.
+type Outfit = (usize, [Option<usize>; BODY_PLACES]);
 
 struct CrowdMember {
     origin: Vec3,
@@ -138,6 +162,8 @@ pub struct Avatars {
     pub crowd_off: Option<usize>,
     /// And on its body (`--worn`): the overlay and what it covers.
     pub crowd_worn: Vec<(usize, u32)>,
+    /// And painted on it (`--worn` with a patch armour): patch ids.
+    pub crowd_patches: Vec<usize>,
     /// And the prop on its back instead of in its fist (`--sheathed`, LOOK.md 6.7).
     pub crowd_sheathed: bool,
     /// The props that hang flat on the back when sheathed (LOOK.md 6.7): the shields,
@@ -146,6 +172,17 @@ pub struct Avatars {
     /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
     /// loaded: a body without a model of its own wears one before it is the mannequin.
     officials: [[Option<usize>; 4]; 4],
+    /// Their atlases on the CPU, by slot (`keep_body`): what the composites start from.
+    bodies: HashMap<usize, BodyAtlas>,
+    /// The cloth patches the content has loaded (`add_patch`), by id.
+    patches: Vec<Patch>,
+    /// The dressed bodies on the GPU, by body slot and outfit.
+    composites: HashMap<Outfit, Composite>,
+    /// Outfits asked for this frame and not yet made: one is made a frame (`end_frame`).
+    wanted: Vec<Outfit>,
+    /// Composites made, and the milliseconds they took, for the report.
+    pub composited: u32,
+    pub composite_ms: f32,
 }
 
 /// The ambient light at a body's feet.
@@ -238,7 +275,13 @@ impl Avatars {
                 opts.vram_mb as usize * 1024 * 1024,
             )
         });
-        let crowd = place_crowd(bsp, opts.crowd, opts.crowd_turn, &crowd_ids);
+        let crowd = place_crowd(
+            bsp,
+            opts.crowd,
+            opts.crowd_turn,
+            opts.crowd_only,
+            &crowd_ids,
+        );
         if !crowd.is_empty() {
             log::info!(
                 "crowd: {} bodies, {} distinct models",
@@ -259,10 +302,104 @@ impl Avatars {
             crowd_prop: None,
             crowd_off: None,
             crowd_worn: Vec::new(),
+            crowd_patches: Vec::new(),
             crowd_sheathed: false,
             flat: HashSet::new(),
             officials: [[None; 4]; 4],
+            bodies: HashMap::new(),
+            patches: Vec::new(),
+            composites: HashMap::new(),
+            wanted: Vec::new(),
+            composited: 0,
+            composite_ms: 0.0,
         })
+    }
+
+    /// An official avatar's atlas, kept on the CPU under its slot (LOOK.md 6.6): the
+    /// patches baked for `key` are laid into a copy of it when a body wears them.
+    pub fn keep_body(&mut self, slot: usize, key: &str, model: &Model) {
+        self.bodies.insert(
+            slot,
+            BodyAtlas {
+                key: key.to_string(),
+                tex_w: model.tex_w,
+                tex_h: model.tex_h,
+                texture: model.texture.clone(),
+            },
+        );
+    }
+
+    /// A cloth patch the content loaded: its id in the registry (`Body.patches`).
+    pub fn add_patch(&mut self, patch: Patch) -> usize {
+        self.patches.push(patch);
+        self.patches.len() - 1
+    }
+
+    /// The slot to draw a body in: its own, or, dressed in patches it has a kept atlas
+    /// for, the composite of the two when it is on the GPU (asked for otherwise, and made
+    /// at the end of a frame; the body stands in its plain atlas until then).
+    fn dressed(&mut self, slot: usize, patches: &[Option<usize>; BODY_PLACES]) -> usize {
+        let Some(body) = self.bodies.get(&slot) else {
+            return slot;
+        };
+        let mut outfit = [None; BODY_PLACES];
+        for (o, p) in outfit.iter_mut().zip(patches) {
+            *o = p.filter(|i| self.patches.get(*i).is_some_and(|p| p.body == body.key));
+        }
+        if outfit.iter().all(Option::is_none) {
+            return slot;
+        }
+        let key = (slot, outfit);
+        if let Some(c) = self.composites.get_mut(&key) {
+            c.seen = self.frame;
+            return c.slot;
+        }
+        if !self.wanted.contains(&key) {
+            self.wanted.push(key);
+        }
+        slot
+    }
+
+    /// Make one of the composites asked for this frame (LOOK.md 6.6): the body's atlas
+    /// with the outfit's patches laid in, the legs first and the chest last so that the
+    /// jerkin's hem lies over the waistband, on the GPU as a slot of its own.
+    fn make_composite(&mut self, gpu: &Gpu, characters: &mut Characters) {
+        let Some(key) = self.wanted.pop() else {
+            return;
+        };
+        self.wanted.clear();
+        if self.composites.contains_key(&key) {
+            return;
+        }
+        let (slot, outfit) = key;
+        let Some(body) = self.bodies.get(&slot) else {
+            return;
+        };
+        let start = web_time::Instant::now();
+        let mut texture = body.texture.clone();
+        let worn: Vec<&Patch> = outfit
+            .iter()
+            .rev()
+            .flatten()
+            .filter_map(|i| self.patches.get(*i))
+            .collect();
+        patch::composite(&mut texture, body.tex_w, body.tex_h, &worn);
+        if let Some(made) = characters.add_composite(gpu, slot, body.tex_w, body.tex_h, &texture) {
+            let ms = start.elapsed().as_secs_f32() * 1000.0;
+            self.composited += 1;
+            self.composite_ms += ms;
+            log::info!(
+                "dressed body {slot} in {} patches: {ms:.1} ms, slot {made}",
+                worn.len()
+            );
+            self.composites.insert(
+                key,
+                Composite {
+                    slot: made,
+                    seen: self.frame,
+                },
+            );
+        }
     }
 
     /// The official avatar of a frame in an armour class, on the GPU (or not there).
@@ -307,8 +444,8 @@ impl Avatars {
                 let armour = (body.armour as usize).min(3);
                 match self.officials[frame][armour] {
                     // The official look is untinted: its armour is painted on (MODELS.md 9:
-                    // the class is in the gait).
-                    Some(slot) => (slot, [1.0; 3]),
+                    // the class is in the gait), and so is the cloth it wears (LOOK.md 6.6).
+                    Some(slot) => (self.dressed(slot, &body.patches), [1.0; 3]),
                     None => (self.mannequins[frame], ARMOUR_TINTS[armour]),
                 }
             }
@@ -561,6 +698,15 @@ impl Avatars {
                 } else {
                     0
                 },
+                patches: if frame == 1 {
+                    let mut p = [None; BODY_PLACES];
+                    for (o, id) in p.iter_mut().zip(&self.crowd_patches) {
+                        *o = Some(*id);
+                    }
+                    p
+                } else {
+                    [None; BODY_PLACES]
+                },
                 sheathed: self.crowd_sheathed,
             };
             self.push(&body, dt, bsp, characters, boxes);
@@ -579,9 +725,18 @@ impl Avatars {
         if let Some(cache) = &mut self.cache {
             cache.pump(gpu, characters);
         }
+        self.make_composite(gpu, characters);
         let frame = self.frame;
         self.tracks
             .retain(|_, t| frame - t.seen < FORGET_AFTER_FRAMES);
+        let bodies = &self.bodies;
+        self.composites.retain(|(base, _), c| {
+            let keep = frame - c.seen < COMPOSITE_FORGET_FRAMES && bodies.contains_key(base);
+            if !keep {
+                characters.remove(c.slot);
+            }
+            keep
+        });
     }
 
     /// Keep this model on disk before all others (the own avatar).
@@ -614,7 +769,13 @@ impl Avatars {
 
 /// Rows of ten, three body widths apart, in front of the map's start, standing on whatever
 /// is under them, facing the start and then turned `turn` degrees (180: their backs).
-fn place_crowd(bsp: &Bsp, count: u32, turn: f32, ids: &[ModelId]) -> Vec<CrowdMember> {
+fn place_crowd(
+    bsp: &Bsp,
+    count: u32,
+    turn: f32,
+    only: Option<u32>,
+    ids: &[ModelId],
+) -> Vec<CrowdMember> {
     if count == 0 {
         return Vec::new();
     }
@@ -628,6 +789,13 @@ fn place_crowd(bsp: &Bsp, count: u32, turn: f32, ids: &[ModelId]) -> Vec<CrowdMe
     while out.len() < count as usize && slot < count * 8 {
         let (row, col) = (slot / 10, slot % 10);
         slot += 1;
+        // One member alone (`--crowd-only`): at the middle of the first row, as member
+        // 5 stands in a full crowd, so the fitting room's framing holds.
+        let (row, col, i) = match only {
+            Some(k) if out.is_empty() => (0, 5, k as usize),
+            Some(_) => break,
+            None => (row, col, out.len()),
+        };
         let p = start
             + forward * (160.0 + row as f32 * 48.0)
             + right * ((col as f32 - 4.5) * 48.0)
@@ -637,7 +805,6 @@ fn place_crowd(bsp: &Bsp, count: u32, turn: f32, ids: &[ModelId]) -> Vec<CrowdMe
         if tr.start_solid || tr.fraction >= 1.0 {
             continue;
         }
-        let i = out.len();
         // Facing the start, so the bench camera sees faces (or turned from it).
         out.push(CrowdMember {
             origin: tr.end,
@@ -676,6 +843,7 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         off: None,
         worn: [None; BODY_PLACES],
         hide: 0,
+        patches: [None; BODY_PLACES],
         sheathed: false,
     }
 }
