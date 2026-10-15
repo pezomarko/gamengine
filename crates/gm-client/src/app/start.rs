@@ -144,6 +144,7 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
         offline: Offline {
             prop: None,
             worn: Vec::new(),
+            patches: Vec::new(),
             off: None,
             sheathed: false,
             sound_from: None,

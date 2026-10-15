@@ -433,6 +433,13 @@ impl App {
             off: self.offline.off,
             worn: crate::avatars::places(&self.offline.worn).0,
             hide: crate::avatars::places(&self.offline.worn).1,
+            patches: {
+                let mut p = [None; BODY_PLACES];
+                for (o, id) in p.iter_mut().zip(&self.offline.patches) {
+                    *o = Some(*id);
+                }
+                p
+            },
             sheathed: self.offline.sheathed,
         });
         (
@@ -534,20 +541,28 @@ impl App {
         #[cfg(target_arch = "wasm32")]
         {
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
-            self.content
-                .poll(|model| Some(characters.add_model(gpu, model)));
+            let avatars = &mut a.avatars;
+            self.content.poll(
+                |model| Some(characters.add_model(gpu, model)),
+                |patch| Some(avatars.add_patch(patch.clone())),
+            );
         }
         // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
         // of their frame and armour class: natively a file is read the first time it is
         // asked for, in a browser it is fetched like a prop and lands through `poll`.
         {
-            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
             for frame in 0..4u8 {
                 for armour in 0..4u8 {
+                    let key = self.content.official_key(frame, armour);
                     let slot = self.content.avatar(frame, armour, |model| {
-                        Some(characters.add_model(gpu, model))
+                        let slot = characters.add_model(gpu, model);
+                        // Its atlas stays on the CPU: the cloth patches are laid into a
+                        // copy of it when the body wears them (LOOK.md 6.6).
+                        avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+                        Some(slot)
                     });
-                    a.avatars.set_official(frame, armour, slot);
+                    avatars.set_official(frame, armour, slot);
                 }
             }
         }
@@ -1017,7 +1032,8 @@ impl App {
         let place = |i: usize| worn.map(|w| w[i].as_str());
         let prop = template_prop(&mut self.content, Some(a), place(0));
         let off = template_prop(&mut self.content, Some(a), place(1));
-        let (overlay, hide) = template_overlay(&mut self.content, Some(a), worn, frame);
+        let (overlay, hide, patches) =
+            template_overlay(&mut self.content, Some(a), worn, frame, build.armour as u8);
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1036,6 +1052,7 @@ impl App {
             off,
             worn: overlay,
             hide,
+            patches,
             sheathed: false,
         };
         a.avatars
@@ -1056,7 +1073,14 @@ impl App {
         let build = &c.sheet.build;
         let look = o.looks.get(&c.my_id).copied().unwrap_or_default();
         let frame = gm_model::rig::frame_index(build.frame);
-        let worn = worn_overlay(&mut self.content, Some(a), &o.props, look, frame);
+        let worn = worn_overlay(
+            &mut self.content,
+            Some(a),
+            &o.props,
+            look,
+            frame,
+            build.armour as u8,
+        );
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1075,6 +1099,7 @@ impl App {
             off: off_prop(&mut self.content, Some(a), &o.props, look),
             worn: worn.0,
             hide: worn.1,
+            patches: worn.2,
             sheathed: look.sheathed,
         };
         a.avatars

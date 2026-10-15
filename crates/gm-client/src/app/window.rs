@@ -193,9 +193,24 @@ impl App {
             a.avatars.crowd_off = slot;
         }
         if let Some(keys) = self.opts.worn.clone() {
-            let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
+            let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
             let mut worn = Vec::new();
+            let mut patches = Vec::new();
             for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                if self.content.is_patch(key) {
+                    // The patch for whichever official striker the bundle has (one class).
+                    let id = (0..4u8).find_map(|armour| {
+                        self.content
+                            .patch(key, 1, armour, |p| Some(avatars.add_patch(p.clone())))
+                    });
+                    match id {
+                        Some(id) => patches.push(id),
+                        None => {
+                            log::warn!("--worn {key}: the bundle has no such patch for the striker")
+                        }
+                    }
+                    continue;
+                }
                 let slot = self
                     .content
                     .overlay(key, 1, |model| Some(characters.add_model(gpu, model)));
@@ -207,7 +222,9 @@ impl App {
                 }
             }
             self.offline.worn = worn.clone();
-            a.avatars.crowd_worn = worn;
+            self.offline.patches = patches.clone();
+            avatars.crowd_worn = worn;
+            avatars.crowd_patches = patches;
         }
         if self.opts.sheathed {
             self.offline.sheathed = true;

@@ -11,34 +11,51 @@ pub(super) fn held_prop(
     prop_slot(content, active, props, look.held)
 }
 
+/// What a body wears, one a place: the overlays and the patches.
+pub(super) type Worn = (
+    [Option<usize>; BODY_PLACES],
+    u32,
+    [Option<usize>; BODY_PLACES],
+);
+
 /// What a body wears (LOOK.md 6.6): the overlay of its armour's model for its frame, as a
-/// slot of the character renderer, and the bones the overlay covers; nothing and 0 while
-/// it loads, for a frame the bundle has no overlay for, or without a renderer.
+/// slot of the character renderer, and the bones the overlay covers; or, for an armour
+/// that is a patch, the patch for the official avatar of its frame and class, as an id of
+/// the avatars' registry; nothing and 0 while it loads, for a body the bundle has nothing
+/// for, or without a renderer.
 pub(super) fn worn_overlay(
     content: &mut Content,
     active: Option<&mut Active>,
     props: &[String],
     look: Look,
     frame: u8,
-) -> ([Option<usize>; BODY_PLACES], u32) {
+    armour: u8,
+) -> Worn {
     let mut worn = [None; BODY_PLACES];
+    let mut patches = [None; BODY_PLACES];
     let mut hide = 0;
     let Some(active) = active else {
-        return (worn, 0);
+        return (worn, 0, patches);
     };
-    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    let (gpu, characters, avatars) = (
+        &active.gpu,
+        &mut active.renderer.characters,
+        &mut active.avatars,
+    );
     for (i, index) in look.worn.iter().enumerate() {
         let Some(key) = props.get(*index as usize) else {
             continue;
         };
-        if let Some(slot) =
+        if content.is_patch(key) {
+            patches[i] = content.patch(key, frame, armour, |p| Some(avatars.add_patch(p.clone())));
+        } else if let Some(slot) =
             content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
         {
             worn[i] = Some(slot);
             hide |= content.covers(key);
         }
     }
-    (worn, hide)
+    (worn, hide, patches)
 }
 
 /// The off hand's prop (LOOK.md 6.5), the same way.
@@ -84,29 +101,41 @@ pub(super) fn template_prop(
 
 /// The overlays of the armour a character wears, on the selector (LOOK.md 6.6,
 /// EQUIPMENT.md 5.2): one a body place from the hub's list of what is worn, and the
-/// bones they cover between them.
+/// bones they cover between them; the patches as `worn_overlay` finds them.
 pub(super) fn template_overlay(
     content: &mut Content,
     active: Option<&mut Active>,
     worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
     frame: u8,
-) -> ([Option<usize>; BODY_PLACES], u32) {
+    armour: u8,
+) -> Worn {
     let mut out = [None; BODY_PLACES];
+    let mut patches = [None; BODY_PLACES];
     let mut hide = 0;
     let (Some(worn), Some(active)) = (worn, active) else {
-        return (out, 0);
+        return (out, 0, patches);
     };
-    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+    let (gpu, characters, avatars) = (
+        &active.gpu,
+        &mut active.renderer.characters,
+        &mut active.avatars,
+    );
     for (i, index) in gm_hub_proto::protocol::BODY_INDICES.iter().enumerate() {
         let Some(model) = template_model(content, Some(worn[*index].as_str())) else {
             continue;
         };
-        if let Some(slot) = content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m))) {
+        if content.is_patch(&model) {
+            patches[i] = content.patch(&model, frame, armour, |p| {
+                Some(avatars.add_patch(p.clone()))
+            });
+        } else if let Some(slot) =
+            content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m)))
+        {
             out[i] = Some(slot);
             hide |= content.covers(&model);
         }
     }
-    (out, hide)
+    (out, hide, patches)
 }
 
 pub(super) fn prop_slot(

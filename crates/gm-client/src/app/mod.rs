@@ -167,6 +167,8 @@ struct Offline {
     prop: Option<usize>,
     /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
     worn: Vec<(usize, u32)>,
+    /// And the patches (LOOK.md 6.6), as ids of the avatars' registry.
+    patches: Vec<usize>,
     /// `--off KEY`: the prop in the own body's left hand, to look at.
     off: Option<usize>,
     /// `--sheathed`: the own prop rests on the back (LOOK.md 6.7).

@@ -1681,6 +1681,7 @@ impl App {
             &o.props,
             look,
             frame,
+            armour,
         );
         self.scene.bodies.push(Body {
             key: e.id,
@@ -1700,6 +1701,7 @@ impl App {
             off: off_prop(&mut self.content, self.active.as_mut(), &o.props, look),
             worn: worn.0,
             hide: worn.1,
+            patches: worn.2,
             sheathed: look.sheathed,
         });
     }
@@ -2151,6 +2153,7 @@ impl App {
             &o.props,
             o.looks.get(&c.my_id).copied().unwrap_or_default(),
             gm_model::rig::frame_index(build.frame),
+            build.armour as u8,
         );
         self.scene.bodies.push(Body {
             key: OWN,
@@ -2180,6 +2183,7 @@ impl App {
             ),
             worn: worn.0,
             hide: worn.1,
+            patches: worn.2,
             sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
         });
         camera
