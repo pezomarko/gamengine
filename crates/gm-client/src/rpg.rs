@@ -4,7 +4,7 @@
 //! ledger are untouched; only the aim at the target is the zone's.
 
 use glam::{Mat4, Vec3};
-use gm_ai::nav::{NavGrid, Navigator};
+use gm_nav::{NavGrid, Navigator};
 use gm_core::build::Kit;
 use gm_core::geom::ray_capsule;
 use gm_core::movement::yaw_vectors;

@@ -71,6 +71,8 @@ jobs:
           key: test
       - name: System packages (ALSA's headers)
         run: sudo apt-get update -q && sudo apt-get install -y -q libasound2-dev
+      - name: The ingestion worker (the hub's tests run it, MODELS.md 6.2)
+        run: cargo build -p gm-ingest --locked
       - name: Tests
         run: cargo test --workspace --locked
 

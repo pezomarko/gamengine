@@ -127,7 +127,7 @@ async fn avatars_and_stalls_in_the_town() {
             looks: gm_content::looks::Looks::load_dir(Path::new(CONTENT)).expect("looks"),
             max_coin_grant: 500,
             models_dir: models_dir.clone(),
-            ingest: IngestMode::InProcess,
+            ingest: IngestMode::InProcess(gm_ingest::in_process),
             ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
             start_zone: None,
             blurbs: Vec::new(),

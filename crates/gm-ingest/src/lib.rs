@@ -4,16 +4,15 @@
 //!
 //! - [`source`]: the upload, bounds-checked, merged onto the standard rig in model space.
 //! - [`texture`]: the atlas: resampled, mipped in linear light, encoded as BC1.
-//! - [`envelope`]: the pose, the box and the coverage a frame demands.
-//! - [`raster`]: the orthographic rasteriser behind the coverage rule and the preview.
+//! - [`envelope`], [`raster`], [`verify`]: re-exported from gm-model, where the hub reads them
+//!   without linking a parser of uploads.
 //! - [`write`], [`synth`]: writing `.glb` files: the creator's template and generated avatars.
 //!
 //! The hub never calls [`ingest`] in its own process: uploads are parsed in a worker
-//! (`gm-hub ingest-worker`, [`worker`]) so that a hostile file costs one upload and no more.
+//! (`gm-ingest-worker`, a binary of this crate, [`worker`]) so that a hostile file costs one
+//! upload and no more; the hub's tests run [`in_process`] instead.
 #![forbid(unsafe_code)]
 
-pub mod envelope;
-pub mod raster;
 pub mod source;
 pub mod synth;
 pub mod texture;
@@ -24,44 +23,16 @@ use std::path::Path;
 use gm_core::vocab::ArchetypeFrame;
 use gm_model::format::{self, FLAG_CUTOUT, FLAG_OVERLAY, FLAG_TWO_SIDED, limits};
 use gm_model::{Model, ModelId, rig};
-use serde::{Deserialize, Serialize};
+// What the hub needs of an upload's answer without reading an upload lives in gm-model
+// (2026-10-15): the report's types, the envelope, the rasteriser and `verify`.
+pub use gm_model::report::{Facts, Report, Verified, WORKER_MODEL, WORKER_REPORT, verify};
+pub use gm_model::{envelope, raster};
 
 /// The largest upload the pipeline looks at (MODELS.md 3).
 pub const MAX_UPLOAD_BYTES: usize = 8 * 1024 * 1024;
 /// UVs may leave the unit square by this much before they are a violation.
 const UV_SLACK: f32 = 0.01;
 
-/// What was measured, accepted or not.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Facts {
-    pub triangles: u32,
-    pub vertices: u32,
-    pub source_joints: u32,
-    pub bones: u32,
-    pub source_texture: [u32; 2],
-    pub texture: [u32; 2],
-    /// Size of the `.gmm`.
-    pub bytes: u32,
-    pub cutout: bool,
-    pub two_sided: bool,
-    /// Highest vertex, world units.
-    pub top: f32,
-    /// Coverage relative to the frame's mannequin.
-    pub coverage_front: f32,
-    pub coverage_side: f32,
-}
-
-/// The answer to an upload (MODELS.md 4: every violation at once).
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Report {
-    pub ok: bool,
-    /// The model id in hex when `ok`.
-    pub id: String,
-    pub frame: String,
-    pub facts: Facts,
-    pub violations: Vec<String>,
-    pub notes: Vec<String>,
-}
 
 pub struct Ingested {
     pub id: ModelId,
@@ -462,55 +433,12 @@ pub fn ingest_prop(upload: &[u8], fit: source::Fit) -> (Report, Option<Ingested>
     )
 }
 
-/// A `.gmm` the hub may store.
-#[derive(Debug)]
-pub struct Verified {
-    pub id: ModelId,
-    pub model: Model,
-    /// The moderation preview, PNG, drawn from the bytes that are stored.
-    pub preview: Vec<u8>,
+/// The in-process form of the worker for tests (`gm_hub::IngestMode::InProcess`): the same
+/// answer the hub reads from a worker's files.
+pub fn in_process(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Vec<u8>>) {
+    let (report, ingested) = ingest(upload, frame);
+    (report, ingested.map(|i| i.gmm))
 }
-
-/// Check a `.gmm` for `frame` from its own bytes alone (MODELS.md 6.2). The ingestion worker
-/// parses an untrusted file and may be subverted by it, so the hub believes nothing the
-/// worker says: what it returns is read with the strict reader, must be the canonical encoding
-/// of what it decodes to (one model, one id), must be for the frame and pass the pose and
-/// envelope rules, and the preview a moderator judges it by is drawn here, from these bytes.
-/// Nothing in this function reads an upload.
-pub fn verify(gmm: &[u8], frame: ArchetypeFrame) -> Result<Verified, Vec<String>> {
-    let model = Model::decode(gmm).map_err(|e| vec![format!("the model cannot be stored: {e}")])?;
-    let mut v = Vec::new();
-    if model.frame != rig::frame_index(frame) {
-        v.push(format!(
-            "the model is for another frame than {}",
-            rig::frame_name(frame)
-        ));
-    }
-    if model.encode().ok().as_deref() != Some(gmm) {
-        v.push("the model is not in its canonical encoding".to_string());
-    }
-    let pivots: [glam::Vec3; rig::BONES] = std::array::from_fn(|b| model.pivot(b));
-    envelope::check_pose(&pivots, model.bone_mask, frame, &mut v);
-    envelope::check_model(&model, frame, &mut v);
-    if !v.is_empty() {
-        return Err(v);
-    }
-    let (_, h) = frame.capsule();
-    let preview = write::png(
-        (raster::PREVIEW_SIDE * 2) as u32,
-        raster::PREVIEW_SIDE as u32,
-        &raster::preview(&model, h),
-    );
-    Ok(Verified {
-        id: format::model_id(gmm),
-        model,
-        preview,
-    })
-}
-
-/// File names the worker writes into its output directory.
-pub const WORKER_REPORT: &str = "report.json";
-pub const WORKER_MODEL: &str = "model.gmm";
 
 /// The body of the ingestion worker process: read the upload, ingest it, write the report and
 /// (when accepted) the model and its preview into `out_dir`. The caller applies the resource

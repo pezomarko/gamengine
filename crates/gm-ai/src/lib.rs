@@ -4,7 +4,7 @@
 //! be shown and returns one [`gm_core::sim::Input`] per tick. Nothing here touches the
 //! simulation's rules, the network or a clock.
 //!
-//! - [`nav`]: the navigation grid built from a map's collision, paths and steering.
+//! - [`nav`]: the navigation grid (the `gm-nav` crate, re-exported: a mind walks it).
 //! - [`sense`]: what a mind is shown.
 //! - [`kit`]: reading a kit by the shape of its abilities; roles.
 //! - [`fighter`]: what every mind shares: aiming within limits, routes, guarding, the kit.
@@ -20,7 +20,7 @@ pub mod creature;
 pub mod director;
 pub mod fighter;
 pub mod kit;
-pub mod nav;
+pub use gm_nav as nav;
 pub mod raider;
 pub mod sense;
 pub mod view;

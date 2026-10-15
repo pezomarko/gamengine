@@ -40,6 +40,8 @@ struct Args {
     web_url: Option<String>,
     web_origins: Vec<String>,
     web_info_out: Option<PathBuf>,
+    /// The ingestion worker binary (MODELS.md 6.2); `gm-ingest-worker` beside this one by default.
+    ingest_worker: Option<PathBuf>,
 }
 
 const USAGE: &str = "gm-hub --database-url URL [--listen ADDR] [--cert-out PATH] [--key PATH] [--content DIR] \
@@ -51,7 +53,7 @@ const USAGE: &str = "gm-hub --database-url URL [--listen ADDR] [--cert-out PATH]
        gm-hub --database-url URL --grant-item CHARACTER TEMPLATE MATERIAL,MATERIAL,...   give it a crafted item, then exit\n\
        gm-hub --database-url URL --place CHARACTER ZONE X,Y,Z YAW   where an offline character stands when it next enters, then exit\n\
        gm-hub --database-url URL --audit                     say whether the books are sound and what moved, then exit (1: they are not)\n\
-       gm-hub ingest-worker --frame NAME --in FILE --out DIR   (run by the hub itself, MODELS.md 6.2)";
+       --ingest-worker PATH   the ingestion worker binary (default: gm-ingest-worker beside gm-hub, MODELS.md 6.2)";
 
 fn parse_args() -> Result<Args, String> {
     let mut a = Args {
@@ -79,6 +81,7 @@ fn parse_args() -> Result<Args, String> {
         web_url: None,
         web_origins: Vec::new(),
         web_info_out: None,
+        ingest_worker: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
@@ -95,6 +98,7 @@ fn parse_args() -> Result<Args, String> {
             "--content" => a.content = PathBuf::from(value("--content")?),
             "--zone-secret" => a.zone_secret = value("--zone-secret")?,
             "--models-dir" => a.models_dir = PathBuf::from(value("--models-dir")?),
+            "--ingest-worker" => a.ingest_worker = Some(PathBuf::from(value("--ingest-worker")?)),
             "--start-zone" => a.start_zone = Some(value("--start-zone")?),
             "--grant-moderator" => a.grant_moderator = Some(value("--grant-moderator")?),
             "--grant-coin" => {
@@ -189,45 +193,7 @@ fn parse_args() -> Result<Args, String> {
 
 /// The ingestion worker (MODELS.md 6.2): parse one upload under resource limits and leave a
 /// report. It runs in its own process so that a hostile file costs one upload and no more.
-fn ingest_worker(args: &[String]) -> ! {
-    let mut frame = None;
-    let mut input = None;
-    let mut out = None;
-    let mut it = args.iter();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--frame" => frame = it.next().and_then(|f| gm_model::rig::frame_by_name(f)),
-            "--in" => input = it.next().map(PathBuf::from),
-            "--out" => out = it.next().map(PathBuf::from),
-            _ => {}
-        }
-    }
-    let (Some(frame), Some(input), Some(out)) = (frame, input, out) else {
-        eprintln!("gm-hub ingest-worker --frame NAME --in FILE --out DIR");
-        std::process::exit(2);
-    };
-    #[cfg(unix)]
-    {
-        // 2 GiB of address space and 20 s of CPU: a bomb dies here, not in the hub.
-        let _ = rlimit::setrlimit(rlimit::Resource::AS, 2 << 30, 2 << 30);
-        let _ = rlimit::setrlimit(rlimit::Resource::CPU, 20, 20);
-        let _ = rlimit::setrlimit(rlimit::Resource::CORE, 0, 0);
-    }
-    match gm_ingest::worker(&input, frame, &out) {
-        Ok(_) => std::process::exit(0),
-        Err(e) => {
-            eprintln!("gm-hub ingest-worker: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
 fn main() -> anyhow::Result<()> {
-    // The worker is a plain synchronous process: no runtime, no logging, no database.
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("ingest-worker") {
-        ingest_worker(&args[1..]);
-    }
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
@@ -395,8 +361,11 @@ async fn run() -> anyhow::Result<()> {
         looks: gm_content::looks::Looks::load_dir(&args.content)?,
         max_coin_grant: 500,
         models_dir: args.models_dir,
-        // Uploads are parsed by this same binary in a child process.
-        ingest: IngestMode::Worker(std::env::current_exe()?),
+        // Uploads are parsed by gm-ingest-worker, a binary of its own beside this one.
+        ingest: IngestMode::Worker(match args.ingest_worker {
+            Some(path) => path,
+            None => std::env::current_exe()?.with_file_name("gm-ingest-worker"),
+        }),
         ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
         start_zone: args.start_zone,
         blurbs: gm_content::load_blurbs(&args.content)?,

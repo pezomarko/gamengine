@@ -15,6 +15,7 @@ gm-core = { path = "crates/gm-core" }
 gm-bsp = { path = "crates/gm-bsp" }
 gm-net = { path = "crates/gm-net" }
 gm-ai = { path = "crates/gm-ai" }
+gm-nav = { path = "crates/gm-nav" }
 gm-content = { path = "crates/gm-content" }
 gm-hub-proto = { path = "crates/gm-hub-proto" }
 gm-model = { path = "crates/gm-model" }

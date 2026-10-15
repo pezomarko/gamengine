@@ -3,7 +3,7 @@
 //! are culled unless the model is two-sided, and a cutout texel is a hole.
 
 use glam::Vec3;
-use gm_model::{Model, bc1};
+use crate::{Model, bc1};
 
 /// Where the camera stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -226,7 +226,7 @@ impl ModelSoup {
 /// One texel of the model's largest mip at `(u, v)`.
 pub fn sample(model: &Model, u: f32, v: f32) -> [u8; 4] {
     let (w, h) = (model.tex_w as usize, model.tex_h as usize);
-    let blocks = &model.texture[..gm_model::format::bc1_level_bytes(w, h)];
+    let blocks = &model.texture[..crate::format::bc1_level_bytes(w, h)];
     let x = (u.clamp(0.0, 1.0) * w as f32) as usize;
     let y = (v.clamp(0.0, 1.0) * h as f32) as usize;
     bc1::texel(blocks, w, h, x, y)
@@ -333,8 +333,8 @@ pub fn icon(model: &Model, side: usize) -> Vec<u8> {
 
 /// A body's portrait (CONTENT.md 5.3): the head and shoulders from the front, `side` square.
 pub fn portrait(model: &Model, side: usize) -> Vec<u8> {
-    let head = model.pivot(gm_model::rig::bone::HEAD);
-    let chest = model.pivot(gm_model::rig::bone::CHEST);
+    let head = model.pivot(crate::rig::bone::HEAD);
+    let chest = model.pivot(crate::rig::bone::CHEST);
     // From the chest to a little over the head, as wide as it is tall.
     let z1 = head.z + (head.z - chest.z) * 0.9;
     let z0 = chest.z - (head.z - chest.z) * 0.2;

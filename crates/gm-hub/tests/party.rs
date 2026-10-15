@@ -313,7 +313,7 @@ fn config(content: gm_core::build::ContentPack, sweep: Duration, tag: &str) -> H
         looks: gm_content::looks::Looks::load_dir(Path::new(CONTENT)).expect("looks"),
         max_coin_grant: 500,
         models_dir: std::env::temp_dir().join(format!("gm-hub-party-{tag}-{}", std::process::id())),
-        ingest: gm_hub::IngestMode::InProcess,
+        ingest: gm_hub::IngestMode::InProcess(gm_ingest::in_process),
         ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
         start_zone: None,
         blurbs: Vec::new(),

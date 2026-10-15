@@ -246,13 +246,30 @@ fn avatar(seed: u64, frame: ArchetypeFrame) -> Vec<u8> {
     synth::avatar(seed, frame, 64).build()
 }
 
+/// `target/<profile>/gm-ingest-worker`, next to the directory this test binary runs from.
+fn ingest_worker_exe() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.parent()?;
+    let worker = dir.join("gm-ingest-worker");
+    worker.is_file().then_some(worker)
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn models_from_upload_to_takedown() {
     let _serial = SERIAL.lock().await;
     let Some(db) = database().await else {
         return;
     };
-    let worker = IngestMode::Worker(PathBuf::from(env!("CARGO_BIN_EXE_gm-hub")));
+    // The worker is gm-ingest's binary (MODELS.md 6.2): built beside this test's by
+    // `cargo build -p gm-ingest` (ci.yml does; so does a workspace build). Absent, the test
+    // says so and runs the ingestion in process instead.
+    let worker = match ingest_worker_exe() {
+        Some(exe) => IngestMode::Worker(exe),
+        None => {
+            eprintln!("no target/debug/gm-ingest-worker: run cargo build -p gm-ingest; ingesting in process");
+            IngestMode::InProcess(gm_ingest::in_process)
+        }
+    };
     let hub = start_hub(&db, worker, gm_hub::models::INGEST_TIMEOUT, "main").await;
 
     // A zone, to claim characters and to hear notices.
@@ -976,7 +993,7 @@ async fn a_worker_that_crashes_or_hangs_costs_one_upload() {
         script(
             &format!("{name}.sh"),
             &format!(
-                "cp '{}' \"$7/model.gmm\" && cp '{}' \"$7/report.json\"",
+                "cp '{}' \"$6/model.gmm\" && cp '{}' \"$6/report.json\"",
                 file.display(),
                 said_yes.display()
             ),
@@ -1059,7 +1076,7 @@ async fn a_worker_that_crashes_or_hangs_costs_one_upload() {
             script(
                 "link.sh",
                 &format!(
-                    "ln -s /etc/passwd \"$7/model.gmm\" && cp '{}' \"$7/report.json\"",
+                    "ln -s /etc/passwd \"$6/model.gmm\" && cp '{}' \"$6/report.json\"",
                     said_yes.display()
                 ),
             ),
@@ -1141,7 +1158,7 @@ async fn upload_turns_are_bounded() {
     let models = gm_hub::models::Models::new(
         db.pool().clone(),
         &dir,
-        IngestMode::InProcess,
+        IngestMode::InProcess(gm_ingest::in_process),
         Duration::from_secs(30),
     )
     .unwrap();
@@ -1175,7 +1192,7 @@ async fn one_upload_has_one_status_whoever_races() {
     };
     let hub = start_hub(
         &db,
-        IngestMode::InProcess,
+        IngestMode::InProcess(gm_ingest::in_process),
         gm_hub::models::INGEST_TIMEOUT,
         "race",
     )

@@ -45,7 +45,7 @@ mkdir -p "$D" "$SOCK" "$D/log"
 
 # The stack needs the hub, the zones and the bots; the client only `client` and `push` (a
 # server in the cloud has none: scripts/dev/cloud.sh).
-need() { for b in gm-hub gm-server gm-bot; do [[ -x "$B/$b" ]] || { echo "missing $B/$b: run  cargo build --release  first"; exit 1; }; done; }
+need() { for b in gm-hub gm-ingest-worker gm-server gm-bot; do [[ -x "$B/$b" ]] || { echo "missing $B/$b: run  cargo build --release  first"; exit 1; }; done; }
 need_client() { [[ -x "$B/gm-client" ]] || { echo "missing $B/gm-client: run  cargo build --release  first"; exit 1; }; }
 pg_up() { pg_ctl -D "$PG" status >/dev/null 2>&1; }
 hub_up() { [[ -f "$D/pids" ]] && kill -0 "$(head -1 "$D/pids")" 2>/dev/null; }
