@@ -1,0 +1,1747 @@
+use super::*;
+
+/// Networked play: the zone connection plus the shared prediction state.
+pub(crate) struct Online {
+    pub(super) net: NetClient,
+    /// `Welcome` arrived; the client state is built when `Content` follows.
+    pub(super) welcome: Option<(u32, u16)>,
+    pub(super) client: Option<ClientState>,
+    pub(super) pack: Option<ContentPack>,
+    pub(super) team: u8,
+    pub(super) build_name: String,
+    pub(super) accumulator: f32,
+    pub(super) prev_origin: Vec3,
+    pub(super) curr_origin: Vec3,
+    pub(super) last_snapshot: Instant,
+    pub(super) rate: TickRate,
+    /// Everyone in the zone: name, team, avatar model.
+    pub(super) names: HashMap<u32, (String, u8, Option<ModelId>)>,
+    /// What each body holds (LOOK.md 6.2), by the pack's prop list.
+    pub(super) looks: HashMap<u32, Look>,
+    /// The prop keys the zone's content names: what a `Look` indexes.
+    pub(super) props: Vec<String>,
+    /// Who drives each body (COMPANIONS.md 2.1), as the zone announced it.
+    pub(super) kinds: HashMap<u32, BodyKind>,
+    /// The own squad, in slot order, as the zone last told it.
+    pub(super) squad: Vec<SquadEntry>,
+    /// Encounter, loot, trial and order messages: when, what, in which colour.
+    pub(super) messages: VecDeque<(Instant, String, [f32; 4])>,
+    /// The market: open stalls and their keepers (ECONOMY.md 7).
+    pub(super) stalls: Vec<StallEntry>,
+    /// The zone granted the game master's page (GM.md 1), and its tuning as last told.
+    pub(super) gm: bool,
+    pub(super) tuning: gm_core::tuning::Tuning,
+    pub(super) gm_note: String,
+    /// The party as the hub has it, and who asked what (PARTY.md 4).
+    pub(super) social: Social,
+    pub(super) kills: u32,
+    pub(super) deaths: u32,
+    /// Blows the own hand landed, as the zone said (target, amount, absorbed): the
+    /// numbers the next frame floats over the bodies it finds (LOOK.md 13.8).
+    /// And what the own hand's Regen gave other bodies back (target, amount).
+    pub(super) heals: Vec<(u32, u16)>,
+    /// The hash of the map this connection plays on: the one loaded when it began, and
+    /// from the zone's `Welcome` on the zone's (once that map is here).
+    pub(super) map_hash: u64,
+    pub(super) respec_note: String,
+    /// Why the last press of an item key used nothing, and when (MODES.md 11.3): the HUD
+    /// says it in yellow for `KIT_NOTE_SECS` over the item cells.
+    pub(super) kit_note: Option<(Instant, &'static str)>,
+    /// The item bar (LOOK.md 3.2): the template on each cell, as the hub holds it; asked
+    /// when the zone's content arrives and whenever the inventory changed it.
+    pub(super) bar: Vec<Option<String>>,
+    pub(super) bar_wanted: bool,
+    pub(super) bar_ask: Option<crate::hub::Pending<crate::hub::Answer>>,
+    /// A travel ticket to act on: reconnect to another zone, reloading its map.
+    pub(super) pending_travel: Option<(String, ZoneAddr, Vec<u8>)>,
+    pub(super) zone_name: String,
+    /// Events taken from the connection and not handled yet: while the zone's map is
+    /// still on its way (a browser fetches it), everything after `Welcome` waits here.
+    pub(super) backlog: VecDeque<NetEvent>,
+    /// The zone's map is being fetched (a browser): its hash. It is the connection's
+    /// map only once it has arrived.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(super) awaiting_map: Option<u64>,
+}
+
+/// How long a message stays on the HUD, and how many are kept.
+pub(super) const MESSAGE_SECS: f32 = 9.0;
+
+pub(super) const MESSAGES_KEPT: usize = 6;
+
+impl Online {
+    pub(super) fn say(&mut self, text: String, colour: [f32; 4]) {
+        log::info!("{text}");
+        self.messages.push_back((Instant::now(), text, colour));
+        while self.messages.len() > MESSAGES_KEPT {
+            self.messages.pop_front();
+        }
+    }
+
+    /// Somebody nothing hurts stands in this zone: a trainer, where a build is worn at
+    /// once (MATRIX.md 9.1). The client is not told whether a zone is of the world: one
+    /// without a trainer (the arena) wears a build at the next respawn; the dungeon has
+    /// neither, and the zone says so when asked.
+    pub(super) fn has_trainer(&self) -> bool {
+        let Some(pack) = &self.pack else {
+            return false;
+        };
+        self.kinds.values().any(|k| {
+            matches!(k, BodyKind::Creature { def }
+                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc))
+        })
+    }
+
+    pub(super) fn build_name_of(
+        &self,
+        pack: &ContentPack,
+        build: &gm_core::build::Build,
+    ) -> String {
+        pack.builds
+            .iter()
+            .find(|b| &b.build == build)
+            .map_or_else(|| "custom".to_string(), |b| b.name.clone())
+    }
+}
+
+/// How the client reaches its zone: directly, or with a ticket from the hub.
+pub(super) struct Entry {
+    pub(super) zone: ZoneAddr,
+    pub(super) token: Vec<u8>,
+    pub(super) zone_name: String,
+}
+
+pub(super) fn online(
+    opts: &Options,
+    sim: &Sim,
+    map_hash: u64,
+    entry: Entry,
+) -> Result<Online, Error> {
+    log::info!("connecting to the zone as {}", opts.name);
+    Ok(Online {
+        net: NetClient::connect(
+            entry.zone,
+            opts.name.clone(),
+            opts.build.clone(),
+            opts.team,
+            entry.token,
+        )?,
+        welcome: None,
+        client: None,
+        pack: None,
+        team: 0,
+        build_name: String::new(),
+        accumulator: 0.0,
+        prev_origin: sim.curr.origin,
+        curr_origin: sim.curr.origin,
+        last_snapshot: Instant::now(),
+        rate: TickRate::COMBAT,
+        names: HashMap::new(),
+        looks: HashMap::new(),
+        props: Vec::new(),
+        kinds: HashMap::new(),
+        squad: Vec::new(),
+        social: Social::default(),
+        messages: VecDeque::new(),
+        stalls: Vec::new(),
+        gm: false,
+        tuning: Default::default(),
+        gm_note: String::new(),
+        kills: 0,
+        deaths: 0,
+        heals: Vec::new(),
+        map_hash,
+        respec_note: String::new(),
+        kit_note: None,
+        bar: vec![None; gm_core::sim::BAR_CELLS],
+        bar_wanted: false,
+        bar_ask: None,
+        pending_travel: None,
+        zone_name: entry.zone_name,
+        backlog: VecDeque::new(),
+        awaiting_map: None,
+    })
+}
+
+impl App {
+    /// The zone is left (the person chose to, or its connection ended): the characters are
+    /// shown again, with the reason if there is one.
+    pub(super) fn leave_zone(&mut self, why: &str) {
+        self.hang_up();
+        self.sound.quiet();
+        self.menu = None;
+        self.bag = None;
+        self.people = None;
+        self.gm_page = None;
+        self.character = None;
+        self.chat.clear();
+        self.entities.clear();
+        self.bodies.clear();
+        self.squad_view.clear();
+        self.party_view.clear();
+        self.target_view = None;
+        if let Some(front) = &mut self.front {
+            front.back_to_characters(why);
+            self.front_up = true;
+        }
+    }
+
+    /// Hang up on the zone without waiting for it: the goodbye is said on the connection's
+    /// own thread while the frames go on.
+    pub(super) fn hang_up(&mut self) {
+        // (The map that is loaded is whatever `switch_map` last loaded: a zone that was
+        // left while its map was still on the way has not changed it.)
+        if let Some(mut o) = self.online.take() {
+            o.net.hang_up();
+            self.leaving.push((o.net, Instant::now()));
+        }
+        // A map still being fetched for that zone arrives in a slot nobody reads.
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.pending_fetch = Default::default();
+        }
+    }
+
+    /// The hub gave a ticket: connect to its zone as the character it is for.
+    pub(super) fn enter_zone(
+        &mut self,
+        ticket: gm_hub_proto::protocol::ZoneTicket,
+        name: String,
+        event_loop: &ActiveEventLoop,
+    ) {
+        log::info!("hub ticket for zone {} at {}", ticket.zone, ticket.addr);
+        let reachable = if cfg!(target_arch = "wasm32") {
+            ticket.web.is_some()
+        } else {
+            true
+        };
+        let entered = if reachable {
+            self.opts.name = name.clone();
+            let entry = Entry {
+                zone: ticket_addr(&ticket),
+                token: bitcode::encode(&ticket.token),
+                zone_name: ticket.zone.clone(),
+            };
+            // What will be loaded when the zone answers: a map already on its way in.
+            let loaded = self.pending_map.as_ref().map_or(self.map_hash, |m| m.1);
+            online(&self.opts, &self.sim, loaded, entry).map_err(|e| e.to_string())
+        } else {
+            Err(format!("zone {} has no web listener", ticket.zone))
+        };
+        match entered {
+            Ok(online) => {
+                self.online = Some(online);
+                self.character = Some(ticket.token.payload.character);
+                // Remembered for a person; a command line that named it leaves no trace.
+                if self.returns_to_screens() {
+                    self.settings.character = name;
+                }
+            }
+            Err(why) if self.returns_to_screens() => {
+                if let Some(front) = &mut self.front {
+                    front.back_to_characters(&why);
+                }
+            }
+            Err(why) => self.fail(event_loop, &why),
+        }
+    }
+
+    /// F1–F4 ask the zone for the preset builds, applied at the next respawn.
+    pub(super) fn respec_hotkeys(&mut self) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        let Some(pack) = &o.pack else { return };
+        // T asks to travel to the zone named on the command line; a scripted run asks by
+        // itself, once, after `travel_after` seconds.
+        let timed = self.opts.travel_after > 0.0
+            && self.started.elapsed().as_secs_f32() >= self.opts.travel_after;
+        if (self.input.just_pressed.remove(&KeyCode::KeyT) || timed)
+            && let Some(target) = self.opts.travel_to.clone()
+        {
+            if timed {
+                self.opts.travel_after = 0.0;
+            }
+            o.net.send_control(FromClient::Travel(target.clone()));
+            o.respec_note = format!("travel to {target} requested");
+            log::info!("{}", o.respec_note);
+        }
+        // F9 reports the player nearest the crosshair (ANTICHEAT.md 5): the zone keeps the
+        // last half minute and the next ten seconds for a moderator.
+        if self.input.just_pressed.remove(&KeyCode::F9)
+            && let Some(c) = &o.client
+        {
+            let eye = c.mover.eye();
+            let view = view_dir(self.sim.yaw, self.sim.pitch);
+            let t = c.render_tick(0.0);
+            let aimed = c
+                .others_at(t)
+                .into_iter()
+                .filter(|e| e.kind == EntityKind::Player)
+                .filter(|e| matches!(o.kinds.get(&e.id), Some(BodyKind::Human) | None))
+                .map(|e| (e.id, view.dot((e.pos - eye).normalize_or_zero())))
+                .filter(|(_, facing)| *facing > 0.94)
+                .max_by(|a, b| a.1.total_cmp(&b.1));
+            match aimed {
+                Some((target, _)) => {
+                    o.net.send_control(FromClient::Report {
+                        target,
+                        reason: gm_net::control::ReportReason::Other,
+                    });
+                    o.respec_note = "report sent".into();
+                }
+                None => o.respec_note = "look at the player to report, then F9".into(),
+            }
+        }
+        // B opens a stall on the market tile underfoot, N closes the own stall.
+        if self.input.just_pressed.remove(&KeyCode::KeyB) {
+            o.net.send_control(FromClient::StallOpen);
+            o.respec_note = "stall requested".into();
+        }
+        if self.input.just_pressed.remove(&KeyCode::KeyN) {
+            o.net.send_control(FromClient::StallClose);
+            o.respec_note = "closing the stall".into();
+        }
+        let keys = [KeyCode::F1, KeyCode::F2, KeyCode::F3, KeyCode::F4];
+        for (i, k) in keys.iter().enumerate() {
+            if self.input.just_pressed.remove(k)
+                && let Some(b) = pack.builds.get(i)
+            {
+                o.net
+                    .send_control(FromClient::Respec(BuildChoice::Preset(b.name.clone())));
+                o.respec_note = format!("respec {} requested", b.name);
+            }
+        }
+    }
+
+    /// Network events, prediction ticks and the entity list for this frame. Returns the
+    /// camera `(position, yaw, pitch)`.
+    pub(super) fn online_frame(
+        &mut self,
+        frame_dt: f32,
+        event_loop: &ActiveEventLoop,
+    ) -> Option<(Vec3, f32, f32)> {
+        self.respec_hotkeys();
+        let returns = self.returns_to_screens();
+        // The camera is the character's mode's (MODES.md 2).
+        if let Some(c) = self.online.as_ref().and_then(|o| o.client.as_ref()) {
+            self.viewport = if c.sheet.kit.mode.third_person() {
+                Viewport::Third
+            } else {
+                Viewport::First
+            };
+        }
+        let bsp = &self.bsp;
+        let viewport = self.viewport;
+        let scope = self.gun_scope();
+        let o = self.online.as_mut()?;
+        o.backlog.extend(o.net.poll());
+        // The zone's map is still being fetched (a browser): what the zone sent after its
+        // `Welcome` waits, except snapshots, which would be stale by then anyway.
+        #[cfg(target_arch = "wasm32")]
+        if let Some(wanted) = o.awaiting_map {
+            // The zone hung up meanwhile: say so now, not after a map nobody needs.
+            if let Some(NetEvent::Disconnected(reason)) = o
+                .backlog
+                .iter()
+                .find(|e| matches!(e, NetEvent::Disconnected(_)))
+            {
+                let why = format!("disconnected: {reason}");
+                if returns {
+                    self.zone_ended = Some(why);
+                    return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                }
+                self.fail(event_loop, &why);
+                return None;
+            }
+            match self.pending_fetch.borrow_mut().take() {
+                None => {
+                    o.backlog.retain(|e| !matches!(e, NetEvent::Snapshot(_)));
+                    return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                }
+                Some(Ok((map, hash))) if hash == wanted => {
+                    o.awaiting_map = None;
+                    o.map_hash = hash;
+                    crate::web::tell_page("status", "");
+                    self.pending_map = Some((map, hash));
+                    // The world is replaced at the start of the next frame.
+                    return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                }
+                Some(result) => {
+                    let why = match result {
+                        Err(e) => e,
+                        Ok(_) => "this site's copy of the zone's map is another build".into(),
+                    };
+                    log::error!("{why}");
+                    if returns {
+                        self.zone_ended = Some(why);
+                        return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                    }
+                    crate::web::tell_page("error", &why);
+                    self.exit_requested = true;
+                    event_loop.exit();
+                    return None;
+                }
+            }
+        }
+        while let Some(ev) = o.backlog.pop_front() {
+            match ev {
+                NetEvent::Welcome {
+                    entity,
+                    hz,
+                    map,
+                    map_hash,
+                } => {
+                    o.rate = TickRate::new(hz as u32);
+                    o.welcome = Some((entity, hz));
+                    log::info!("joined as entity {entity} on {map} at {hz} Hz");
+                    // The air of the map, and nothing read from the last zone's frame. A
+                    // map already loaded says its own air now; another map says it as it
+                    // is switched to (`switch_map`).
+                    self.sound.quiet();
+                    self.sound.set_rate(o.rate.dt());
+                    self.sound.air(&map);
+                    if map_hash == o.map_hash
+                        && let Some(air) = ambience_of(&self.bsp)
+                    {
+                        self.sound.air_named(air);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    crate::web::tell_page("status", "");
+                    // The name becomes a file name or a URL: a zone does not choose paths.
+                    if !valid_map_name(&map) {
+                        let why =
+                            format!("the zone named a map this client will not load: {map:?}");
+                        if returns {
+                            self.zone_ended = Some(why);
+                            return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                        }
+                        self.fail(event_loop, &why);
+                        return None;
+                    }
+                    if map_hash != o.map_hash {
+                        // Another map: load it (a zone change through the hub lands here).
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let path = self.opts.maps_dir.join(format!("{map}.bsp"));
+                            let loaded = std::fs::read(&path)
+                                .ok()
+                                .filter(|bytes| fnv1a64(bytes) == map_hash)
+                                .and_then(|_| Bsp::load(&path).ok());
+                            match loaded {
+                                Some(bsp) => {
+                                    log::info!("zone runs map {map}; loading {}", path.display());
+                                    self.pending_map = Some((bsp, map_hash));
+                                    o.map_hash = map_hash;
+                                }
+                                None => {
+                                    log::error!(
+                                        "zone runs map {map} with hash {map_hash:016x}; ours is {:016x} and {} does not match (wrong map build)",
+                                        o.map_hash,
+                                        path.display()
+                                    );
+                                    if returns {
+                                        self.zone_ended = Some(format!(
+                                            "this client does not have the zone's map ({map})"
+                                        ));
+                                        return Some((
+                                            self.sim.eye(),
+                                            self.sim.yaw,
+                                            self.sim.pitch,
+                                        ));
+                                    }
+                                    self.exit_requested = true;
+                                    event_loop.exit();
+                                    return None;
+                                }
+                            }
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            log::info!("zone runs map {map}; fetching it");
+                            crate::web::tell_page("status", "loading the zone's map");
+                            o.awaiting_map = Some(map_hash);
+                            let (slot, assets) =
+                                (self.pending_fetch.clone(), self.opts.assets.clone());
+                            wasm_bindgen_futures::spawn_local(async move {
+                                let fetched = fetch_map(&assets, &map, Some(map_hash)).await;
+                                *slot.borrow_mut() = Some(fetched);
+                            });
+                            return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                        }
+                    }
+                }
+                NetEvent::Snapshot(bytes) => {
+                    if let Some(c) = &mut o.client {
+                        match c.on_snapshot(bsp, &bytes) {
+                            Ok(()) => o.last_snapshot = Instant::now(),
+                            Err(e) => log::debug!("snapshot dropped: {e}"),
+                        }
+                    }
+                }
+                NetEvent::Control(msg) => match msg {
+                    FromZone::Content {
+                        pack,
+                        own,
+                        team,
+                        props,
+                    } => {
+                        let Some((entity, _)) = o.welcome else {
+                            log::error!("content before welcome");
+                            continue;
+                        };
+                        o.team = team;
+                        o.props = props;
+                        o.build_name = o.build_name_of(&pack, &own);
+                        match &mut o.client {
+                            // Content tuned under the zone (GM.md 3): the same body on the
+                            // new numbers; the prediction goes on.
+                            Some(c) => {
+                                log::info!("content tuned: {} abilities", pack.abilities.len());
+                                c.set_sheet(Sheet::new(own, &pack, team));
+                                o.gm_note = "tuned".into();
+                            }
+                            None => {
+                                log::info!(
+                                    "content: {} abilities, {} presets; playing {} on team {team}",
+                                    pack.abilities.len(),
+                                    pack.builds.len(),
+                                    o.build_name
+                                );
+                                o.client = Some(ClientState::new(
+                                    entity,
+                                    o.rate,
+                                    Sheet::new(own, &pack, team),
+                                ));
+                            }
+                        }
+                        o.pack = Some(pack);
+                        o.bar_wanted = true;
+                    }
+                    FromZone::Gm(news) => match news {
+                        GmNews::Granted => {
+                            o.gm = true;
+                            o.say("game master here: G opens the page".into(), hud::DIM);
+                            log::info!("game master");
+                        }
+                        GmNews::Tuning(t) => {
+                            o.gm_note = if t.is_default() {
+                                "as authored".into()
+                            } else {
+                                format!("tempo x{:.2}, {} set", t.tempo, t.abilities.len())
+                            };
+                            o.tuning = t;
+                        }
+                        GmNews::Refused(why) => {
+                            log::info!("gm refused: {why}");
+                            o.gm_note = format!("refused: {why}");
+                        }
+                    },
+                    FromZone::BuildApplied(build) => {
+                        let changed = o.client.as_ref().is_some_and(|c| c.sheet.build != build);
+                        if changed && let Some(pack) = &o.pack {
+                            let name = o.build_name_of(pack, &build);
+                            let sheet = Sheet::new(build, pack, o.team);
+                            if let Some(c) = &mut o.client {
+                                c.set_sheet(sheet);
+                            }
+                            o.build_name = name;
+                            o.respec_note = format!("now {}", o.build_name);
+                            log::info!("build applied: {}", o.build_name);
+                        }
+                    }
+                    FromZone::RespecResult(result) => {
+                        // The zone's word is the page's note and a line on the HUD, so
+                        // that it is read with the page up or closed (MATRIX.md 9.1).
+                        let (note, colour) = match result {
+                            Ok(()) if o.has_trainer() => {
+                                ("worn, and saved".to_string(), hud::GREEN)
+                            }
+                            Ok(()) => ("saved; worn at the next respawn".to_string(), hud::GREEN),
+                            Err(e) => (e, hud::ORANGE),
+                        };
+                        o.respec_note = note.clone();
+                        o.say(note, colour);
+                    }
+                    FromZone::TravelTicket {
+                        zone,
+                        addr,
+                        cert_der,
+                        token,
+                        web,
+                    } => {
+                        log::info!("travel ticket for {zone} at {addr}");
+                        let to = ZoneAddr {
+                            addr: addr.parse().ok(),
+                            cert_der,
+                            web,
+                        };
+                        // The connection here is given up only for one that can be opened: a browser
+                        // needs the zone's web listener, a native client its address.
+                        let reachable = if cfg!(target_arch = "wasm32") {
+                            to.web.is_some()
+                        } else {
+                            to.addr.is_some()
+                        };
+                        if reachable {
+                            o.pending_travel = Some((zone, to, token));
+                        } else if cfg!(target_arch = "wasm32") {
+                            o.say(format!("{zone} has no web listener"), hud::ORANGE);
+                        } else {
+                            o.say(format!("{zone}: bad address {addr:?}"), hud::ORANGE);
+                        }
+                    }
+                    FromZone::TravelRefused(reason) => {
+                        o.respec_note = format!("travel refused: {reason}");
+                        log::info!("{}", o.respec_note);
+                        o.say(o.respec_note.clone(), hud::ORANGE);
+                    }
+                    FromZone::Roster(players) => {
+                        o.names.clear();
+                        o.kinds.clear();
+                        o.looks.clear();
+                        for p in players {
+                            o.kinds.insert(p.id, p.kind);
+                            o.names.insert(p.id, (p.name, p.team, p.model));
+                            o.looks.insert(p.id, p.look);
+                        }
+                    }
+                    FromZone::PlayerInfo {
+                        id,
+                        name,
+                        team,
+                        model,
+                        kind,
+                        look,
+                    } => {
+                        o.kinds.insert(id, kind);
+                        o.names.insert(id, (name, team, model));
+                        o.looks.insert(id, look);
+                    }
+                    FromZone::Look { id, look } => {
+                        o.looks.insert(id, look);
+                    }
+                    FromZone::Squad(entries) => o.squad = entries,
+                    FromZone::OrderRefused(why) => {
+                        o.say(format!("order refused: {why}"), hud::ORANGE);
+                    }
+                    FromZone::Encounter { name, state } => {
+                        let (text, colour) = match state {
+                            EncounterState::Engaged => (format!("{name}: engaged"), hud::WHITE),
+                            EncounterState::Reset => (format!("{name}: reset"), hud::ORANGE),
+                            EncounterState::Cleared { secs } => {
+                                (format!("{name}: cleared in {secs} s"), hud::GREEN)
+                            }
+                        };
+                        o.say(text, colour);
+                    }
+                    FromZone::Loot {
+                        encounter,
+                        items,
+                        coin,
+                    } => {
+                        let mut what = items.join(", ");
+                        if coin > 0 {
+                            if !what.is_empty() {
+                                what.push_str(", ");
+                            }
+                            what.push_str(&format!("{coin} silver"));
+                        }
+                        o.say(format!("loot ({encounter}): {what}"), hud::YELLOW);
+                    }
+                    FromZone::Trial {
+                        name,
+                        passed,
+                        detail,
+                        ..
+                    } => {
+                        if passed {
+                            o.say(format!("trial passed: {name}"), hud::GREEN);
+                            o.say(detail, hud::DIM);
+                        } else {
+                            o.say(format!("trial not passed: {name}: {detail}"), hud::DIM);
+                        }
+                    }
+                    FromZone::ModelRevoked(id) => {
+                        for entry in o.names.values_mut() {
+                            if entry.2 == Some(id) {
+                                entry.2 = None;
+                            }
+                        }
+                        for stall in &mut o.stalls {
+                            if stall.model == Some(id) {
+                                stall.model = None;
+                            }
+                        }
+                        self.revoked.push(id);
+                    }
+                    FromZone::Stalls(stalls) => o.stalls = stalls,
+                    FromZone::StallOpened(stall) => {
+                        log::info!("{} opened a stall", stall.owner);
+                        o.stalls.retain(|s| s.id != stall.id);
+                        o.stalls.push(stall);
+                    }
+                    FromZone::StallClosed(id) => o.stalls.retain(|s| s.id != id),
+                    FromZone::StallResult(result) => {
+                        o.respec_note = match result {
+                            Ok(()) => "stall: done".into(),
+                            Err(e) => format!("stall refused: {e}"),
+                        };
+                        log::info!("{}", o.respec_note);
+                    }
+                    // The answers the inventory and the stall wait for (ITEMS.md 5). One
+                    // that no open screen is waiting for (the screen was closed, or it is
+                    // the answer to an earlier request) is said where the game says
+                    // things, and moves nothing on a screen.
+                    FromZone::BuyResult { listing, result } => {
+                        log::info!("buy of listing {listing}: {result:?}");
+                        let good = result.is_ok();
+                        let elsewhere = match (&mut self.bag, &self.hub) {
+                            (Some(bag), Some(hub)) => bag.bought(hub, listing, result),
+                            _ => Some(match result {
+                                Ok(()) => "bought: it is in the inventory".to_string(),
+                                Err(e) => format!("not bought: {e}"),
+                            }),
+                        };
+                        if let Some(text) = elsewhere {
+                            o.say(text, if good { hud::DIM } else { hud::ORANGE });
+                        }
+                    }
+                    FromZone::WearResult { item, result } => {
+                        log::info!("wear of item {item}: {result:?}");
+                        let good = result.is_ok();
+                        let elsewhere = match (&mut self.bag, &self.hub) {
+                            (Some(bag), Some(hub)) => bag.worn(hub, item, result),
+                            _ => Some(match result {
+                                Ok(()) => "what is worn changed".to_string(),
+                                Err(e) => format!("what is worn did not change: {e}"),
+                            }),
+                        };
+                        if let Some(text) = elsewhere {
+                            o.say(text, if good { hud::DIM } else { hud::ORANGE });
+                        }
+                    }
+                    FromZone::PlayerLeft(id) => {
+                        o.names.remove(&id);
+                        o.kinds.remove(&id);
+                    }
+                    // People together (PARTY.md 4). What the party is is the hub's
+                    // word, shown as it is said.
+                    FromZone::Party(names) => {
+                        log::info!("party: {}", names.join(", "));
+                        if !names.is_empty() {
+                            // In a party: whatever invitations waited are moot.
+                            o.social.asks.retain(|a| a.trade.is_some());
+                        }
+                        o.social.party = names;
+                    }
+                    FromZone::Invited { from } => {
+                        // Somebody who is not heard is not heard here either: the
+                        // invitation is declined, so that it holds none of the places.
+                        let unheard = self
+                            .settings
+                            .ignored
+                            .iter()
+                            .any(|i| names::skeleton(i) == names::skeleton(&from));
+                        if unheard {
+                            // (The zone takes one such request a second, as the page's.)
+                            o.social.asked = Some(Instant::now());
+                            o.net
+                                .send_control(FromClient::PartyAnswer { from, join: false });
+                        } else if o.social.invited(from.clone(), Instant::now()) {
+                            log::info!("{from} invites to a party");
+                            self.sound.play(crate::sound::synth::Cue::Chime);
+                            let line = format!("{from} invites you to a party: P");
+                            self.chat.heard(None, line, &[]);
+                        }
+                    }
+                    FromZone::Heard {
+                        channel,
+                        from,
+                        text,
+                    } => {
+                        // (Not logged: a whisper is between two people.)
+                        log::debug!("<{from} on {channel}> {text}");
+                        // Heard as it is shown: not an ignored name's, not the own
+                        // whisper going out (SOUND.md 3).
+                        let shown = self
+                            .chat
+                            .heard_on(channel, from, text, &self.settings.ignored);
+                        if shown && channel != gm_net::control::CHANNEL_WHISPERED {
+                            self.sound.play(crate::sound::synth::Cue::Blip);
+                        }
+                    }
+                    FromZone::TradeAsked { from } => {
+                        let Some(name) = o.names.get(&from).map(|n| n.0.clone()) else {
+                            continue;
+                        };
+                        let unheard = self
+                            .settings
+                            .ignored
+                            .iter()
+                            .any(|i| names::skeleton(i) == names::skeleton(&name));
+                        if !unheard && o.social.trade_asked(from, name.clone(), Instant::now()) {
+                            log::info!("{name} asks to trade");
+                            self.sound.play(crate::sound::synth::Cue::Chime);
+                            let line = format!("{name} asks to trade: P");
+                            self.chat.heard(None, line, &[]);
+                        }
+                    }
+                    FromZone::TradeOpened { trade, with } => {
+                        // The hub opened a trade both asked for: its window comes up
+                        // over whatever screen was up (said twice, it is up already).
+                        log::info!("trade {trade} with {with}");
+                        o.social
+                            .asks
+                            .retain(|a| a.trade.is_none() || a.from != with);
+                        let up = self.people.as_ref().is_some_and(|p| p.trading(trade));
+                        if !up
+                            && let (Some(hub), Some(account), Some(character)) =
+                                (&self.hub, &self.account, self.character)
+                        {
+                            let now = Instant::now();
+                            let session = account.session;
+                            self.people =
+                                Some(People::trade(hub, session, character, trade, with, now));
+                            self.menu = None;
+                            self.bag = None;
+                            self.chat.drop_line();
+                            self.input.keys.clear();
+                            self.input.just_pressed.clear();
+                            self.input.mouse.clear();
+                        }
+                    }
+                    FromZone::Hit {
+                        target,
+                        amount,
+                        absorbed,
+                        at,
+                    } => {
+                        // The number where the blow landed (LOOK.md 13.11), not over the
+                        // head: a headshot reads as one.
+                        let _ = target;
+                        self.effects
+                            .hit(Vec3::from_array(at), amount as u32, absorbed as u32);
+                        let now = Instant::now();
+                        self.combo = match self.combo {
+                            (n, Some(last))
+                                if now.duration_since(last).as_secs_f32() < COMBO_SECS =>
+                            {
+                                (n + 1, Some(now))
+                            }
+                            _ => (1, Some(now)),
+                        };
+                    }
+                    FromZone::Healed { target, amount } => o.heals.push((target, amount)),
+                    FromZone::Impact { at, normal } => {
+                        self.effects
+                            .impact(Vec3::from_array(at), Vec3::from_array(normal));
+                    }
+                    FromZone::Killed { victim, killer } => {
+                        let me = o.client.as_ref().map(|c| c.my_id);
+                        if Some(killer) == me && victim != killer {
+                            o.kills += 1;
+                        }
+                        if Some(victim) == me {
+                            o.deaths += 1;
+                        }
+                        let name = |id: u32| {
+                            o.names
+                                .get(&id)
+                                .map(|(n, _, _)| n.clone())
+                                .unwrap_or_else(|| format!("#{id}"))
+                        };
+                        log::info!("{} killed {}", name(killer), name(victim));
+                    }
+                    FromZone::ReportResult(result) => {
+                        let (text, colour) = match result {
+                            Ok(()) => (
+                                "report taken: the fight is kept for a moderator".to_string(),
+                                hud::GREEN,
+                            ),
+                            Err(why) => (format!("report refused: {why}"), hud::ORANGE),
+                        };
+                        o.say(text, colour);
+                    }
+                    FromZone::ChatFrom { from, text } => {
+                        // From nobody: the zone itself (a refusal, a notice).
+                        let who = (from != 0).then(|| {
+                            o.names
+                                .get(&from)
+                                .map_or_else(|| format!("#{from}"), |n| n.0.clone())
+                        });
+                        log::info!("<{}> {text}", who.as_deref().unwrap_or("zone"));
+                        let mine = o.client.as_ref().is_some_and(|c| c.my_id == from);
+                        let shown = self.chat.heard(who, text, &self.settings.ignored);
+                        if shown && !mine && from != 0 {
+                            self.sound.play(crate::sound::synth::Cue::Blip);
+                        }
+                    }
+                    // (Not printed: the words for every message of the zone's would be
+                    // carried by every browser for this one line.)
+                    _ => log::debug!("a message of the zone's this client has no use for"),
+                },
+                NetEvent::Disconnected(reason) => {
+                    if returns {
+                        log::info!("disconnected: {reason}");
+                        self.zone_ended = Some(reason);
+                        return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+                    }
+                    log::error!("disconnected: {reason}");
+                    #[cfg(target_arch = "wasm32")]
+                    crate::web::tell_page("error", &format!("disconnected: {reason}"));
+                    self.exit_requested = true;
+                    event_loop.exit();
+                    return None;
+                }
+            }
+        }
+        // A travel ticket: say goodbye here, connect there (the body stays as a ghost until
+        // the other zone claims it, HUB.md 3.3).
+        if let Some((zone, to, token)) = o.pending_travel.take() {
+            o.net.hang_up();
+            o.backlog.clear();
+            match NetClient::connect(to, self.opts.name.clone(), None, self.opts.team, token) {
+                Ok(net) => {
+                    let old = std::mem::replace(&mut o.net, net);
+                    self.leaving.push((old, Instant::now()));
+                    o.welcome = None;
+                    o.client = None;
+                    o.pack = None;
+                    o.names.clear();
+                    o.kinds.clear();
+                    o.squad.clear();
+                    o.stalls.clear();
+                    o.zone_name = zone;
+                    o.respec_note = format!("travelling to {}", o.zone_name);
+                    // The next zone says what the party is; who asked what stays here.
+                    o.social = Social::default();
+                    self.bag = None;
+                    self.people = None;
+                    self.gm_page = None;
+                    self.entities.clear();
+                    self.bodies.clear();
+                }
+                // The connection that was hung up says so in a moment, and that ends it.
+                Err(e) => log::error!("travel failed: {e}"),
+            }
+            return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+        }
+        let Some(c) = &mut o.client else {
+            return Some((self.sim.eye(), self.sim.yaw, self.sim.pitch));
+        };
+        let dt = o.rate.dt();
+        o.accumulator += frame_dt.min(0.25);
+        let mut steps = 0;
+        let bodies = c.latest_boxes();
+        let scripted = self.opts.script.as_deref() == Some("fight");
+        // What the own body did this frame, for the sound: its predicted actions and
+        // the ground it covered by its own ticks (SOUND.md 3).
+        let mut own_actions: Vec<gm_core::sim::Action> = Vec::new();
+        let mut own_travel = 0.0_f32;
+        // Space dodges in the action mode (MODES.md 4.6): the kit's dash, while ready.
+        let dodge = (c.sheet.kit.mode == gm_core::vocab::Mode::Action)
+            .then(|| dodge_slot(&c.sheet.kit, &c.mover, c.tick))
+            .flatten();
+        let gun = c.sheet.kit.mode == gm_core::vocab::Mode::Gun;
+        let rpg = c.sheet.kit.mode == gm_core::vocab::Mode::Rpg;
+        // The RPG mode's keys (MODES.md 5.3): with a target they ask for a target-action;
+        // without one they press as the action mode does.
+        let rpg_bodies = if rpg {
+            rpg_bodies_of(c, o.team)
+        } else {
+            Vec::new()
+        };
+        let mut rpg_pressed = 0u16;
+        let mut rpg_ability = 0u8;
+        if rpg {
+            use crate::rpg::Act;
+            let present = |id: u32| rpg_bodies.iter().any(|b| b.id == id);
+            self.rpg.lost(present);
+            let asks = [
+                (KeyCode::Digit1, Act::Primary),
+                (KeyCode::Digit2, Act::Secondary),
+                (KeyCode::Digit3, Act::Active(1)),
+                (KeyCode::Digit4, Act::Active(2)),
+                (KeyCode::Digit5, Act::Active(3)),
+                (KeyCode::Digit6, Act::Active(4)),
+            ];
+            for (key, act) in asks {
+                if !self.input.just_pressed.remove(&key) {
+                    continue;
+                }
+                if self.rpg.target.is_some() {
+                    self.rpg.ask(act);
+                } else {
+                    match act {
+                        Act::Primary => rpg_pressed |= buttons::PRIMARY,
+                        Act::Secondary => rpg_pressed |= buttons::SECONDARY,
+                        Act::Active(n) => rpg_ability = n,
+                    }
+                }
+            }
+        }
+        while o.accumulator >= dt && steps < MAX_STEPS_PER_FRAME {
+            let (yaw, pitch) = match viewport {
+                Viewport::First => (self.sim.yaw, self.sim.pitch),
+                // The RPG body faces where it goes or its target; its bolts without a
+                // target fly level (MODES.md 5.3).
+                Viewport::Third if rpg => (self.sim.yaw, 0.0),
+                Viewport::Third => {
+                    let eye = c.mover.eye();
+                    let camera = third_person_camera(bsp, eye, self.sim.yaw, self.sim.pitch);
+                    re_aim(bsp, &bodies, camera, self.sim.yaw, self.sim.pitch, eye)
+                }
+            };
+            self.aim = (yaw, pitch);
+            let rpg_frame = rpg.then(|| {
+                let mut f = self.rpg.frame(
+                    bsp,
+                    &c.sheet.kit,
+                    &c.mover,
+                    &rpg_bodies,
+                    self.input.axes(),
+                    yaw,
+                    c.tick,
+                    o.rate.hz(),
+                );
+                f.buttons |= std::mem::take(&mut rpg_pressed);
+                if f.ability == 0 {
+                    f.ability = std::mem::take(&mut rpg_ability);
+                }
+                f
+            });
+            let input = if scripted {
+                let target = self
+                    .script_target
+                    .map(|(_, at, velocity, _)| (at, velocity));
+                let input = fight_input(c.mover.eye(), target, &mut self.sim, c.tick);
+                self.aim = (input.yaw, input.pitch);
+                input
+            } else {
+                self.input.sim_input(yaw, pitch, dodge, gun, rpg_frame)
+            };
+            // A press of an item key that begins no use is said why (MODES.md 11.3):
+            // what the predicted body knows (an empty cell, the air, the hands, a
+            // stagger), else the health, which the zone refuses the same tick.
+            if input.buttons & buttons::USE != 0
+                && let Some(cell) = gm_core::sim::bar_cell(input.use_slot)
+            {
+                let m = &c.mover;
+                let staggered = m.statuses.staggered() || m.statuses.downed();
+                let why = gm_core::sim::item_refusal(m, cell, c.tick, staggered)
+                    .map(gm_core::sim::ItemRefusal::word)
+                    .or_else(|| (c.own_health >= c.sheet.derived.health).then_some(KIT_FULL));
+                if let Some(why) = why {
+                    log::info!("item {}: {why}", BAR_KEYS[cell]);
+                    o.kit_note = Some((Instant::now(), why));
+                }
+            }
+            let before = c.mover.mv.origin;
+            let datagram = c.local_tick(bsp, input);
+            own_actions.extend(c.actions.iter().copied());
+            if c.mover.mv.on_ground {
+                own_travel += (c.mover.mv.origin - before).truncate().length();
+            }
+            o.net.send_input(datagram.encode());
+            o.prev_origin = o.curr_origin;
+            o.curr_origin = c.mover.mv.origin;
+            o.accumulator -= dt;
+            steps += 1;
+        }
+        if steps == MAX_STEPS_PER_FRAME {
+            o.accumulator = 0.0;
+        }
+        if !c.synced() {
+            // Until the first snapshot lands, show the map from the local spawn.
+            o.prev_origin = c.mover.mv.origin;
+            o.curr_origin = c.mover.mv.origin;
+        }
+
+        // Other entities at the interpolation time (PROTOCOL.md 7.3).
+        let extra = o.last_snapshot.elapsed().as_secs_f32() / dt;
+        let t = c.render_tick(extra);
+        self.entities.clear();
+        self.bodies.clear();
+        self.tags.clear();
+        self.effects.begin(frame_dt);
+        let feet_under = Vec3::Z * Hull::Player.mins().z;
+        let my_team = o.team;
+        // The crouch lowers the eye (MODES.md 3.4): the predicted mover's drop, eased over
+        // about a tenth of a second so the view does not jump.
+        let drop = if c.mover.crouched {
+            gm_core::sim::CROUCH_DROP
+        } else {
+            0.0
+        };
+        self.eye_drop += (drop - self.eye_drop) * (frame_dt * 12.0).min(1.0);
+        // The own hull origin as drawn, and the eye over it less the drop: the body
+        // itself is lowered by its squat (the animator's), not by the eye.
+        let centre = {
+            let alpha = (o.accumulator / o.rate.dt()).clamp(0.0, 1.0);
+            o.prev_origin.lerp(o.curr_origin, alpha)
+        };
+        let eye = centre + Vec3::Z * (c.mover.mv.hull.eye_height() - self.eye_drop);
+        // The recoil's punch (MODES.md 3.3): the firearm's kick for this shot lands on the
+        // view at once and decays over 150 ms; the frames sent carry the mouse's aim,
+        // the zone kicks the bolt by the same pair.
+        for a in &own_actions {
+            if let gm_core::sim::Action::Fire { kick, .. } = a
+                && (kick.0 != 0.0 || kick.1 != 0.0)
+            {
+                self.view_punch = *kick;
+            }
+        }
+        let decay = (-frame_dt / PUNCH_DECAY_SECS).exp();
+        self.view_punch = (self.view_punch.0 * decay, self.view_punch.1 * decay);
+        self.zoom = if self.input.scoped {
+            scope.max(1) as f32
+        } else {
+            1.0
+        };
+        let camera = match viewport {
+            Viewport::First => eye,
+            Viewport::Third if rpg => {
+                crate::rpg::orbit_camera(bsp, centre, self.sim.yaw, self.sim.pitch, self.rpg.dist)
+            }
+            Viewport::Third => third_person_camera(bsp, eye, self.sim.yaw, self.sim.pitch),
+        };
+        let others = c.others_at(t);
+        if scripted {
+            let nearest = others
+                .iter()
+                .filter(|e| e.kind == EntityKind::Player && e.alive())
+                .filter(|e| match e.spawn {
+                    SpawnInfo::Player { team, .. } => my_team == 0 || team != my_team,
+                    _ => false,
+                })
+                .min_by(|a, b| {
+                    (a.pos - centre)
+                        .length_squared()
+                        .total_cmp(&(b.pos - centre).length_squared())
+                })
+                .map(|e| (e.id, e.pos));
+            // Its velocity from where it stood a frame ago, if it is the same body.
+            let now = Instant::now();
+            self.script_target = nearest.map(|(id, at)| {
+                let velocity = match self.script_target {
+                    Some((was, before, _, then)) if was == id => {
+                        let dt = (now - then).as_secs_f32();
+                        if dt > 1.0e-3 {
+                            ((at - before) / dt).clamp_length_max(600.0)
+                        } else {
+                            Vec3::ZERO
+                        }
+                    }
+                    _ => Vec3::ZERO,
+                };
+                (id, at, velocity, now)
+            });
+        }
+        // What the HUD shows of the squad and of the creature being fought: the one the
+        // squad is ordered onto, or else the nearest one that is hurt.
+        self.squad_view = o
+            .squad
+            .iter()
+            .map(|m| {
+                let e = others.iter().find(|e| e.id == m.id);
+                (e.and_then(|e| e.health), e.is_some_and(|e| e.alive()))
+            })
+            .collect();
+        // And of the party: the other members, each with the health the wire carries for
+        // its body when that is here (the bodies that are people: a hired copy of
+        // somebody bears that name too).
+        let me = Some(c.my_id);
+        self.party_view =
+            o.social
+                .party
+                .iter()
+                .filter_map(|member| {
+                    let body = o.names.iter().find(|(id, n)| {
+                        n.0 == *member && o.kinds.get(id) == Some(&BodyKind::Human)
+                    });
+                    match body {
+                        Some((id, _)) if Some(*id) == me => None,
+                        Some((id, _)) => {
+                            let health = others.iter().find(|e| e.id == *id).and_then(|e| e.health);
+                            Some((member.clone(), Some(health)))
+                        }
+                        None => Some((member.clone(), None)),
+                    }
+                })
+                .collect();
+        self.target_view = None;
+        // The RPG mode's target frame (MODES.md 5.2): its name and the health the zone
+        // sends for a targeted body; a stranger's whole is read as the band's top.
+        if rpg && let Some(target) = self.rpg.target {
+            if let Some(e) = others.iter().find(|e| e.id == target) {
+                let name = o
+                    .names
+                    .get(&target)
+                    .map_or_else(|| "?".to_string(), |n| n.0.clone());
+                let max = match (o.kinds.get(&target), &o.pack) {
+                    (Some(BodyKind::Creature { def }), Some(pack)) => {
+                        pack.creatures.get(*def as usize).map_or(1500, |d| d.health)
+                    }
+                    _ => 1500,
+                };
+                self.target_view = Some((name, e.health.unwrap_or(0), max));
+            }
+        } else if let Some(pack) = &o.pack {
+            let mut best: Option<(f32, String, u16, u16)> = None;
+            for e in others.iter().filter(|e| e.alive()) {
+                let (Some(BodyKind::Creature { def }), Some(health)) =
+                    (o.kinds.get(&e.id), e.health)
+                else {
+                    continue;
+                };
+                let Some(d) = pack.creatures.get(*def as usize) else {
+                    continue;
+                };
+                let ordered = o
+                    .squad
+                    .iter()
+                    .any(|m| matches!(m.order, Order::Attack(id) if id == e.id));
+                if !ordered && health >= d.health {
+                    continue;
+                }
+                let rank = (e.pos - centre).length() - if ordered { 1.0e6 } else { 0.0 };
+                if best.as_ref().is_none_or(|b| rank < b.0) {
+                    best = Some((rank, d.name.clone(), health, d.health));
+                }
+            }
+            self.target_view = best.map(|(_, name, health, max)| (name, health, max));
+        }
+        for e in others.iter().copied() {
+            match e.kind {
+                EntityKind::Player => {
+                    let SpawnInfo::Player {
+                        frame,
+                        team,
+                        aspects,
+                        armour,
+                    } = e.spawn
+                    else {
+                        continue;
+                    };
+                    // Health the zone sends (the own party's and creatures') under the name.
+                    let mate = o.squad.iter().position(|m| m.id == e.id);
+                    let max_health = match (mate, o.kinds.get(&e.id), &o.pack) {
+                        (Some(i), _, _) => Some(o.squad[i].max_health),
+                        (None, Some(BodyKind::Creature { def }), Some(pack)) => {
+                            pack.creatures.get(*def as usize).map(|d| d.health)
+                        }
+                        _ => None,
+                    };
+                    // Whose side it is on: the own team's, the own squad's and the own
+                    // party's are friends; a creature and another team's are foes.
+                    let name = o.names.get(&e.id).map(|n| n.0.as_str()).unwrap_or("");
+                    let creature = matches!(o.kinds.get(&e.id), Some(BodyKind::Creature { .. }));
+                    let friend = (my_team != 0 && team == my_team)
+                        || mate.is_some()
+                        || (!name.is_empty() && self.party_view.iter().any(|(n, _)| n == name));
+                    let foe = !friend && (creature || (my_team != 0 && team != 0));
+                    if e.alive() {
+                        // What it does, drawn where it lands (LOOK.md 13): the wedge of the
+                        // swing it winds up, the slash when it comes, a spark when it is hit.
+                        let swing = o
+                            .pack
+                            .as_ref()
+                            .zip((e.acting as usize).checked_sub(1))
+                            .and_then(|(p, i)| p.abilities.get(i))
+                            .and_then(|d| swing_of(&d.ability, dt));
+                        self.effects.fighter(
+                            &crate::fx::Fighter {
+                                key: e.id,
+                                feet: e.pos + feet_under,
+                                chest: crate::fx::chest_of(
+                                    e.flags & gm_net::snapshot::flags::CROUCHED != 0,
+                                ),
+                                yaw: e.yaw,
+                                anim: e.anim,
+                                swing,
+                                side: if friend {
+                                    crate::fx::Side::Friend
+                                } else {
+                                    crate::fx::Side::Foe
+                                },
+                                health: e.health,
+                            },
+                            &mut self.fx,
+                        );
+                        // What the own hand did to it, as the zone said: a number over
+                        // its head (LOOK.md 13.8).
+                        let over_head = e.pos + feet_under + Vec3::Z * 72.0;
+                        o.heals.retain(|&(target, amount)| {
+                            if target != e.id {
+                                return true;
+                            }
+                            self.effects.healed(over_head, amount as u32);
+                            false
+                        });
+                        // Its name over its head, when the head is in sight and near.
+                        let head = e.pos + Vec3::Z * 40.0;
+                        if !name.is_empty()
+                            && (head - camera).length() < 900.0
+                            && bsp.trace(Hull::Point, camera, head).fraction >= 1.0
+                        {
+                            self.tags.push(Tag {
+                                at: head,
+                                name: name.to_string(),
+                                ink: if friend {
+                                    [0.55, 0.80, 1.0, 1.0]
+                                } else if creature {
+                                    [1.0, 0.62, 0.30, 1.0]
+                                } else if foe {
+                                    [1.0, 0.42, 0.36, 1.0]
+                                } else {
+                                    hud::WHITE
+                                },
+                                health: e
+                                    .health
+                                    .zip(max_health)
+                                    .map(|(h, max)| h as f32 / max.max(1) as f32),
+                            });
+                        }
+                    }
+                    let yaw = facing(
+                        self.facings.get(&e.id).copied(),
+                        e.yaw,
+                        e.vel,
+                        e.anim,
+                        e.flags & gm_net::snapshot::flags::RPG != 0,
+                        frame_dt,
+                    );
+                    self.facings.insert(e.id, yaw);
+                    let worn = worn_overlay(
+                        &mut self.content,
+                        self.active.as_mut(),
+                        &o.props,
+                        o.looks.get(&e.id).copied().unwrap_or_default(),
+                        frame,
+                    );
+                    self.bodies.push(Body {
+                        key: e.id,
+                        origin: e.pos,
+                        yaw,
+                        pitch: e.pitch,
+                        anim: e.anim,
+                        crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
+                        frame,
+                        armour,
+                        aspects,
+                        status: e.status,
+                        model: o.names.get(&e.id).and_then(|n| n.2),
+                        distance: (e.pos - camera).length(),
+                        lit: self.effects.flash(e.id),
+                        prop: held_prop(
+                            &mut self.content,
+                            self.active.as_mut(),
+                            &o.props,
+                            o.looks.get(&e.id).copied().unwrap_or_default(),
+                        ),
+                        off: off_prop(
+                            &mut self.content,
+                            self.active.as_mut(),
+                            &o.props,
+                            o.looks.get(&e.id).copied().unwrap_or_default(),
+                        ),
+                        worn: worn.0,
+                        hide: worn.1,
+                        sheathed: o.looks.get(&e.id).is_some_and(|l| l.sheathed),
+                    });
+                }
+                EntityKind::Projectile => {
+                    // A bright head on a streak along its way, round a small solid core.
+                    self.entities.push(EntityDraw {
+                        mins: e.pos - Vec3::splat(1.2),
+                        maxs: e.pos + Vec3::splat(1.2),
+                        color: [1.0, 0.95, 0.6, 1.0],
+                    });
+                    // The own bolts are known by their ability (its size, its damage's
+                    // colour); another's is a bolt.
+                    let known = match e.spawn {
+                        SpawnInfo::Projectile { owner, def, .. } if owner == c.my_id => {
+                            c.sheet.kit.abilities.get(def as usize).and_then(|a| {
+                                a.steps.iter().find_map(|s| match &s.verb {
+                                    gm_core::vocab::Verb::Projectile(p) => {
+                                        Some((p.radius, damage_ink(&p.damage)))
+                                    }
+                                    _ => None,
+                                })
+                            })
+                        }
+                        _ => None,
+                    };
+                    let (radius, ink) = known.unwrap_or((3.0, crate::fx::BOLT));
+                    self.effects
+                        .projectile(e.id, e.pos, e.vel, radius, ink, camera, &mut self.fx);
+                }
+                EntityKind::Area => {
+                    // What hurts is orange, what helps is green (PROTOCOL.md 5).
+                    let (r, harmful) = match e.spawn {
+                        SpawnInfo::Area {
+                            radius, harmful, ..
+                        } => (radius as f32, harmful),
+                        _ => (32.0, true),
+                    };
+                    // A disc of its own size on the floor, and a burst when it appears.
+                    self.effects.area(e.id, e.pos, r, harmful, &mut self.fx);
+                }
+            }
+        }
+        // Heard (SOUND.md 3): every new sample of every entity up to the render tick,
+        // the own body as it predicted itself and as the zone said, from the own body's
+        // place with the camera's facing.
+        {
+            let world = |from: Vec3, to: Vec3| {
+                use gm_core::trace::CollisionWorld;
+                bsp.trace(Hull::Point, from, to).fraction < 1.0
+            };
+            self.sound.feed(c.tracks(), t, &world);
+            let anims = std::mem::take(&mut c.own_anims);
+            if c.synced() {
+                let me = crate::sound::cues::OwnNow {
+                    id: c.my_id,
+                    pos: centre,
+                    on_ground: c.mover.mv.on_ground,
+                    travel: own_travel,
+                    health: c.own_health,
+                    alive: c.own_alive,
+                };
+                self.sound.own(
+                    self.started.elapsed().as_secs_f32(),
+                    me,
+                    &anims,
+                    &own_actions,
+                );
+            }
+            let yaw = self.sim.yaw;
+            let listener = crate::sound::Listener {
+                pos: eye,
+                yaw: yaw.to_radians(),
+            };
+            self.sound.end_frame(frame_dt, listener);
+        }
+        c.prune(t);
+        // The market: every stall with its keeper, who never moves and costs no snapshot.
+        for stall in &o.stalls {
+            stall_boxes(stall, &mut self.entities);
+            // While somebody stands behind the counter (the owner, usually), that body is
+            // the keeper; the stand-in is drawn when the tile is empty.
+            let at = Vec3::from(stall.pos);
+            let attended = self
+                .bodies
+                .iter()
+                .any(|b| (b.origin - at).truncate().length() < 40.0)
+                || (o.curr_origin - at).truncate().length() < 40.0;
+            if !attended {
+                self.bodies.push(stall_keeper(stall, camera));
+            }
+        }
+        // The own body's stance (LOOK.md 13): what the zone says of it, except that its
+        // own script is shown from the prediction, a round trip sooner; and so is the
+        // place its swing lands, which is what a hand aims with.
+        let own_script = c.mover.script.and_then(|s| {
+            let ability = c.sheet.kit.abilities.get(s.ability as usize)?;
+            let elapsed = gm_core::sim::tick_delta(c.tick, s.started).max(0) as u32;
+            Some((ability, elapsed))
+        });
+        let own_anim = {
+            use gm_core::sim::anim;
+            let said = c.own_anim;
+            if !c.synced() {
+                anim::IDLE
+            } else if !c.own_alive
+                || !(anim::acts(said) || matches!(said, anim::IDLE | anim::RUN | anim::AIR))
+            {
+                // Dead, staggered, commanding, dashing, guarding: the zone's word.
+                said
+            } else if let Some((ability, elapsed)) = own_script {
+                gm_core::sim::script_anim(ability, elapsed)
+            } else {
+                // The feet are predicted here, so their stance is too: a run that waited
+                // for the zone's word slid for a round trip before the legs moved (and
+                // the script over here and not yet there is the same case).
+                if !c.mover.mv.on_ground {
+                    anim::AIR
+                } else if c.mover.ground_speed() > 10.0 {
+                    anim::RUN
+                } else {
+                    anim::IDLE
+                }
+            }
+        };
+        if c.synced() {
+            self.effects.fighter(
+                &crate::fx::Fighter {
+                    key: OWN,
+                    feet: centre + feet_under,
+                    // Under the eye in the first person, so the slash crosses the view.
+                    chest: crate::fx::chest_of(c.mover.crouched),
+                    yaw: c.mover.yaw,
+                    anim: own_anim,
+                    swing: own_script.and_then(|(ability, _)| swing_of(ability, dt)),
+                    side: crate::fx::Side::Own,
+                    health: Some(c.own_health.clamp(0, u16::MAX as i32) as u16),
+                },
+                &mut self.fx,
+            );
+        }
+        // A bolt the own body let go this frame flies from the hand at once (the zone's
+        // bolt shows a round trip later, well on its way).
+        for action in &own_actions {
+            if let gm_core::sim::Action::Fire {
+                ability,
+                step,
+                target,
+                ..
+            } = action
+                && let Some(ab) = c.sheet.kit.abilities.get(*ability as usize)
+                && let Some(gm_core::vocab::Verb::Projectile(p)) =
+                    ab.steps.get(*step as usize).map(|s| &s.verb)
+            {
+                // From where the zone spawns it (`resolve_origin`): the weapon's offset in
+                // the body's frame, else the eyes. Not the camera: in the third person
+                // the eye of the body is well in front of it.
+                let from = match p.spawn {
+                    gm_core::vocab::Origin::Weapon { offset } => {
+                        let (fwd, right) = gm_core::movement::yaw_vectors(c.mover.yaw);
+                        eye + fwd * offset[0] + right * offset[1] + Vec3::Z * offset[2]
+                    }
+                    _ => eye,
+                };
+                // Where the zone sends it (MODES.md 5.3): led to its target when that is
+                // within the ability's range and in sight, as the zone leads it; else
+                // along the body's look. (Until 2026-10-08 the tracer always flew the
+                // look's way, which in the RPG mode is the camera's: the director saw
+                // the shard leave toward the camera's horizon while the zone's bolt
+                // went for the dummy.)
+                let led = rpg_bodies
+                    .iter()
+                    .find(|b| *target != 0 && b.id == *target)
+                    .filter(|b| {
+                        let centre = b.centre();
+                        ab.range > 0.0
+                            && (centre - c.mover.mv.origin).truncate().length() <= ab.range
+                            && gm_core::sim::sees(bsp, c.mover.eye(), centre)
+                    })
+                    .map(|b| {
+                        let vel = others
+                            .iter()
+                            .find(|e| e.id == b.id)
+                            .map_or(Vec3::ZERO, |e| e.vel);
+                        let point = gm_core::sim::aim::lead(
+                            from,
+                            b.centre(),
+                            vel,
+                            p.speed,
+                            p.gravity_scale,
+                        );
+                        (point - from).normalize_or_zero()
+                    })
+                    .filter(|d| d.length_squared() > 0.5);
+                let dir = led.unwrap_or_else(|| gm_core::sim::view_dir(c.mover.yaw, c.mover.pitch));
+                self.effects
+                    .launch(from, dir * p.speed, p.radius, damage_ink(&p.damage));
+            }
+        }
+        // A blow on a body the frame did not find (gone, or never in sight) says nothing.
+        o.heals.clear();
+        self.effects.draw(camera, &mut self.fx);
+        // The RPG mode's marks (MODES.md 5.5): where the body is going, and a ring under
+        // its target.
+        if rpg {
+            if let Some(goal) = self.rpg.walk {
+                let feet = goal + Vec3::Z * Hull::Player.mins().z;
+                self.fx.wall(
+                    feet,
+                    10.0,
+                    6.0,
+                    [1.0, 0.85, 0.3, 0.6],
+                    [1.0, 0.85, 0.3, 0.0],
+                );
+            }
+            if let Some(t) = self.rpg.target
+                && let Some(e) = others.iter().find(|e| e.id == t)
+            {
+                let feet = e.pos + Vec3::Z * Hull::Player.mins().z;
+                self.fx
+                    .wall(feet, 20.0, 4.0, [1.0, 0.3, 0.2, 0.7], [1.0, 0.3, 0.2, 0.0]);
+            }
+        }
+        self.effects.end();
+        self.pops = self.effects.numbers();
+        // (The own body's facing is kept across a frame in the first person, where it
+        // is not drawn: a switch of the viewport finds it where it was.)
+        let drawn: HashSet<u32> = self.bodies.iter().map(|b| b.key).chain([OWN]).collect();
+        self.facings.retain(|k, _| drawn.contains(k));
+        match viewport {
+            Viewport::First => {
+                // The view model (LOOK.md 6.4): the held prop in the frame's corner, with
+                // the stride's bob and a kick on a launch.
+                // A launch kicks; a swing is carried across the view by the own stance.
+                let fired = own_actions
+                    .iter()
+                    .any(|a| matches!(a, gm_core::sim::Action::Fire { .. }));
+                let want = match own_anim {
+                    gm_core::sim::anim::WINDUP => -1.0,
+                    gm_core::sim::anim::SWING => 1.0,
+                    gm_core::sim::anim::RECOVER => 0.55,
+                    _ => 0.0,
+                };
+                let rate = if want == 0.0 { 9.0 } else { 34.0 };
+                self.view_swing += (want - self.view_swing) * (frame_dt * rate).min(1.0);
+                if fired {
+                    self.view_kick = 1.0;
+                }
+                self.view_kick = (self.view_kick - frame_dt * 6.0).max(0.0);
+                self.view_stride += own_travel / 64.0;
+                // The gun mode's hand is known here before the zone says so. A weapon
+                // on the back (LOOK.md 6.7) is not in the view: the hand is empty.
+                let own_look = o.looks.get(&c.my_id).copied().unwrap_or_default();
+                let key = match gun_hand_prop(&self.content, o.pack.as_ref(), c) {
+                    Some(key) => Some(key),
+                    None if own_look.sheathed => None,
+                    None => o.props.get(own_look.held as usize).cloned(),
+                };
+                let fit = key
+                    .as_deref()
+                    .map_or(Mat4::IDENTITY, |k| view_fit_of(&self.content, k));
+                let prop = key.and_then(|key| {
+                    let active = self.active.as_mut()?;
+                    let (gpu, characters) = (&active.gpu, &mut active.renderer.characters);
+                    self.content
+                        .prop(&key, |model| Some(characters.add_model(gpu, model)))
+                });
+                let reload = reload_progress(c);
+                // (Not while the scope is up, MODES.md 3.2.)
+                self.view_model = prop.filter(|_| !self.input.scoped).map(|slot| ViewModel {
+                    slot,
+                    fit,
+                    eye,
+                    yaw: self.sim.yaw + self.view_punch.0,
+                    pitch: self.sim.pitch - self.view_punch.1,
+                    stride: if c.mover.mv.on_ground {
+                        self.view_stride
+                    } else {
+                        0.0
+                    },
+                    kick: self.view_kick,
+                    swing: self.view_swing,
+                    reload,
+                    light: crate::avatars::light_at(bsp, eye),
+                });
+                // The recoil's punch on the view (MODES.md 3.3).
+                Some((
+                    eye,
+                    self.sim.yaw + self.view_punch.0,
+                    (self.sim.pitch - self.view_punch.1).clamp(-89.0, 89.0),
+                ))
+            }
+            _ => {
+                // The own body, posed by the server's animation state. It faces where
+                // the mover does while a turn holds it (toward its target for a
+                // target-action, MODES.md 5.3; the magnet's turn, 4.2) and the camera's
+                // way otherwise; an RPG body is free of the camera between actions
+                // (MODES.md 5.1): it stands the way it last went or was turned, where
+                // until 2026-10-08 it swung round with the orbit (the director).
+                let build = &c.sheet.build;
+                let locked = c.mover.lock_yaw.is_some();
+                let look = if locked { c.mover.yaw } else { self.sim.yaw };
+                let rpg = c.sheet.kit.mode == gm_core::vocab::Mode::Rpg;
+                let yaw = facing(
+                    self.facings.get(&OWN).copied(),
+                    look,
+                    c.mover.mv.velocity,
+                    own_anim,
+                    rpg && !locked,
+                    frame_dt,
+                );
+                self.facings.insert(OWN, yaw);
+                let worn = worn_overlay(
+                    &mut self.content,
+                    self.active.as_mut(),
+                    &o.props,
+                    o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                    gm_model::rig::frame_index(build.frame),
+                );
+                self.bodies.push(Body {
+                    key: OWN,
+                    origin: centre,
+                    yaw,
+                    pitch: self.sim.pitch,
+                    anim: own_anim,
+                    crouched: c.mover.crouched,
+                    frame: gm_model::rig::frame_index(build.frame),
+                    armour: build.armour as u8,
+                    aspects: build.aspects.0,
+                    status: c.mover.statuses.mask(),
+                    model: o.names.get(&c.my_id).and_then(|n| n.2),
+                    distance: 0.0,
+                    lit: self.effects.flash(OWN),
+                    prop: held_prop(
+                        &mut self.content,
+                        self.active.as_mut(),
+                        &o.props,
+                        o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                    ),
+                    off: off_prop(
+                        &mut self.content,
+                        self.active.as_mut(),
+                        &o.props,
+                        o.looks.get(&c.my_id).copied().unwrap_or_default(),
+                    ),
+                    worn: worn.0,
+                    hide: worn.1,
+                    sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
+                });
+                Some((camera, self.sim.yaw, self.sim.pitch))
+            }
+        }
+    }
+
+    /// The other bodies as the RPG mode reads them (MODES.md 5): where they stand now,
+    /// their frame, and whether they are enemies (another team; in the wild, everyone).
+    pub(super) fn rpg_bodies(&self) -> Vec<crate::rpg::Body> {
+        let Some(o) = &self.online else {
+            return Vec::new();
+        };
+        let Some(c) = &o.client else {
+            return Vec::new();
+        };
+        rpg_bodies_of(c, o.team)
+    }
+
+    /// The item bar (LOOK.md 3.2): asked of the hub once the zone's content is here, and
+    /// taken from the inventory screen while it is up (a drag there arranges it).
+    pub(super) fn poll_bar(&mut self) {
+        let wanted = self.online.as_ref().is_some_and(|o| o.bar_wanted);
+        if wanted && let Some((hub, session, character)) = self.owner() {
+            let ask = hub.call(PlayerRequest::Econ {
+                session,
+                character,
+                op: gm_hub_proto::player::PlayerEcon::Bar,
+            });
+            if let Some(o) = &mut self.online {
+                o.bar_wanted = false;
+                o.bar_ask = Some(ask);
+            }
+        }
+        let Some(o) = &mut self.online else { return };
+        if let Some(answer) = o.bar_ask.as_ref().and_then(|p| p.take()) {
+            o.bar_ask = None;
+            match answer {
+                Ok(gm_hub_proto::player::PlayerResponse::Econ(
+                    gm_hub_proto::player::PlayerEconReply::Bar(cells),
+                )) => o.bar = cells,
+                other => log::warn!("the item bar was not read: {other:?}"),
+            }
+        }
+        if let Some(cells) = self.bag.as_ref().and_then(|b| b.bar())
+            && cells != o.bar.as_slice()
+        {
+            o.bar = cells.to_vec();
+        }
+    }
+}
