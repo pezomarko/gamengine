@@ -7,15 +7,22 @@ authors.workspace = true
 license = "GPL-3.0-or-later"
 description = "gamengine model ingestion: glTF uploads validated against the budgets and the frame envelope, re-encoded to .gmm."
 
+[[bin]]
+name = "gm-ingest-worker"
+path = "src/bin/gm-ingest-worker.rs"
+
 [dependencies]
 glam = { workspace = true }
 gltf = { workspace = true }
 gm-core = { workspace = true }
 gm-model = { workspace = true }
 image = { workspace = true, features = ["jpeg"] }
-serde = { workspace = true }
 serde_json = { workspace = true }
 texpresso = { version = "2.0.2", features = ["rayon"] }
+
+[target.'cfg(unix)'.dependencies]
+# The worker's resource limits (MODELS.md 6.2).
+rlimit = "0.11.0"
 
 [dev-dependencies]
 miniz_oxide = { workspace = true }

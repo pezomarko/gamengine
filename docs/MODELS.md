@@ -213,7 +213,7 @@ queue and the store with its files (its uploader withdrew it; the uploaded file 
 another frame of it remains), an `active` one stays for its other holders, and a `rejected` or
 `takedown` row always stays (section 10, "never again").
 
-Ingestion runs in a child process (`gm-hub ingest-worker`), at most **2** at a time, each with a
+Ingestion runs in a child process (`gm-ingest-worker`, a binary of gm-ingest beside the hub's since 2026-10-15; `--ingest-worker PATH` names another), at most **2** at a time, each with a
 30 s wall clock, a 20 s CPU limit and a 2 GiB address-space limit. A worker is taken only when
 the whole body has arrived (a slow sender holds one of the eight places in memory, never a
 worker); an upload waits up to 30 s for one and is then answered `Busy`, which does not count

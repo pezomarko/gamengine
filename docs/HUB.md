@@ -611,8 +611,9 @@ per tick with 200 duelists in the arena hall, 272 MB server RSS, 20 KB/s down pe
 snapshot pass runs on a `rayon` pool, the simulation step is single-threaded (3 ms of the 6.6).
 
 **Phase 6** added `gm-hub::models` (the store, quotas, moderation; MODELS.md 6 and 10) and the
-`ingest-worker` subcommand of the hub binary, which is the same executable started as a child
-with resource limits. Measured 2026-10-01: 100 uploads of 1.17 MB each through the worker,
+ingestion worker, a child process with resource limits (the hub's own executable then; since
+2026-10-15 `gm-ingest-worker`, a binary of gm-ingest beside the hub, so the hub links no parser
+of uploads: gltf, image and the BC1 encoder are the worker's alone). Measured 2026-10-01: 100 uploads of 1.17 MB each through the worker,
 verification, approval and `SetModel` take 37 to 50 s on loopback (0.4 to 0.5 s per avatar);
 the two model tests against Postgres with the real worker take 3 to 5 s.
 

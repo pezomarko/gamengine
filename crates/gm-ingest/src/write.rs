@@ -399,15 +399,5 @@ pub fn container(doc: &Value, bin: &[u8]) -> Vec<u8> {
 
 /// Encode RGBA as PNG.
 pub fn png(w: u32, h: u32, rgba: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
-    image::write_buffer_with_format(
-        &mut std::io::Cursor::new(&mut out),
-        rgba,
-        w,
-        h,
-        image::ExtendedColorType::Rgba8,
-        image::ImageFormat::Png,
-    )
-    .expect("PNG encoding to memory does not fail");
-    out
+    gm_model::png::encode(w, h, rgba)
 }

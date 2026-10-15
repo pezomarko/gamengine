@@ -1,0 +1,12 @@
+[package]
+name = "gm-nav"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license = "GPL-3.0-or-later"
+description = "gamengine navigation: the grid of standable cells found by walking the player hull over a map, A* over its links, and steering along a path."
+
+[dependencies]
+gm-core = { workspace = true }
+glam = { workspace = true }

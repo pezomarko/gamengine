@@ -1,6 +1,10 @@
 //! Navigation (COMPANIONS.md 7): a grid of standable cells found by walking the player hull
 //! over the map from its spawns, A* over the links, and the steering a mind does along a path.
 //! Built from collision alone: any map that compiles is navigable, with no authoring.
+//!
+//! A crate of its own (2026-10-15): the minds (gm-ai), the bots and the client's click-to-walk
+//! all need the grid, and the client needs nothing else of the minds.
+#![forbid(unsafe_code)]
 
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 

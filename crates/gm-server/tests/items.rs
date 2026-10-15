@@ -499,7 +499,7 @@ async fn stand_up(url: &str, wild: bool) -> Town {
             max_coin_grant: 500,
             models_dir: std::env::temp_dir()
                 .join(format!("gm-items-models-{}", std::process::id())),
-            ingest: IngestMode::InProcess,
+            ingest: IngestMode::InProcess(gm_ingest::in_process),
             ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
             start_zone: None,
             blurbs: Vec::new(),

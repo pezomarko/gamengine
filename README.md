@@ -24,9 +24,11 @@ crates/gm-server    authoritative tokio zone server: tick loop, sessions, PVS sn
 crates/gm-hub       accounts, characters, zone registry, handoff, the economy, avatar models and their moderation.
 crates/gm-hub-proto hub messages, entry tokens and the hub connection used by zones, bots and the client.
 crates/gm-model     avatar models: the standard rig, the .gmm container, the shared animation set, the mannequin.
-crates/gm-ingest    model ingestion: a glTF upload validated against budgets and the frame envelope, re-encoded.
+crates/gm-ingest    model ingestion: a glTF upload validated against budgets and the frame envelope, re-encoded;
+                    gm-ingest-worker, the child process the hub runs it in.
 crates/gm-replay    replays: the .gmr file a zone records, its playback, the aim statistics computed from its frames.
-crates/gm-ai        minds: companions, creatures, the nav grid, encounters with their ledger, loot split and trial verdicts.
+crates/gm-nav       the navigation grid: standable cells walked from a map's collision, A*, steering (minds, bots, the client).
+crates/gm-ai        minds: companions, creatures, encounters with their ledger, loot split and trial verdicts.
 crates/gm-tools     CLI: map build and generators, WAD generation, budget lint, model and moderation tools, the
                     content pipeline (gm-tools content check|build|report|import, docs/CONTENT.md 5).
 crates/gm-bot       headless bots: the client's prediction code with scripted behaviour, for tests and load.

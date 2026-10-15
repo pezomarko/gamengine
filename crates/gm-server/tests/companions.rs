@@ -169,7 +169,7 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
             max_coin_grant: 500,
             models_dir: std::env::temp_dir()
                 .join(format!("gm-hub-models-companions-{}", std::process::id())),
-            ingest: gm_hub::IngestMode::InProcess,
+            ingest: gm_hub::IngestMode::InProcess(gm_ingest::in_process),
             ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
             start_zone: None,
             blurbs: Vec::new(),

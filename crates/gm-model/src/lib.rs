@@ -19,10 +19,14 @@ pub mod anim;
 pub mod atlas;
 pub mod bc1;
 pub mod det;
+pub mod envelope;
 pub mod format;
 pub mod manifest;
 pub mod mannequin;
+pub mod png;
 pub mod pose;
+pub mod raster;
+pub mod report;
 pub mod rig;
 pub mod smallfont;
 

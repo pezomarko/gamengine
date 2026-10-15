@@ -9,6 +9,7 @@ description = "gamengine minds: navigation, companions and creatures that drive 
 
 [dependencies]
 gm-core = { workspace = true }
+gm-nav = { workspace = true }
 glam = { workspace = true }
 
 [dev-dependencies]

@@ -135,17 +135,17 @@ deploy() {
   if [[ $build == 1 ]]; then
     echo "== the static binaries (x86_64-unknown-linux-musl) =="
     CC_x86_64_unknown_linux_musl="${CC_x86_64_unknown_linux_musl:-gcc}" \
-      cargo build --release --target x86_64-unknown-linux-musl -p gm-hub -p gm-server -p gm-bot || exit 1
+      cargo build --release --target x86_64-unknown-linux-musl -p gm-hub -p gm-ingest -p gm-server -p gm-bot || exit 1
     echo "== the browser build =="
     "$R/scripts/build-web.sh" || exit 1
   fi
   local M="$R/target/x86_64-unknown-linux-musl/release"
-  for b in gm-hub gm-server gm-bot; do [[ -x "$M/$b" ]] || { echo "missing $M/$b: deploy without --no-build"; exit 1; }; done
+  for b in gm-hub gm-ingest-worker gm-server gm-bot; do [[ -x "$M/$b" ]] || { echo "missing $M/$b: deploy without --no-build"; exit 1; }; done
   [[ -s "$R/target/web/index.html" ]] || { echo "no browser build: scripts/build-web.sh"; exit 1; }
   echo "== the tree to $HOST =="
   local T="$S/tree"; rm -rf "$T"; mkdir -p "$T/scripts/dev" "$T/target/release" "$T/target/web"
   cp "$R/scripts/dev/play.sh" "$T/scripts/dev/"
-  cp "$M"/gm-hub "$M"/gm-server "$M"/gm-bot "$T/target/release/"
+  cp "$M"/gm-hub "$M"/gm-ingest-worker "$M"/gm-server "$M"/gm-bot "$T/target/release/"
   cp -r "$R/assets" "$T/assets"; rm -rf "$T/assets/maps/src" "$T"/assets/maps/built/*.prt
   for f in index.html boot.js gm-client-webgpu.js gm-client-webgpu_bg.wasm gm-client-webgl.js gm-client-webgl_bg.wasm; do cp "$R/target/web/$f" "$T/target/web/"; done
   cp -r "$R/target/web/assets" "$T/target/web/assets"

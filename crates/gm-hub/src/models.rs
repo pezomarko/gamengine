@@ -13,7 +13,7 @@ use gm_hub_proto::protocol::{
     MAX_PENDING_MODELS, ModEntry, ModelId, ModelRef, ModelStatus, ModelSummary, ReasonCode,
     SessionId, TOS_VERSION, TRUSTED_TIER, UPLOAD_STRIKES,
 };
-use gm_ingest::Report;
+use gm_model::report::{self, Report};
 use gm_model::{id_hex, model_id, rig};
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
@@ -44,14 +44,18 @@ fn io(e: std::io::Error) -> HubError {
     HubError::Internal
 }
 
+/// What a worker answers: the report, and the `.gmm` when it accepted the upload.
+pub type IngestFn = fn(&[u8], gm_core::vocab::ArchetypeFrame) -> (Report, Option<Vec<u8>>);
+
 /// How uploads are parsed.
 #[derive(Clone, Debug)]
 pub enum IngestMode {
-    /// `<exe> ingest-worker --frame N --in FILE --out DIR` in a child process with resource
+    /// `<exe> --frame N --in FILE --out DIR` (gm-ingest-worker) in a child process with resource
     /// limits: what production runs.
     Worker(PathBuf),
-    /// In the hub's own process: for embedding the hub in tests of other crates.
-    InProcess,
+    /// In the hub's own process, by the function given (`gm_ingest::in_process`): for embedding
+    /// the hub in tests of other crates.
+    InProcess(IngestFn),
 }
 
 /// The content-addressed store: `<id>.gmm`, `<id>.png`, `src/<sha256>.glb`.
@@ -384,7 +388,7 @@ impl Models {
 
     /// Run the ingestion on `upload`, out of process unless configured otherwise, and check
     /// what comes back. The worker has read an untrusted file: its report is text for the
-    /// uploader, and its model is believed only as far as `gm_ingest::verify` confirms it
+    /// uploader, and its model is believed only as far as `report::verify` confirms it
     /// from the bytes themselves (MODELS.md 6.2).
     async fn run_ingest(
         &self,
@@ -397,16 +401,13 @@ impl Models {
         let job = self.jobs.fetch_add(1, Ordering::Relaxed);
         tokio::task::spawn_blocking(move || {
             let (report, gmm) = match mode {
-                IngestMode::InProcess => {
-                    let (report, ingested) = gm_ingest::ingest(&upload, frame);
-                    (report, ingested.map(|i| i.gmm))
-                }
+                IngestMode::InProcess(ingest) => ingest(&upload, frame),
                 IngestMode::Worker(exe) => worker(&exe, &upload, frame, job, timeout)?,
             };
             let Some(gmm) = gmm.filter(|_| report.ok) else {
                 return Ok((report, None));
             };
-            match gm_ingest::verify(&gmm, frame) {
+            match report::verify(&gmm, frame) {
                 Ok(v) => Ok((
                     report,
                     Some(Accepted {
@@ -1277,7 +1278,6 @@ fn worker(
         let input = dir.join("upload.glb");
         std::fs::write(&input, upload)?;
         let mut child = std::process::Command::new(exe)
-            .arg("ingest-worker")
             .arg("--frame")
             .arg(rig::frame_name(frame))
             .arg("--in")
@@ -1308,7 +1308,7 @@ fn worker(
             warn!("ingestion worker ended with {status}");
             return Ok(None);
         }
-        let Ok(json) = std::fs::read(dir.join(gm_ingest::WORKER_REPORT)) else {
+        let Ok(json) = std::fs::read(dir.join(report::WORKER_REPORT)) else {
             return Ok(None);
         };
         let Ok(report) = serde_json::from_slice::<Report>(&json) else {
@@ -1316,7 +1316,7 @@ fn worker(
         };
         // Never more than a model may be: the file is the worker's, the limit is ours.
         let gmm = if report.ok {
-            let path = dir.join(gm_ingest::WORKER_MODEL);
+            let path = dir.join(report::WORKER_MODEL);
             if std::fs::symlink_metadata(&path)
                 .is_ok_and(|m| m.is_file() && m.len() <= gm_model::limits::MAX_FILE_BYTES as u64)
             {

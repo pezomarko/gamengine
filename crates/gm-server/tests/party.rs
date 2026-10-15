@@ -626,7 +626,7 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
             max_coin_grant: 500,
             models_dir: std::env::temp_dir()
                 .join(format!("gm-party-models-{}", std::process::id())),
-            ingest: IngestMode::InProcess,
+            ingest: IngestMode::InProcess(gm_ingest::in_process),
             ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
             start_zone: None,
             blurbs: Vec::new(),

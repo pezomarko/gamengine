@@ -155,7 +155,7 @@ async fn the_economy_over_the_wire() {
             looks: gm_content::looks::Looks::load_dir(Path::new(CONTENT)).expect("looks"),
             max_coin_grant: 10_000, // this test grants 900 at once: the cap is a knob, the production default is 500 (ECONOMY.md 12)
             models_dir: std::env::temp_dir().join(format!("gm-hub-models-{}", std::process::id())),
-            ingest: gm_hub::IngestMode::InProcess,
+            ingest: gm_hub::IngestMode::InProcess(gm_ingest::in_process),
             ingest_timeout: gm_hub::models::INGEST_TIMEOUT,
             start_zone: None,
             blurbs: Vec::new(),
