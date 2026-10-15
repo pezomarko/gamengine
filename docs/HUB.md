@@ -617,6 +617,16 @@ of uploads: gltf, image and the BC1 encoder are the worker's alone). Measured 20
 verification, approval and `SetModel` take 37 to 50 s on loopback (0.4 to 0.5 s per avatar);
 the two model tests against Postgres with the real worker take 3 to 5 s.
 
+**2026-10-15, the handler's shape.** `crates/gm-hub/src/hub.rs` became the directory `hub/`:
+`handle` (hub/mod.rs) is a dispatcher, and every `HubRequest` is an async function of its
+family, each taking only the connection context it uses: `accounts` (register, login,
+logout), `characters` (the list, a new one, its build, the content, the zones, entering
+one, the trials), `zones` (the hello as a `Hello` value, the heartbeat, a claim, a release,
+a save, a handoff, a trial, aim, a report), `market` (a session's and a zone's economy,
+the parties), `avatars` (models) and `moderation` (every `ModOp`; the ban a function of its
+own). The answers and the order of the database's and the zones' calls are as they were;
+the 764-line match is gone (CONTRIBUTING.md: clippy's lengths are the ceiling).
+
 ## 9. Design review log
 
 **2026-10-01, v1 draft reviewed by Gemini 3.1 Pro** (independent review before implementation;

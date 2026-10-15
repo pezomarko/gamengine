@@ -508,6 +508,16 @@ MATRIX.md 11 (`crates/gm-bot/tests/arena.rs`).
 When the release binary legitimately grows (a new feature), update the baseline in the same
 commit with `scripts/check-binary-size.sh --update-baseline` and say why in the commit message.
 
+## Where the long code went (2026-10-15)
+
+The four functions that had grown past a screen are directories or short chains now,
+behaviour unchanged (CONTRIBUTING.md, "Functions and files"): the zone's loop is
+`crates/gm-server/src/zone/` (PROTOCOL.md 7.1), the hub's handler `crates/gm-hub/src/hub/`
+(HUB.md 8), a connection `net.rs` (`handshake`, `admit`, `greet`, `Client`), the model
+reader `gm-ingest/src/source.rs` in stages (MODELS.md 4), and a bot's run `gm-bot/src/bot.rs`
+(`BotRun`: `join`, then `tick`, `on_datagram`, `on_message`, `finish`). The longest
+function left in these crates is a dispatcher's match.
+
 ## Maps in TrenchBroom
 
 1. New map, game "Quake", map format "Standard" (Valve 220 also works with qbsp).

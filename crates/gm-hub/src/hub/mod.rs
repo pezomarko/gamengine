@@ -2,6 +2,15 @@
 //! handoffs. One QUIC endpoint for clients and zones; one task per connection, one task per
 //! request stream; the database does the invariants.
 
+mod accounts;
+mod avatars;
+mod characters;
+mod market;
+mod moderation;
+mod zones;
+
+use zones::Hello;
+
 use std::collections::HashMap;
 use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
@@ -954,6 +963,8 @@ fn normalize_email(email: &str) -> Result<String, HubError> {
     Ok(e)
 }
 
+/// One request, answered: every kind is a function of its family (`accounts`,
+/// `characters`, `zones`, `market`, `avatars`, `moderation`).
 async fn handle(
     hub: &Arc<Hub>,
     auth: &ConnAuth,
@@ -963,280 +974,38 @@ async fn handle(
 ) -> Result<HubResponse, HubError> {
     match req {
         HubRequest::Register { email, password } => {
-            if !hub.auth_allowed(remote.ip()) {
-                return Err(HubError::Busy);
-            }
-            let email = normalize_email(&email)?;
-            if password.chars().count() < 8 || password.len() > 256 {
-                return Err(HubError::Invalid(
-                    "a password is 8 characters or more, and 256 bytes at most".into(),
-                ));
-            }
-            let _permit = hub.hashing.try_acquire().map_err(|_| HubError::Busy)?;
-            let hash = tokio::task::spawn_blocking(move || {
-                let mut salt = [0u8; 16];
-                rand::fill(&mut salt);
-                Argon2::default()
-                    .hash_password_with_salt(password.as_bytes(), &salt)
-                    .map(|h: PasswordHash| h.to_string())
-            })
-            .await
-            .map_err(|_| HubError::Internal)?
-            .map_err(|_| HubError::Internal)?;
-            let account = hub.db.create_account(&email, &hash).await?;
-            let session = hub.new_session(account);
-            info!(%email, account, "registered");
-            Ok(HubResponse::Session { session, account })
+            accounts::register(hub, remote, email, password).await
         }
         HubRequest::Login { email, password } => {
-            if !hub.auth_allowed(remote.ip()) {
-                return Err(HubError::Busy);
-            }
-            let email = normalize_email(&email)?;
-            // An email nobody registered costs what a wrong password costs: the answer's
-            // time does not say which accounts exist.
-            let found = hub.db.account_by_email(&email).await?;
-            let (account, hash) = match found {
-                Some((account, hash)) => (Some(account), hash),
-                None => (None, hub.decoy_hash.clone()),
-            };
-            let _permit = hub.hashing.try_acquire().map_err(|_| HubError::Busy)?;
-            let ok = tokio::task::spawn_blocking(move || {
-                PasswordHash::new(&hash)
-                    .map(|parsed| {
-                        Argon2::default()
-                            .verify_password(password.as_bytes(), &parsed)
-                            .is_ok()
-                    })
-                    .unwrap_or(false)
-            })
-            .await
-            .map_err(|_| HubError::Internal)?;
-            let Some(account) = account.filter(|_| ok) else {
-                return Err(HubError::Credentials);
-            };
-            // A banned account is told why and until when (ANTICHEAT.md 6), after the
-            // password: the reason is the account's own business.
-            hub.conduct.check(account).await?;
-            let session = hub.new_session(account);
-            // A ban that landed between the check and the session ends the session.
-            if let Err(e) = hub.conduct.check(account).await {
-                hub.state
-                    .lock()
-                    .unwrap()
-                    .sessions
-                    .retain(|_, s| s.account != account);
-                return Err(e);
-            }
-            Ok(HubResponse::Session { session, account })
+            accounts::login(hub, remote, email, password).await
         }
-        HubRequest::Characters { session } => {
-            let account = hub.session_account(session)?;
-            let rows = hub.db.characters_of(account).await?;
-            Ok(HubResponse::Characters(
-                rows.iter().map(|r| r.summary()).collect(),
-            ))
-        }
+        HubRequest::Characters { session } => characters::characters(hub, session).await,
         HubRequest::CreateCharacter {
             session,
             name,
             build,
-        } => {
-            let account = hub.session_account(session)?;
-            // What every client can draw, and no name another could be taken for.
-            let name = gm_hub_proto::names::character_name(&name)
-                .map_err(|why| HubError::Invalid(why.into()))?;
-            let key = gm_hub_proto::names::skeleton(&name);
-            let build = hub.resolve_build(build)?;
-            let row = hub
-                .db
-                .create_character(account, &name, &key, &build)
-                .await?;
-            Ok(HubResponse::Character(row.summary()))
-        }
+        } => characters::create_character(hub, session, name, build).await,
         HubRequest::SetBuild {
             session,
             character,
             build,
-        } => {
-            let account = hub.session_account(session)?;
-            let build = hub.resolve_build(build)?;
-            hub.db.set_build(account, character, &build).await?;
-            Ok(HubResponse::Ok)
-        }
-        HubRequest::Content { session } => {
-            hub.session_account(session)?;
-            // A blurb for every preset, whatever the configuration gave.
-            let mut blurbs = hub.cfg.blurbs.clone();
-            blurbs.resize(hub.cfg.content.builds.len(), String::new());
-            Ok(HubResponse::Content {
-                pack: hub.cfg.content.clone(),
-                blurbs,
-            })
-        }
-        HubRequest::ListZones { session } => {
-            hub.session_account(session)?;
-            let st = hub.state.lock().unwrap();
-            let mut zones: Vec<ZoneSummary> = st
-                .zones
-                .iter()
-                .filter(|(_, z)| z.last_heartbeat.elapsed() < ZONE_STALE)
-                .map(|(id, z)| ZoneSummary {
-                    id: id.clone(),
-                    map: z.map.clone(),
-                    players: z.players,
-                    max_players: z.max_players,
-                    web: z.web.is_some(),
-                    min_trust: z.min_trust,
-                    requires: z.requires.clone(),
-                    addr: z.addr,
-                    cert_hash: fnv1a64(&z.cert_der),
-                    up_secs: z.since.elapsed().as_secs(),
-                })
-                .collect();
-            zones.sort_by(|a, b| a.id.cmp(&b.id));
-            Ok(HubResponse::Zones(zones))
-        }
+        } => characters::set_build(hub, session, character, build).await,
+        HubRequest::Content { session } => characters::content(hub, session).await,
+        HubRequest::ListZones { session } => characters::list_zones(hub, session).await,
         HubRequest::Enter {
             session,
             character,
             zone,
-        } => {
-            let account = hub.session_account(session)?;
-            let row = hub
-                .db
-                .character(character)
-                .await?
-                .filter(|r| r.account_id == account)
-                .ok_or(HubError::NotFound)?;
-            // A build the content no longer takes is repaired here (MATRIX.md 9.1) and
-            // stored, so that a character outlives a change of the rules; one nothing can
-            // be made of is refused in words, and not at a zone's door after the claim.
-            let row = match row.build.repaired(&hub.cfg.content) {
-                None => row,
-                Some(build) => {
-                    info!(character = row.id, "build repaired to the current rules");
-                    hub.db.set_build(account, row.id, &build).await?;
-                    crate::db::CharacterRow { build, ..row }
-                }
-            };
-            row.build.validate(&hub.cfg.content).map_err(|e| {
-                HubError::Invalid(format!("this character's build is no longer valid: {e}"))
-            })?;
-            let web = conn.is_web();
-            let zone = if zone.is_empty() {
-                // Where it was, else the start zone, else whatever will have it: the
-                // first of them whose gate the character passes. With none, the refusal
-                // of the first is the one to tell.
-                let mut refusal = HubError::NotFound;
-                let mut found = None;
-                for (i, candidate) in hub
-                    .default_zones(row.pos_zone.as_deref(), web)
-                    .into_iter()
-                    .enumerate()
-                {
-                    let open = match hub.zone_open(&candidate, web, character).await {
-                        Ok(()) => hub.gate(&candidate, character).await,
-                        Err(e) => Err(e),
-                    };
-                    match open {
-                        Ok(()) => {
-                            found = Some(candidate);
-                            break;
-                        }
-                        Err(e) if i == 0 => refusal = e,
-                        Err(_) => {}
-                    }
-                }
-                found.ok_or(refusal)?
-            } else {
-                hub.zone_open(&zone, web, character).await?;
-                hub.gate(&zone, character).await?;
-                zone
-            };
-            hub.db.begin_enter(account, character, &zone).await?;
-            Ok(HubResponse::Ticket(
-                hub.ticket_for(&zone, account, character)?,
-            ))
-        }
-        HubRequest::Logout { session } => {
-            let account = hub.session_account(session)?;
-            let others = {
-                let mut st = hub.state.lock().unwrap();
-                st.sessions.remove(&session);
-                st.sessions.values().any(|s| s.account == account)
-            };
-            // The account is logged in somewhere else too: that client's play goes on.
-            if others {
-                return Ok(HubResponse::Ok);
-            }
-            // Characters still in a zone are kicked there and go offline here.
-            let rows = hub.db.characters_of(account).await?;
-            let in_zone: Vec<(CharacterId, ZoneId)> = rows
-                .iter()
-                .filter(|r| r.location_kind == "zone")
-                .filter_map(|r| r.location_zone.clone().map(|z| (r.id, z)))
-                .collect();
-            // Characters in a live zone are saved and taken offline by that zone when it
-            // handles the kick; everything else (transits, orphans) goes offline here.
-            hub.db.offline_not_in_zone(account).await?;
-            for (character, zone) in in_zone {
-                hub.notify(
-                    &zone,
-                    HubNotice::Kick {
-                        character,
-                        reason: "logged out".into(),
-                    },
-                )
-                .await;
-            }
-            Ok(HubResponse::Ok)
-        }
+        } => characters::enter(hub, conn, session, character, zone).await,
+        HubRequest::Logout { session } => accounts::logout(hub, session).await,
         HubRequest::Trials { session, character } => {
-            let account = hub.session_account(session)?;
-            hub.db
-                .character(character)
-                .await?
-                .filter(|r| r.account_id == account)
-                .ok_or(HubError::NotFound)?;
-            Ok(HubResponse::Trials(hub.db.trials_of(character).await?))
+            characters::trials(hub, session, character).await
         }
         HubRequest::Trial {
             character,
             trial,
             secs,
-        } => {
-            // A zone speaks only for characters playing in it, and only about the trials
-            // of its own map.
-            let zone = hub.zone_of_conn(auth)?;
-            if hub.db.zone_of(character).await?.as_ref() != Some(&zone) {
-                return Err(HubError::Unauthorized);
-            }
-            let map = hub
-                .state
-                .lock()
-                .unwrap()
-                .zones
-                .get(&zone)
-                .map(|z| z.map.clone())
-                .ok_or(HubError::Unauthorized)?;
-            if !hub
-                .cfg
-                .content
-                .trials
-                .iter()
-                .any(|t| t.key == trial && t.map == map)
-            {
-                return Err(HubError::Invalid(format!(
-                    "{trial:?} is not a trial of the map {map:?}"
-                )));
-            }
-            hub.db.trial_pass(character, &trial, &zone, secs).await?;
-            hub.db
-                .log(&zone, "trial", &format!("{character} {trial} {secs}s"))
-                .await;
-            Ok(HubResponse::Ok)
-        }
+        } => zones::trial(hub, auth, character, trial, secs).await,
         HubRequest::ZoneHello {
             secret,
             zone,
@@ -1249,472 +1018,69 @@ async fn handle(
             requires,
             max_players,
         } => {
-            if secret != hub.cfg.zone_secret || hub.cfg.zone_secret.is_empty() {
-                warn!(%remote, %zone, "zone hello with a wrong secret");
-                return Err(HubError::Unauthorized);
-            }
-            if valid_name(&zone).is_none() {
-                return Err(HubError::Invalid("zone id".into()));
-            }
-            // (A zone that takes nobody would be full for good.)
-            if max_players == 0 {
-                return Err(HubError::Invalid("a zone takes one client at least".into()));
-            }
-            if requires.len() > MAX_ZONE_REQUIRES
-                || requires
-                    .iter()
-                    .any(|r| !hub.cfg.content.trials.iter().any(|t| &t.key == r))
-            {
-                return Err(HubError::Invalid(
-                    "the zone requires an unknown trial".into(),
-                ));
-            }
-            // A restarted zone has lost its players: they go offline and re-enter.
-            let orphaned = hub.db.offline_zone(&zone).await?;
-            let previous = {
-                let mut st = hub.state.lock().unwrap();
-                let previous = st.zones.remove(&zone).map(|z| z.conn);
-                st.zones.insert(
-                    zone.clone(),
-                    ZoneEntry {
-                        addr,
-                        cert_der,
-                        web,
-                        min_trust,
-                        max_players,
-                        map: map.clone(),
-                        map_hash,
-                        players: 0,
-                        tick_mean_us: 0.0,
-                        since: Instant::now(),
-                        last_heartbeat: Instant::now(),
-                        conn: conn.clone(),
-                        requires,
-                    },
-                );
-                previous
-            };
-            if let Some(old) = previous
-                && old.stable_id() != conn.stable_id()
-            {
-                old.close(1, b"replaced by a new zone process");
-            }
-            hub.verifier.lock().unwrap().insert(
-                zone.clone(),
-                TokenVerifier::new(hub.cfg.key.public_key(), &zone)
-                    .map_err(|_| HubError::Internal)?,
-            );
-            *auth.zone.lock().unwrap() = Some(zone.clone());
-            hub.db
-                .log(
-                    &zone,
-                    "hello",
-                    &format!("{map} {map_hash:016x} {addr} orphaned={orphaned}"),
-                )
-                .await;
-            info!(%zone, %map, %addr, orphaned, "zone registered");
-            Ok(HubResponse::Registered {
-                public_key: hub.cfg.key.public_key(),
-            })
+            zones::zone_hello(
+                hub,
+                auth,
+                conn,
+                remote,
+                Hello {
+                    secret,
+                    zone,
+                    map,
+                    map_hash,
+                    addr,
+                    cert_der,
+                    web,
+                    min_trust,
+                    requires,
+                    max_players,
+                },
+            )
+            .await
         }
         HubRequest::Heartbeat {
             players,
             tick_mean_us,
-        } => {
-            let zone = hub.zone_of_conn(auth)?;
-            let mut st = hub.state.lock().unwrap();
-            if let Some(z) = st.zones.get_mut(&zone) {
-                z.players = players;
-                z.tick_mean_us = tick_mean_us;
-                z.last_heartbeat = Instant::now();
-            }
-            Ok(HubResponse::Ok)
-        }
-        HubRequest::Claim { token } => {
-            let zone = hub.zone_of_conn(auth)?;
-            let payload = {
-                let mut v = hub.verifier.lock().unwrap();
-                let verifier = v.get_mut(&zone).ok_or(HubError::Unauthorized)?;
-                verifier
-                    .accept(&token, now_secs())
-                    .map_err(|e| HubError::Invalid(e.to_string()))?
-            };
-            // A ticket issued before a ban does not outlive it.
-            hub.conduct.check(payload.account).await?;
-            let row = hub.db.claim(payload.character, &zone).await?;
-            // A handoff: the origin zone drops its ghost.
-            if let Some(from) = &row.location_zone
-                && from != &zone
-            {
-                hub.notify(from, HubNotice::Claimed { character: row.id })
-                    .await;
-            }
-            let mut state = row.state();
-            if state.zone.as_deref() != Some(zone.as_str()) {
-                // The saved position is on another zone's map, or there is none: spawn here.
-                state.zone = None;
-            }
-            // What follows can fail after the character has been moved here; the zone would
-            // hear "claim failed" and have nothing to give back, so the hub does.
-            let rest = async {
-                // It is somewhere else now: whatever trade it had open is called off
-                // (PARTY.md 6): a trade is between two that stand together.
-                hub.econ.trades_end_of(row.id).await.map_err(econ_err)?;
-                // The owner is playing this character now: every hire of it as an avatar
-                // ends (ECONOMY.md 11), and the zones its hirers play in are told.
-                for (hire, hirer) in hub.econ.end_hires_of(row.id).await.map_err(econ_err)? {
-                    if let Some(z) = hub.db.zone_of(hirer).await? {
-                        hub.notify(&z, HubNotice::HireEnded { hirer, hire }).await;
-                    }
-                }
-                let squad = hub
-                    .hired(row.id, row.build.squad_capacity(&hub.cfg.content))
-                    .await?;
-                // Read after the character became this zone's (ITEMS.md 3.3): whatever it
-                // put on through the zone it came from is in it.
-                let gear = hub
-                    .econ
-                    .gear(row.id, &hub.cfg.items)
-                    .await
-                    .map(reading)
-                    .map_err(econ_err)?;
-                Ok::<_, HubError>((
-                    squad,
-                    hub.models.worn(row.id).await?,
-                    gear,
-                    // As gear: read after the character became this zone's. A change
-                    // that comes later is told to this zone, with a larger number.
-                    hub.parties.reading(row.id).await?,
-                    // A moderator's character is a game master there (GM.md 1).
-                    hub.models.is_moderator(row.account_id).await?,
-                ))
-            }
-            .await;
-            match rest {
-                Ok((squad, model, gear, party, gm)) => Ok(HubResponse::Claimed {
-                    character: row.id,
-                    name: row.name.clone(),
-                    state,
-                    team: 0,
-                    model,
-                    squad,
-                    gear,
-                    party,
-                    gm,
-                }),
-                Err(e) => {
-                    let _ = hub.db.release(row.id, &zone).await;
-                    Err(e)
-                }
-            }
-        }
-        HubRequest::Release { character } => {
-            let zone = hub.zone_of_conn(auth)?;
-            if hub.db.release(character, &zone).await? {
-                info!(%zone, character, "a character the zone had no body for is offline again");
-            }
-            Ok(HubResponse::Ok)
-        }
+        } => zones::heartbeat(hub, auth, players, tick_mean_us).await,
+        HubRequest::Claim { token } => zones::claim(hub, auth, token).await,
+        HubRequest::Release { character } => zones::release(hub, auth, character).await,
         HubRequest::Save {
             character,
             state,
             leaving,
-        } => {
-            let zone = hub.zone_of_conn(auth)?;
-            state
-                .build
-                .validate(&hub.cfg.content)
-                .map_err(|e| HubError::Invalid(e.to_string()))?;
-            hub.db.save(character, &zone, &state, leaving).await?;
-            // Play time is what makes an account established (ANTICHEAT.md 6): looked at
-            // when a character leaves, whether or not it ever shot at anybody.
-            if leaving {
-                if let Some(row) = hub.db.character(character).await? {
-                    hub.conduct.promote(row.account_id).await?;
-                }
-                return Ok(HubResponse::Ok);
-            }
-            // The number of what the hub holds of its party: a zone that missed a notice
-            // sees that it is behind, and asks (PARTY.md 3.2).
-            Ok(HubResponse::Saved {
-                party: hub.parties.seq_of(character).await?,
-            })
-        }
+        } => zones::save(hub, auth, character, state, leaving).await,
         HubRequest::Handoff {
             character,
             state,
             to_zone,
             web,
-        } => {
-            let zone = hub.zone_of_conn(auth)?;
-            if to_zone == zone {
-                return Err(HubError::Invalid("already there".into()));
-            }
-            // (The zone says whether its traveller is a browser.)
-            hub.zone_open(&to_zone, web, character).await?;
-            state
-                .build
-                .validate(&hub.cfg.content)
-                .map_err(|e| HubError::Invalid(e.to_string()))?;
-            hub.gate(&to_zone, character).await?;
-            hub.db
-                .begin_handoff(character, &zone, &to_zone, &state)
-                .await?;
-            let row = hub
-                .db
-                .character(character)
-                .await?
-                .ok_or(HubError::NotFound)?;
-            Ok(HubResponse::Ticket(hub.ticket_for(
-                &to_zone,
-                row.account_id,
-                character,
-            )?))
-        }
+        } => zones::handoff(hub, auth, character, state, to_zone, web).await,
         HubRequest::Econ {
             session,
             character,
             op,
-        } => {
-            let account = hub.session_account(session)?;
-            if !hub.econ_allowed(account) {
-                return Err(HubError::Busy);
-            }
-            let row = hub
-                .db
-                .character(character)
-                .await?
-                .filter(|r| r.account_id == account)
-                .ok_or(HubError::NotFound)?;
-            let zone = match row.summary().location {
-                LocationSummary::Zone(z) => Some(z),
-                _ => None,
-            };
-            // What moves items without the zone's hand (MODES.md 11.2) is told to the
-            // zone after: the storage, a stall of one's own, a craft, a trade (both sides).
-            let moves_items = matches!(
-                op,
-                EconOp::StorageDeposit { .. }
-                    | EconOp::StorageWithdraw { .. }
-                    | EconOp::StallList { .. }
-                    | EconOp::StallUnlist { .. }
-                    | EconOp::StallClose
-                    | EconOp::Craft { .. }
-                    | EconOp::Decompose { .. }
-                    | EconOp::TradeAccept { .. }
-                    | EconOp::SetBar { .. }
-            );
-            let trade = match &op {
-                EconOp::TradeAccept { trade, .. } => Some(*trade),
-                _ => None,
-            };
-            let reply = econ_op(hub, character, zone, op).await?;
-            if moves_items {
-                if let (Some(trade), EconReply::Trade { committed: true }) = (trade, &reply)
-                    && let Ok((a, b)) = hub.econ.trade_characters(trade).await
-                {
-                    tell_zone_of_items(hub, a).await;
-                    tell_zone_of_items(hub, b).await;
-                } else if trade.is_none() {
-                    tell_zone_of_items(hub, character).await;
-                }
-            }
-            Ok(HubResponse::Econ(reply))
-        }
-        HubRequest::ZoneEcon(op) => {
-            let zone = hub.zone_of_conn(auth)?;
-            Ok(HubResponse::Econ(zone_econ_op(hub, &zone, op).await?))
-        }
-        HubRequest::ZoneParty(op) => {
-            let zone = hub.zone_of_conn(auth)?;
-            Ok(HubResponse::Party(zone_party_op(hub, &zone, op).await?))
-        }
-        // Answered on the stream itself (`handle_stream`): they carry or return raw bytes.
+        } => market::econ(hub, session, character, op).await,
+        HubRequest::ZoneEcon(op) => market::zone_econ(hub, auth, op).await,
+        HubRequest::ZoneParty(op) => market::zone_party(hub, auth, op).await,
         HubRequest::ModelUpload { .. } | HubRequest::ModelGet { .. } => Err(HubError::Internal),
-        HubRequest::ModelList { session } => {
-            let account = hub.session_account(session)?;
-            Ok(HubResponse::Models(hub.models.list(account).await?))
-        }
-        HubRequest::ModelDrop { session, model } => {
-            let account = hub.session_account(session)?;
-            hub.models.drop_model(account, &model).await?;
-            Ok(HubResponse::Ok)
-        }
+        HubRequest::ModelList { session } => avatars::model_list(hub, session).await,
+        HubRequest::ModelDrop { session, model } => avatars::model_drop(hub, session, model).await,
         HubRequest::SetModel {
             session,
             character,
             model,
-        } => {
-            let account = hub.session_account(session)?;
-            let row = hub
-                .db
-                .character(character)
-                .await?
-                .filter(|r| r.account_id == account)
-                .ok_or(HubError::NotFound)?;
-            let frame = gm_model::rig::frame_index(row.build.frame);
-            hub.models
-                .set_model(account, character, frame, model.as_ref())
-                .await?;
-            Ok(HubResponse::Ok)
-        }
-        HubRequest::Mod { session, op } => {
-            let moderator = hub.moderator(session).await?;
-            match op {
-                ModOp::Queue { limit } => Ok(HubResponse::ModQueue(hub.models.queue(limit).await?)),
-                ModOp::Preview { .. } => Err(HubError::Internal),
-                ModOp::Decide {
-                    model,
-                    approve,
-                    code,
-                    reason,
-                } => {
-                    hub.models
-                        .decide(moderator, &model, approve, code, &reason)
-                        .await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::Takedown {
-                    model,
-                    code,
-                    reason,
-                    reference,
-                } => {
-                    let revoked = hub
-                        .models
-                        .takedown(moderator, &model, code, &reason, &reference)
-                        .await?;
-                    // The database already says so; now the zones and their clients.
-                    for model in revoked {
-                        hub.notify_all(HubNotice::ModelRevoked { model }).await;
-                    }
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::Reinstate { model, reason } => {
-                    hub.models.reinstate(moderator, &model, &reason).await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::SetUpload { email, allow } => {
-                    hub.models.set_upload(moderator, &email, allow).await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::SetTrust { email, tier } => {
-                    hub.models.set_trust(moderator, &email, tier).await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::ClearStrikes { email } => {
-                    hub.models.clear_strikes(moderator, &email).await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::AimReport { weeks, min_shots } => Ok(HubResponse::AimReport(
-                    hub.conduct.aim_report(moderator, weeks, min_shots).await?,
-                )),
-                ModOp::Replays {
-                    email,
-                    reported,
-                    flagged,
-                    limit,
-                } => Ok(HubResponse::Replays(
-                    hub.conduct
-                        .replays(moderator, email.as_deref(), reported, flagged, limit)
-                        .await?,
-                )),
-                // Answered on the stream itself (`handle_stream`): a blob.
-                ModOp::ReplayGet { .. } => Err(HubError::Internal),
-                ModOp::Reports { open_only } => Ok(HubResponse::Reports(
-                    hub.conduct.reports(moderator, open_only).await?,
-                )),
-                ModOp::ReportVerdict { id, verdict, note } => {
-                    hub.conduct
-                        .report_verdict(moderator, id, verdict, &note)
-                        .await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::Ban {
-                    email,
-                    days,
-                    reason,
-                    cheat,
-                } => {
-                    let (account, kicked) = hub
-                        .conduct
-                        .ban(moderator, &email, days, &reason, cheat)
-                        .await?;
-                    // The account's sessions end here, its characters leave their zones,
-                    // and its stalls close (ANTICHEAT.md 6).
-                    hub.state
-                        .lock()
-                        .unwrap()
-                        .sessions
-                        .retain(|_, s| s.account != account);
-                    for k in kicked {
-                        hub.notify(
-                            &k.zone,
-                            HubNotice::Kick {
-                                character: k.character,
-                                reason: format!("banned: {reason}"),
-                            },
-                        )
-                        .await;
-                    }
-                    // The ban stands whatever happens to the tidying after it.
-                    match hub.db.characters_of(account).await {
-                        Ok(rows) => {
-                            for row in rows {
-                                if let Ok((stall, zone)) = hub.econ.stall_close(row.id).await {
-                                    hub.notify(&zone, HubNotice::StallClosed { stall }).await;
-                                }
-                            }
-                        }
-                        Err(e) => warn!(account, "closing a banned account's stalls: {e}"),
-                    }
-                    info!(account, days, "account banned");
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::Unban { email, note } => {
-                    hub.conduct.unban(moderator, &email, &note).await?;
-                    Ok(HubResponse::Ok)
-                }
-                ModOp::Reputation { email } => Ok(HubResponse::Standing(
-                    hub.conduct.standing(moderator, &email).await?,
-                )),
-                ModOp::Adjust { email, delta, note } => {
-                    hub.conduct.adjust(moderator, &email, delta, &note).await?;
-                    Ok(HubResponse::Ok)
-                }
-            }
-        }
-        // Zones: conduct (ANTICHEAT.md 8).
+        } => avatars::set_model(hub, session, character, model).await,
+        HubRequest::Mod { session, op } => moderation::moderate(hub, session, op).await,
         HubRequest::ZoneAim {
             nonce,
             character,
             stats,
-        } => {
-            let zone = hub.zone_of_conn(auth)?;
-            // A zone speaks for the characters that play or played in it (a leaver's
-            // numbers arrive after it went): the character must exist, no more.
-            if hub.db.character(character).await?.is_none() {
-                return Err(HubError::NotFound);
-            }
-            hub.conduct.aim(&zone, nonce, character, &stats).await?;
-            Ok(HubResponse::Ok)
-        }
+        } => zones::zone_aim(hub, auth, nonce, character, stats).await,
         HubRequest::ZoneReport {
             reporter,
             target,
             reason,
-        } => {
-            let zone = hub.zone_of_conn(auth)?;
-            if hub.db.zone_of(reporter).await?.as_deref() != Some(zone.as_str()) {
-                return Err(HubError::Unauthorized);
-            }
-            let id = hub
-                .conduct
-                .report_open(&zone, reporter, target, reason)
-                .await?;
-            Ok(HubResponse::ReportOpened { id })
-        }
-        // Answered on the stream itself (`handle_stream`): it carries raw bytes.
+        } => zones::zone_report(hub, auth, reporter, target, reason).await,
         HubRequest::ZoneReplay { .. } => Err(HubError::Internal),
     }
 }

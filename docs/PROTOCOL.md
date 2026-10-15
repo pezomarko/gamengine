@@ -286,6 +286,19 @@ space (`server_tick`). No clock synchronisation is needed for either. The server
 1, 2 or 3 of a client's frames in one server tick (section 4); because every frame runs exactly
 once, the state after frame `t` is the same on both sides regardless of when it ran.
 
+**2026-10-15, the zone's run as code.** `crates/gm-server/src/zone.rs` became the directory
+`zone/`: `Run` (zone/run.rs) holds what the loop carried from tick to tick (the sessions,
+the hub's slots, the market mirror, the parties, the minds, the recorder, the counters),
+`start` and `finish` are its two ends, and `tick` (zone/step.rs) is the stages in order,
+each a method timed into the report's phases: the events in (one method per
+`ClientEvent`, by family: arrivals, gear, market, social, travel, conduct), the once-a-
+second bookkeeping, the minds' pre-step and the simulation step, the looks, the
+director's events (minds.rs), the simulation's (outcomes.rs), the snapshots and their
+datagrams (snapshot.rs), the recorder. `run_with_web` is the `select!` over the deadline
+and the shutdown, nothing else. A connection (net.rs) is likewise `handshake`, `admit`,
+`greet`, then a `Client` handling each datagram and each control message. Nothing on the
+wire changed.
+
 ### 7.2 Prediction and reconciliation (own entity)
 1. Each client tick: sample input, quantize it to the wire frame and **dequantize it back**
    (the server runs exactly those values), run `gm-core` (`sim::step_mover`) for the own entity
