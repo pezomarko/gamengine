@@ -241,10 +241,10 @@ impl App {
     /// A left click in the RPG mode (MODES.md 5.2, 5.5): a target, the primary at the
     /// target, or a walk.
     pub(super) fn rpg_click(&mut self) {
-        let Some((vp, size)) = self.last_vp else {
+        let Some((vp, size)) = self.view.last_vp else {
             return;
         };
-        let Some((from, dir)) = crate::rpg::Rpg::ray(vp, size, self.cursor) else {
+        let Some((from, dir)) = crate::rpg::Rpg::ray(vp, size, self.pointer.cursor) else {
             return;
         };
         let bodies = self.rpg_bodies();
@@ -253,7 +253,7 @@ impl App {
 
     /// The body under a pixel in the RPG mode, by the last frame's view.
     pub(super) fn rpg_under(&self, cursor: (f32, f32)) -> Option<u32> {
-        let (vp, size) = self.last_vp?;
+        let (vp, size) = self.view.last_vp?;
         let (from, dir) = crate::rpg::Rpg::ray(vp, size, cursor)?;
         crate::rpg::Rpg::pick(&self.bsp, from, dir, &self.rpg_bodies())
     }
@@ -261,7 +261,7 @@ impl App {
     /// The right button let go in the RPG mode: a tap on the target (no drag of the
     /// orbit, quick) is the secondary at it (MODES.md 5.5); a drag was the camera's.
     pub(super) fn rpg_right_release(&mut self) {
-        let Some((at, cursor, yaw, pitch)) = self.rpg_right.take() else {
+        let Some((at, cursor, yaw, pitch)) = self.pointer.rpg_right.take() else {
             return;
         };
         let quick = at.elapsed().as_secs_f32() < DOUBLE_CLICK_SECS;
@@ -278,7 +278,12 @@ impl App {
         if self.screen_up() {
             return Zone::Ui;
         }
-        if let Some((b, _)) = self.touch_buttons.iter().find(|(_, r)| r.contains(at)) {
+        if let Some((b, _)) = self
+            .pointer
+            .touch_buttons
+            .iter()
+            .find(|(_, r)| r.contains(at))
+        {
             return Zone::Button(*b);
         }
         if self.rpg_mode() {
@@ -377,13 +382,13 @@ impl App {
     /// What the fingers did since the last frame (MODES.md 5.6), as the mouse and the
     /// keys would have done it: before the look, which turns by a finger's drag.
     pub(super) fn fingers_frame(&mut self, up: bool) {
-        if let Some(at) = self.tap_fire
+        if let Some(at) = self.pointer.tap_fire
             && at.elapsed().as_secs_f32() > touch::TAP_HOLD_SECS
         {
-            self.tap_fire = None;
+            self.pointer.tap_fire = None;
             self.input.mouse.remove(&MouseButton::Left);
         }
-        if !self.fingers.seen {
+        if !self.pointer.fingers.seen {
             return;
         }
         let dpr = self
@@ -392,23 +397,23 @@ impl App {
             .map_or(1.0, |a| a.window.scale_factor() as f32)
             .max(0.5);
         let reach = touch::STICK_DOTS * self.ui_scale();
-        self.input.stick = self.fingers.stick(reach);
-        for event in self.fingers.drain() {
+        self.input.stick = self.pointer.fingers.stick(reach);
+        for event in self.pointer.fingers.drain() {
             match event {
                 TouchEvent::Press(Zone::Ui, at) => {
                     let now = Instant::now();
-                    let double = self.last_press.is_some_and(|(when, where_)| {
+                    let double = self.pointer.last_press.is_some_and(|(when, where_)| {
                         now.duration_since(when).as_secs_f32() < DOUBLE_CLICK_SECS
                             && (where_.0 - at.0).abs() < DOUBLE_CLICK_PIXELS * dpr
                             && (where_.1 - at.1).abs() < DOUBLE_CLICK_PIXELS * dpr
                     });
-                    self.last_press = (!double).then_some((now, at));
+                    self.pointer.last_press = (!double).then_some((now, at));
                     self.ui_press(at, double);
                 }
-                TouchEvent::Move(Zone::Ui, at) => self.cursor = at,
+                TouchEvent::Move(Zone::Ui, at) => self.pointer.cursor = at,
                 TouchEvent::Release(Zone::Ui, at) => {
-                    self.cursor = at;
-                    if self.ui_input.down {
+                    self.pointer.cursor = at;
+                    if self.screens.ui_input.down {
                         self.ui_release();
                     }
                 }
@@ -416,12 +421,12 @@ impl App {
                 TouchEvent::Release(Zone::Button(b), _) => self.touch_button(b, false),
                 TouchEvent::Press(..) | TouchEvent::Move(..) | TouchEvent::Release(..) => {}
                 TouchEvent::Tap(Zone::World, at) if !up => {
-                    self.cursor = at;
+                    self.pointer.cursor = at;
                     self.rpg_click();
                 }
                 TouchEvent::Tap(Zone::Look, _) if !up => {
                     self.input.mouse.insert(MouseButton::Left);
-                    self.tap_fire = Some(Instant::now());
+                    self.pointer.tap_fire = Some(Instant::now());
                 }
                 TouchEvent::Tap(..) => {}
                 TouchEvent::LongPress(Zone::World, at) if !up => {
@@ -449,8 +454,8 @@ impl App {
     /// free, a crosshair over the target (a click attacks), a hand over another body (a
     /// click targets), the arrow elsewhere; the arrow everywhere else.
     pub(super) fn show_cursor(&mut self) {
-        let want = if self.rpg_mode() && !self.grabbed && !self.screen_up() {
-            match self.rpg.hover(self.rpg_under(self.cursor)) {
+        let want = if self.rpg_mode() && !self.pointer.grabbed && !self.screen_up() {
+            match self.rpg.hover(self.rpg_under(self.pointer.cursor)) {
                 crate::rpg::Hover::Attack => CursorIcon::Crosshair,
                 crate::rpg::Hover::Body => CursorIcon::Pointer,
                 crate::rpg::Hover::Ground => CursorIcon::Default,
@@ -458,8 +463,8 @@ impl App {
         } else {
             CursorIcon::Default
         };
-        if want != self.cursor_icon {
-            self.cursor_icon = want;
+        if want != self.pointer.cursor_icon {
+            self.pointer.cursor_icon = want;
             if let Some(a) = self.active.as_ref() {
                 a.window.set_cursor(want);
             }
@@ -505,13 +510,13 @@ impl App {
             WindowEvent::Focused(false) => {
                 self.input.keys.clear();
                 self.input.mouse.clear();
-                self.fingers.clear();
+                self.pointer.fingers.clear();
                 self.set_grab(false);
             }
             WindowEvent::ModifiersChanged(held) => {
                 let held = held.state();
-                self.shift = held.shift_key();
-                self.command = (held.control_key() || held.super_key()) && !held.alt_key();
+                self.pointer.shift = held.shift_key();
+                self.pointer.command = (held.control_key() || held.super_key()) && !held.alt_key();
             }
             WindowEvent::Focused(true) => {
                 if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() {
@@ -519,7 +524,7 @@ impl App {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor = (position.x as f32, position.y as f32);
+                self.pointer.cursor = (position.x as f32, position.y as f32);
             }
             WindowEvent::Touch(t) => {
                 let at = (t.location.x as f32, t.location.y as f32);
@@ -531,7 +536,8 @@ impl App {
                 };
                 let zone = self.touch_zone(at);
                 let slop = touch::SLOP_DOTS * self.ui_scale();
-                self.fingers
+                self.pointer
+                    .fingers
                     .touch(t.id, phase, at, Instant::now(), slop, |_| zone);
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -540,7 +546,7 @@ impl App {
                     MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
                 };
                 if self.screen_up() {
-                    self.ui_input.wheel += turn;
+                    self.screens.ui_input.wheel += turn;
                 } else if self.rpg_mode() {
                     // The orbit camera's distance (MODES.md 5.5).
                     self.rpg.dist = (self.rpg.dist - turn * 20.0)
@@ -567,13 +573,13 @@ impl App {
             // The pointer is the screen's (CLIENT.md 3): a click is a widget's.
             if button == MouseButton::Left {
                 let now = Instant::now();
-                let double = self.last_press.is_some_and(|(at, where_)| {
+                let double = self.pointer.last_press.is_some_and(|(at, where_)| {
                     now.duration_since(at).as_secs_f32() < DOUBLE_CLICK_SECS
-                        && (where_.0 - self.cursor.0).abs() < DOUBLE_CLICK_PIXELS
-                        && (where_.1 - self.cursor.1).abs() < DOUBLE_CLICK_PIXELS
+                        && (where_.0 - self.pointer.cursor.0).abs() < DOUBLE_CLICK_PIXELS
+                        && (where_.1 - self.pointer.cursor.1).abs() < DOUBLE_CLICK_PIXELS
                 });
-                self.last_press = (!double).then_some((now, self.cursor));
-                self.ui_press(self.cursor, double);
+                self.pointer.last_press = (!double).then_some((now, self.pointer.cursor));
+                self.ui_press(self.pointer.cursor, double);
             }
         } else if self.rpg_mode() {
             // The RPG mode (MODES.md 5.5): the left button picks a body or a place on
@@ -581,14 +587,18 @@ impl App {
             match button {
                 MouseButton::Left => self.rpg_click(),
                 MouseButton::Right => {
-                    self.rpg_right =
-                        Some((Instant::now(), self.cursor, self.sim.yaw, self.sim.pitch));
+                    self.pointer.rpg_right = Some((
+                        Instant::now(),
+                        self.pointer.cursor,
+                        self.sim.yaw,
+                        self.sim.pitch,
+                    ));
                     self.input.mouse.insert(button);
                     self.set_grab(true);
                 }
                 _ => {}
             }
-        } else if !self.grabbed && self.opts.bench_frames.is_none() {
+        } else if !self.pointer.grabbed && self.opts.bench_frames.is_none() {
             self.set_grab(true);
         } else {
             self.press_in_game(button);
@@ -598,10 +608,10 @@ impl App {
     /// A mouse button let go.
     fn mouse_release(&mut self, button: MouseButton) {
         self.input.mouse.remove(&button);
-        if button == MouseButton::Left && self.ui_input.down {
+        if button == MouseButton::Left && self.screens.ui_input.down {
             self.ui_release();
         }
-        if button == MouseButton::Right && self.rpg_mode() && self.grabbed {
+        if button == MouseButton::Right && self.rpg_mode() && self.pointer.grabbed {
             self.set_grab(false);
             self.rpg_right_release();
         }
@@ -618,7 +628,7 @@ impl App {
         let key = match code {
             Some(KeyCode::Enter | KeyCode::NumpadEnter) => Some(Key::Enter),
             Some(KeyCode::Escape) => Some(Key::Escape),
-            Some(KeyCode::Tab) if self.shift => Some(Key::BackTab),
+            Some(KeyCode::Tab) if self.pointer.shift => Some(Key::BackTab),
             Some(KeyCode::Tab) => Some(Key::Tab),
             Some(KeyCode::Backspace) => Some(Key::Backspace),
             Some(KeyCode::Delete) => Some(Key::Delete),
@@ -663,7 +673,8 @@ impl App {
                 winit::keyboard::Key::Character(c) if c.is_ascii() => c.eq_ignore_ascii_case("v"),
                 _ => code == Some(KeyCode::KeyV),
             };
-            if (self.command && v) || (self.shift && code == Some(KeyCode::Insert)) {
+            if (self.pointer.command && v) || (self.pointer.shift && code == Some(KeyCode::Insert))
+            {
                 self.paste();
                 return;
             }
@@ -678,7 +689,7 @@ impl App {
             // With Ctrl held a key is a shortcut, not a letter (and a key that has no
             // place on this keyboard's map still has its text: a program that types for
             // a person sends such).
-            (None, Some(text)) if !self.command => self.ui_text(text),
+            (None, Some(text)) if !self.pointer.command => self.ui_text(text),
             _ => {}
         }
     }
@@ -708,11 +719,11 @@ impl App {
             KeyCode::KeyK => self.ui_key(Key::Character),
             KeyCode::Tab => self.ui_key(Key::Tab),
             KeyCode::KeyV if self.online.is_none() => {
-                self.viewport = match self.viewport {
+                self.view.viewport = match self.view.viewport {
                     Viewport::First => Viewport::Third,
                     Viewport::Third => Viewport::First,
                 };
-                log::info!("viewport: {:?}", self.viewport);
+                log::info!("viewport: {:?}", self.view.viewport);
             }
             _ => {}
         }
@@ -721,7 +732,7 @@ impl App {
     /// The mouse moved while the pointer is held: the look turns.
     pub(super) fn device_event(&mut self, event: DeviceEvent) {
         if let DeviceEvent::MouseMotion { delta } = event
-            && self.grabbed
+            && self.pointer.grabbed
         {
             self.input.mouse_dx += delta.0 as f32;
             self.input.mouse_dy += delta.1 as f32;

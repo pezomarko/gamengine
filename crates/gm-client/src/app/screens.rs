@@ -4,13 +4,13 @@ impl App {
     /// A screen has the pointer and the keys: one before the game, or the game menu
     /// (CLIENT.md 6).
     pub(super) fn screen_up(&self) -> bool {
-        self.front_up
-            || self.menu.is_some()
-            || self.bag.is_some()
-            || self.people.is_some()
-            || self.gm_page.is_some()
-            || self.character_page.is_some()
-            || self.title.is_some()
+        self.screens.front_up
+            || self.screens.menu.is_some()
+            || self.screens.bag.is_some()
+            || self.screens.people.is_some()
+            || self.screens.gm_page.is_some()
+            || self.screens.character_page.is_some()
+            || self.screens.title.is_some()
     }
 
     /// The hub and the session and character it is asked about, while one is played.
@@ -22,7 +22,11 @@ impl App {
         gm_hub_proto::protocol::CharacterId,
     )> {
         let playing = self.online.as_ref().is_some_and(|o| o.client.is_some());
-        match (&self.hub, &self.account, self.character) {
+        match (
+            &self.session.hub,
+            &self.session.account,
+            self.session.character,
+        ) {
             (Some(hub), Some(account), Some(character)) if playing => {
                 Some((hub, account.session, character))
             }
@@ -46,18 +50,18 @@ impl App {
     /// `I`: the inventory of the character being played; with it up already, the bag's
     /// grid shown or hidden beside the equipment (EQUIPMENT.md 4).
     pub(super) fn open_inventory(&mut self) {
-        if let Some(bag) = &mut self.bag
+        if let Some(bag) = &mut self.screens.bag
             && bag.page == crate::bag::Page::Inventory
         {
             if !bag.toggle_grid() {
-                self.bag = None;
+                self.screens.bag = None;
             }
             return;
         }
         match self.owner() {
             Some((hub, session, character)) => {
-                self.bag = Some(Bag::inventory(hub, session, character, Instant::now()));
-                self.menu = None;
+                self.screens.bag = Some(Bag::inventory(hub, session, character, Instant::now()));
+                self.screens.menu = None;
                 self.release_keys();
             }
             None => self.note("there is no inventory without a hub"),
@@ -68,18 +72,18 @@ impl App {
     /// wears, with the places at its sides; with the inventory up already, shown or
     /// hidden beside the bag.
     pub(super) fn open_equipment(&mut self) {
-        if let Some(bag) = &mut self.bag
+        if let Some(bag) = &mut self.screens.bag
             && bag.page == crate::bag::Page::Inventory
         {
             if !bag.toggle_equip() {
-                self.bag = None;
+                self.screens.bag = None;
             }
             return;
         }
         match self.owner() {
             Some((hub, session, character)) => {
-                self.bag = Some(Bag::equipment(hub, session, character, Instant::now()));
-                self.menu = None;
+                self.screens.bag = Some(Bag::equipment(hub, session, character, Instant::now()));
+                self.screens.menu = None;
                 self.release_keys();
             }
             None => self.note("there is no equipment without a hub"),
@@ -95,9 +99,9 @@ impl App {
         // (Without a hub the page still says who is here; it asks the hub nothing.)
         let nobody = (gm_hub_proto::protocol::SessionId([0; 16]), 0);
         let (session, character) = self.owner().map_or(nobody, |(_, s, c)| (s, c));
-        self.people = Some(People::here(session, character, Instant::now()));
-        self.menu = None;
-        self.bag = None;
+        self.screens.people = Some(People::here(session, character, Instant::now()));
+        self.screens.menu = None;
+        self.screens.bag = None;
         self.release_keys();
     }
 
@@ -108,11 +112,11 @@ impl App {
         if o.client.is_none() {
             return;
         }
-        self.character_page = Some(CharacterPage::default());
-        self.menu = None;
-        self.bag = None;
-        self.people = None;
-        self.gm_page = None;
+        self.screens.character_page = Some(CharacterPage::default());
+        self.screens.menu = None;
+        self.screens.bag = None;
+        self.screens.people = None;
+        self.screens.gm_page = None;
         self.release_keys();
     }
 
@@ -121,7 +125,7 @@ impl App {
     pub(super) fn character_act(&mut self, action: CharacterAction) {
         match action {
             CharacterAction::None => {}
-            CharacterAction::Close => self.character_page = None,
+            CharacterAction::Close => self.screens.character_page = None,
             CharacterAction::Wear(build) => {
                 if let Some(o) = &mut self.online {
                     o.respec_note = "asked".into();
@@ -162,11 +166,11 @@ impl App {
             self.note("the zone did not make this character a game master");
             return;
         }
-        self.gm_page = Some(GmPage::default());
-        self.menu = None;
-        self.bag = None;
-        self.people = None;
-        self.character_page = None;
+        self.screens.gm_page = Some(GmPage::default());
+        self.screens.menu = None;
+        self.screens.bag = None;
+        self.screens.people = None;
+        self.screens.character_page = None;
         self.release_keys();
     }
 
@@ -174,7 +178,7 @@ impl App {
     pub(super) fn gm_act(&mut self, action: GmAction) {
         match action {
             GmAction::None => {}
-            GmAction::Close => self.gm_page = None,
+            GmAction::Close => self.screens.gm_page = None,
             GmAction::Send(op) => {
                 if let Some(o) = &mut self.online {
                     o.gm_note = "asked".into();
@@ -188,15 +192,15 @@ impl App {
     pub(super) fn people_act(&mut self, action: PeopleAction) {
         match action {
             PeopleAction::None => {}
-            PeopleAction::Close => self.people = None,
+            PeopleAction::Close => self.screens.people = None,
             PeopleAction::Zone(say) => {
                 if let Some(o) = &mut self.online {
                     o.net.send_control(say);
                 }
             }
             PeopleAction::Whisper(name) => {
-                self.people = None;
-                self.chat.open_with(format!("/w {name} "));
+                self.screens.people = None;
+                self.screens.chat.open_with(format!("/w {name} "));
             }
         }
     }
@@ -210,8 +214,8 @@ impl App {
         match self.owner() {
             Some((hub, session, character)) => {
                 let now = Instant::now();
-                self.bag = Some(Bag::stall(hub, session, character, id, &owner, now));
-                self.menu = None;
+                self.screens.bag = Some(Bag::stall(hub, session, character, id, &owner, now));
+                self.screens.menu = None;
                 self.release_keys();
             }
             None => self.note("there is nothing to look at without a hub"),
@@ -228,7 +232,7 @@ impl App {
 
     /// The keys are the toolkit's: a screen is up, or the chat line is open.
     pub(super) fn capturing(&self) -> bool {
-        self.screen_up() || self.chat.open
+        self.screen_up() || self.screens.chat.open
     }
 
     /// Whether the game would hold the pointer for mouse look if it had the window.
@@ -252,20 +256,23 @@ impl App {
     /// A person is at the client: when a zone's connection ends, the characters are shown
     /// again. A client on autopilot or joined directly ends with its connection.
     pub(super) fn returns_to_screens(&self) -> bool {
-        self.front.as_ref().is_some_and(|f| !f.on_autopilot())
+        self.screens
+            .front
+            .as_ref()
+            .is_some_and(|f| !f.on_autopilot())
     }
 
     /// A key the screens act on was pressed, by a person or by a script (CLIENT.md 6).
     pub(super) fn ui_key(&mut self, key: Key) {
         if self.capturing() {
-            self.ui_input.keys.push(key);
+            self.screens.ui_input.keys.push(key);
             return;
         }
         // In the game: Enter opens the chat line, Escape the menu (a replay has the menu too:
         // it is where Quit is).
         match key {
             Key::Enter if self.online.as_ref().is_some_and(|o| o.client.is_some()) => {
-                self.chat.open = true;
+                self.screens.chat.open = true;
                 self.release_keys();
             }
             // In the RPG mode a target is let go first (MODES.md 5.2).
@@ -273,7 +280,7 @@ impl App {
                 self.rpg.clear_target();
             }
             Key::Escape if self.opts.bench_frames.is_none() => {
-                self.menu = Some(GameMenu::default());
+                self.screens.menu = Some(GameMenu::default());
                 self.release_keys();
             }
             Key::Tab if self.rpg_mode() => self.rpg_cycle(),
@@ -295,7 +302,8 @@ impl App {
     /// Characters were typed.
     pub(super) fn ui_text(&mut self, text: &str) {
         if self.capturing() {
-            self.ui_input
+            self.screens
+                .ui_input
                 .text
                 .extend(text.chars().filter(|c| !c.is_control()));
         }
@@ -303,30 +311,30 @@ impl App {
 
     /// The left button went down at `at` while a screen is up.
     pub(super) fn ui_press(&mut self, at: (f32, f32), double: bool) {
-        self.cursor = at;
-        self.ui_input.pressed = true;
-        self.ui_input.down = true;
-        self.ui_input.double = double;
+        self.pointer.cursor = at;
+        self.screens.ui_input.pressed = true;
+        self.screens.ui_input.down = true;
+        self.screens.ui_input.double = double;
     }
 
     pub(super) fn ui_release(&mut self) {
-        self.ui_input.released = true;
-        self.ui_input.down = false;
+        self.screens.ui_input.released = true;
+        self.screens.ui_input.down = false;
     }
 
     /// What a person changed is written down; a run that changed nothing leaves the
     /// file alone (CLIENT.md 8).
     pub(super) fn keep_settings(&mut self) {
-        if self.settings == self.settings_kept {
+        if self.settings == self.prefs.kept {
             return;
         }
         #[cfg(not(target_arch = "wasm32"))]
-        if let Some(path) = &self.settings_path {
+        if let Some(path) = &self.prefs.path {
             self.settings.save(path);
         }
         #[cfg(target_arch = "wasm32")]
         self.settings.save();
-        self.settings_kept = self.settings.clone();
+        self.prefs.kept = self.settings.clone();
     }
 
     /// What the settings say, done: called when one changes and when the window is ready.
@@ -363,20 +371,22 @@ impl App {
                 },
             );
         if read.is_ok() {
-            self.pasting = Some(rx);
+            self.pointer.pasting = Some(rx);
         }
     }
 
     /// What a paste brought, typed where the keyboard is now.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn pasted(&mut self) {
-        let Some(rx) = &self.pasting else { return };
+        let Some(rx) = &self.pointer.pasting else {
+            return;
+        };
         match rx.try_recv() {
             Ok(text) => {
-                self.pasting = None;
+                self.pointer.pasting = None;
                 self.ui_text(&text);
             }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.pasting = None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.pointer.pasting = None,
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
         }
     }
@@ -388,7 +398,7 @@ impl App {
         let say = match action {
             BagAction::None => return,
             BagAction::Close => {
-                self.bag = None;
+                self.screens.bag = None;
                 return;
             }
             BagAction::Buy {
@@ -435,7 +445,7 @@ impl App {
         }
         match menu {
             MenuAction::None => {}
-            MenuAction::Resume => self.menu = None,
+            MenuAction::Resume => self.screens.menu = None,
             MenuAction::Inventory => self.open_inventory(),
             MenuAction::Equipment => self.open_equipment(),
             MenuAction::People => self.open_people(),
@@ -446,7 +456,7 @@ impl App {
                     o.net.send_control(FromClient::Travel(zone.clone()));
                     o.say(format!("travel to {zone} requested"), hud::DIM);
                 }
-                self.menu = None;
+                self.screens.menu = None;
             }
             MenuAction::Leave => self.leave_zone(""),
             MenuAction::Quit => event_loop.exit(),
@@ -455,13 +465,13 @@ impl App {
             MenuAction::PageFullscreen => {
                 #[cfg(target_arch = "wasm32")]
                 crate::web::tell_page("fullscreen", "toggle");
-                self.menu = None;
+                self.screens.menu = None;
             }
         }
         match front {
             Action::None => {}
             Action::Session(account) => {
-                if let Some(hub) = &self.hub {
+                if let Some(hub) = &self.session.hub {
                     hub.set_session(account.as_ref().map(|a| a.session));
                 }
                 if let Some(a) = &account
@@ -469,7 +479,7 @@ impl App {
                 {
                     self.settings.email = a.email.clone();
                 }
-                self.account = account;
+                self.session.account = account;
             }
             Action::Enter { ticket, name } => self.enter_zone(*ticket, name, event_loop),
             Action::CancelEntering => self.hang_up(),
@@ -483,19 +493,20 @@ impl App {
     #[cfg(target_arch = "wasm32")]
     pub(super) fn page_frame(&mut self) {
         use crate::front::Screen;
-        if let Some(front) = &mut self.front {
-            let at_login = self.front_up && front.screen == Screen::Login && !front.on_autopilot();
+        if let Some(front) = &mut self.screens.front {
+            let at_login =
+                self.screens.front_up && front.screen == Screen::Login && !front.on_autopilot();
             // The form is shown while the login screen is up, with the last refusal.
             let tell = match (at_login, front.busy()) {
                 (true, false) => format!("login {}", front.notice()),
                 (true, true) => "login-wait ".to_string(),
                 (false, _) => "screen ".to_string(),
             };
-            if tell != self.told {
+            if tell != self.web.told {
                 if let Some((kind, text)) = tell.split_once(' ') {
                     crate::web::tell_page(kind, text);
                 }
-                self.told = tell;
+                self.web.told = tell;
             }
             if at_login
                 && !front.busy()
@@ -508,27 +519,28 @@ impl App {
         // The pointer: Escape gives it back to the browser and never reaches the page, so
         // losing it is what Escape is here: the menu opens, or the chat line is dropped.
         let locked = crate::web::pointer_locked();
-        if self.grabbed && !locked {
+        if self.pointer.grabbed && !locked {
             let waited = self
+                .pointer
                 .grab_asked
                 .is_none_or(|at| at.elapsed().as_secs_f32() > 0.5);
-            if self.was_locked {
-                self.grabbed = false;
-                if self.chat.open {
-                    self.chat.drop_line();
+            if self.web.was_locked {
+                self.pointer.grabbed = false;
+                if self.screens.chat.open {
+                    self.screens.chat.drop_line();
                 } else if !self.screen_up() {
                     self.ui_key(Key::Escape);
                 }
             } else if waited {
                 // It was asked for and never given: the next click asks again.
-                self.grabbed = false;
+                self.pointer.grabbed = false;
             }
         }
         // Given later than it was waited for: it is the game's all the same.
-        if locked && !self.grabbed && self.wants_pointer() {
-            self.grabbed = true;
+        if locked && !self.pointer.grabbed && self.wants_pointer() {
+            self.pointer.grabbed = true;
         }
-        self.was_locked = locked;
+        self.web.was_locked = locked;
     }
 
     /// The phone's keyboard is the browser's (WEB.md 3.6): the page is told which text
@@ -552,9 +564,10 @@ impl App {
             }
         }
         let field = if self.capturing() {
-            self.ui.typing_in().map(|label| {
+            self.screens.ui.typing_in().map(|label| {
                 let head = format!("{label}: ");
-                self.ui
+                self.screens
+                    .ui
                     .seen
                     .iter()
                     .filter(|s| s.kind == ui::SeenKind::Field)
@@ -565,22 +578,23 @@ impl App {
         } else {
             None
         };
-        if field != self.told_field {
+        if field != self.web.told_field {
             match &field {
                 Some(value) => crate::web::tell_page("field", value),
                 None => crate::web::tell_page("no-field", ""),
             }
-            self.told_field = field;
+            self.web.told_field = field;
         }
         // The fields' places, for a finger (a mouse needs no keyboard brought up).
         let mut rects = Vec::new();
-        if self.fingers.seen && self.capturing() {
+        if self.pointer.fingers.seen && self.capturing() {
             let dpr = self
                 .active
                 .as_ref()
                 .map_or(1.0, |a| a.window.scale_factor() as f32)
                 .max(0.5);
             for s in self
+                .screens
                 .ui
                 .seen
                 .iter()
@@ -594,22 +608,22 @@ impl App {
                 ]);
             }
         }
-        if rects != self.told_fields {
+        if rects != self.web.told_fields {
             crate::web::tell_fields(&rects);
-            self.told_fields = rects;
+            self.web.told_fields = rects;
         }
     }
 
     /// What the script does this frame goes in where a person's events would (CLIENT.md 9).
     /// `false`: the script failed and the program is ending.
     pub(super) fn run_script(&mut self, event_loop: &ActiveEventLoop) -> bool {
-        let Some(script) = &mut self.ui_script else {
+        let Some(script) = &mut self.screens.ui_script else {
             return true;
         };
-        if !std::mem::take(&mut self.ui_drawn) {
+        if !std::mem::take(&mut self.screens.ui_drawn) {
             return true;
         }
-        let events = match script.step(&self.ui, Instant::now()) {
+        let events = match script.step(&self.screens.ui, Instant::now()) {
             Ok(events) => events,
             Err(e) => {
                 self.fail(event_loop, &e);
@@ -620,7 +634,7 @@ impl App {
             match event {
                 crate::script::Event::Press { at, double } => self.ui_press(at, double),
                 crate::script::Event::Release => self.ui_release(),
-                crate::script::Event::Move(at) => self.cursor = at,
+                crate::script::Event::Move(at) => self.pointer.cursor = at,
                 crate::script::Event::Text(text) => self.ui_text(&text),
                 crate::script::Event::Key(key) => self.ui_key(key),
                 crate::script::Event::Say(text) => {
@@ -638,7 +652,7 @@ impl App {
                         if let Some(o) = &mut self.online {
                             o.net.close();
                         }
-                        if let Some(hub) = &self.hub {
+                        if let Some(hub) = &self.session.hub {
                             hub.logout();
                         }
                         crate::web::tell_page("done", "ui-script: ok");
@@ -662,7 +676,7 @@ impl App {
     /// screen, whose pixels are small under a finger: there by the device's pixel ratio
     /// (CLIENT.md 3, MODES.md 5.6), still never larger than the panels can fit.
     pub(super) fn ui_scale_choice(&self) -> u8 {
-        if self.settings.ui_scale != 0 || !self.fingers.seen {
+        if self.settings.ui_scale != 0 || !self.pointer.fingers.seen {
             return self.settings.ui_scale;
         }
         let dpr = self

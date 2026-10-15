@@ -95,11 +95,11 @@ impl App {
         }
         self.input.just_pressed.clear();
         p.advance(frame_dt);
-        self.entities.clear();
-        self.bodies.clear();
-        let outside = self.viewport == Viewport::Third;
-        let (eye, yaw, pitch) = p.scene(outside, &mut self.bodies, &mut self.entities);
-        if self.viewport == Viewport::Third {
+        self.scene.entities.clear();
+        self.scene.bodies.clear();
+        let outside = self.view.viewport == Viewport::Third;
+        let (eye, yaw, pitch) = p.scene(outside, &mut self.scene.bodies, &mut self.scene.entities);
+        if self.view.viewport == Viewport::Third {
             (third_person_camera(&self.bsp, eye, yaw, pitch), yaw, pitch)
         } else {
             (eye, yaw, pitch)
@@ -160,7 +160,7 @@ impl App {
         self.poll_bar();
         #[cfg(target_arch = "wasm32")]
         if self.active.is_none() {
-            let made = self.pending_gpu.borrow_mut().take();
+            let made = self.web.pending_gpu.borrow_mut().take();
             match (made, self.window.clone()) {
                 (Some(Ok((surface, gpu))), Some(window)) => {
                     if let Err(e) = self.activate(window, surface, gpu) {
@@ -175,12 +175,12 @@ impl App {
                 _ => {}
             }
         }
-        if let Some((bsp, hash)) = self.pending_map.take() {
+        if let Some((bsp, hash)) = self.world.pending_map.take() {
             self.switch_map(bsp, hash);
         }
         let now = Instant::now();
-        let frame_dt = (now - self.last_frame).as_secs_f32();
-        self.last_frame = now;
+        let frame_dt = (now - self.clock.last_frame).as_secs_f32();
+        self.clock.last_frame = now;
         #[cfg(not(target_arch = "wasm32"))]
         self.pasted();
         if !self.run_script(event_loop) {
@@ -188,15 +188,16 @@ impl App {
         }
         #[cfg(target_arch = "wasm32")]
         self.page_frame();
-        self.leaving
+        self.session
+            .leaving
             .retain(|(net, since)| !net.gone() && since.elapsed().as_secs_f32() < 1.0);
         // A session lives while it is used, and a zone is played without a word to the hub:
         // now and then the client says one (HUB.md 3.1).
         if self.online.is_some()
-            && self.hub_touched.elapsed().as_secs() >= SESSION_TOUCH_SECS
-            && let (Some(hub), Some(account)) = (&self.hub, &self.account)
+            && self.session.hub_touched.elapsed().as_secs() >= SESSION_TOUCH_SECS
+            && let (Some(hub), Some(account)) = (&self.session.hub, &self.session.account)
         {
-            self.hub_touched = Instant::now();
+            self.session.hub_touched = Instant::now();
             let session = account.session;
             // Nobody waits for the answer.
             let _ = hub.call(PlayerRequest::ListZones { session });
@@ -211,12 +212,12 @@ impl App {
     /// Returns whether a screen is up.
     fn pointer_frame(&mut self) -> bool {
         let up = self.screen_up();
-        if up != self.was_up {
-            self.was_up = up;
+        if up != self.screens.was_up {
+            self.screens.was_up = up;
             if up {
                 self.release_keys();
                 self.set_grab(false);
-            } else if self.wants_pointer() && self.focused() && !self.fingers.seen {
+            } else if self.wants_pointer() && self.focused() && !self.pointer.fingers.seen {
                 self.set_grab(true);
             }
         }
@@ -233,12 +234,12 @@ impl App {
     /// taunter with the body, and the mouse moves nothing until the taunt is out.
     fn look_frame(&mut self, frame_dt: f32, up: bool, bench: bool) {
         if bench && self.opts.crowd > 0 {
-            let t = self.started.elapsed().as_secs_f32();
-            self.sim.yaw = self.bench_yaw0 + BENCH_CROWD_SWING_DEG * (t * 0.7).sin();
+            let t = self.clock.started.elapsed().as_secs_f32();
+            self.sim.yaw = self.view.bench_yaw0 + BENCH_CROWD_SWING_DEG * (t * 0.7).sin();
         } else if bench {
             self.sim.yaw += BENCH_YAW_DEG_PER_S * frame_dt;
-        } else if (self.grabbed || self.fingers.turning()) && !up {
-            let turn = self.settings.sensitivity / self.zoom.max(1.0);
+        } else if (self.pointer.grabbed || self.pointer.fingers.turning()) && !up {
+            let turn = self.settings.sensitivity / self.view.zoom.max(1.0);
             let tilt = if self.settings.invert { -turn } else { turn };
             self.sim.yaw -= self.input.mouse_dx * turn;
             let (low, high) = if self.rpg_mode() {
@@ -280,20 +281,21 @@ impl App {
         if self.online.is_some() {
             let camera = self.online_frame(frame_dt, event_loop)?;
             // The zone has the character: the screens step aside.
-            if self.front_up && self.online.as_ref().is_some_and(|o| o.client.is_some()) {
-                self.front_up = false;
-                self.chat.clear();
+            if self.screens.front_up && self.online.as_ref().is_some_and(|o| o.client.is_some()) {
+                self.screens.front_up = false;
+                self.screens.chat.clear();
             }
             // Its connection ended and a person is here: back to the characters.
-            if let Some(why) = self.zone_ended.take() {
+            if let Some(why) = self.session.zone_ended.take() {
                 self.leave_zone(&why);
             }
             return Some(camera);
         }
-        if self.front_up || self.title.is_some() {
-            self.entities.clear();
-            self.bodies.clear();
-            let yaw = self.bench_yaw0 + BACKDROP_DEG_PER_S * self.started.elapsed().as_secs_f32();
+        if self.screens.front_up || self.screens.title.is_some() {
+            self.scene.entities.clear();
+            self.scene.bodies.clear();
+            let yaw = self.view.bench_yaw0
+                + BACKDROP_DEG_PER_S * self.clock.started.elapsed().as_secs_f32();
             return Some((self.sim.eye(), yaw.rem_euclid(360.0), 0.0));
         }
         Some(self.offline_frame(frame_dt, bench))
@@ -311,7 +313,7 @@ impl App {
         } else if walk {
             // A second standing, five seconds forward, standing again (SOUND.md 7):
             // what the sound gate renders to a file.
-            let t = self.started.elapsed().as_secs_f32();
+            let t = self.clock.started.elapsed().as_secs_f32();
             MoveInput {
                 yaw: self.sim.yaw,
                 forward: if (1.0..6.0).contains(&t) { 1.0 } else { 0.0 },
@@ -323,9 +325,9 @@ impl App {
         self.input.just_pressed.clear();
         self.sim.advance(&self.bsp, &input, frame_dt);
         self.offline_sound(frame_dt);
-        self.entities.clear();
-        self.bodies.clear();
-        match self.viewport {
+        self.scene.entities.clear();
+        self.scene.bodies.clear();
+        match self.view.viewport {
             Viewport::First => self.offline_view_model(frame_dt),
             _ => self.offline_body(),
         }
@@ -343,11 +345,11 @@ impl App {
             gm_core::sim::anim::IDLE
         };
         let here = self.sim.origin();
-        let travel = match (self.sim.curr.on_ground, self.sound_from) {
+        let travel = match (self.sim.curr.on_ground, self.offline.sound_from) {
             (true, Some(from)) => (here - from).truncate().length(),
             _ => 0.0,
         };
-        self.sound_from = Some(here);
+        self.offline.sound_from = Some(here);
         let me = crate::sound::cues::OwnNow {
             id: 0,
             pos: self.sim.origin(),
@@ -356,7 +358,7 @@ impl App {
             health: 0,
             alive: true,
         };
-        let now = self.started.elapsed().as_secs_f32();
+        let now = self.clock.started.elapsed().as_secs_f32();
         // (No zone here: the word's tick is the frame clock at 64 Hz.)
         self.sound.own(now, me, &[((now * 64.0) as u32, anim)], &[]);
         let listener = crate::sound::Listener {
@@ -370,14 +372,14 @@ impl App {
     /// view with its stride's bob; R held works a reload over and over, to see it.
     fn offline_view_model(&mut self, frame_dt: f32) -> (Vec3, f32, f32) {
         let eye = self.sim.eye();
-        self.view_stride += self.sim.curr.velocity.truncate().length() * frame_dt / 64.0;
-        let t = self.started.elapsed().as_secs_f32();
+        self.view.stride += self.sim.curr.velocity.truncate().length() * frame_dt / 64.0;
+        let t = self.clock.started.elapsed().as_secs_f32();
         let reload = if self.input.down(KeyCode::KeyR) {
             (t / 2.4).fract()
         } else {
             0.0
         };
-        self.view_model = self.offline_prop.map(|slot| ViewModel {
+        self.view.model = self.offline.prop.map(|slot| ViewModel {
             slot,
             fit: self
                 .opts
@@ -388,7 +390,7 @@ impl App {
             yaw: self.sim.yaw,
             pitch: self.sim.pitch,
             stride: if self.sim.curr.on_ground {
-                self.view_stride
+                self.view.stride
             } else {
                 0.0
             },
@@ -404,7 +406,7 @@ impl App {
     /// hold and wear (`--prop FILE`, `--off`, `--worn`, `--sheathed`, CONTENT.md 9).
     fn offline_body(&mut self) -> (Vec3, f32, f32) {
         let v = self.sim.curr.velocity;
-        self.bodies.push(Body {
+        self.scene.bodies.push(Body {
             key: OWN,
             origin: self.sim.origin(),
             yaw: self.sim.yaw,
@@ -427,11 +429,11 @@ impl App {
             model: None,
             distance: 0.0,
             lit: 0.0,
-            prop: self.offline_prop,
-            off: self.offline_off,
-            worn: crate::avatars::places(&self.offline_worn).0,
-            hide: crate::avatars::places(&self.offline_worn).1,
-            sheathed: self.offline_sheathed,
+            prop: self.offline.prop,
+            off: self.offline.off,
+            worn: crate::avatars::places(&self.offline.worn).0,
+            hide: crate::avatars::places(&self.offline.worn).1,
+            sheathed: self.offline.sheathed,
         });
         (
             third_person_camera(&self.bsp, self.sim.eye(), self.sim.yaw, self.sim.pitch),
@@ -443,14 +445,15 @@ impl App {
     /// The controls a finger may land on this frame (MODES.md 5.6), which the HUD draws
     /// where they are hit.
     fn touch_frame(&mut self, watching: bool, bench: bool) {
-        self.touch_buttons = if self.fingers.seen && !watching && !bench && !self.screen_up() {
-            let size = self.active.as_ref().map_or((1.0, 1.0), |a| {
-                (a.config.width.max(1) as f32, a.config.height.max(1) as f32)
-            });
-            touch_controls(size, self.ui_scale(), self.online.as_ref(), self.rpg_mode())
-        } else {
-            Vec::new()
-        };
+        self.pointer.touch_buttons =
+            if self.pointer.fingers.seen && !watching && !bench && !self.screen_up() {
+                let size = self.active.as_ref().map_or((1.0, 1.0), |a| {
+                    (a.config.width.max(1) as f32, a.config.height.max(1) as f32)
+                });
+                touch_controls(size, self.ui_scale(), self.online.as_ref(), self.rpg_mode())
+            } else {
+                Vec::new()
+            };
     }
 
     /// The world is drawn from the camera's leaf; then the frame's texture from the
@@ -483,8 +486,8 @@ impl App {
                 None
             }
             wgpu::CurrentSurfaceTexture::Timeout => {
-                self.acquire_timeouts += 1;
-                if self.acquire_timeouts == 3 {
+                self.clock.acquire_timeouts += 1;
+                if self.clock.acquire_timeouts == 3 {
                     log::warn!(
                         "the display is not releasing frames (Fifo on a compositor, or a sleeping monitor); try --present mailbox"
                     );
@@ -516,7 +519,7 @@ impl App {
             return Mat4::IDENTITY;
         };
         let aspect = a.config.width as f32 / a.config.height.max(1) as f32;
-        for id in self.revoked.drain(..) {
+        for id in self.scene.revoked.drain(..) {
             a.avatars.revoke(&id, &mut a.renderer.characters);
         }
         // The own avatar is the last thing the disk cache lets go of (MODELS.md 8).
@@ -549,23 +552,23 @@ impl App {
             }
         }
         a.avatars.begin_frame();
-        if let Some(v) = self.view_model.take() {
+        if let Some(v) = self.view.model.take() {
             a.avatars.view_model(
                 v.slot, v.fit, v.eye, v.yaw, v.pitch, v.stride, v.kick, v.swing, v.reload, v.light,
             );
         }
-        for body in &self.bodies {
+        for body in &self.scene.bodies {
             a.avatars.push(
                 body,
                 frame_dt,
                 &self.bsp,
                 &a.renderer.characters,
-                &mut self.entities,
+                &mut self.scene.entities,
             );
             // The ring of its aspects at its feet (MODELS.md 9, LOOK.md 13).
             if body.anim != gm_core::sim::anim::DEAD && body.aspects != 0 {
                 crate::fx::aspect_ring(
-                    &mut self.fx,
+                    &mut self.scene.fx,
                     body.origin + Vec3::Z * Hull::Player.mins().z,
                     body.yaw,
                     body.aspects,
@@ -573,17 +576,18 @@ impl App {
             }
         }
         // The frame's effects go to the renderer, which draws them after the bodies.
-        a.renderer.fx.verts.append(&mut self.fx.verts);
+        a.renderer.fx.verts.append(&mut self.scene.fx.verts);
         a.avatars.push_crowd(
-            self.started.elapsed().as_secs_f32(),
+            self.clock.started.elapsed().as_secs_f32(),
             frame_dt,
             camera,
             &self.bsp,
             &a.renderer.characters,
-            &mut self.entities,
+            &mut self.scene.entities,
         );
-        let vp = crate::render::view_proj_zoomed(camera, cam_yaw, cam_pitch, aspect, self.zoom);
-        self.last_vp = Some((
+        let vp =
+            crate::render::view_proj_zoomed(camera, cam_yaw, cam_pitch, aspect, self.view.zoom);
+        self.view.last_vp = Some((
             vp,
             (a.config.width.max(1) as f32, a.config.height.max(1) as f32),
         ));
@@ -611,41 +615,45 @@ impl App {
         if let Some(p) = &self.playback {
             p.hud(&mut a.renderer.hud);
         }
-        if !watching && !bench && !self.front_up && self.title.is_none() {
+        if !watching && !bench && !self.screens.front_up && self.screens.title.is_none() {
             build_hud(
                 &mut a.renderer.hud,
                 self.online.as_ref(),
                 vp,
                 HudView {
-                    tags: &self.tags,
-                    pops: &self.pops,
-                    first_person: self.viewport == Viewport::First,
-                    hurt: self.effects.own_hurt,
-                    squad: &self.squad_view,
-                    party: &self.party_view,
-                    target: self.target_view.as_ref(),
+                    tags: &self.scene.tags,
+                    pops: &self.scene.pops,
+                    first_person: self.view.viewport == Viewport::First,
+                    hurt: self.scene.effects.own_hurt,
+                    squad: &self.scene.squad_view,
+                    party: &self.scene.party_view,
+                    target: self.scene.target_view.as_ref(),
                     scale,
                     manifest: self.content.manifest.as_ref(),
-                    time: self.started.elapsed().as_secs_f32(),
+                    time: self.clock.started.elapsed().as_secs_f32(),
                     own_name: &self.opts.character,
                     combo: (
-                        self.combo.0,
-                        self.combo.1.map_or(f32::MAX, |t| t.elapsed().as_secs_f32()),
+                        self.scene.combo.0,
+                        self.scene
+                            .combo
+                            .1
+                            .map_or(f32::MAX, |t| t.elapsed().as_secs_f32()),
                     ),
                     crouched: self.input.down(KeyCode::ControlLeft)
                         || self.input.down(KeyCode::ControlRight)
                         || self.input.down(KeyCode::KeyC),
-                    zoom: self.zoom,
+                    zoom: self.view.zoom,
                     scoped: self.input.scoped,
                     touch: TouchHud {
-                        buttons: &self.touch_buttons,
+                        buttons: &self.pointer.touch_buttons,
                         held: self
+                            .pointer
                             .touch_buttons
                             .iter()
                             .map(|(b, _)| *b)
-                            .filter(|b| self.fingers.holds(*b))
+                            .filter(|b| self.pointer.fingers.holds(*b))
                             .collect(),
-                        stick: self.fingers.stick_drawn(),
+                        stick: self.pointer.fingers.stick_drawn(),
                     },
                 },
             );
@@ -662,11 +670,11 @@ impl App {
             return actions;
         };
         let screen = self.screen_name();
-        let mut state = std::mem::take(&mut self.ui);
-        let mut input = std::mem::take(&mut self.ui_input);
+        let mut state = std::mem::take(&mut self.screens.ui);
+        let mut input = std::mem::take(&mut self.screens.ui_input);
         input.last_cursor = input.cursor;
-        input.cursor = self.cursor;
-        input.time = self.started.elapsed().as_secs_f32();
+        input.cursor = self.pointer.cursor;
+        input.time = self.clock.started.elapsed().as_secs_f32();
         state.paperdolls.clear();
         let mut ui = Ui::begin_at(
             &mut a.renderer.hud,
@@ -676,14 +684,14 @@ impl App {
             PANEL_UNITS,
             chosen,
         );
-        if let Some(title) = &self.title {
+        if let Some(title) = &self.screens.title {
             match crate::menu::title(&mut ui, title) {
-                Some(true) => self.title = None,
+                Some(true) => self.screens.title = None,
                 Some(false) => actions.front[1] = Action::Quit,
                 None => {}
             }
-        } else if self.front_up {
-            if let Some(front) = &mut self.front {
+        } else if self.screens.front_up {
+            if let Some(front) = &mut self.screens.front {
                 actions.front = front.frame(&mut ui);
             }
         } else {
@@ -693,10 +701,10 @@ impl App {
         if std::mem::take(&mut state.presses) > 0 {
             self.sound.play(crate::sound::synth::Cue::Click);
         }
-        self.ui_drawn = true;
-        self.ui = state;
+        self.screens.ui_drawn = true;
+        self.screens.ui = state;
         // What happened is used up; a button still held is still held.
-        self.ui_input = UiInput {
+        self.screens.ui_input = UiInput {
             down: input.down,
             // The pointer stays where it is: the paperdoll turns by how far it moved
             // since last frame, not by where it is.
@@ -709,17 +717,23 @@ impl App {
 
     /// Which screen is up, by name (the UI scripts and the gates read it).
     fn screen_name(&self) -> &'static str {
-        match (&self.front, &self.menu, &self.bag) {
-            _ if self.title.is_some() => "title",
-            (Some(front), _, _) if self.front_up => front.screen.name(),
+        match (&self.screens.front, &self.screens.menu, &self.screens.bag) {
+            _ if self.screens.title.is_some() => "title",
+            (Some(front), _, _) if self.screens.front_up => front.screen.name(),
             (_, Some(menu), _) => menu.page.name(),
             (_, _, Some(bag)) => bag.name(),
-            _ if self.people.is_some() => self.people.as_ref().map_or("", |p| p.page.name()),
-            _ if self.gm_page.is_some() => self.gm_page.as_ref().map_or("", |g| g.name()),
-            _ if self.character_page.is_some() => {
-                self.character_page.as_ref().map_or("", |p| p.name())
+            _ if self.screens.people.is_some() => {
+                self.screens.people.as_ref().map_or("", |p| p.page.name())
             }
-            _ if self.chat.open => "chat",
+            _ if self.screens.gm_page.is_some() => {
+                self.screens.gm_page.as_ref().map_or("", |g| g.name())
+            }
+            _ if self.screens.character_page.is_some() => self
+                .screens
+                .character_page
+                .as_ref()
+                .map_or("", |p| p.name()),
+            _ if self.screens.chat.open => "chat",
             _ => "game",
         }
     }
@@ -735,17 +749,17 @@ impl App {
     ) {
         let playing = self.online.as_ref().is_some_and(|o| o.client.is_some());
         if playing {
-            actions.said = self.chat.frame(ui, &mut self.settings.ignored);
-        } else if self.chat.open {
+            actions.said = self.screens.chat.frame(ui, &mut self.settings.ignored);
+        } else if self.screens.chat.open {
             // Between two zones nothing is drawn of it: nor does it keep the keys.
-            self.chat.drop_line();
+            self.screens.chat.drop_line();
         }
         // The game goes away under an open inventory as under the menu; a body that
         // stopped playing (a travel, the zone gone) has neither.
         if !playing {
-            self.bag = None;
-            self.people = None;
-            self.gm_page = None;
+            self.screens.bag = None;
+            self.screens.people = None;
+            self.screens.gm_page = None;
         }
         let me = self.opts.name.clone();
         self.bag_screen(ui, actions, &me);
@@ -771,8 +785,8 @@ impl App {
                 (class, ribbon)
             })
             .unwrap_or_default();
-        if let (Some(bag), Some(hub)) = (&mut self.bag, &self.hub)
-            && self.menu.is_none()
+        if let (Some(bag), Some(hub)) = (&mut self.screens.bag, &self.session.hub)
+            && self.screens.menu.is_none()
         {
             let looks = crate::bag::ItemLooks {
                 manifest: self.content.manifest.as_ref(),
@@ -795,9 +809,12 @@ impl App {
         actions: &mut Actions,
         me: &str,
     ) {
-        let (Some(people), Some(o), None, None) =
-            (&mut self.people, &mut self.online, &self.menu, &self.bag)
-        else {
+        let (Some(people), Some(o), None, None) = (
+            &mut self.screens.people,
+            &mut self.online,
+            &self.screens.menu,
+            &self.screens.bag,
+        ) else {
             return;
         };
         let Some(c) = &o.client else { return };
@@ -818,14 +835,18 @@ impl App {
             .collect();
         here.sort_by(|a, b| a.name.cmp(&b.name));
         let hub = self
+            .session
             .hub
             .as_ref()
-            .filter(|_| self.account.is_some() && self.character.is_some())
+            .filter(|_| self.session.account.is_some() && self.session.character.is_some())
             .map(|hub| hub as &dyn HubApi);
         let unix = web_time::SystemTime::now()
             .duration_since(web_time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let word = self.chat.zone_said(std::time::Duration::from_secs(8));
+        let word = self
+            .screens
+            .chat
+            .zone_said(std::time::Duration::from_secs(8));
         actions.people = people.frame_with(
             ui,
             hub,
@@ -850,11 +871,11 @@ impl App {
         at_trainer: bool,
     ) {
         if let (Some(page), Some(o), None, None, None) = (
-            &mut self.gm_page,
+            &mut self.screens.gm_page,
             &self.online,
-            &self.menu,
-            &self.bag,
-            &self.people,
+            &self.screens.menu,
+            &self.screens.bag,
+            &self.screens.people,
         ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
         {
             let view = GmView {
@@ -867,12 +888,12 @@ impl App {
             actions.gm = page.frame(ui, &view);
         }
         if let (Some(page), Some(o), None, None, None, None) = (
-            &mut self.character_page,
+            &mut self.screens.character_page,
             &self.online,
-            &self.menu,
-            &self.bag,
-            &self.people,
-            &self.gm_page,
+            &self.screens.menu,
+            &self.screens.bag,
+            &self.screens.people,
+            &self.screens.gm_page,
         ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
         {
             let view = CharacterView {
@@ -896,18 +917,19 @@ impl App {
         playing: bool,
         returns: bool,
     ) {
-        match &mut self.menu {
-            Some(_) if self.bag.is_some() => {}
+        match &mut self.screens.menu {
+            Some(_) if self.screens.bag.is_some() => {}
             Some(menu) => {
                 let hub = self
+                    .session
                     .hub
                     .as_ref()
-                    .zip(self.account.as_ref())
+                    .zip(self.session.account.as_ref())
                     .map(|(hub, account)| (hub as &dyn HubApi, account.session));
                 // A page's tab is closed and made fullscreen by the browser.
                 let offers = Offers {
-                    inventory: playing && hub.is_some() && self.character.is_some(),
-                    equipment: playing && hub.is_some() && self.character.is_some(),
+                    inventory: playing && hub.is_some() && self.session.character.is_some(),
+                    equipment: playing && hub.is_some() && self.session.character.is_some(),
                     people: playing,
                     gm: playing && self.online.as_ref().is_some_and(|o| o.gm),
                     travel: playing && hub.is_some(),
@@ -922,11 +944,11 @@ impl App {
                 let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
                 actions.menu = menu.frame(ui, hub, offers, here, &mut self.settings);
             }
-            None if self.bag.is_some()
-                || self.people.is_some()
-                || self.gm_page.is_some()
-                || self.character_page.is_some() => {}
-            None if playing && !self.chat.open => {
+            None if self.screens.bag.is_some()
+                || self.screens.people.is_some()
+                || self.screens.gm_page.is_some()
+                || self.screens.character_page.is_some() => {}
+            None if playing && !self.screens.chat.open => {
                 let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
                 let hint = if here.is_empty() {
                     "Esc menu  Enter chat".to_string()
@@ -936,7 +958,7 @@ impl App {
                 let (w, h) = ui.size();
                 ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
                 let near = Self::stall_in_reach(self.online.as_ref())
-                    .filter(|_| self.hub.is_some())
+                    .filter(|_| self.session.hub.is_some())
                     .map(|s| s.owner.clone());
                 if let Some(owner) = &near {
                     let look = format!("{owner}'s stall  E look");
@@ -953,13 +975,13 @@ impl App {
     /// shown. Nothing without a panel this frame.
     fn doll_frame(&mut self, frame_dt: f32) -> Option<Doll> {
         let (rect, turn, open) = {
-            let d = self.ui.paperdolls.first()?;
+            let d = self.screens.ui.paperdolls.first()?;
             (d.rect, d.turn, d.open)
         };
         let shown = rect.w > 1.0 && rect.h > 1.0;
         let draws = if !shown {
             Vec::new()
-        } else if self.front_up {
+        } else if self.screens.front_up {
             self.doll_on_selector(frame_dt, turn)
         } else {
             self.doll_of_own(frame_dt, turn)
@@ -988,7 +1010,7 @@ impl App {
         let Some(a) = self.active.as_mut() else {
             return Vec::new();
         };
-        let Some((build, model, worn)) = self.front.as_ref().and_then(|f| f.shown()) else {
+        let Some((build, model, worn)) = self.screens.front.as_ref().and_then(|f| f.shown()) else {
             return Vec::new();
         };
         let frame = gm_model::rig::frame_index(build.frame);
@@ -1076,25 +1098,31 @@ impl App {
             ..Default::default()
         });
         let doll = doll.as_ref().map(|d| (d.rect, d.vp, d.draws.as_slice()));
-        a.renderer
-            .render_with_doll(&a.gpu, &view, vp, &self.entities, &a.avatars.draws, doll);
+        a.renderer.render_with_doll(
+            &a.gpu,
+            &view,
+            vp,
+            &self.scene.entities,
+            &a.avatars.draws,
+            doll,
+        );
         a.avatars.end_frame(&a.gpu, &mut a.renderer.characters);
         a.window.pre_present_notify();
         a.gpu.queue.present(frame);
-        self.acquire_timeouts = 0;
+        self.clock.acquire_timeouts = 0;
         // A bench counts frames once every model its crowd wears is on the GPU.
         !(bench
             && a.avatars.cache.as_ref().is_some_and(|c| c.pending() > 0)
-            && self.started.elapsed().as_secs_f32() < 60.0)
+            && self.clock.started.elapsed().as_secs_f32() < 60.0)
     }
 
     /// The frame counted, the first one's time told (WEB.md 9), and the frame rate
     /// capped on the CPU so an uncapped present mode does not spin the GPU at 100%.
     fn clock_frame(&mut self, now: Instant, bench: bool) {
-        self.stats.frame();
+        self.clock.stats.frame();
         #[cfg(target_arch = "wasm32")]
-        if self.first_frame_ms == 0.0 {
-            self.first_frame_ms = web_sys::window()
+        if self.web.first_frame_ms == 0.0 {
+            self.web.first_frame_ms = web_sys::window()
                 .and_then(|w| w.performance())
                 .map_or(0.0, |p| p.now());
         }
@@ -1108,19 +1136,19 @@ impl App {
         }
         #[cfg(target_arch = "wasm32")]
         let _ = now;
-        if bench && self.stats.frames() > 0 && self.stats.frames().is_multiple_of(60) {
-            log::debug!("bench frame {}", self.stats.frames());
+        if bench && self.clock.stats.frames() > 0 && self.clock.stats.frames().is_multiple_of(60) {
+            log::debug!("bench frame {}", self.clock.stats.frames());
         }
     }
 
     /// The window's title once a second: where and who, the bars, the frame rate; and
     /// the settings kept if they changed.
     fn title_frame(&mut self) {
-        if self.last_title.elapsed().as_secs_f32() < 1.0 {
+        if self.clock.last_title.elapsed().as_secs_f32() < 1.0 {
             return;
         }
         let Some(a) = &self.active else { return };
-        let r = self.stats.report_since(self.title_frame);
+        let r = self.clock.stats.report_since(self.clock.title_frame);
         let vp = match self
             .online
             .as_ref()
@@ -1128,7 +1156,7 @@ impl App {
             .map(|c| c.sheet.kit.mode)
         {
             Some(mode) => mode.name(),
-            None => match self.viewport {
+            None => match self.view.viewport {
                 Viewport::First => "1st",
                 Viewport::Third => "3rd",
             },
@@ -1167,12 +1195,12 @@ impl App {
             }
             None => format!(
                 "gamengine [{vp}]  {:.0} fps  {:.2} ms  {} / {} faces",
-                r.fps_avg, r.ms_avg, a.renderer.faces_drawn, self.faces_total
+                r.fps_avg, r.ms_avg, a.renderer.faces_drawn, self.world.faces_total
             ),
         };
         a.window.set_title(&title);
-        self.title_frame = self.stats.frames();
-        self.last_title = Instant::now();
+        self.clock.title_frame = self.clock.stats.frames();
+        self.clock.last_title = Instant::now();
         self.keep_settings();
     }
 
@@ -1181,28 +1209,30 @@ impl App {
     /// browser.
     fn run_end(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(n) = self.opts.bench_frames
-            && self.stats.frames() >= n as usize
+            && self.clock.stats.frames() >= n as usize
         {
             event_loop.exit();
         }
-        if self.opts.report && self.last_report.elapsed().as_secs_f32() >= 1.0 {
-            self.last_report = Instant::now();
+        if self.opts.report && self.clock.last_report.elapsed().as_secs_f32() >= 1.0 {
+            self.clock.last_report = Instant::now();
             let line = self.report_line();
             #[cfg(not(target_arch = "wasm32"))]
             println!("stats: {line}");
             #[cfg(target_arch = "wasm32")]
             crate::web::tell_page("stats", &line);
         }
-        if self.opts.seconds > 0.0 && self.started.elapsed().as_secs_f32() >= self.opts.seconds {
+        if self.opts.seconds > 0.0
+            && self.clock.started.elapsed().as_secs_f32() >= self.opts.seconds
+        {
             #[cfg(target_arch = "wasm32")]
             {
                 // The whole run in one line, for whoever scripted it.
-                self.report_frame = 0;
+                self.clock.report_frame = 0;
                 let line = self.report_line();
                 if let Some(o) = &mut self.online {
                     o.net.close();
                 }
-                if let Some(hub) = &self.hub {
+                if let Some(hub) = &self.session.hub {
                     hub.logout();
                 }
                 crate::web::tell_page("done", &line);

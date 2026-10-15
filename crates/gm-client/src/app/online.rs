@@ -201,20 +201,20 @@ impl App {
     pub(super) fn leave_zone(&mut self, why: &str) {
         self.hang_up();
         self.sound.quiet();
-        self.menu = None;
-        self.bag = None;
-        self.people = None;
-        self.gm_page = None;
-        self.character = None;
-        self.chat.clear();
-        self.entities.clear();
-        self.bodies.clear();
-        self.squad_view.clear();
-        self.party_view.clear();
-        self.target_view = None;
-        if let Some(front) = &mut self.front {
+        self.screens.menu = None;
+        self.screens.bag = None;
+        self.screens.people = None;
+        self.screens.gm_page = None;
+        self.session.character = None;
+        self.screens.chat.clear();
+        self.scene.entities.clear();
+        self.scene.bodies.clear();
+        self.scene.squad_view.clear();
+        self.scene.party_view.clear();
+        self.scene.target_view = None;
+        if let Some(front) = &mut self.screens.front {
             front.back_to_characters(why);
-            self.front_up = true;
+            self.screens.front_up = true;
         }
     }
 
@@ -225,12 +225,12 @@ impl App {
         // left while its map was still on the way has not changed it.)
         if let Some(mut o) = self.online.take() {
             o.net.hang_up();
-            self.leaving.push((o.net, Instant::now()));
+            self.session.leaving.push((o.net, Instant::now()));
         }
         // A map still being fetched for that zone arrives in a slot nobody reads.
         #[cfg(target_arch = "wasm32")]
         {
-            self.pending_fetch = Default::default();
+            self.web.pending_fetch = Default::default();
         }
     }
 
@@ -255,7 +255,11 @@ impl App {
                 zone_name: ticket.zone.clone(),
             };
             // What will be loaded when the zone answers: a map already on its way in.
-            let loaded = self.pending_map.as_ref().map_or(self.map_hash, |m| m.1);
+            let loaded = self
+                .world
+                .pending_map
+                .as_ref()
+                .map_or(self.world.map_hash, |m| m.1);
             online(&self.opts, &self.sim, loaded, entry).map_err(|e| e.to_string())
         } else {
             Err(format!("zone {} has no web listener", ticket.zone))
@@ -263,14 +267,14 @@ impl App {
         match entered {
             Ok(online) => {
                 self.online = Some(online);
-                self.character = Some(ticket.token.payload.character);
+                self.session.character = Some(ticket.token.payload.character);
                 // Remembered for a person; a command line that named it leaves no trace.
                 if self.returns_to_screens() {
                     self.settings.character = name;
                 }
             }
             Err(why) if self.returns_to_screens() => {
-                if let Some(front) = &mut self.front {
+                if let Some(front) = &mut self.screens.front {
                     front.back_to_characters(&why);
                 }
             }
@@ -287,7 +291,7 @@ impl App {
         // T asks to travel to the zone named on the command line; a scripted run asks by
         // itself, once, after `travel_after` seconds.
         let timed = self.opts.travel_after > 0.0
-            && self.started.elapsed().as_secs_f32() >= self.opts.travel_after;
+            && self.clock.started.elapsed().as_secs_f32() >= self.opts.travel_after;
         if (self.input.just_pressed.remove(&KeyCode::KeyT) || timed)
             && let Some(target) = self.opts.travel_to.clone()
         {
@@ -399,7 +403,7 @@ impl App {
     /// The camera is the character's mode's (MODES.md 2).
     fn viewport_of_mode(&mut self) {
         if let Some(c) = self.online.as_ref().and_then(|o| o.client.as_ref()) {
-            self.viewport = if c.sheet.kit.mode.third_person() {
+            self.view.viewport = if c.sheet.kit.mode.third_person() {
                 Viewport::Third
             } else {
                 Viewport::First
@@ -426,13 +430,13 @@ impl App {
         {
             let why = format!("disconnected: {reason}");
             if returns {
-                self.zone_ended = Some(why);
+                self.session.zone_ended = Some(why);
                 return Err(Cut::Here);
             }
             self.fail(event_loop, &why);
             return Err(Cut::End);
         }
-        match self.pending_fetch.borrow_mut().take() {
+        match self.web.pending_fetch.borrow_mut().take() {
             None => {
                 o.backlog.retain(|e| !matches!(e, NetEvent::Snapshot(_)));
                 Err(Cut::Here)
@@ -441,7 +445,7 @@ impl App {
                 o.awaiting_map = None;
                 o.map_hash = hash;
                 crate::web::tell_page("status", "");
-                self.pending_map = Some((map, hash));
+                self.world.pending_map = Some((map, hash));
                 // The world is replaced at the start of the next frame.
                 Err(Cut::Here)
             }
@@ -452,11 +456,11 @@ impl App {
                 };
                 log::error!("{why}");
                 if returns {
-                    self.zone_ended = Some(why);
+                    self.session.zone_ended = Some(why);
                     return Err(Cut::Here);
                 }
                 crate::web::tell_page("error", &why);
-                self.exit_requested = true;
+                self.clock.exit_requested = true;
                 event_loop.exit();
                 Err(Cut::End)
             }
@@ -479,13 +483,13 @@ impl App {
                 NetEvent::Disconnected(reason) => {
                     if returns {
                         log::info!("disconnected: {reason}");
-                        self.zone_ended = Some(reason);
+                        self.session.zone_ended = Some(reason);
                         return Err(Cut::Here);
                     }
                     log::error!("disconnected: {reason}");
                     #[cfg(target_arch = "wasm32")]
                     crate::web::tell_page("error", &format!("disconnected: {reason}"));
-                    self.exit_requested = true;
+                    self.clock.exit_requested = true;
                     event_loop.exit();
                     return Err(Cut::End);
                 }
@@ -528,7 +532,7 @@ impl App {
         if !valid_map_name(&map) {
             let why = format!("the zone named a map this client will not load: {map:?}");
             if returns {
-                self.zone_ended = Some(why);
+                self.session.zone_ended = Some(why);
                 return Err(Cut::Here);
             }
             self.fail(event_loop, &why);
@@ -548,7 +552,7 @@ impl App {
             match loaded {
                 Some(bsp) => {
                     log::info!("zone runs map {map}; loading {}", path.display());
-                    self.pending_map = Some((bsp, map_hash));
+                    self.world.pending_map = Some((bsp, map_hash));
                     o.map_hash = map_hash;
                     Ok(())
                 }
@@ -559,11 +563,11 @@ impl App {
                         path.display()
                     );
                     if returns {
-                        self.zone_ended =
+                        self.session.zone_ended =
                             Some(format!("this client does not have the zone's map ({map})"));
                         return Err(Cut::Here);
                     }
-                    self.exit_requested = true;
+                    self.clock.exit_requested = true;
                     event_loop.exit();
                     Err(Cut::End)
                 }
@@ -574,7 +578,7 @@ impl App {
             log::info!("zone runs map {map}; fetching it");
             crate::web::tell_page("status", "loading the zone's map");
             o.awaiting_map = Some(map_hash);
-            let (slot, assets) = (self.pending_fetch.clone(), self.opts.assets.clone());
+            let (slot, assets) = (self.web.pending_fetch.clone(), self.opts.assets.clone());
             wasm_bindgen_futures::spawn_local(async move {
                 let fetched = fetch_map(&assets, &map, Some(map_hash)).await;
                 *slot.borrow_mut() = Some(fetched);
@@ -692,7 +696,8 @@ impl App {
                 }
             }
             FromZone::Impact { at, normal } => {
-                self.effects
+                self.scene
+                    .effects
                     .impact(Vec3::from_array(at), Vec3::from_array(normal));
             }
             FromZone::Killed { victim, killer } => self.on_killed(victim, killer),
@@ -801,7 +806,7 @@ impl App {
                 stall.model = None;
             }
         }
-        self.revoked.push(id);
+        self.scene.revoked.push(id);
     }
 
     fn on_stall_opened(&mut self, stall: StallEntry) {
@@ -982,7 +987,7 @@ impl App {
         };
         log::info!("buy of listing {listing}: {result:?}");
         let good = result.is_ok();
-        let elsewhere = match (&mut self.bag, &self.hub) {
+        let elsewhere = match (&mut self.screens.bag, &self.session.hub) {
             (Some(bag), Some(hub)) => bag.bought(hub, listing, result),
             _ => Some(match result {
                 Ok(()) => "bought: it is in the inventory".to_string(),
@@ -1000,7 +1005,7 @@ impl App {
         };
         log::info!("wear of item {item}: {result:?}");
         let good = result.is_ok();
-        let elsewhere = match (&mut self.bag, &self.hub) {
+        let elsewhere = match (&mut self.screens.bag, &self.session.hub) {
             (Some(bag), Some(hub)) => bag.worn(hub, item, result),
             _ => Some(match result {
                 Ok(()) => "what is worn changed".to_string(),
@@ -1046,7 +1051,7 @@ impl App {
             log::info!("{from} invites to a party");
             self.sound.play(crate::sound::synth::Cue::Chime);
             let line = format!("{from} invites you to a party: P");
-            self.chat.heard(None, line, &[]);
+            self.screens.chat.heard(None, line, &[]);
         }
     }
 
@@ -1055,6 +1060,7 @@ impl App {
     fn on_heard(&mut self, channel: u8, from: String, text: String) {
         log::debug!("<{from} on {channel}> {text}");
         let shown = self
+            .screens
             .chat
             .heard_on(channel, from, text, &self.settings.ignored);
         if shown && channel != gm_net::control::CHANNEL_WHISPERED {
@@ -1078,7 +1084,7 @@ impl App {
             log::info!("{name} asks to trade");
             self.sound.play(crate::sound::synth::Cue::Chime);
             let line = format!("{name} asks to trade: P");
-            self.chat.heard(None, line, &[]);
+            self.screens.chat.heard(None, line, &[]);
         }
     }
 
@@ -1092,17 +1098,24 @@ impl App {
         o.social
             .asks
             .retain(|a| a.trade.is_none() || a.from != with);
-        let up = self.people.as_ref().is_some_and(|p| p.trading(trade));
+        let up = self
+            .screens
+            .people
+            .as_ref()
+            .is_some_and(|p| p.trading(trade));
         if !up
-            && let (Some(hub), Some(account), Some(character)) =
-                (&self.hub, &self.account, self.character)
+            && let (Some(hub), Some(account), Some(character)) = (
+                &self.session.hub,
+                &self.session.account,
+                self.session.character,
+            )
         {
             let now = Instant::now();
             let session = account.session;
-            self.people = Some(People::trade(hub, session, character, trade, with, now));
-            self.menu = None;
-            self.bag = None;
-            self.chat.drop_line();
+            self.screens.people = Some(People::trade(hub, session, character, trade, with, now));
+            self.screens.menu = None;
+            self.screens.bag = None;
+            self.screens.chat.drop_line();
             self.input.keys.clear();
             self.input.just_pressed.clear();
             self.input.mouse.clear();
@@ -1113,10 +1126,11 @@ impl App {
     /// the head (a headshot reads as one), and the combo counter (MODES.md 4.6).
     fn on_hit(&mut self, target: u32, amount: u16, absorbed: u16, at: [f32; 3]) {
         let _ = target;
-        self.effects
+        self.scene
+            .effects
             .hit(Vec3::from_array(at), amount as u32, absorbed as u32);
         let now = Instant::now();
-        self.combo = match self.combo {
+        self.scene.combo = match self.scene.combo {
             (n, Some(last)) if now.duration_since(last).as_secs_f32() < COMBO_SECS => {
                 (n + 1, Some(now))
             }
@@ -1156,7 +1170,7 @@ impl App {
         });
         log::info!("<{}> {text}", who.as_deref().unwrap_or("zone"));
         let mine = o.client.as_ref().is_some_and(|c| c.my_id == from);
-        let shown = self.chat.heard(who, text, &self.settings.ignored);
+        let shown = self.screens.chat.heard(who, text, &self.settings.ignored);
         if shown && !mine && from != 0 {
             self.sound.play(crate::sound::synth::Cue::Blip);
         }
@@ -1176,7 +1190,7 @@ impl App {
         match NetClient::connect(to, self.opts.name.clone(), None, self.opts.team, token) {
             Ok(net) => {
                 let old = std::mem::replace(&mut o.net, net);
-                self.leaving.push((old, Instant::now()));
+                self.session.leaving.push((old, Instant::now()));
                 o.welcome = None;
                 o.client = None;
                 o.pack = None;
@@ -1188,11 +1202,11 @@ impl App {
                 o.respec_note = format!("travelling to {}", o.zone_name);
                 // The next zone says what the party is; who asked what stays here.
                 o.social = Social::default();
-                self.bag = None;
-                self.people = None;
-                self.gm_page = None;
-                self.entities.clear();
-                self.bodies.clear();
+                self.screens.bag = None;
+                self.screens.people = None;
+                self.screens.gm_page = None;
+                self.scene.entities.clear();
+                self.scene.bodies.clear();
             }
             // The connection that was hung up says so in a moment, and that ends it.
             Err(e) => log::error!("travel failed: {e}"),
@@ -1204,7 +1218,7 @@ impl App {
     /// the ground covered kept for the sound and the view model. `None` before the zone's
     /// content made a client state.
     fn predict(&mut self, frame_dt: f32) -> Option<Predicted> {
-        let viewport = self.viewport;
+        let viewport = self.view.viewport;
         let scripted = self.opts.script.as_deref() == Some("fight");
         let bsp = &self.bsp;
         let o = self.online.as_mut()?;
@@ -1247,7 +1261,7 @@ impl App {
                     re_aim(bsp, &bodies, camera, self.sim.yaw, self.sim.pitch, eye)
                 }
             };
-            self.aim = (yaw, pitch);
+            self.view.aim = (yaw, pitch);
             let rpg_frame = rpg.then(|| {
                 let mut f = self.rpg.frame(
                     bsp,
@@ -1267,10 +1281,11 @@ impl App {
             });
             let input = if scripted {
                 let target = self
+                    .scene
                     .script_target
                     .map(|(_, at, velocity, _)| (at, velocity));
                 let input = fight_input(c.mover.eye(), target, &mut self.sim, c.tick);
-                self.aim = (input.yaw, input.pitch);
+                self.view.aim = (input.yaw, input.pitch);
                 input
             } else {
                 self.input.sim_input(yaw, pitch, dodge, gun, rpg_frame)
@@ -1364,17 +1379,17 @@ impl App {
     /// viewport, and the other entities at the interpolation time (PROTOCOL.md 7.3).
     fn seen(&mut self, frame_dt: f32, predicted: &Predicted) -> Seen {
         let scope = self.gun_scope();
-        let viewport = self.viewport;
+        let viewport = self.view.viewport;
         let bsp = &self.bsp;
         let o = self.online.as_mut().expect("predicted");
         let c = o.client.as_mut().expect("predicted");
         let dt = predicted.dt;
         let extra = o.last_snapshot.elapsed().as_secs_f32() / dt;
         let t = c.render_tick(extra);
-        self.entities.clear();
-        self.bodies.clear();
-        self.tags.clear();
-        self.effects.begin(frame_dt);
+        self.scene.entities.clear();
+        self.scene.bodies.clear();
+        self.scene.tags.clear();
+        self.scene.effects.begin(frame_dt);
         // The crouch lowers the eye (MODES.md 3.4): the predicted mover's drop, eased over
         // about a tenth of a second so the view does not jump.
         let drop = if c.mover.crouched {
@@ -1382,14 +1397,14 @@ impl App {
         } else {
             0.0
         };
-        self.eye_drop += (drop - self.eye_drop) * (frame_dt * 12.0).min(1.0);
+        self.view.eye_drop += (drop - self.view.eye_drop) * (frame_dt * 12.0).min(1.0);
         // The own hull origin as drawn, and the eye over it less the drop: the body
         // itself is lowered by its squat (the animator's), not by the eye.
         let centre = {
             let alpha = (o.accumulator / o.rate.dt()).clamp(0.0, 1.0);
             o.prev_origin.lerp(o.curr_origin, alpha)
         };
-        let eye = centre + Vec3::Z * (c.mover.mv.hull.eye_height() - self.eye_drop);
+        let eye = centre + Vec3::Z * (c.mover.mv.hull.eye_height() - self.view.eye_drop);
         // The recoil's punch (MODES.md 3.3): the firearm's kick for this shot lands on the
         // view at once and decays over 150 ms; the frames sent carry the mouse's aim,
         // the zone kicks the bolt by the same pair.
@@ -1397,12 +1412,12 @@ impl App {
             if let gm_core::sim::Action::Fire { kick, .. } = a
                 && (kick.0 != 0.0 || kick.1 != 0.0)
             {
-                self.view_punch = *kick;
+                self.view.punch = *kick;
             }
         }
         let decay = (-frame_dt / PUNCH_DECAY_SECS).exp();
-        self.view_punch = (self.view_punch.0 * decay, self.view_punch.1 * decay);
-        self.zoom = if self.input.scoped {
+        self.view.punch = (self.view.punch.0 * decay, self.view.punch.1 * decay);
+        self.view.zoom = if self.input.scoped {
             scope.max(1) as f32
         } else {
             1.0
@@ -1449,8 +1464,8 @@ impl App {
             })
             .map(|e| (e.id, e.pos));
         let now = Instant::now();
-        self.script_target = nearest.map(|(id, at)| {
-            let velocity = match self.script_target {
+        self.scene.script_target = nearest.map(|(id, at)| {
+            let velocity = match self.scene.script_target {
                 Some((was, before, _, then)) if was == id => {
                     let dt = (now - then).as_secs_f32();
                     if dt > 1.0e-3 {
@@ -1475,7 +1490,7 @@ impl App {
         let Some(c) = o.client.as_ref() else { return };
         let others = &seen.others;
         let centre = seen.centre;
-        self.squad_view = o
+        self.scene.squad_view = o
             .squad
             .iter()
             .map(|m| {
@@ -1487,7 +1502,7 @@ impl App {
         // its body when that is here (the bodies that are people: a hired copy of
         // somebody bears that name too).
         let me = Some(c.my_id);
-        self.party_view =
+        self.scene.party_view =
             o.social
                 .party
                 .iter()
@@ -1505,7 +1520,7 @@ impl App {
                     }
                 })
                 .collect();
-        self.target_view = None;
+        self.scene.target_view = None;
         // The RPG mode's target frame (MODES.md 5.2): its name and the health the zone
         // sends for a targeted body; a stranger's whole is read as the band's top.
         let rpg = c.sheet.kit.mode == gm_core::vocab::Mode::Rpg;
@@ -1521,7 +1536,7 @@ impl App {
                     }
                     _ => 1500,
                 };
-                self.target_view = Some((name, e.health.unwrap_or(0), max));
+                self.scene.target_view = Some((name, e.health.unwrap_or(0), max));
             }
         } else if let Some(pack) = &o.pack {
             let mut best: Option<(f32, String, u16, u16)> = None;
@@ -1546,7 +1561,7 @@ impl App {
                     best = Some((rank, d.name.clone(), health, d.health));
                 }
             }
-            self.target_view = best.map(|(_, name, health, max)| (name, health, max));
+            self.scene.target_view = best.map(|(_, name, health, max)| (name, health, max));
         }
     }
 
@@ -1604,7 +1619,7 @@ impl App {
         let creature = matches!(o.kinds.get(&e.id), Some(BodyKind::Creature { .. }));
         let friend = (my_team != 0 && team == my_team)
             || mate.is_some()
-            || (!name.is_empty() && self.party_view.iter().any(|(n, _)| n == name));
+            || (!name.is_empty() && self.scene.party_view.iter().any(|(n, _)| n == name));
         let foe = !friend && (creature || (my_team != 0 && team != 0));
         if e.alive() {
             let swing = o
@@ -1613,7 +1628,7 @@ impl App {
                 .zip((e.acting as usize).checked_sub(1))
                 .and_then(|(p, i)| p.abilities.get(i))
                 .and_then(|d| swing_of(&d.ability, predicted.dt));
-            self.effects.fighter(
+            self.scene.effects.fighter(
                 &crate::fx::Fighter {
                     key: e.id,
                     feet: e.pos + feet_under,
@@ -1628,7 +1643,7 @@ impl App {
                     },
                     health: e.health,
                 },
-                &mut self.fx,
+                &mut self.scene.fx,
             );
             // What the own hand did to it, as the zone said: a number over its head
             // (LOOK.md 13.8).
@@ -1637,7 +1652,7 @@ impl App {
                 if target != e.id {
                     return true;
                 }
-                self.effects.healed(over_head, amount as u32);
+                self.scene.effects.healed(over_head, amount as u32);
                 false
             });
             let head = e.pos + Vec3::Z * 40.0;
@@ -1645,7 +1660,7 @@ impl App {
                 && (head - camera).length() < 900.0
                 && bsp.trace(Hull::Point, camera, head).fraction >= 1.0
             {
-                self.tags.push(Tag {
+                self.scene.tags.push(Tag {
                     at: head,
                     name: name.to_string(),
                     ink: if friend {
@@ -1665,14 +1680,14 @@ impl App {
             }
         }
         let yaw = facing(
-            self.facings.get(&e.id).copied(),
+            self.view.facings.get(&e.id).copied(),
             e.yaw,
             e.vel,
             e.anim,
             e.flags & gm_net::snapshot::flags::RPG != 0,
             frame_dt,
         );
-        self.facings.insert(e.id, yaw);
+        self.view.facings.insert(e.id, yaw);
         let look = o.looks.get(&e.id).copied().unwrap_or_default();
         let worn = worn_overlay(
             &mut self.content,
@@ -1681,7 +1696,7 @@ impl App {
             look,
             frame,
         );
-        self.bodies.push(Body {
+        self.scene.bodies.push(Body {
             key: e.id,
             origin: e.pos,
             yaw,
@@ -1694,7 +1709,7 @@ impl App {
             status: e.status,
             model: o.names.get(&e.id).and_then(|n| n.2),
             distance: (e.pos - camera).length(),
-            lit: self.effects.flash(e.id),
+            lit: self.scene.effects.flash(e.id),
             prop: held_prop(&mut self.content, self.active.as_mut(), &o.props, look),
             off: off_prop(&mut self.content, self.active.as_mut(), &o.props, look),
             worn: worn.0,
@@ -1707,7 +1722,7 @@ impl App {
     /// own bolts are known by their ability (its size, its damage's colour); another's
     /// is a bolt.
     fn other_projectile(&mut self, e: gm_net::client::RenderEntity, seen: &Seen) {
-        self.entities.push(EntityDraw {
+        self.scene.entities.push(EntityDraw {
             mins: e.pos - Vec3::splat(1.2),
             maxs: e.pos + Vec3::splat(1.2),
             color: [1.0, 0.95, 0.6, 1.0],
@@ -1727,8 +1742,15 @@ impl App {
             _ => None,
         };
         let (radius, ink) = known.unwrap_or((3.0, crate::fx::BOLT));
-        self.effects
-            .projectile(e.id, e.pos, e.vel, radius, ink, seen.camera, &mut self.fx);
+        self.scene.effects.projectile(
+            e.id,
+            e.pos,
+            e.vel,
+            radius,
+            ink,
+            seen.camera,
+            &mut self.scene.fx,
+        );
     }
 
     /// An area: a disc of its own size on the floor, and a burst when it appears. What
@@ -1740,7 +1762,9 @@ impl App {
             } => (radius as f32, harmful),
             _ => (32.0, true),
         };
-        self.effects.area(e.id, e.pos, r, harmful, &mut self.fx);
+        self.scene
+            .effects
+            .area(e.id, e.pos, r, harmful, &mut self.scene.fx);
     }
 
     /// Heard (SOUND.md 3): every new sample of every entity up to the render tick, the
@@ -1768,7 +1792,7 @@ impl App {
                 alive: c.own_alive,
             };
             self.sound.own(
-                self.started.elapsed().as_secs_f32(),
+                self.clock.started.elapsed().as_secs_f32(),
                 me,
                 &anims,
                 &predicted.own_actions,
@@ -1791,15 +1815,16 @@ impl App {
             return;
         };
         for stall in &o.stalls {
-            stall_boxes(stall, &mut self.entities);
+            stall_boxes(stall, &mut self.scene.entities);
             let at = Vec3::from(stall.pos);
             let attended = self
+                .scene
                 .bodies
                 .iter()
                 .any(|b| (b.origin - at).truncate().length() < 40.0)
                 || (o.curr_origin - at).truncate().length() < 40.0;
             if !attended {
-                self.bodies.push(stall_keeper(stall, seen.camera));
+                self.scene.bodies.push(stall_keeper(stall, seen.camera));
             }
         }
     }
@@ -1846,7 +1871,7 @@ impl App {
             }
         };
         if c.synced() {
-            self.effects.fighter(
+            self.scene.effects.fighter(
                 &crate::fx::Fighter {
                     key: OWN,
                     feet: seen.centre + feet_under,
@@ -1858,7 +1883,7 @@ impl App {
                     side: crate::fx::Side::Own,
                     health: Some(c.own_health.clamp(0, u16::MAX as i32) as u16),
                 },
-                &mut self.fx,
+                &mut self.scene.fx,
             );
         }
         own_anim
@@ -1927,7 +1952,8 @@ impl App {
                     })
                     .filter(|d| d.length_squared() > 0.5);
                 let dir = led.unwrap_or_else(|| gm_core::sim::view_dir(c.mover.yaw, c.mover.pitch));
-                self.effects
+                self.scene
+                    .effects
                     .launch(from, dir * p.speed, p.radius, damage_ink(&p.damage));
             }
         }
@@ -1941,11 +1967,11 @@ impl App {
             // A blow on a body the frame did not find (gone, or never in sight) says nothing.
             o.heals.clear();
         }
-        self.effects.draw(seen.camera, &mut self.fx);
+        self.scene.effects.draw(seen.camera, &mut self.scene.fx);
         if predicted.rpg {
             if let Some(goal) = self.rpg.walk {
                 let feet = goal + Vec3::Z * Hull::Player.mins().z;
-                self.fx.wall(
+                self.scene.fx.wall(
                     feet,
                     10.0,
                     6.0,
@@ -1957,16 +1983,23 @@ impl App {
                 && let Some(e) = seen.others.iter().find(|e| e.id == t)
             {
                 let feet = e.pos + Vec3::Z * Hull::Player.mins().z;
-                self.fx
+                self.scene
+                    .fx
                     .wall(feet, 20.0, 4.0, [1.0, 0.3, 0.2, 0.7], [1.0, 0.3, 0.2, 0.0]);
             }
         }
-        self.effects.end();
-        self.pops = self.effects.numbers();
+        self.scene.effects.end();
+        self.scene.pops = self.scene.effects.numbers();
         // (The own body's facing is kept across a frame in the first person, where it
         // is not drawn: a switch of the viewport finds it where it was.)
-        let drawn: HashSet<u32> = self.bodies.iter().map(|b| b.key).chain([OWN]).collect();
-        self.facings.retain(|k, _| drawn.contains(k));
+        let drawn: HashSet<u32> = self
+            .scene
+            .bodies
+            .iter()
+            .map(|b| b.key)
+            .chain([OWN])
+            .collect();
+        self.view.facings.retain(|k, _| drawn.contains(k));
     }
 
     /// The own body as the viewport shows it: in the first person the view model
@@ -2007,12 +2040,12 @@ impl App {
             _ => 0.0,
         };
         let rate = if want == 0.0 { 9.0 } else { 34.0 };
-        self.view_swing += (want - self.view_swing) * (frame_dt * rate).min(1.0);
+        self.view.swing += (want - self.view.swing) * (frame_dt * rate).min(1.0);
         if fired {
-            self.view_kick = 1.0;
+            self.view.kick = 1.0;
         }
-        self.view_kick = (self.view_kick - frame_dt * 6.0).max(0.0);
-        self.view_stride += predicted.own_travel / 64.0;
+        self.view.kick = (self.view.kick - frame_dt * 6.0).max(0.0);
+        self.view.stride += predicted.own_travel / 64.0;
         let bsp = &self.bsp;
         let Some(o) = self.online.as_ref() else {
             return (eye, self.sim.yaw, self.sim.pitch);
@@ -2039,26 +2072,26 @@ impl App {
         });
         let reload = reload_progress(c);
         // (Not while the scope is up, MODES.md 3.2.)
-        self.view_model = prop.filter(|_| !self.input.scoped).map(|slot| ViewModel {
+        self.view.model = prop.filter(|_| !self.input.scoped).map(|slot| ViewModel {
             slot,
             fit,
             eye,
-            yaw: self.sim.yaw + self.view_punch.0,
-            pitch: self.sim.pitch - self.view_punch.1,
+            yaw: self.sim.yaw + self.view.punch.0,
+            pitch: self.sim.pitch - self.view.punch.1,
             stride: if c.mover.mv.on_ground {
-                self.view_stride
+                self.view.stride
             } else {
                 0.0
             },
-            kick: self.view_kick,
-            swing: self.view_swing,
+            kick: self.view.kick,
+            swing: self.view.swing,
             reload,
             light: crate::avatars::light_at(bsp, eye),
         });
         (
             eye,
-            self.sim.yaw + self.view_punch.0,
-            (self.sim.pitch - self.view_punch.1).clamp(-89.0, 89.0),
+            self.sim.yaw + self.view.punch.0,
+            (self.sim.pitch - self.view.punch.1).clamp(-89.0, 89.0),
         )
     }
 
@@ -2080,14 +2113,14 @@ impl App {
         let look = if locked { c.mover.yaw } else { self.sim.yaw };
         let rpg = c.sheet.kit.mode == gm_core::vocab::Mode::Rpg;
         let yaw = facing(
-            self.facings.get(&OWN).copied(),
+            self.view.facings.get(&OWN).copied(),
             look,
             c.mover.mv.velocity,
             own_anim,
             rpg && !locked,
             frame_dt,
         );
-        self.facings.insert(OWN, yaw);
+        self.view.facings.insert(OWN, yaw);
         let worn = worn_overlay(
             &mut self.content,
             self.active.as_mut(),
@@ -2095,7 +2128,7 @@ impl App {
             o.looks.get(&c.my_id).copied().unwrap_or_default(),
             gm_model::rig::frame_index(build.frame),
         );
-        self.bodies.push(Body {
+        self.scene.bodies.push(Body {
             key: OWN,
             origin: seen.centre,
             yaw,
@@ -2108,7 +2141,7 @@ impl App {
             status: c.mover.statuses.mask(),
             model: o.names.get(&c.my_id).and_then(|n| n.2),
             distance: 0.0,
-            lit: self.effects.flash(OWN),
+            lit: self.scene.effects.flash(OWN),
             prop: held_prop(
                 &mut self.content,
                 self.active.as_mut(),
@@ -2165,7 +2198,7 @@ impl App {
                 other => log::warn!("the item bar was not read: {other:?}"),
             }
         }
-        if let Some(cells) = self.bag.as_ref().and_then(|b| b.bar())
+        if let Some(cells) = self.screens.bag.as_ref().and_then(|b| b.bar())
             && cells != o.bar.as_slice()
         {
             o.bar = cells.to_vec();

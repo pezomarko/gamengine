@@ -33,7 +33,7 @@ impl App {
         log::error!("{why}");
         #[cfg(target_arch = "wasm32")]
         crate::web::tell_page("error", why);
-        self.exit_requested = true;
+        self.clock.exit_requested = true;
         event_loop.exit();
     }
 
@@ -45,14 +45,18 @@ impl App {
         gpu: Gpu,
     ) -> Result<(), Error> {
         let (config, view_format) = self.configure(&window, &surface, &gpu)?;
-        let mesh = self.mesh.take().ok_or("world mesh already consumed")?;
+        let mesh = self
+            .world
+            .mesh
+            .take()
+            .ok_or("world mesh already consumed")?;
         let mut renderer = Renderer::new(&gpu, view_format, &mesh, (config.width, config.height));
         // The bundle's atlas is the HUD's texture from here on (LOOK.md 2.2).
         if let Some(atlas) = self.content.take_atlas() {
             renderer.hud.set_atlas(&gpu, atlas);
         }
         // Models come from the hub, on whatever session is logged in when one is wanted.
-        let source = self.hub.as_ref().map(|h| h.model_source());
+        let source = self.session.hub.as_ref().map(|h| h.model_source());
         let avatars = Avatars::new(
             &gpu,
             &mut renderer.characters,
@@ -60,7 +64,7 @@ impl App {
             &self.bsp,
             source,
         )?;
-        self.adapter_info = Some(gpu.info.clone());
+        self.clock.adapter_info = Some(gpu.info.clone());
         self.active = Some(Active {
             window: window.clone(),
             surface,
@@ -76,10 +80,10 @@ impl App {
         if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
             self.set_grab(true);
         }
-        self.was_up = self.screen_up();
+        self.screens.was_up = self.screen_up();
         self.apply_settings();
-        self.last_frame = Instant::now();
-        self.started = Instant::now();
+        self.clock.last_frame = Instant::now();
+        self.clock.started = Instant::now();
         // Offline there is nothing left to wait for; online the status clears at `Welcome`.
         #[cfg(target_arch = "wasm32")]
         if self.online.is_none() {
@@ -169,7 +173,7 @@ impl App {
             if slot.is_none() {
                 log::warn!("--prop {key}: the bundle has no such prop on the desktop");
             }
-            self.offline_prop = slot;
+            self.offline.prop = slot;
             a.avatars.crowd_prop = slot;
         }
         if let Some(key) = self.opts.off.clone() {
@@ -185,7 +189,7 @@ impl App {
             {
                 a.avatars.flat.insert(slot);
             }
-            self.offline_off = slot;
+            self.offline.off = slot;
             a.avatars.crowd_off = slot;
         }
         if let Some(keys) = self.opts.worn.clone() {
@@ -202,11 +206,11 @@ impl App {
                     }
                 }
             }
-            self.offline_worn = worn.clone();
+            self.offline.worn = worn.clone();
             a.avatars.crowd_worn = worn;
         }
         if self.opts.sheathed {
-            self.offline_sheathed = true;
+            self.offline.sheathed = true;
             a.avatars.crowd_sheathed = true;
         }
     }
@@ -224,14 +228,14 @@ impl App {
         // the page takes, not an error left in the console.
         #[cfg(target_arch = "wasm32")]
         if grab {
-            self.grab_asked = Some(Instant::now());
+            self.pointer.grab_asked = Some(Instant::now());
             crate::web::ask_for_pointer();
         } else {
             crate::web::give_pointer_back();
         }
         #[cfg(not(target_arch = "wasm32"))]
         if grab {
-            self.grab_asked = Some(Instant::now());
+            self.pointer.grab_asked = Some(Instant::now());
             let ok = a
                 .window
                 .set_cursor_grab(CursorGrabMode::Confined)
@@ -244,7 +248,7 @@ impl App {
             let _ = a.window.set_cursor_grab(CursorGrabMode::None);
         }
         a.window.set_cursor_visible(!grab);
-        self.grabbed = grab;
+        self.pointer.grabbed = grab;
     }
 
     pub(super) fn configure_surface(&mut self) {
@@ -262,13 +266,13 @@ impl App {
     /// Replace the world (BSP, mesh, renderer) with another map.
     pub(super) fn switch_map(&mut self, bsp: Bsp, hash: u64) {
         self.rpg.forget_map();
-        self.map_hash = hash;
+        self.world.map_hash = hash;
         // A map that says what its air is (SOUND.md 3) is believed over its name.
         if let Some(air) = ambience_of(&bsp) {
             self.sound.air_named(air);
         }
-        let mesh = world::build(&bsp, &self.palette);
-        self.faces_total = mesh
+        let mesh = world::build(&bsp, &self.world.palette);
+        self.world.faces_total = mesh
             .face_ranges
             .iter()
             .filter(|r| r.index_count > 0)
@@ -277,7 +281,7 @@ impl App {
             a.renderer.set_world(&a.gpu, &mesh);
             a.drawn_from = vec![usize::MAX];
         } else {
-            self.mesh = Some(mesh);
+            self.world.mesh = Some(mesh);
         }
         self.sim = Sim::new(&bsp);
         self.bsp = bsp;

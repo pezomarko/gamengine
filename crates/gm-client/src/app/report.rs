@@ -5,8 +5,8 @@ impl App {
     /// the frames, the models, the zone and the hotbar, the UI's scale, where the body
     /// is, and what was heard.
     pub(super) fn report_line(&mut self) -> String {
-        let r = self.stats.report_since(self.report_frame);
-        self.report_frame = self.stats.frames();
+        let r = self.clock.stats.report_since(self.clock.report_frame);
+        self.clock.report_frame = self.clock.stats.frames();
         let mut line = format!(
             "fps={:.1} frame_ms_avg={:.2} frame_ms_p99={:.2} frame_ms_max={:.2}",
             r.fps_avg, r.ms_avg, r.ms_p99, r.ms_max
@@ -139,13 +139,13 @@ impl App {
         let axes = self.input.axes();
         line.push_str(&format!(
             " yaw={:.0} pos={:.0},{:.0},{:.0} touch={} axes={:.2},{:.2}",
-            self.sim.yaw, pos.x, pos.y, pos.z, self.fingers.seen as u8, axes.0, axes.1
+            self.sim.yaw, pos.x, pos.y, pos.z, self.pointer.fingers.seen as u8, axes.0, axes.1
         ));
         #[cfg(target_arch = "wasm32")]
         line.push_str(&format!(
             " wasm_memory_bytes={} first_frame_ms={:.0}",
             crate::web::wasm_memory_bytes(),
-            self.first_frame_ms
+            self.web.first_frame_ms
         ));
     }
 }

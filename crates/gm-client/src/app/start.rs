@@ -38,121 +38,135 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
         Viewport::First
     };
     let touch = opts.touch;
-    let mut app = App {
-        view_kick: 0.0,
-        view_swing: 0.0,
-        view_stride: 0.0,
-        view_model: None,
+    let now = Instant::now();
+    let sound = crate::sound::Sound::new(
+        start.settings.volume,
+        start.settings.mute,
+        opts.sound_dump.clone(),
+    );
+    App {
         content: start.content,
-        offline_prop: None,
-        offline_worn: Vec::new(),
-        offline_off: None,
-        offline_sheathed: false,
-        front_up: start.front.is_some() && start.online.is_none(),
-        title: None,
-        hub: start.hub,
-        account: None,
-        front: start.front,
-        menu: None,
-        chat: Chat::default(),
-        bag: None,
-        people: None,
-        gm_page: None,
-        character_page: None,
-        party_view: Vec::new(),
-        sound: crate::sound::Sound::new(
-            start.settings.volume,
-            start.settings.mute,
-            opts.sound_dump.clone(),
-        ),
-        sound_from: None,
-        character: None,
-        ui: UiState::default(),
-        ui_input: UiInput::default(),
-        cursor: (0.0, 0.0),
-        last_press: None,
-        shift: false,
-        command: false,
-        #[cfg(not(target_arch = "wasm32"))]
-        pasting: None,
-        leaving: Vec::new(),
-        hub_touched: Instant::now(),
-        settings_kept: start.settings.clone(),
-        #[cfg(not(target_arch = "wasm32"))]
-        settings_path: None,
+        screens: Screens {
+            front_up: start.front.is_some() && start.online.is_none(),
+            title: None,
+            front: start.front,
+            menu: None,
+            chat: Chat::default(),
+            bag: None,
+            people: None,
+            gm_page: None,
+            character_page: None,
+            ui: UiState::default(),
+            ui_input: UiInput::default(),
+            ui_script: start.ui_script,
+            was_up: false,
+            ui_drawn: false,
+        },
+        session: Session {
+            hub: start.hub,
+            account: None,
+            character: None,
+            hub_touched: now,
+            leaving: Vec::new(),
+            zone_ended: None,
+        },
+        sound,
+        prefs: Prefs {
+            kept: start.settings.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
+            path: None,
+        },
         settings: start.settings,
-        ui_script: start.ui_script,
-        map_hash: start.map_hash,
-        was_up: false,
-        ui_drawn: false,
-        grab_asked: None,
+        world: World {
+            mesh: Some(mesh),
+            palette,
+            pending_map: None,
+            faces_total,
+            map_hash: start.map_hash,
+        },
         #[cfg(target_arch = "wasm32")]
-        was_locked: false,
-        #[cfg(target_arch = "wasm32")]
-        told: String::new(),
-        #[cfg(target_arch = "wasm32")]
-        told_field: None,
-        #[cfg(target_arch = "wasm32")]
-        told_fields: Vec::new(),
-        zone_ended: None,
+        web: Web {
+            pending_gpu: Default::default(),
+            pending_fetch: Default::default(),
+            first_frame_ms: 0.0,
+            was_locked: false,
+            told: String::new(),
+            told_field: None,
+            told_fields: Vec::new(),
+        },
         opts,
         window: None,
         bsp,
-        mesh: Some(mesh),
         active: None,
+        view: View {
+            kick: 0.0,
+            swing: 0.0,
+            stride: 0.0,
+            model: None,
+            viewport,
+            aim: (0.0, 0.0),
+            punch: (0.0, 0.0),
+            eye_drop: 0.0,
+            zoom: 1.0,
+            bench_yaw0: sim.yaw,
+            last_vp: None,
+            facings: HashMap::new(),
+        },
         sim,
         online: start.online,
         input: Input::default(),
-        viewport,
-        stats: FrameStats::new(),
-        last_frame: Instant::now(),
-        last_title: Instant::now(),
-        started: Instant::now(),
-        title_frame: 0,
-        grabbed: false,
-        adapter_info: None,
-        faces_total,
-        exit_requested: false,
-        acquire_timeouts: 0,
-        entities: Vec::new(),
-        bodies: Vec::new(),
-        revoked: Vec::new(),
-        bench_yaw0: 0.0,
-        aim: (0.0, 0.0),
-        pending_map: None,
-        palette,
-        script_target: None,
-        last_report: Instant::now(),
-        report_frame: 0,
-        #[cfg(target_arch = "wasm32")]
-        pending_gpu: Default::default(),
-        #[cfg(target_arch = "wasm32")]
-        pending_fetch: Default::default(),
-        #[cfg(target_arch = "wasm32")]
-        first_frame_ms: 0.0,
+        clock: Clock {
+            stats: FrameStats::new(),
+            last_frame: now,
+            last_title: now,
+            started: now,
+            title_frame: 0,
+            last_report: now,
+            report_frame: 0,
+            acquire_timeouts: 0,
+            adapter_info: None,
+            exit_requested: false,
+        },
+        scene: Scene {
+            entities: Vec::new(),
+            bodies: Vec::new(),
+            revoked: Vec::new(),
+            effects: Default::default(),
+            fx: Default::default(),
+            tags: Vec::new(),
+            pops: Vec::new(),
+            combo: (0, None),
+            squad_view: Vec::new(),
+            target_view: None,
+            party_view: Vec::new(),
+            script_target: None,
+        },
+        offline: Offline {
+            prop: None,
+            worn: Vec::new(),
+            off: None,
+            sheathed: false,
+            sound_from: None,
+        },
         #[cfg(not(target_arch = "wasm32"))]
         playback: None,
-        effects: Default::default(),
-        fx: Default::default(),
-        tags: Vec::new(),
-        pops: Vec::new(),
-        combo: (0, None),
-        view_punch: (0.0, 0.0),
-        eye_drop: 0.0,
-        zoom: 1.0,
         rpg: crate::rpg::Rpg::new(),
-        last_vp: None,
-        cursor_icon: CursorIcon::Default,
-        rpg_right: None,
-        fingers: Fingers::expecting(touch),
-        touch_buttons: Vec::new(),
-        tap_fire: None,
-        facings: HashMap::new(),
-        squad_view: Vec::new(),
-        target_view: None,
-    };
-    app.bench_yaw0 = app.sim.yaw;
-    app
+        pointer: Pointer {
+            cursor: (0.0, 0.0),
+            last_press: None,
+            shift: false,
+            command: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            pasting: None,
+            grabbed: false,
+            grab_asked: None,
+            cursor_icon: CursorIcon::Default,
+            fingers: Fingers::expecting(touch),
+            touch_buttons: Vec::new(),
+            tap_fire: None,
+            rpg_right: None,
+        },
+    }
 }
 
 /// Open the replay named on the command line and point the options at its map.
@@ -383,8 +397,8 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = app(opts, bsp, palette, sim, start);
     app.playback = playback;
-    app.title = title;
-    app.settings_path = settings_path;
+    app.screens.title = title;
+    app.prefs.path = settings_path;
     event_loop.run_app(&mut app)?;
     run_end(app)
 }
@@ -396,23 +410,30 @@ fn run_end(mut app: App) -> Result<(), Error> {
         o.net.close();
     }
     // Goodbyes still on their way are waited for: the zone frees the body now.
-    for (mut net, _) in app.leaving.drain(..) {
+    for (mut net, _) in app.session.leaving.drain(..) {
         net.close();
     }
-    if let Some(hub) = &app.hub {
-        if app.account.is_some() {
+    if let Some(hub) = &app.session.hub {
+        if app.session.account.is_some() {
             log::info!("logging out of the hub");
         }
         hub.logout();
     }
     app.keep_settings();
 
-    let report = app.stats.report();
+    let report = app.clock.stats.report();
     let scripted = app.opts.bench_frames.is_some() || app.opts.seconds > 0.0;
-    if let (true, Some(info)) = (scripted, &app.adapter_info) {
+    if let (true, Some(info)) = (scripted, &app.clock.adapter_info) {
         let faces = app.active.as_ref().map_or(0, |a| a.renderer.faces_drawn);
         let draws = app.active.as_ref().map_or(1, |a| a.renderer.draw_calls);
-        print_bench(&report, info, "windowed", faces, app.faces_total, draws);
+        print_bench(
+            &report,
+            info,
+            "windowed",
+            faces,
+            app.world.faces_total,
+            draws,
+        );
     } else if report.frames > 0 {
         let (_, peak) = crate::stats::rss_bytes();
         log::info!(
@@ -449,7 +470,7 @@ fn run_end(mut app: App) -> Result<(), Error> {
             c.delay_ticks
         );
     }
-    if app.exit_requested {
+    if app.clock.exit_requested {
         return Err("exited on error".into());
     }
     Ok(())

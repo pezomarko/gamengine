@@ -133,111 +133,92 @@ pub enum Viewport {
     Third,
 }
 
-struct App {
-    opts: Options,
+/// The view (CLIENT.md 2): the viewport, the camera's aim, the view model's motion
+/// (LOOK.md 6.4), the recoil's punch (MODES.md 3.3), the scope's zoom, the crouch's
+/// drop, and the yaw each body was drawn facing (LOOK.md 13.9).
+struct View {
     /// The view model's kick (1 at a launch, decaying) and stride phase (LOOK.md 6.4).
-    view_kick: f32,
-    view_swing: f32,
-    view_stride: f32,
-    view_model: Option<ViewModel>,
-    /// The content bundle: the manifest, the props by key (CONTENT.md 6).
-    content: Content,
-    /// `--prop FILE` or `--prop KEY` offline: the own body holds it (the fitting room of
-    /// CONTENT.md 9), once it is on the GPU.
-    offline_prop: Option<usize>,
-    /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
-    offline_worn: Vec<(usize, u32)>,
-    /// Offline (`--off KEY`): the prop in the own body's left hand, to look at.
-    offline_off: Option<usize>,
-    /// Offline (`--sheathed`): the own prop rests on the back (LOOK.md 6.7).
-    offline_sheathed: bool,
-    /// The window, from its creation: the renderer on it (`active`) may come later.
-    window: Option<Arc<Window>>,
-    bsp: Bsp,
-    mesh: Option<WorldMesh>,
-    active: Option<Active>,
-    sim: Sim,
-    online: Option<Online>,
-    input: Input,
+    kick: f32,
+    swing: f32,
+    stride: f32,
+    model: Option<ViewModel>,
     viewport: Viewport,
-    stats: FrameStats,
-    last_frame: Instant,
-    last_title: Instant,
-    started: Instant,
-    title_frame: usize,
-    grabbed: bool,
-    adapter_info: Option<wgpu::AdapterInfo>,
-    faces_total: usize,
-    exit_requested: bool,
-    acquire_timeouts: u32,
+    /// The aim resolved by the last third-person tick, for the HUD.
+    aim: (f32, f32),
+    /// The recoil's punch on the view (MODES.md 3.3), (yaw, pitch) degrees, decaying.
+    punch: (f32, f32),
+    /// How far the eye has sunk into a crouch (MODES.md 3.4), units, eased.
+    eye_drop: f32,
+    /// The scope's zoom this frame (1 without one): the field of view is divided by it
+    /// and so is the mouse.
+    zoom: f32,
+    bench_yaw0: f32,
+    /// The last frame's view-projection and the window's size: what a click is
+    /// unprojected through.
+    last_vp: Option<(glam::Mat4, (f32, f32))>,
+    /// The yaw each body was drawn facing last frame (LOOK.md 13.9), by its key.
+    facings: HashMap<u32, f32>,
+}
+
+/// The fitting rooms of the command line (CONTENT.md 9), and where the own body was at
+/// the last offline frame (its ground travel for the steps).
+struct Offline {
+    /// `--prop FILE` or `--prop KEY` offline: the own body holds it, once it is on the GPU.
+    prop: Option<usize>,
+    /// `--worn KEY`: the overlay the own body and the crowd wear offline, and its cover.
+    worn: Vec<(usize, u32)>,
+    /// `--off KEY`: the prop in the own body's left hand, to look at.
+    off: Option<usize>,
+    /// `--sheathed`: the own prop rests on the back (LOOK.md 6.7).
+    sheathed: bool,
+    sound_from: Option<Vec3>,
+}
+
+/// What a frame draws of the zone: the entities and the bodies, the fight's effects
+/// (LOOK.md 13), the names and the numbers over the bodies, and what the HUD shows of
+/// the squad, the party and the creature fought.
+struct Scene {
     entities: Vec<EntityDraw>,
     /// Bodies to draw this frame (players, the own body in third person).
     bodies: Vec<Body>,
     /// Models the zone revoked since the last frame.
     revoked: Vec<ModelId>,
-    bench_yaw0: f32,
-    /// The aim resolved by the last third-person tick, for the HUD.
-    aim: (f32, f32),
-    /// A map to switch to before the next frame (a zone change), with its hash.
-    pending_map: Option<(Bsp, u64)>,
-    palette: world::Palette,
-    /// The script's aim (`--script fight`): the nearest living enemy as of the last frame,
-    /// its id, position and velocity, and when it was seen.
-    script_target: Option<(u32, Vec3, Vec3, Instant)>,
-    last_report: Instant,
-    report_frame: usize,
-    /// The browser: the GPU device and a fetched map arrive here from their tasks.
-    #[cfg(target_arch = "wasm32")]
-    pending_gpu: PendingSlot<(wgpu::Surface<'static>, Gpu)>,
-    #[cfg(target_arch = "wasm32")]
-    pending_fetch: PendingSlot<(Bsp, u64)>,
-    /// Milliseconds from navigation to the first frame presented (WEB.md 9).
-    #[cfg(target_arch = "wasm32")]
-    first_frame_ms: f64,
-    /// A replay being watched instead of a game being played (ANTICHEAT.md 3.4).
-    #[cfg(not(target_arch = "wasm32"))]
-    playback: Option<crate::playback::Playback>,
-    /// The fight's effects between frames, the triangles they made this frame, and the
-    /// names over the bodies (LOOK.md 13).
+    /// The fight's effects between frames, and the triangles they made this frame.
     effects: crate::fx::Effects,
     fx: crate::fx::FxMesh,
+    /// The names over the bodies (LOOK.md 13).
     tags: Vec<Tag>,
     /// The numbers over the bodies this frame (LOOK.md 13.8).
     pops: Vec<crate::fx::Pop>,
     /// The combo counter (MODES.md 4.6): blows the own hand landed within two seconds of
     /// each other, and when the last landed.
     combo: (u32, Option<Instant>),
-    /// The recoil's punch on the view (MODES.md 3.3), (yaw, pitch) degrees, decaying.
-    view_punch: (f32, f32),
-    /// How far the eye has sunk into a crouch (MODES.md 3.4), units, eased.
-    eye_drop: f32,
-    /// The scope's zoom this frame (1 without one): the field of view is divided by it
-    /// and so is the mouse.
-    zoom: f32,
-    /// The RPG mode's target, walk and waiting action (MODES.md 5).
-    rpg: crate::rpg::Rpg,
-    /// The last frame's view-projection and the window's size: what a click is
-    /// unprojected through.
-    last_vp: Option<(glam::Mat4, (f32, f32))>,
-    /// The cursor the window shows (MODES.md 5.5): set again only when it changes.
-    cursor_icon: CursorIcon,
-    /// A right press in the RPG mode: when and where, and the camera's yaw and pitch
-    /// then, to tell a tap on the target (the secondary) from a drag of the orbit.
-    rpg_right: Option<(Instant, (f32, f32), f32, f32)>,
-    /// The fingers on the screen (MODES.md 5.6), the controls drawn for them this frame
-    /// (where a finger may land on one), and a tap's primary, held a moment.
-    fingers: Fingers,
-    touch_buttons: Vec<(TouchButton, ui::Rect)>,
-    tap_fire: Option<Instant>,
-    /// The yaw each body was drawn facing last frame (LOOK.md 13.9), by its key.
-    facings: HashMap<u32, f32>,
     /// Per squad slot: the companion's health as last sent, and whether it lives.
     squad_view: Vec<(Option<u16>, bool)>,
     /// The creature being fought: name, health, maximum.
     target_view: Option<(String, u16, u16)>,
-    /// The hub this client talks to, if it talks to one (CLIENT.md 2), and the session.
-    hub: Option<Hub>,
-    account: Option<Account>,
+    /// The party's other members: `None` when no body of that name is here, else the
+    /// health the wire carries for it, when it does.
+    party_view: Vec<(String, Option<Option<u16>>)>,
+    /// The script's aim (`--script fight`): the nearest living enemy as of the last frame,
+    /// its id, position and velocity, and when it was seen.
+    script_target: Option<(u32, Vec3, Vec3, Instant)>,
+}
+
+/// The map besides its BSP: its mesh until the renderer takes it, its palette, a map to
+/// switch to, and the hash a zone's `Welcome` is compared with.
+struct World {
+    mesh: Option<WorldMesh>,
+    palette: world::Palette,
+    /// A map to switch to before the next frame (a zone change), with its hash.
+    pending_map: Option<(Bsp, u64)>,
+    faces_total: usize,
+    /// The hash of the map that is loaded: what a zone's `Welcome` is compared with.
+    map_hash: u64,
+}
+
+/// The screens (CLIENT.md 4 to 6) and the toolkit's memory.
+struct Screens {
     /// The screens before the game (CLIENT.md 4.1 to 4.3), and whether one is up.
     front: Option<Front>,
     front_up: bool,
@@ -247,26 +228,27 @@ struct App {
     /// The game menu when it is open, and the chat (CLIENT.md 4.4, 5).
     menu: Option<GameMenu>,
     chat: Chat,
-    /// The inventory or a stall, when one is open (ITEMS.md 6), and the character being
-    /// played: the one the hub is asked about.
+    /// The inventory or a stall, when one is open (ITEMS.md 6).
     bag: Option<Bag>,
     /// The page of people, a trade or the tavern (PARTY.md 8).
     people: Option<People>,
     gm_page: Option<GmPage>,
     /// The character's page (MATRIX.md 9.1): `K`, or the menu.
     character_page: Option<CharacterPage>,
-    /// The party on the HUD: each other member's name, and its health when it is here.
-    /// The party's other members: `None` when no body of that name is here, else the
-    /// health the wire carries for it, when it does.
-    party_view: Vec<(String, Option<Option<u16>>)>,
-    /// What is heard (SOUND.md), and where the own body was at the last offline frame
-    /// (its ground travel for the steps).
-    sound: crate::sound::Sound,
-    sound_from: Option<Vec3>,
-    character: Option<gm_hub_proto::protocol::CharacterId>,
     /// The toolkit's memory, and what happened since the last frame for it.
     ui: UiState,
     ui_input: UiInput,
+    /// Somebody plays the person (CLIENT.md 9).
+    ui_script: Option<UiScript>,
+    /// Whether a screen was up in the last frame: the pointer follows the change.
+    was_up: bool,
+    /// The last frame drew the screens: a UI script acts on what was drawn, so it waits
+    /// through frames that drew nothing (a window that is covered, a surface being made).
+    ui_drawn: bool,
+}
+
+/// The pointer, the modifiers, the fingers (MODES.md 5.6) and what they are doing.
+struct Pointer {
     /// The pointer, in pixels, and the last press (for the double click).
     cursor: (f32, f32),
     last_press: Option<(Instant, (f32, f32))>,
@@ -278,43 +260,110 @@ struct App {
     /// take seconds to answer), and what it held is typed by the frame that finds it here.
     #[cfg(not(target_arch = "wasm32"))]
     pasting: Option<std::sync::mpsc::Receiver<String>>,
-    /// Zones being left: each says its goodbye on its own thread while the frames go on;
-    /// kept until it has, or for a second.
-    leaving: Vec<(NetClient, Instant)>,
+    grabbed: bool,
+    /// When the pointer was last asked for (a browser gives and takes it by itself,
+    /// WEB.md 3.4).
+    grab_asked: Option<Instant>,
+    /// The cursor the window shows (MODES.md 5.5): set again only when it changes.
+    cursor_icon: CursorIcon,
+    /// The fingers on the screen (MODES.md 5.6), the controls drawn for them this frame
+    /// (where a finger may land on one), and a tap's primary, held a moment.
+    fingers: Fingers,
+    touch_buttons: Vec<(TouchButton, ui::Rect)>,
+    tap_fire: Option<Instant>,
+    /// A right press in the RPG mode: when and where, and the camera's yaw and pitch
+    /// then, to tell a tap on the target (the secondary) from a drag of the orbit.
+    rpg_right: Option<(Instant, (f32, f32), f32, f32)>,
+}
+
+/// The hub this client talks to, if it talks to one (CLIENT.md 2), and the session.
+struct Session {
+    hub: Option<Hub>,
+    account: Option<Account>,
+    character: Option<gm_hub_proto::protocol::CharacterId>,
     /// When the hub last heard from this client while it plays: a session lives while it
     /// is used (HUB.md 3.1), and a zone is played without a word to the hub.
     hub_touched: Instant,
-    settings: Settings,
-    /// What the settings file holds: a change is written within a second (CLIENT.md 8).
-    settings_kept: Settings,
-    #[cfg(not(target_arch = "wasm32"))]
-    settings_path: Option<std::path::PathBuf>,
-    /// Somebody plays the person (CLIENT.md 9).
-    ui_script: Option<UiScript>,
-    /// Whether a screen was up in the last frame: the pointer follows the change.
-    was_up: bool,
-    /// The last frame drew the screens: a UI script acts on what was drawn, so it waits
-    /// through frames that drew nothing (a window that is covered, a surface being made).
-    ui_drawn: bool,
-    /// When the pointer was last asked for, and whether the browser had given it as of
-    /// the last frame (a browser gives and takes it by itself, WEB.md 3.4).
-    grab_asked: Option<Instant>,
-    #[cfg(target_arch = "wasm32")]
-    was_locked: bool,
-    /// What the page was last told about the screens (CLIENT.md 4.1).
-    #[cfg(target_arch = "wasm32")]
-    told: String,
-    /// What the page was last told of the text field with the keyboard (WEB.md 3.6): its
-    /// value, or `None` for no field; and where the fields were, in CSS pixels.
-    #[cfg(target_arch = "wasm32")]
-    told_field: Option<String>,
-    #[cfg(target_arch = "wasm32")]
-    told_fields: Vec<f32>,
-    /// The hash of the map that is loaded: what a zone's `Welcome` is compared with.
-    map_hash: u64,
+    /// Zones being left: each says its goodbye on its own thread while the frames go on;
+    /// kept until it has, or for a second.
+    leaving: Vec<(NetClient, Instant)>,
     /// The zone's connection ended and a person is at the client: the reason, for the
     /// characters screen.
     zone_ended: Option<String>,
+}
+
+/// The frames counted and timed, and the run's end.
+struct Clock {
+    stats: FrameStats,
+    last_frame: Instant,
+    last_title: Instant,
+    started: Instant,
+    title_frame: usize,
+    last_report: Instant,
+    report_frame: usize,
+    acquire_timeouts: u32,
+    adapter_info: Option<wgpu::AdapterInfo>,
+    exit_requested: bool,
+}
+
+/// What the settings file holds (CLIENT.md 8): a change is written within a second.
+struct Prefs {
+    kept: Settings,
+    #[cfg(not(target_arch = "wasm32"))]
+    path: Option<std::path::PathBuf>,
+}
+
+/// What only a browser has (WEB.md 3): the device and the map its tasks deliver, the
+/// first frame's time, and what the page was last told.
+#[cfg(target_arch = "wasm32")]
+struct Web {
+    /// The GPU device and a fetched map arrive here from their tasks.
+    pending_gpu: PendingSlot<(wgpu::Surface<'static>, Gpu)>,
+    pending_fetch: PendingSlot<(Bsp, u64)>,
+    /// Milliseconds from navigation to the first frame presented (WEB.md 9).
+    first_frame_ms: f64,
+    /// Whether the browser had given the pointer as of the last frame.
+    was_locked: bool,
+    /// What the page was last told about the screens (CLIENT.md 4.1).
+    told: String,
+    /// What the page was last told of the text field with the keyboard (WEB.md 3.6): its
+    /// value, or `None` for no field; and where the fields were, in CSS pixels.
+    told_field: Option<String>,
+    told_fields: Vec<f32>,
+}
+
+/// The client: what it was started with, the map, the window and the renderer on it,
+/// the local walk or the zone, and the parts of a frame by concern.
+struct App {
+    opts: Options,
+    /// The content bundle: the manifest, the props by key (CONTENT.md 6).
+    content: Content,
+    /// The window, from its creation: the renderer on it (`active`) may come later.
+    window: Option<Arc<Window>>,
+    bsp: Bsp,
+    active: Option<Active>,
+    sim: Sim,
+    online: Option<Online>,
+    input: Input,
+    /// What is heard (SOUND.md).
+    sound: crate::sound::Sound,
+    /// The RPG mode's target, walk and waiting action (MODES.md 5).
+    rpg: crate::rpg::Rpg,
+    settings: Settings,
+    /// A replay being watched instead of a game being played (ANTICHEAT.md 3.4).
+    #[cfg(not(target_arch = "wasm32"))]
+    playback: Option<crate::playback::Playback>,
+    view: View,
+    offline: Offline,
+    scene: Scene,
+    world: World,
+    screens: Screens,
+    pointer: Pointer,
+    session: Session,
+    clock: Clock,
+    prefs: Prefs,
+    #[cfg(target_arch = "wasm32")]
+    web: Web,
 }
 
 /// A value a browser task delivers to the frame that waits for it.
@@ -377,7 +426,7 @@ impl ApplicationHandler for App {
         // A browser hands out its GPU device asynchronously: the frame picks it up.
         #[cfg(target_arch = "wasm32")]
         {
-            let slot = self.pending_gpu.clone();
+            let slot = self.web.pending_gpu.clone();
             let software = self.opts.software;
             wasm_bindgen_futures::spawn_local(async move {
                 let made = async {
@@ -414,7 +463,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(w) = &self.window
-            && !self.exit_requested
+            && !self.clock.exit_requested
         {
             w.request_redraw();
         }
