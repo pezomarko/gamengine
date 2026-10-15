@@ -126,8 +126,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: gates-release
-      - name: System packages (software Vulkan, ALSA's headers, Xvfb)
-        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
+      - name: System packages (software Vulkan, ALSA's headers, Xvfb and the X libraries winit loads)
+        run: >-
+          sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1
+          libasound2-dev xvfb libxkbcommon-x11-0 libxcursor1 libx11-xcb1
       - name: Build release client
         run: cargo build --release -p gm-client --locked
       - name: Headless render + RAM gate (fps is not gated here)
