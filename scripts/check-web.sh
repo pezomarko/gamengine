@@ -59,6 +59,7 @@ else
 fi
 
 # 2. Build and gate the download.
+mkdir -p target # a fresh runner has built nothing yet: the log needs its directory
 [[ "${SKIP_BUILD:-}" == 1 && -f target/web/gm-client-webgpu_bg.wasm ]] || scripts/build-web.sh > target/web-build.log 2>&1 \
   || { tail -30 target/web-build.log; echo "FAIL: the web build"; exit 1; }
 size() { stat -c %s "$1"; }
