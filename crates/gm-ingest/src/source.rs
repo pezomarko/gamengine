@@ -272,24 +272,106 @@ pub fn read_prop(upload: &[u8], fit: Fit) -> Result<Source, Vec<String>> {
     read_kind(upload, Kind::Prop(fit))
 }
 
-/// Read and merge the upload. `Err` lists every reason it cannot be used.
+/// Read and merge the upload. `Err` lists every reason it cannot be used. In order: the
+/// file and its node graph, the rig, the geometry primitive by primitive, the atlas, the
+/// mesh compacted.
 pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
-    if !upload.starts_with(b"glTF") {
-        return Err(vec!["the upload must be a glTF 2.0 binary (.glb)".into()]);
-    }
-    let gltf = gltf::Gltf::from_slice(upload)
-        .map_err(|e| vec![format!("not a valid glTF 2.0 binary: {e}")])?;
+    let (gltf, g) = parse(upload)?;
     let blob: &[u8] = gltf.blob.as_deref().unwrap_or(&[]);
     let doc = &gltf.document;
-    let fatal = |s: String| vec![s];
-    let g = graph(doc).map_err(fatal)?;
-
     // A prop has no skin to speak of: whatever the file carries is read as rigid geometry
     // in the pose it was exported in, and the fit moves all of it into hand space.
     let prop_fit = match kind {
         Kind::Avatar => None,
         Kind::Prop(fit) => Some(fit.matrix()),
     };
+    let mut reading = Reading::default();
+    let rig = read_rig(doc, blob, &g, prop_fit, &mut reading)?;
+    let cx = Cx {
+        blob,
+        g: &g,
+        rig: &rig,
+        prop_fit,
+    };
+    reading.read_geometry(doc, &cx);
+    let swatched = reading.check(prop_fit.is_some())?;
+    let texture = reading.atlas(doc, blob, swatched)?;
+    let pivots = pivots(&rig, &g, prop_fit);
+    let mask = if prop_fit.is_some() { 1 } else { rig.mask };
+    let source_triangles = reading.mesh.indices.len() / 3;
+    let mut out = compact(&reading.mesh, pivots, mask);
+    if out.normals.contains(&Vec3::ZERO) {
+        compute_normals(&mut out);
+        reading
+            .notes
+            .push("normals were missing and have been computed".into());
+    }
+    Ok(Source {
+        mesh: out,
+        texture,
+        base_color: reading.base_color.unwrap_or([1.0; 4]),
+        cutout: reading.cutout,
+        two_sided: reading.two_sided,
+        source_joints: rig.joints,
+        source_triangles,
+        notes: reading.notes,
+    })
+}
+
+/// The file: a glTF 2.0 binary with a node graph the limits allow.
+fn parse(upload: &[u8]) -> Result<(gltf::Gltf, Graph), Vec<String>> {
+    if !upload.starts_with(b"glTF") {
+        return Err(vec!["the upload must be a glTF 2.0 binary (.glb)".into()]);
+    }
+    let gltf = gltf::Gltf::from_slice(upload)
+        .map_err(|e| vec![format!("not a valid glTF 2.0 binary: {e}")])?;
+    let g = graph(&gltf.document).map_err(|s| vec![s])?;
+    Ok((gltf, g))
+}
+
+/// The standard rig as the file has it (MODELS.md 3): which node is which bone, the skin's
+/// matrices in the exported pose, the standard bone every joint folds to. A prop has an
+/// empty one.
+struct Rig {
+    node_of_bone: [Option<usize>; BONES],
+    bone_of_node: HashMap<usize, usize>,
+    /// Joint world × inverse bind, per joint of the skin.
+    skin_mats: Vec<Mat4>,
+    /// The standard bone each joint's weights go to.
+    joint_bone: Vec<usize>,
+    joints: usize,
+    mask: u32,
+}
+
+impl Rig {
+    /// The nearest standard bone at or above a node; none when there is none above.
+    fn fold(&self, g: &Graph, mut node: usize, include_self: bool) -> Option<usize> {
+        if include_self && let Some(b) = self.bone_of_node.get(&node) {
+            return Some(*b);
+        }
+        let mut steps = 0;
+        while let Some(p) = g.parent[node] {
+            if let Some(b) = self.bone_of_node.get(&p) {
+                return Some(*b);
+            }
+            node = p;
+            steps += 1;
+            if steps > MAX_NODES {
+                break;
+            }
+        }
+        None
+    }
+}
+
+/// The skin and its joints: exactly one for an avatar, none for a prop.
+fn read_rig(
+    doc: &gltf::Document,
+    blob: &[u8],
+    g: &Graph,
+    prop_fit: Option<Mat4>,
+    reading: &mut Reading,
+) -> Result<Rig, Vec<String>> {
     let mut skins = doc.skins();
     let skin = match (skins.next(), skins.next(), prop_fit.is_some()) {
         (_, _, true) => None,
@@ -308,76 +390,86 @@ pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
             joint_nodes.len()
         )]);
     }
-    let mut violations: Vec<String> = Vec::new();
-    let mut notes: Vec<String> = Vec::new();
-
-    // Standard bones among the joints, by name.
-    let mut bone_of_node: HashMap<usize, usize> = HashMap::new();
-    let mut node_of_bone: [Option<usize>; BONES] = [None; BONES];
-    for j in &joint_nodes {
-        if let Some(b) = j.name().and_then(rig::bone_by_name) {
-            if node_of_bone[b].is_some() {
-                violations.push(format!("two joints are named `{}`", rig::NAMES[b]));
-            }
-            node_of_bone[b] = Some(j.index());
-            bone_of_node.insert(j.index(), b);
-        }
-    }
+    let mut rig = Rig {
+        node_of_bone: [None; BONES],
+        bone_of_node: HashMap::new(),
+        skin_mats: Vec::new(),
+        joint_bone: Vec::new(),
+        joints: joint_nodes.len(),
+        mask: 0,
+    };
+    match_bones(&mut rig, &joint_nodes, reading);
     let missing: Vec<&str> = (0..BONES)
-        .filter(|b| rig::REQUIRED & (1 << b) != 0 && node_of_bone[*b].is_none())
+        .filter(|b| rig::REQUIRED & (1 << b) != 0 && rig.node_of_bone[*b].is_none())
         .map(|b| rig::NAMES[b])
         .collect();
     if !missing.is_empty() && prop_fit.is_none() {
-        violations.push(format!(
+        reading.violations.push(format!(
             "required bones are missing: {} (joints are matched by name; `gm-tools model template` writes a rig to start from)",
             missing.join(", ")
         ));
-        return Err(violations);
+        return Err(std::mem::take(&mut reading.violations));
     }
-    // The nearest standard bone at or above a node; the hips when there is none.
-    let fold = |mut node: usize, include_self: bool| -> Option<usize> {
-        if include_self && let Some(b) = bone_of_node.get(&node) {
-            return Some(*b);
-        }
-        let mut steps = 0;
-        while let Some(p) = g.parent[node] {
-            if let Some(b) = bone_of_node.get(&p) {
-                return Some(*b);
-            }
-            node = p;
-            steps += 1;
-            if steps > MAX_NODES {
-                break;
-            }
-        }
-        None
-    };
     let folded = joint_nodes
         .iter()
-        .filter(|j| !bone_of_node.contains_key(&j.index()))
+        .filter(|j| !rig.bone_of_node.contains_key(&j.index()))
         .count();
     if folded > 0 {
-        notes.push(format!(
+        reading.notes.push(format!(
             "{folded} joints are not standard bones; their weights went to their nearest standard ancestor"
         ));
     }
-    // The file's hierarchy must be the rig's.
+    rig.mask = check_hierarchy(&rig, g, reading);
+    let ibms = inverse_binds(skin.as_ref(), blob, joint_nodes.len())?;
+    rig.skin_mats = joint_nodes
+        .iter()
+        .zip(&ibms)
+        .map(|(j, ibm)| g.world[j.index()] * *ibm)
+        .collect();
+    if rig.skin_mats.iter().any(|m| !m.is_finite()) {
+        return Err(vec!["the skin has non-finite matrices".into()]);
+    }
+    rig.joint_bone = joint_nodes
+        .iter()
+        .map(|j| rig.fold(g, j.index(), true).unwrap_or(bone::HIPS))
+        .collect();
+    Ok(rig)
+}
+
+/// Standard bones among the joints, by name.
+fn match_bones(rig: &mut Rig, joint_nodes: &[gltf::Node<'_>], reading: &mut Reading) {
+    for j in joint_nodes {
+        if let Some(b) = j.name().and_then(rig::bone_by_name) {
+            if rig.node_of_bone[b].is_some() {
+                reading
+                    .violations
+                    .push(format!("two joints are named `{}`", rig::NAMES[b]));
+            }
+            rig.node_of_bone[b] = Some(j.index());
+            rig.bone_of_node.insert(j.index(), b);
+        }
+    }
+}
+
+/// The file's hierarchy must be the rig's: every bone descends from its nearest present
+/// ancestor in the standard rig. Returns the mask of the bones present.
+fn check_hierarchy(rig: &Rig, g: &Graph, reading: &mut Reading) -> u32 {
     let mut mask = 0u32;
     for b in 0..BONES {
-        let Some(node) = node_of_bone[b] else {
+        let Some(node) = rig.node_of_bone[b] else {
             continue;
         };
         mask |= 1 << b;
         let mut expected = rig::parent(b);
         while let Some(e) = expected
-            && node_of_bone[e].is_none()
+            && rig.node_of_bone[e].is_none()
         {
             expected = rig::parent(e);
         }
-        let actual = fold(node, false);
+        let actual = rig.fold(g, node, false);
         if actual != expected {
             let name = |x: Option<usize>| x.map_or("nothing", |i| rig::NAMES[i]);
-            violations.push(format!(
+            reading.violations.push(format!(
                 "`{}` must descend from `{}`; it sits under `{}`",
                 rig::NAMES[b],
                 name(expected),
@@ -385,407 +477,376 @@ pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
             ));
         }
     }
+    mask
+}
 
-    // Skin matrices in the exported pose: joint world × inverse bind.
-    let ibms: Vec<Mat4> = match skin.as_ref().and_then(|s| s.inverse_bind_matrices()) {
-        Some(a) => {
-            let acc = accessor(
-                blob,
-                &a,
-                Dimensions::Mat4,
-                &[DataType::F32],
-                "inverse bind matrices",
-            )
-            .map_err(fatal)?;
-            if acc.count != joint_nodes.len() {
-                return Err(vec![
-                    "the inverse bind matrices do not match the joints".into(),
-                ]);
-            }
-            (0..acc.count)
-                .map(|i| {
-                    let mut m = [0f32; 16];
-                    for (c, v) in m.iter_mut().enumerate() {
-                        *v = acc.f32(i, c);
-                    }
-                    Mat4::from_cols_array(&m)
-                })
-                .collect()
-        }
-        None => vec![Mat4::IDENTITY; joint_nodes.len()],
+/// The skin's inverse bind matrices, or the identity for each joint when it has none.
+fn inverse_binds(
+    skin: Option<&gltf::Skin<'_>>,
+    blob: &[u8],
+    joints: usize,
+) -> Result<Vec<Mat4>, Vec<String>> {
+    let Some(a) = skin.and_then(|s| s.inverse_bind_matrices()) else {
+        return Ok(vec![Mat4::IDENTITY; joints]);
     };
-    let skin_mats: Vec<Mat4> = joint_nodes
-        .iter()
-        .zip(&ibms)
-        .map(|(j, ibm)| g.world[j.index()] * *ibm)
-        .collect();
-    if skin_mats.iter().any(|m| !m.is_finite()) {
-        return Err(vec!["the skin has non-finite matrices".into()]);
+    let acc = accessor(
+        blob,
+        &a,
+        Dimensions::Mat4,
+        &[DataType::F32],
+        "inverse bind matrices",
+    )
+    .map_err(|s| vec![s])?;
+    if acc.count != joints {
+        return Err(vec![
+            "the inverse bind matrices do not match the joints".into(),
+        ]);
     }
-    let joint_bone: Vec<usize> = joint_nodes
-        .iter()
-        .map(|j| fold(j.index(), true).unwrap_or(bone::HIPS))
-        .collect();
+    Ok((0..acc.count)
+        .map(|i| {
+            let mut m = [0f32; 16];
+            for (c, v) in m.iter_mut().enumerate() {
+                *v = acc.f32(i, c);
+            }
+            Mat4::from_cols_array(&m)
+        })
+        .collect())
+}
 
-    // Geometry.
-    let mut mesh = MeshData::default();
-    let mut images: Vec<usize> = Vec::new();
-    let mut untextured = 0usize;
-    let mut cutout: Option<f32> = None;
-    let mut two_sided = false;
-    let mut base_color: Option<[f32; 4]> = None;
-    let mut source_triangles = 0usize;
-    let nodes: Vec<gltf::Node<'_>> = doc.nodes().collect();
-    // A prop without a texture: every flat colour (the material's factor times the vertex
-    // colour, when the file has them) becomes a swatch, and the vertex points at it.
-    let mut swatches: Vec<[u8; 3]> = Vec::new();
-    let mut swatch_uvs: Vec<usize> = Vec::new();
-    let mut textured_prims = 0usize;
-    // Over the totals: nothing more is read (every further instance would cost the same again).
-    let mut over = false;
-    'nodes: for &ni in &g.meshes {
-        let node = &nodes[ni];
-        let Some(m) = node.mesh() else { continue };
-        let skinned = node.skin().is_some() && prop_fit.is_none();
-        let rigid_bone = fold(ni, true).unwrap_or(bone::HIPS);
-        for prim in m.primitives() {
-            if over || violations.len() >= MAX_LISTED {
-                violations.push("the rest of the geometry was not read".into());
-                break 'nodes;
-            }
-            let what = format!("mesh {} primitive {}", m.index(), prim.index());
-            if !matches!(
-                prim.mode(),
-                Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan
-            ) {
-                violations.push(format!("{what}: only triangles are drawn"));
-                continue;
-            }
-            let material = prim.material();
-            let pbr = material.pbr_metallic_roughness();
-            let uv_set = match pbr.base_color_texture() {
-                Some(info) => {
-                    let image = info.texture().source().index();
-                    if !images.contains(&image) {
-                        images.push(image);
-                    }
-                    textured_prims += 1;
-                    info.tex_coord()
-                }
-                None => {
-                    untextured += 1;
-                    0
-                }
+/// What every primitive reads against.
+struct Cx<'a> {
+    blob: &'a [u8],
+    g: &'a Graph,
+    rig: &'a Rig,
+    prop_fit: Option<Mat4>,
+}
+
+/// What the primitives add up to, read one after another, and every reason the upload
+/// cannot be used so far.
+#[derive(Default)]
+struct Reading {
+    violations: Vec<String>,
+    notes: Vec<String>,
+    mesh: MeshData,
+    /// The images the base colour textures name.
+    images: Vec<usize>,
+    untextured: usize,
+    textured_prims: usize,
+    cutout: Option<f32>,
+    two_sided: bool,
+    base_color: Option<[f32; 4]>,
+    /// A prop without a texture: every flat colour (the material's factor times the vertex
+    /// colour, when the file has them) becomes a swatch, and the vertex points at it.
+    swatches: Vec<[u8; 3]>,
+    swatch_uvs: Vec<usize>,
+    /// Over the totals: nothing more is read (every further instance would cost the same
+    /// again).
+    over: bool,
+}
+
+/// What a primitive's material and node said before its vertices are read.
+struct Prim {
+    what: String,
+    uv_set: u32,
+    swatched: bool,
+    skinned: bool,
+    rigid_bone: usize,
+    /// The node's world matrix (under the fit, for a prop).
+    rigid: Mat4,
+    factor: [f32; 4],
+}
+
+/// A primitive's attributes, bounds-checked, all of one length.
+struct Attrs<'a> {
+    pos: Acc<'a>,
+    nrm: Option<Acc<'a>>,
+    uv: Option<Acc<'a>>,
+    colours: Option<Acc<'a>>,
+    skin: Option<(Acc<'a>, Acc<'a>)>,
+    n: usize,
+}
+
+impl Reading {
+    /// Every mesh node, every primitive, until the limits say stop.
+    fn read_geometry(&mut self, doc: &gltf::Document, cx: &Cx<'_>) {
+        let nodes: Vec<gltf::Node<'_>> = doc.nodes().collect();
+        'nodes: for &ni in &cx.g.meshes {
+            let node = &nodes[ni];
+            let Some(m) = node.mesh() else { continue };
+            let skinned = node.skin().is_some() && cx.prop_fit.is_none();
+            let rigid_bone = cx.rig.fold(cx.g, ni, true).unwrap_or(bone::HIPS);
+            let rigid = match cx.prop_fit {
+                Some(fit) => fit * cx.g.world[ni],
+                None => cx.g.world[ni],
             };
-            let swatched = prop_fit.is_some() && pbr.base_color_texture().is_none();
-            match material.alpha_mode() {
-                gltf::material::AlphaMode::Opaque => {}
-                gltf::material::AlphaMode::Mask => {
-                    cutout.get_or_insert(material.alpha_cutoff().unwrap_or(0.5));
+            for prim in m.primitives() {
+                if self.over || self.violations.len() >= MAX_LISTED {
+                    self.violations
+                        .push("the rest of the geometry was not read".into());
+                    break 'nodes;
                 }
-                gltf::material::AlphaMode::Blend => {
-                    cutout.get_or_insert(0.5);
+                let what = format!("mesh {} primitive {}", m.index(), prim.index());
+                if !matches!(
+                    prim.mode(),
+                    Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan
+                ) {
+                    self.violations
+                        .push(format!("{what}: only triangles are drawn"));
+                    continue;
+                }
+                let (uv_set, swatched, factor) = self.material(cx, &prim);
+                let p = Prim {
+                    what,
+                    uv_set,
+                    swatched,
+                    skinned,
+                    rigid_bone,
+                    rigid,
+                    factor,
+                };
+                if let Err(e) = self.primitive(cx, &prim, &p) {
+                    self.violations.push(e);
                 }
             }
-            two_sided |= material.double_sided();
-            let factor = pbr.base_color_factor();
-            const DISAGREE: &str =
-                "materials disagree on the base colour factor; the first one is used";
-            if *base_color.get_or_insert(factor) != factor && !notes.iter().any(|n| n == DISAGREE) {
-                notes.push(DISAGREE.into());
-            }
+        }
+        if self.mesh.indices.is_empty() && self.violations.is_empty() {
+            self.violations.push("the upload has no triangles".into());
+        }
+    }
 
-            let read = (|| -> Result<(), String> {
-                let pos = prim
-                    .get(&Semantic::Positions)
-                    .ok_or_else(|| format!("{what}: no POSITION"))?;
-                let pos = accessor(blob, &pos, Dimensions::Vec3, &[DataType::F32], &what)?;
-                let nrm = match prim.get(&Semantic::Normals) {
-                    Some(a) => Some(accessor(
-                        blob,
-                        &a,
-                        Dimensions::Vec3,
-                        &[DataType::F32],
-                        &what,
-                    )?),
-                    None => None,
-                };
-                // A swatched primitive needs no texture coordinates: it gets them.
-                let uv = match prim.get(&Semantic::TexCoords(uv_set)) {
-                    Some(a) => Some(accessor(
-                        blob,
-                        &a,
-                        Dimensions::Vec2,
-                        &[DataType::F32, DataType::U8, DataType::U16],
-                        &what,
-                    )?),
-                    None if swatched => None,
-                    None => return Err(format!("{what}: no TEXCOORD_{uv_set}")),
-                };
-                let colours = match (swatched, prim.get(&Semantic::Colors(0))) {
-                    (true, Some(a)) => {
-                        let dims = a.dimensions();
-                        Some(accessor(
-                            blob,
-                            &a,
-                            dims,
-                            &[DataType::F32, DataType::U8, DataType::U16],
-                            &what,
-                        )?)
-                    }
-                    _ => None,
-                };
-                let skin_attrs = if skinned {
-                    let j = prim
-                        .get(&Semantic::Joints(0))
-                        .ok_or_else(|| format!("{what}: no JOINTS_0"))?;
-                    let w = prim
-                        .get(&Semantic::Weights(0))
-                        .ok_or_else(|| format!("{what}: no WEIGHTS_0"))?;
-                    Some((
-                        accessor(
-                            blob,
-                            &j,
-                            Dimensions::Vec4,
-                            &[DataType::U8, DataType::U16],
-                            &what,
-                        )?,
-                        accessor(
-                            blob,
-                            &w,
-                            Dimensions::Vec4,
-                            &[DataType::F32, DataType::U8, DataType::U16],
-                            &what,
-                        )?,
-                    ))
-                } else {
-                    None
-                };
-                let n = pos.count;
-                if nrm.as_ref().is_some_and(|a| a.count != n)
-                    || uv.as_ref().is_some_and(|a| a.count != n)
-                    || colours.as_ref().is_some_and(|a| a.count != n)
-                    || skin_attrs
-                        .as_ref()
-                        .is_some_and(|(j, w)| j.count != n || w.count != n)
-                {
-                    return Err(format!("{what}: attributes differ in length"));
+    /// The material: its texture (counted, its image listed), the alpha mode, the sides,
+    /// the base colour factor. Returns the texture coordinate set, whether the primitive
+    /// is swatched (a prop without a texture), and the factor.
+    fn material(&mut self, cx: &Cx<'_>, prim: &gltf::Primitive<'_>) -> (u32, bool, [f32; 4]) {
+        let material = prim.material();
+        let pbr = material.pbr_metallic_roughness();
+        let uv_set = match pbr.base_color_texture() {
+            Some(info) => {
+                let image = info.texture().source().index();
+                if !self.images.contains(&image) {
+                    self.images.push(image);
                 }
-                if mesh.positions.len() + n > MAX_SOURCE_VERTICES {
-                    over = true;
-                    return Err(format!(
-                        "more than {MAX_SOURCE_VERTICES} vertices in the upload"
-                    ));
+                self.textured_prims += 1;
+                info.tex_coord()
+            }
+            None => {
+                self.untextured += 1;
+                0
+            }
+        };
+        let swatched = cx.prop_fit.is_some() && pbr.base_color_texture().is_none();
+        match material.alpha_mode() {
+            gltf::material::AlphaMode::Opaque => {}
+            gltf::material::AlphaMode::Mask => {
+                self.cutout
+                    .get_or_insert(material.alpha_cutoff().unwrap_or(0.5));
+            }
+            gltf::material::AlphaMode::Blend => {
+                self.cutout.get_or_insert(0.5);
+            }
+        }
+        self.two_sided |= material.double_sided();
+        let factor = pbr.base_color_factor();
+        const DISAGREE: &str =
+            "materials disagree on the base colour factor; the first one is used";
+        if *self.base_color.get_or_insert(factor) != factor
+            && !self.notes.iter().any(|n| n == DISAGREE)
+        {
+            self.notes.push(DISAGREE.into());
+        }
+        (uv_set, swatched, factor)
+    }
+
+    /// One primitive's vertices and triangles into the mesh; `Err` is the one reason it
+    /// could not be read (the rest of the file still is).
+    fn primitive(
+        &mut self,
+        cx: &Cx<'_>,
+        prim: &gltf::Primitive<'_>,
+        p: &Prim,
+    ) -> Result<(), String> {
+        let attrs = attributes(cx.blob, prim, p)?;
+        if self.mesh.positions.len() + attrs.n > MAX_SOURCE_VERTICES {
+            self.over = true;
+            return Err(format!(
+                "more than {MAX_SOURCE_VERTICES} vertices in the upload"
+            ));
+        }
+        let base = self.mesh.positions.len() as u32;
+        self.vertices(cx, &attrs, p)?;
+        self.triangles(cx, prim, &attrs, p, base)
+    }
+
+    /// Every vertex of a primitive: bound to its bones in the exported pose, moved to
+    /// model space, its texture coordinates (or its swatch).
+    fn vertices(&mut self, cx: &Cx<'_>, attrs: &Attrs<'_>, p: &Prim) -> Result<(), String> {
+        for i in 0..attrs.n {
+            let pos = attrs.pos.vec3(i);
+            let nn = attrs.nrm.as_ref().map_or(Vec3::ZERO, |a| a.vec3(i));
+            let (m, joints, weights) = match &attrs.skin {
+                Some((ja, wa)) => bind(cx.rig, ja, wa, i, p.rigid)
+                    .ok_or_else(|| format!("{}: a joint index is past the skin", p.what))?,
+                None => (p.rigid, [p.rigid_bone as u8, 0, 0, 0], [1.0, 0.0, 0.0, 0.0]),
+            };
+            let world = m.transform_point3(pos);
+            if !world.is_finite() {
+                return Err(format!("{}: a vertex is not finite", p.what));
+            }
+            self.mesh.positions.push(to_model(world));
+            self.mesh
+                .normals
+                .push(to_model_dir(m.transform_vector3(nn)).normalize_or_zero());
+            if p.swatched {
+                let at = self.swatch(attrs.colours.as_ref(), i, p)?;
+                self.swatch_uvs.push(at);
+                self.mesh.uvs.push([0.0, 0.0]);
+            } else {
+                let uv = attrs
+                    .uv
+                    .as_ref()
+                    .expect("a textured primitive has coordinates");
+                self.mesh.uvs.push([uv.f32(i, 0), uv.f32(i, 1)]);
+            }
+            self.mesh.joints.push(joints);
+            self.mesh.weights.push(weights);
+        }
+        Ok(())
+    }
+
+    /// The vertex's flat colour, linear as glTF gives it, quantised to a swatch (sRGB when
+    /// the texture is made, in `atlas`): its index.
+    fn swatch(&mut self, colours: Option<&Acc<'_>>, i: usize, p: &Prim) -> Result<usize, String> {
+        let mut c = [p.factor[0], p.factor[1], p.factor[2]];
+        if let Some(ca) = colours {
+            for (k, v) in c.iter_mut().enumerate() {
+                *v *= ca.f32(i, k);
+            }
+        }
+        let q = c.map(|v| (linear_to_srgb(v) * 255.0 + 0.5) as u8);
+        match self.swatches.iter().position(|s| *s == q) {
+            Some(at) => Ok(at),
+            None if self.swatches.len() < MAX_SWATCHES => {
+                self.swatches.push(q);
+                Ok(self.swatches.len() - 1)
+            }
+            None => Err(format!("{}: more than {MAX_SWATCHES} flat colours", p.what)),
+        }
+    }
+
+    /// The primitive's triangles, whatever its topology, over `base`.
+    fn triangles(
+        &mut self,
+        cx: &Cx<'_>,
+        prim: &gltf::Primitive<'_>,
+        attrs: &Attrs<'_>,
+        p: &Prim,
+        base: u32,
+    ) -> Result<(), String> {
+        let index: Vec<u32> = match prim.indices() {
+            Some(a) => {
+                let acc = accessor(
+                    cx.blob,
+                    &a,
+                    Dimensions::Scalar,
+                    &[DataType::U8, DataType::U16, DataType::U32],
+                    &p.what,
+                )?;
+                if acc.count > MAX_SOURCE_VERTICES * 3 {
+                    return Err(format!("{}: too many indices", p.what));
                 }
-                let base = mesh.positions.len() as u32;
-                let rigid = match prop_fit {
-                    Some(fit) => fit * g.world[ni],
-                    None => g.world[ni],
-                };
-                for i in 0..n {
-                    let p = pos.vec3(i);
-                    let nn = nrm.as_ref().map_or(Vec3::ZERO, |a| a.vec3(i));
-                    let (m, joints, weights) = match &skin_attrs {
-                        Some((ja, wa)) => {
-                            let mut m = Mat4::ZERO;
-                            let mut total = 0.0;
-                            let mut bones: Vec<(usize, f32)> = Vec::with_capacity(4);
-                            for c in 0..4 {
-                                let w = wa.f32(i, c);
-                                // Skips zero, negative and NaN weights alike.
-                                if w.is_nan() || w <= 0.0 {
-                                    continue;
-                                }
-                                let k = ja.u32(i, c) as usize;
-                                if k >= skin_mats.len() {
-                                    return Err(format!("{what}: a joint index is past the skin"));
-                                }
-                                m += skin_mats[k] * w;
-                                total += w;
-                                match bones.iter_mut().find(|(b, _)| *b == joint_bone[k]) {
-                                    Some(e) => e.1 += w,
-                                    None => bones.push((joint_bone[k], w)),
-                                }
-                            }
-                            if total <= 0.0 {
-                                // An unweighted vertex follows the hips.
-                                (rigid, [bone::HIPS as u8, 0, 0, 0], [1.0, 0.0, 0.0, 0.0])
-                            } else {
-                                let mut j = [0u8; 4];
-                                let mut w = [0f32; 4];
-                                for (k, (b, bw)) in bones.iter().enumerate() {
-                                    j[k] = *b as u8;
-                                    w[k] = bw / total;
-                                }
-                                (m * (1.0 / total), j, w)
-                            }
-                        }
-                        None => (rigid, [rigid_bone as u8, 0, 0, 0], [1.0, 0.0, 0.0, 0.0]),
-                    };
-                    let world = m.transform_point3(p);
-                    if !world.is_finite() {
-                        return Err(format!("{what}: a vertex is not finite"));
-                    }
-                    mesh.positions.push(to_model(world));
-                    mesh.normals
-                        .push(to_model_dir(m.transform_vector3(nn)).normalize_or_zero());
-                    if swatched {
-                        // The vertex's flat colour, linear as glTF gives it, quantised to a
-                        // swatch (sRGB when the texture is made, below).
-                        let mut c = [factor[0], factor[1], factor[2]];
-                        if let Some(ca) = &colours {
-                            for (k, v) in c.iter_mut().enumerate() {
-                                *v *= ca.f32(i, k);
-                            }
-                        }
-                        let q = c.map(|v| (linear_to_srgb(v) * 255.0 + 0.5) as u8);
-                        let at = match swatches.iter().position(|s| *s == q) {
-                            Some(at) => at,
-                            None if swatches.len() < MAX_SWATCHES => {
-                                swatches.push(q);
-                                swatches.len() - 1
-                            }
-                            None => {
-                                return Err(format!(
-                                    "{what}: more than {MAX_SWATCHES} flat colours"
-                                ));
-                            }
-                        };
-                        swatch_uvs.push(at);
-                        mesh.uvs.push([0.0, 0.0]);
+                let v: Vec<u32> = (0..acc.count).map(|i| acc.u32(i, 0)).collect();
+                if v.iter().any(|i| *i as usize >= attrs.n) {
+                    return Err(format!("{}: an index is past the vertices", p.what));
+                }
+                v
+            }
+            None => (0..attrs.n as u32).collect(),
+        };
+        // A strip or a fan makes up to three indices of one.
+        if self.mesh.indices.len() + index.len() * 3 > MAX_SOURCE_INDICES {
+            self.over = true;
+            return Err(format!(
+                "more than {} triangles in the upload",
+                MAX_SOURCE_INDICES / 3
+            ));
+        }
+        let mesh = &mut self.mesh;
+        let mut tri = |a: u32, b: u32, c: u32| {
+            mesh.indices
+                .extend_from_slice(&[base + a, base + b, base + c]);
+        };
+        match prim.mode() {
+            Mode::Triangles => {
+                for t in index.chunks_exact(3) {
+                    tri(t[0], t[1], t[2]);
+                }
+            }
+            Mode::TriangleStrip => {
+                for (k, t) in index.windows(3).enumerate() {
+                    if k % 2 == 0 {
+                        tri(t[0], t[1], t[2]);
                     } else {
-                        let uv = uv.as_ref().expect("a textured primitive has coordinates");
-                        mesh.uvs.push([uv.f32(i, 0), uv.f32(i, 1)]);
-                    }
-                    mesh.joints.push(joints);
-                    mesh.weights.push(weights);
-                }
-                // Triangles, whatever the topology.
-                let index: Vec<u32> = match prim.indices() {
-                    Some(a) => {
-                        let acc = accessor(
-                            blob,
-                            &a,
-                            Dimensions::Scalar,
-                            &[DataType::U8, DataType::U16, DataType::U32],
-                            &what,
-                        )?;
-                        if acc.count > MAX_SOURCE_VERTICES * 3 {
-                            return Err(format!("{what}: too many indices"));
-                        }
-                        let v: Vec<u32> = (0..acc.count).map(|i| acc.u32(i, 0)).collect();
-                        if v.iter().any(|i| *i as usize >= n) {
-                            return Err(format!("{what}: an index is past the vertices"));
-                        }
-                        v
-                    }
-                    None => (0..n as u32).collect(),
-                };
-                // A strip or a fan makes up to three indices of one.
-                if mesh.indices.len() + index.len() * 3 > MAX_SOURCE_INDICES {
-                    over = true;
-                    return Err(format!(
-                        "more than {} triangles in the upload",
-                        MAX_SOURCE_INDICES / 3
-                    ));
-                }
-                let mut tri = |a: u32, b: u32, c: u32| {
-                    mesh.indices
-                        .extend_from_slice(&[base + a, base + b, base + c]);
-                };
-                match prim.mode() {
-                    Mode::Triangles => {
-                        for t in index.chunks_exact(3) {
-                            tri(t[0], t[1], t[2]);
-                        }
-                    }
-                    Mode::TriangleStrip => {
-                        for (k, t) in index.windows(3).enumerate() {
-                            if k % 2 == 0 {
-                                tri(t[0], t[1], t[2]);
-                            } else {
-                                tri(t[1], t[0], t[2]);
-                            }
-                        }
-                    }
-                    _ => {
-                        for t in index.windows(2).skip(1) {
-                            tri(index[0], t[0], t[1]);
-                        }
+                        tri(t[1], t[0], t[2]);
                     }
                 }
-                Ok(())
-            })();
-            if let Err(e) = read {
-                violations.push(e);
+            }
+            _ => {
+                for t in index.windows(2).skip(1) {
+                    tri(index[0], t[0], t[1]);
+                }
             }
         }
-    }
-    if mesh.indices.is_empty() && violations.is_empty() {
-        violations.push("the upload has no triangles".into());
-    }
-    let swatch_texture = match (prop_fit.is_some(), untextured, textured_prims) {
-        // An avatar: every surface comes from the one atlas.
-        (false, u, _) if u > 0 => {
-            violations.push(format!(
-                "{untextured} primitives have no base colour texture; every surface comes from the one atlas"
-            ));
-            false
-        }
-        // A prop of flat colours: its texture is made here.
-        (true, u, 0) if u > 0 => true,
-        // A prop of both: the file must choose.
-        (true, u, t) if u > 0 && t > 0 => {
-            violations.push(format!(
-                "{u} primitives have no base colour texture and {t} have one; a prop is textured or flat, not both"
-            ));
-            false
-        }
-        _ => false,
-    };
-    if images.len() > 1 {
-        violations.push(format!(
-            "{} base colour textures; the budget is one atlas",
-            images.len()
-        ));
-    }
-    if !violations.is_empty() {
-        return Err(violations);
+        Ok(())
     }
 
-    // The atlas.
-    let texture = if swatch_texture {
-        // Swatches in a grid, and every swatched vertex pointed at the middle of its cell.
-        let rows = (swatches.len() as u32).div_ceil(SWATCH_COLS).max(1);
-        let (w, h) = (SWATCH_COLS * SWATCH_SIDE, rows * SWATCH_SIDE);
-        let mut img = image::RgbaImage::new(w, h);
-        for (i, c) in swatches.iter().enumerate() {
-            let (cx, cy) = (
-                (i as u32 % SWATCH_COLS) * SWATCH_SIDE,
-                (i as u32 / SWATCH_COLS) * SWATCH_SIDE,
-            );
-            for y in cy..cy + SWATCH_SIDE {
-                for x in cx..cx + SWATCH_SIDE {
-                    img.put_pixel(x, y, image::Rgba([c[0], c[1], c[2], 255]));
-                }
+    /// What the geometry added up to must hold together: triangles, one atlas or swatches
+    /// (a prop is textured or flat, not both), and no violation so far. Returns whether
+    /// the texture is made of swatches.
+    fn check(&mut self, prop: bool) -> Result<bool, Vec<String>> {
+        let swatch_texture = match (prop, self.untextured, self.textured_prims) {
+            // An avatar: every surface comes from the one atlas.
+            (false, u, _) if u > 0 => {
+                self.violations.push(format!(
+                    "{u} primitives have no base colour texture; every surface comes from the one atlas"
+                ));
+                false
             }
+            // A prop of flat colours: its texture is made here.
+            (true, u, 0) if u > 0 => true,
+            // A prop of both: the file must choose.
+            (true, u, t) if u > 0 && t > 0 => {
+                self.violations.push(format!(
+                    "{u} primitives have no base colour texture and {t} have one; a prop is textured or flat, not both"
+                ));
+                false
+            }
+            _ => false,
+        };
+        if self.images.len() > 1 {
+            self.violations.push(format!(
+                "{} base colour textures; the budget is one atlas",
+                self.images.len()
+            ));
         }
-        for (uv, at) in mesh.uvs.iter_mut().zip(&swatch_uvs) {
-            let (cx, cy) = (*at as u32 % SWATCH_COLS, *at as u32 / SWATCH_COLS);
-            *uv = [
-                (cx as f32 + 0.5) * SWATCH_SIDE as f32 / w as f32,
-                (cy as f32 + 0.5) * SWATCH_SIDE as f32 / h as f32,
-            ];
+        if !self.violations.is_empty() {
+            return Err(std::mem::take(&mut self.violations));
         }
-        // The factor is in the swatches already.
-        base_color = Some([1.0; 4]);
-        notes.push(format!(
-            "no texture: {} flat colours were made into swatches",
-            swatches.len()
-        ));
-        img
-    } else {
-        let image = images
+        Ok(swatch_texture)
+    }
+
+    /// The atlas: the swatches in a grid (every swatched vertex pointed at the middle of
+    /// its cell), or the one image embedded in the file.
+    fn atlas(
+        &mut self,
+        doc: &gltf::Document,
+        blob: &[u8],
+        swatched: bool,
+    ) -> Result<image::RgbaImage, Vec<String>> {
+        if swatched {
+            return Ok(self.swatch_atlas());
+        }
+        let image = self
+            .images
             .first()
             .and_then(|i| doc.images().nth(*i))
             .ok_or_else(|| vec!["the base colour texture names no image".to_string()])?;
@@ -808,26 +869,194 @@ pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
                 ]);
             }
         };
-        decode_image(bytes).map_err(fatal)?
-    };
+        decode_image(bytes).map_err(|s| vec![s])
+    }
 
-    // Pivots in model space; an absent bone holds its parent's. A prop has none: bone 0
-    // at the origin, where the hand closes.
+    /// The swatches in a grid of `SWATCH_COLS` cells of `SWATCH_SIDE` texels.
+    fn swatch_atlas(&mut self) -> image::RgbaImage {
+        let rows = (self.swatches.len() as u32).div_ceil(SWATCH_COLS).max(1);
+        let (w, h) = (SWATCH_COLS * SWATCH_SIDE, rows * SWATCH_SIDE);
+        let mut img = image::RgbaImage::new(w, h);
+        for (i, c) in self.swatches.iter().enumerate() {
+            let (x0, y0) = (
+                (i as u32 % SWATCH_COLS) * SWATCH_SIDE,
+                (i as u32 / SWATCH_COLS) * SWATCH_SIDE,
+            );
+            for y in y0..y0 + SWATCH_SIDE {
+                for x in x0..x0 + SWATCH_SIDE {
+                    img.put_pixel(x, y, image::Rgba([c[0], c[1], c[2], 255]));
+                }
+            }
+        }
+        for (uv, at) in self.mesh.uvs.iter_mut().zip(&self.swatch_uvs) {
+            let (col, row) = (*at as u32 % SWATCH_COLS, *at as u32 / SWATCH_COLS);
+            *uv = [
+                (col as f32 + 0.5) * SWATCH_SIDE as f32 / w as f32,
+                (row as f32 + 0.5) * SWATCH_SIDE as f32 / h as f32,
+            ];
+        }
+        // The factor is in the swatches already.
+        self.base_color = Some([1.0; 4]);
+        self.notes.push(format!(
+            "no texture: {} flat colours were made into swatches",
+            self.swatches.len()
+        ));
+        img
+    }
+}
+
+/// A primitive's attributes, each bounds-checked. A swatched primitive needs no texture
+/// coordinates: it gets them. A skinned one needs joints and weights.
+fn attributes<'a>(
+    blob: &'a [u8],
+    prim: &gltf::Primitive<'_>,
+    p: &Prim,
+) -> Result<Attrs<'a>, String> {
+    let what = p.what.as_str();
+    let pos = prim
+        .get(&Semantic::Positions)
+        .ok_or_else(|| format!("{what}: no POSITION"))?;
+    let pos = accessor(blob, &pos, Dimensions::Vec3, &[DataType::F32], what)?;
+    let nrm = match prim.get(&Semantic::Normals) {
+        Some(a) => Some(accessor(
+            blob,
+            &a,
+            Dimensions::Vec3,
+            &[DataType::F32],
+            what,
+        )?),
+        None => None,
+    };
+    let uv = match prim.get(&Semantic::TexCoords(p.uv_set)) {
+        Some(a) => Some(accessor(
+            blob,
+            &a,
+            Dimensions::Vec2,
+            &[DataType::F32, DataType::U8, DataType::U16],
+            what,
+        )?),
+        None if p.swatched => None,
+        None => return Err(format!("{what}: no TEXCOORD_{}", p.uv_set)),
+    };
+    let colours = match (p.swatched, prim.get(&Semantic::Colors(0))) {
+        (true, Some(a)) => {
+            let dims = a.dimensions();
+            Some(accessor(
+                blob,
+                &a,
+                dims,
+                &[DataType::F32, DataType::U8, DataType::U16],
+                what,
+            )?)
+        }
+        _ => None,
+    };
+    let skin = if p.skinned {
+        let j = prim
+            .get(&Semantic::Joints(0))
+            .ok_or_else(|| format!("{what}: no JOINTS_0"))?;
+        let w = prim
+            .get(&Semantic::Weights(0))
+            .ok_or_else(|| format!("{what}: no WEIGHTS_0"))?;
+        Some((
+            accessor(
+                blob,
+                &j,
+                Dimensions::Vec4,
+                &[DataType::U8, DataType::U16],
+                what,
+            )?,
+            accessor(
+                blob,
+                &w,
+                Dimensions::Vec4,
+                &[DataType::F32, DataType::U8, DataType::U16],
+                what,
+            )?,
+        ))
+    } else {
+        None
+    };
+    let n = pos.count;
+    if nrm.as_ref().is_some_and(|a| a.count != n)
+        || uv.as_ref().is_some_and(|a| a.count != n)
+        || colours.as_ref().is_some_and(|a| a.count != n)
+        || skin
+            .as_ref()
+            .is_some_and(|(j, w)| j.count != n || w.count != n)
+    {
+        return Err(format!("{what}: attributes differ in length"));
+    }
+    Ok(Attrs {
+        pos,
+        nrm,
+        uv,
+        colours,
+        skin,
+        n,
+    })
+}
+
+/// A skinned vertex's bind: the blend of its joints' skin matrices, and its weights folded
+/// onto standard bones. An unweighted vertex follows the hips. `None`: a joint index past
+/// the skin.
+fn bind(
+    rig: &Rig,
+    ja: &Acc<'_>,
+    wa: &Acc<'_>,
+    i: usize,
+    rigid: Mat4,
+) -> Option<(Mat4, [u8; 4], [f32; 4])> {
+    let mut m = Mat4::ZERO;
+    let mut total = 0.0;
+    let mut bones: Vec<(usize, f32)> = Vec::with_capacity(4);
+    for c in 0..4 {
+        let w = wa.f32(i, c);
+        // Skips zero, negative and NaN weights alike.
+        if w.is_nan() || w <= 0.0 {
+            continue;
+        }
+        let k = ja.u32(i, c) as usize;
+        if k >= rig.skin_mats.len() {
+            return None;
+        }
+        m += rig.skin_mats[k] * w;
+        total += w;
+        match bones.iter_mut().find(|(b, _)| *b == rig.joint_bone[k]) {
+            Some(e) => e.1 += w,
+            None => bones.push((rig.joint_bone[k], w)),
+        }
+    }
+    if total <= 0.0 {
+        return Some((rigid, [bone::HIPS as u8, 0, 0, 0], [1.0, 0.0, 0.0, 0.0]));
+    }
+    let mut j = [0u8; 4];
+    let mut w = [0f32; 4];
+    for (k, (b, bw)) in bones.iter().enumerate() {
+        j[k] = *b as u8;
+        w[k] = bw / total;
+    }
+    Some((m * (1.0 / total), j, w))
+}
+
+/// Pivots in model space; an absent bone holds its parent's. A prop has none: bone 0 at
+/// the origin, where the hand closes.
+fn pivots(rig: &Rig, g: &Graph, prop_fit: Option<Mat4>) -> [Vec3; BONES] {
     let mut pivots = [Vec3::ZERO; BONES];
     if prop_fit.is_none() {
         for b in 0..BONES {
-            pivots[b] = match node_of_bone[b] {
+            pivots[b] = match rig.node_of_bone[b] {
                 Some(n) => to_model(g.world[n].w_axis.truncate()),
                 None => rig::parent(b).map_or(Vec3::ZERO, |p| pivots[p]),
             };
         }
     }
-    let mask = if prop_fit.is_some() { 1 } else { mask };
-    mesh.pivots = pivots;
-    mesh.bone_mask = mask;
+    pivots
+}
 
-    // Drop degenerate triangles and the vertices nothing uses.
-    source_triangles += mesh.indices.len() / 3;
+/// The mesh without its degenerate triangles and the vertices nothing uses; vertices keep
+/// the order they were uploaded in.
+fn compact(mesh: &MeshData, pivots: [Vec3; BONES], mask: u32) -> MeshData {
     let mut kept: Vec<u32> = Vec::with_capacity(mesh.indices.len());
     for t in mesh.indices.chunks_exact(3) {
         let [a, b, c] = [t[0] as usize, t[1] as usize, t[2] as usize];
@@ -838,7 +1067,6 @@ pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
             kept.extend_from_slice(t);
         }
     }
-    // Vertices keep the order they were uploaded in.
     let mut remap = vec![u32::MAX; mesh.positions.len()];
     for i in &kept {
         remap[*i as usize] = 0;
@@ -863,21 +1091,7 @@ pub fn read_kind(upload: &[u8], kind: Kind) -> Result<Source, Vec<String>> {
         *i = remap[*i as usize];
     }
     out.indices = kept;
-    if out.normals.contains(&Vec3::ZERO) {
-        compute_normals(&mut out);
-        notes.push("normals were missing and have been computed".into());
-    }
-
-    Ok(Source {
-        mesh: out,
-        texture,
-        base_color: base_color.unwrap_or([1.0; 4]),
-        cutout,
-        two_sided,
-        source_joints: joint_nodes.len(),
-        source_triangles,
-        notes,
-    })
+    out
 }
 
 /// Linear light to the sRGB curve, 0..1 (a swatch is stored as the texture is).
