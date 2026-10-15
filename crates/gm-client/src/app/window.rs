@@ -44,13 +44,68 @@ impl App {
         surface: wgpu::Surface<'static>,
         gpu: Gpu,
     ) -> Result<(), Error> {
-        let size = frame_size(&window);
+        let (config, view_format) = self.configure(&window, &surface, &gpu)?;
+        let mesh = self.mesh.take().ok_or("world mesh already consumed")?;
+        let mut renderer = Renderer::new(&gpu, view_format, &mesh, (config.width, config.height));
+        // The bundle's atlas is the HUD's texture from here on (LOOK.md 2.2).
+        if let Some(atlas) = self.content.take_atlas() {
+            renderer.hud.set_atlas(&gpu, atlas);
+        }
+        // Models come from the hub, on whatever session is logged in when one is wanted.
+        let source = self.hub.as_ref().map(|h| h.model_source());
+        let avatars = Avatars::new(
+            &gpu,
+            &mut renderer.characters,
+            &self.opts,
+            &self.bsp,
+            source,
+        )?;
+        self.adapter_info = Some(gpu.info.clone());
+        self.active = Some(Active {
+            window: window.clone(),
+            surface,
+            config,
+            view_format,
+            gpu,
+            renderer,
+            avatars,
+            drawn_from: vec![usize::MAX],
+        });
+        self.fitting_room();
+        // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
+        if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
+            self.set_grab(true);
+        }
+        self.was_up = self.screen_up();
+        self.apply_settings();
+        self.last_frame = Instant::now();
+        self.started = Instant::now();
+        // Offline there is nothing left to wait for; online the status clears at `Welcome`.
+        #[cfg(target_arch = "wasm32")]
+        if self.online.is_none() {
+            crate::web::tell_page("status", "");
+        }
+        window.request_redraw();
+        Ok(())
+    }
+
+    /// The surface configured for the window: frames are drawn in sRGB (where the
+    /// surface has no sRGB format of its own, a WebGPU canvas being `bgra8unorm`, its
+    /// sRGB twin is asked for as a view format), and presented as asked, or by Mailbox:
+    /// no tearing, no blocking, and it works where Fifo stalls (X11 with a compositing
+    /// window manager on RADV presented one frame per second); a benchmark measures
+    /// throughput, so it runs without vsync unless told otherwise.
+    fn configure(
+        &self,
+        window: &Window,
+        surface: &wgpu::Surface<'static>,
+        gpu: &Gpu,
+    ) -> Result<(wgpu::SurfaceConfiguration, wgpu::TextureFormat), Error> {
+        let size = frame_size(window);
         let caps = surface.get_capabilities(&gpu.adapter);
         let mut config = surface
             .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
             .ok_or("surface not supported by the adapter")?;
-        // Frames are drawn in sRGB. Where the surface has no sRGB format of its own (a
-        // WebGPU canvas is `bgra8unorm`), its sRGB twin is asked for as a view format.
         let view_format = match caps.formats.iter().copied().find(|f| f.is_srgb()) {
             Some(format) => {
                 config.format = format;
@@ -65,9 +120,6 @@ impl App {
                 srgb
             }
         };
-        // Mailbox is the default: no tearing, no blocking, and it works where Fifo stalls
-        // (X11 with a compositing window manager on RADV presented one frame per second).
-        // Benchmarks measure throughput, so they run without vsync unless told otherwise.
         let bench = self.opts.bench_frames.is_some();
         config.present_mode = match self.opts.present {
             Some(mode) if caps.present_modes.contains(&mode) => mode,
@@ -97,36 +149,19 @@ impl App {
             view_format,
             config.present_mode
         );
-        let mesh = self.mesh.take().ok_or("world mesh already consumed")?;
-        let mut renderer = Renderer::new(&gpu, view_format, &mesh, (config.width, config.height));
-        // The bundle's atlas is the HUD's texture from here on (LOOK.md 2.2).
-        if let Some(atlas) = self.content.take_atlas() {
-            renderer.hud.set_atlas(&gpu, atlas);
-        }
-        // Models come from the hub, on whatever session is logged in when one is wanted.
-        let source = self.hub.as_ref().map(|h| h.model_source());
-        let avatars = Avatars::new(
-            &gpu,
-            &mut renderer.characters,
-            &self.opts,
-            &self.bsp,
-            source,
-        )?;
-        self.adapter_info = Some(gpu.info.clone());
-        self.active = Some(Active {
-            window: window.clone(),
-            surface,
-            config,
-            view_format,
-            gpu,
-            renderer,
-            avatars,
-            drawn_from: vec![usize::MAX],
-        });
-        // `--prop KEY`: the own body and the crowd hold it, from the bundle (natively it
-        // is on the GPU at once; in a browser it arrives later and nobody holds it).
+        Ok((config, view_format))
+    }
+
+    /// The fitting rooms of the command line (CONTENT.md 9): `--prop KEY` in the own
+    /// hand and the crowd's, from the bundle (natively on the GPU at once; in a browser
+    /// it arrives later and nobody holds it); `--off KEY` in the left hand; `--worn
+    /// KEY[,KEY...]` the armours' overlays on the striker's body (CONTENT.md 3.3,
+    /// EQUIPMENT.md 5.2); `--sheathed` the prop on the back (LOOK.md 6.7).
+    fn fitting_room(&mut self) {
+        let Some(a) = self.active.as_mut() else {
+            return;
+        };
         if let Some(key) = self.opts.prop.clone() {
-            let a = self.active.as_mut().expect("just made");
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
             let slot = self
                 .content
@@ -138,7 +173,6 @@ impl App {
             a.avatars.crowd_prop = slot;
         }
         if let Some(key) = self.opts.off.clone() {
-            let a = self.active.as_mut().expect("just made");
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
             let slot = self
                 .content
@@ -154,10 +188,7 @@ impl App {
             self.offline_off = slot;
             a.avatars.crowd_off = slot;
         }
-        // `--worn KEY[,KEY...]`: armours' overlays on the striker's body, own and crowd
-        // (the fitting room of the overlays, CONTENT.md 3.3, EQUIPMENT.md 5.2).
         if let Some(keys) = self.opts.worn.clone() {
-            let a = self.active.as_mut().expect("just made");
             let (gpu, characters) = (&a.gpu, &mut a.renderer.characters);
             let mut worn = Vec::new();
             for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
@@ -174,29 +205,10 @@ impl App {
             self.offline_worn = worn.clone();
             a.avatars.crowd_worn = worn;
         }
-        // `--sheathed`: the prop on the back, own and crowd (the fitting room of the
-        // sheath, LOOK.md 6.7).
         if self.opts.sheathed {
             self.offline_sheathed = true;
-            if let Some(a) = self.active.as_mut() {
-                a.avatars.crowd_sheathed = true;
-            }
+            a.avatars.crowd_sheathed = true;
         }
-        // A browser gives the pointer only to a click (WEB.md 3.4): there the first click grabs.
-        if cfg!(not(target_arch = "wasm32")) && self.wants_pointer() && self.focused() {
-            self.set_grab(true);
-        }
-        self.was_up = self.screen_up();
-        self.apply_settings();
-        self.last_frame = Instant::now();
-        self.started = Instant::now();
-        // Offline there is nothing left to wait for; online the status clears at `Welcome`.
-        #[cfg(target_arch = "wasm32")]
-        if self.online.is_none() {
-            crate::web::tell_page("status", "");
-        }
-        window.request_redraw();
-        Ok(())
     }
 
     /// The window has the keyboard. The pointer is taken by itself only then: a zone that

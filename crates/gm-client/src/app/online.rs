@@ -615,27 +615,8 @@ impl App {
                 token,
                 web,
             } => self.on_travel_ticket(zone, addr, cert_der, token, web),
-            FromZone::TravelRefused(reason) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                o.respec_note = format!("travel refused: {reason}");
-                log::info!("{}", o.respec_note);
-                o.say(o.respec_note.clone(), hud::ORANGE);
-            }
-            FromZone::Roster(players) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                o.names.clear();
-                o.kinds.clear();
-                o.looks.clear();
-                for p in players {
-                    o.kinds.insert(p.id, p.kind);
-                    o.names.insert(p.id, (p.name, p.team, p.model));
-                    o.looks.insert(p.id, p.look);
-                }
-            }
+            FromZone::TravelRefused(reason) => self.zone_noted(format!("travel refused: {reason}")),
+            FromZone::Roster(players) => self.on_roster(players),
             FromZone::PlayerInfo {
                 id,
                 name,
@@ -643,14 +624,7 @@ impl App {
                 model,
                 kind,
                 look,
-            } => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                o.kinds.insert(id, kind);
-                o.names.insert(id, (name, team, model));
-                o.looks.insert(id, look);
-            }
+            } => self.on_player_info(id, name, team, model, kind, look),
             FromZone::Look { id, look } => {
                 if let Some(o) = self.online.as_mut() {
                     o.looks.insert(id, look);
@@ -664,95 +638,38 @@ impl App {
             FromZone::OrderRefused(why) => {
                 self.zone_said(format!("order refused: {why}"), hud::ORANGE)
             }
-            FromZone::Encounter { name, state } => {
-                let (text, colour) = match state {
-                    EncounterState::Engaged => (format!("{name}: engaged"), hud::WHITE),
-                    EncounterState::Reset => (format!("{name}: reset"), hud::ORANGE),
-                    EncounterState::Cleared { secs } => {
-                        (format!("{name}: cleared in {secs} s"), hud::GREEN)
-                    }
-                };
-                self.zone_said(text, colour);
-            }
+            FromZone::Encounter { name, state } => self.on_encounter(name, state),
             FromZone::Loot {
                 encounter,
                 items,
                 coin,
-            } => {
-                let mut what = items.join(", ");
-                if coin > 0 {
-                    if !what.is_empty() {
-                        what.push_str(", ");
-                    }
-                    what.push_str(&format!("{coin} silver"));
-                }
-                self.zone_said(format!("loot ({encounter}): {what}"), hud::YELLOW);
-            }
+            } => self.on_loot(encounter, items, coin),
             FromZone::Trial {
                 name,
                 passed,
                 detail,
                 ..
-            } => {
-                if passed {
-                    self.zone_said(format!("trial passed: {name}"), hud::GREEN);
-                    self.zone_said(detail, hud::DIM);
-                } else {
-                    self.zone_said(format!("trial not passed: {name}: {detail}"), hud::DIM);
-                }
-            }
-            FromZone::ModelRevoked(id) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                for entry in o.names.values_mut() {
-                    if entry.2 == Some(id) {
-                        entry.2 = None;
-                    }
-                }
-                for stall in &mut o.stalls {
-                    if stall.model == Some(id) {
-                        stall.model = None;
-                    }
-                }
-                self.revoked.push(id);
-            }
+            } => self.on_trial(name, passed, detail),
+            FromZone::ModelRevoked(id) => self.on_model_revoked(id),
             FromZone::Stalls(stalls) => {
                 if let Some(o) = self.online.as_mut() {
                     o.stalls = stalls;
                 }
             }
-            FromZone::StallOpened(stall) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                log::info!("{} opened a stall", stall.owner);
-                o.stalls.retain(|s| s.id != stall.id);
-                o.stalls.push(stall);
-            }
+            FromZone::StallOpened(stall) => self.on_stall_opened(stall),
             FromZone::StallClosed(id) => {
                 if let Some(o) = self.online.as_mut() {
                     o.stalls.retain(|s| s.id != id);
                 }
             }
-            FromZone::StallResult(result) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                o.respec_note = match result {
-                    Ok(()) => "stall: done".into(),
-                    Err(e) => format!("stall refused: {e}"),
-                };
-                log::info!("{}", o.respec_note);
-            }
+            FromZone::StallResult(result) => self.on_stall_result(result),
             FromZone::BuyResult { listing, result } => self.on_buy_result(listing, result),
             FromZone::WearResult { item, result } => self.on_wear_result(item, result),
             FromZone::PlayerLeft(id) => {
-                let Some(o) = self.online.as_mut() else {
-                    return;
-                };
-                o.names.remove(&id);
-                o.kinds.remove(&id);
+                if let Some(o) = self.online.as_mut() {
+                    o.names.remove(&id);
+                    o.kinds.remove(&id);
+                }
             }
             FromZone::Party(names) => self.on_party(names),
             FromZone::Invited { from } => self.on_invited(from),
@@ -779,16 +696,7 @@ impl App {
                     .impact(Vec3::from_array(at), Vec3::from_array(normal));
             }
             FromZone::Killed { victim, killer } => self.on_killed(victim, killer),
-            FromZone::ReportResult(result) => {
-                let (text, colour) = match result {
-                    Ok(()) => (
-                        "report taken: the fight is kept for a moderator".to_string(),
-                        hud::GREEN,
-                    ),
-                    Err(why) => (format!("report refused: {why}"), hud::ORANGE),
-                };
-                self.zone_said(text, colour);
-            }
+            FromZone::ReportResult(result) => self.on_report_result(result),
             FromZone::ChatFrom { from, text } => self.on_chat_from(from, text),
             // (Not printed: the words for every message of the zone's would be
             // carried by every browser for this one line.)
@@ -801,6 +709,130 @@ impl App {
         if let Some(o) = self.online.as_mut() {
             o.say(text, colour);
         }
+    }
+
+    /// A refusal of the zone's: the window's note, the log, and the HUD in orange.
+    fn zone_noted(&mut self, text: String) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        o.respec_note = text;
+        log::info!("{}", o.respec_note);
+        o.say(o.respec_note.clone(), hud::ORANGE);
+    }
+
+    /// Everyone in the zone, as the zone lists them at the start.
+    fn on_roster(&mut self, players: Vec<gm_net::control::PlayerEntry>) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        o.names.clear();
+        o.kinds.clear();
+        o.looks.clear();
+        for p in players {
+            o.kinds.insert(p.id, p.kind);
+            o.names.insert(p.id, (p.name, p.team, p.model));
+            o.looks.insert(p.id, p.look);
+        }
+    }
+
+    /// Somebody came in, or changed.
+    fn on_player_info(
+        &mut self,
+        id: u32,
+        name: String,
+        team: u8,
+        model: Option<ModelId>,
+        kind: BodyKind,
+        look: Look,
+    ) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        o.kinds.insert(id, kind);
+        o.names.insert(id, (name, team, model));
+        o.looks.insert(id, look);
+    }
+
+    fn on_encounter(&mut self, name: String, state: EncounterState) {
+        let (text, colour) = match state {
+            EncounterState::Engaged => (format!("{name}: engaged"), hud::WHITE),
+            EncounterState::Reset => (format!("{name}: reset"), hud::ORANGE),
+            EncounterState::Cleared { secs } => {
+                (format!("{name}: cleared in {secs} s"), hud::GREEN)
+            }
+        };
+        self.zone_said(text, colour);
+    }
+
+    fn on_loot(&mut self, encounter: String, items: Vec<String>, coin: u32) {
+        let mut what = items.join(", ");
+        if coin > 0 {
+            if !what.is_empty() {
+                what.push_str(", ");
+            }
+            what.push_str(&format!("{coin} silver"));
+        }
+        self.zone_said(format!("loot ({encounter}): {what}"), hud::YELLOW);
+    }
+
+    fn on_trial(&mut self, name: String, passed: bool, detail: String) {
+        if passed {
+            self.zone_said(format!("trial passed: {name}"), hud::GREEN);
+            self.zone_said(detail, hud::DIM);
+        } else {
+            self.zone_said(format!("trial not passed: {name}: {detail}"), hud::DIM);
+        }
+    }
+
+    /// The hub revoked a model: nobody wears it from here on, and the renderer lets it
+    /// go at the next frame.
+    fn on_model_revoked(&mut self, id: ModelId) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        for entry in o.names.values_mut() {
+            if entry.2 == Some(id) {
+                entry.2 = None;
+            }
+        }
+        for stall in &mut o.stalls {
+            if stall.model == Some(id) {
+                stall.model = None;
+            }
+        }
+        self.revoked.push(id);
+    }
+
+    fn on_stall_opened(&mut self, stall: StallEntry) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        log::info!("{} opened a stall", stall.owner);
+        o.stalls.retain(|s| s.id != stall.id);
+        o.stalls.push(stall);
+    }
+
+    fn on_stall_result(&mut self, result: Result<(), String>) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        o.respec_note = match result {
+            Ok(()) => "stall: done".into(),
+            Err(e) => format!("stall refused: {e}"),
+        };
+        log::info!("{}", o.respec_note);
+    }
+
+    fn on_report_result(&mut self, result: Result<(), String>) {
+        let (text, colour) = match result {
+            Ok(()) => (
+                "report taken: the fight is kept for a moderator".to_string(),
+                hud::GREEN,
+            ),
+            Err(why) => (format!("report refused: {why}"), hud::ORANGE),
+        };
+        self.zone_said(text, colour);
     }
 
     /// The zone's content: the pack, the own build and the props a `Look` indexes; the
@@ -1521,193 +1553,194 @@ impl App {
     /// Every other entity at the interpolation time: the bodies with their looks and
     /// their names over them, the bolts and the areas as effects.
     fn others_in_sight(&mut self, frame_dt: f32, predicted: &Predicted, seen: &Seen) {
+        for e in seen.others.iter().copied() {
+            match e.kind {
+                EntityKind::Player => self.other_body(e, frame_dt, predicted, seen),
+                EntityKind::Projectile => self.other_projectile(e, seen),
+                EntityKind::Area => self.other_area(e),
+            }
+        }
+    }
+
+    /// Another body: whose side it is on, what it does drawn where it lands (LOOK.md
+    /// 13: the wedge of the swing it winds up, the slash when it comes, a spark when it
+    /// is hit), the own hand's numbers over its head, its name when the head is in sight
+    /// and near, its facing, and the body itself with what it holds and wears.
+    fn other_body(
+        &mut self,
+        e: gm_net::client::RenderEntity,
+        frame_dt: f32,
+        predicted: &Predicted,
+        seen: &Seen,
+    ) {
+        let SpawnInfo::Player {
+            frame,
+            team,
+            aspects,
+            armour,
+        } = e.spawn
+        else {
+            return;
+        };
         let bsp = &self.bsp;
         let Some(o) = self.online.as_mut() else {
             return;
         };
-        let Some(c) = o.client.as_ref() else { return };
-        let dt = predicted.dt;
         let camera = seen.camera;
         let my_team = seen.my_team;
         let feet_under = Vec3::Z * Hull::Player.mins().z;
-        for e in seen.others.iter().copied() {
-            match e.kind {
-                EntityKind::Player => {
-                    let SpawnInfo::Player {
-                        frame,
-                        team,
-                        aspects,
-                        armour,
-                    } = e.spawn
-                    else {
-                        continue;
-                    };
-                    // Health the zone sends (the own party's and creatures') under the name.
-                    let mate = o.squad.iter().position(|m| m.id == e.id);
-                    let max_health = match (mate, o.kinds.get(&e.id), &o.pack) {
-                        (Some(i), _, _) => Some(o.squad[i].max_health),
-                        (None, Some(BodyKind::Creature { def }), Some(pack)) => {
-                            pack.creatures.get(*def as usize).map(|d| d.health)
-                        }
-                        _ => None,
-                    };
-                    // Whose side it is on: the own team's, the own squad's and the own
-                    // party's are friends; a creature and another team's are foes.
-                    let name = o.names.get(&e.id).map(|n| n.0.as_str()).unwrap_or("");
-                    let creature = matches!(o.kinds.get(&e.id), Some(BodyKind::Creature { .. }));
-                    let friend = (my_team != 0 && team == my_team)
-                        || mate.is_some()
-                        || (!name.is_empty() && self.party_view.iter().any(|(n, _)| n == name));
-                    let foe = !friend && (creature || (my_team != 0 && team != 0));
-                    if e.alive() {
-                        // What it does, drawn where it lands (LOOK.md 13): the wedge of the
-                        // swing it winds up, the slash when it comes, a spark when it is hit.
-                        let swing = o
-                            .pack
-                            .as_ref()
-                            .zip((e.acting as usize).checked_sub(1))
-                            .and_then(|(p, i)| p.abilities.get(i))
-                            .and_then(|d| swing_of(&d.ability, dt));
-                        self.effects.fighter(
-                            &crate::fx::Fighter {
-                                key: e.id,
-                                feet: e.pos + feet_under,
-                                chest: crate::fx::chest_of(
-                                    e.flags & gm_net::snapshot::flags::CROUCHED != 0,
-                                ),
-                                yaw: e.yaw,
-                                anim: e.anim,
-                                swing,
-                                side: if friend {
-                                    crate::fx::Side::Friend
-                                } else {
-                                    crate::fx::Side::Foe
-                                },
-                                health: e.health,
-                            },
-                            &mut self.fx,
-                        );
-                        // What the own hand did to it, as the zone said: a number over
-                        // its head (LOOK.md 13.8).
-                        let over_head = e.pos + feet_under + Vec3::Z * 72.0;
-                        o.heals.retain(|&(target, amount)| {
-                            if target != e.id {
-                                return true;
-                            }
-                            self.effects.healed(over_head, amount as u32);
-                            false
-                        });
-                        // Its name over its head, when the head is in sight and near.
-                        let head = e.pos + Vec3::Z * 40.0;
-                        if !name.is_empty()
-                            && (head - camera).length() < 900.0
-                            && bsp.trace(Hull::Point, camera, head).fraction >= 1.0
-                        {
-                            self.tags.push(Tag {
-                                at: head,
-                                name: name.to_string(),
-                                ink: if friend {
-                                    [0.55, 0.80, 1.0, 1.0]
-                                } else if creature {
-                                    [1.0, 0.62, 0.30, 1.0]
-                                } else if foe {
-                                    [1.0, 0.42, 0.36, 1.0]
-                                } else {
-                                    hud::WHITE
-                                },
-                                health: e
-                                    .health
-                                    .zip(max_health)
-                                    .map(|(h, max)| h as f32 / max.max(1) as f32),
-                            });
-                        }
-                    }
-                    let yaw = facing(
-                        self.facings.get(&e.id).copied(),
-                        e.yaw,
-                        e.vel,
-                        e.anim,
-                        e.flags & gm_net::snapshot::flags::RPG != 0,
-                        frame_dt,
-                    );
-                    self.facings.insert(e.id, yaw);
-                    let worn = worn_overlay(
-                        &mut self.content,
-                        self.active.as_mut(),
-                        &o.props,
-                        o.looks.get(&e.id).copied().unwrap_or_default(),
-                        frame,
-                    );
-                    self.bodies.push(Body {
-                        key: e.id,
-                        origin: e.pos,
-                        yaw,
-                        pitch: e.pitch,
-                        anim: e.anim,
-                        crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
-                        frame,
-                        armour,
-                        aspects,
-                        status: e.status,
-                        model: o.names.get(&e.id).and_then(|n| n.2),
-                        distance: (e.pos - camera).length(),
-                        lit: self.effects.flash(e.id),
-                        prop: held_prop(
-                            &mut self.content,
-                            self.active.as_mut(),
-                            &o.props,
-                            o.looks.get(&e.id).copied().unwrap_or_default(),
-                        ),
-                        off: off_prop(
-                            &mut self.content,
-                            self.active.as_mut(),
-                            &o.props,
-                            o.looks.get(&e.id).copied().unwrap_or_default(),
-                        ),
-                        worn: worn.0,
-                        hide: worn.1,
-                        sheathed: o.looks.get(&e.id).is_some_and(|l| l.sheathed),
-                    });
+        // Health the zone sends (the own party's and creatures') under the name.
+        let mate = o.squad.iter().position(|m| m.id == e.id);
+        let max_health = match (mate, o.kinds.get(&e.id), &o.pack) {
+            (Some(i), _, _) => Some(o.squad[i].max_health),
+            (None, Some(BodyKind::Creature { def }), Some(pack)) => {
+                pack.creatures.get(*def as usize).map(|d| d.health)
+            }
+            _ => None,
+        };
+        // Whose side it is on: the own team's, the own squad's and the own party's are
+        // friends; a creature and another team's are foes.
+        let name = o.names.get(&e.id).map(|n| n.0.as_str()).unwrap_or("");
+        let creature = matches!(o.kinds.get(&e.id), Some(BodyKind::Creature { .. }));
+        let friend = (my_team != 0 && team == my_team)
+            || mate.is_some()
+            || (!name.is_empty() && self.party_view.iter().any(|(n, _)| n == name));
+        let foe = !friend && (creature || (my_team != 0 && team != 0));
+        if e.alive() {
+            let swing = o
+                .pack
+                .as_ref()
+                .zip((e.acting as usize).checked_sub(1))
+                .and_then(|(p, i)| p.abilities.get(i))
+                .and_then(|d| swing_of(&d.ability, predicted.dt));
+            self.effects.fighter(
+                &crate::fx::Fighter {
+                    key: e.id,
+                    feet: e.pos + feet_under,
+                    chest: crate::fx::chest_of(e.flags & gm_net::snapshot::flags::CROUCHED != 0),
+                    yaw: e.yaw,
+                    anim: e.anim,
+                    swing,
+                    side: if friend {
+                        crate::fx::Side::Friend
+                    } else {
+                        crate::fx::Side::Foe
+                    },
+                    health: e.health,
+                },
+                &mut self.fx,
+            );
+            // What the own hand did to it, as the zone said: a number over its head
+            // (LOOK.md 13.8).
+            let over_head = e.pos + feet_under + Vec3::Z * 72.0;
+            o.heals.retain(|&(target, amount)| {
+                if target != e.id {
+                    return true;
                 }
-                EntityKind::Projectile => {
-                    // A bright head on a streak along its way, round a small solid core.
-                    self.entities.push(EntityDraw {
-                        mins: e.pos - Vec3::splat(1.2),
-                        maxs: e.pos + Vec3::splat(1.2),
-                        color: [1.0, 0.95, 0.6, 1.0],
-                    });
-                    // The own bolts are known by their ability (its size, its damage's
-                    // colour); another's is a bolt.
-                    let known = match e.spawn {
-                        SpawnInfo::Projectile { owner, def, .. } if owner == c.my_id => {
-                            c.sheet.kit.abilities.get(def as usize).and_then(|a| {
-                                a.steps.iter().find_map(|s| match &s.verb {
-                                    gm_core::vocab::Verb::Projectile(p) => {
-                                        Some((p.radius, damage_ink(&p.damage)))
-                                    }
-                                    _ => None,
-                                })
-                            })
-                        }
-                        _ => None,
-                    };
-                    let (radius, ink) = known.unwrap_or((3.0, crate::fx::BOLT));
-                    self.effects
-                        .projectile(e.id, e.pos, e.vel, radius, ink, camera, &mut self.fx);
-                }
-                EntityKind::Area => {
-                    // What hurts is orange, what helps is green (PROTOCOL.md 5).
-                    let (r, harmful) = match e.spawn {
-                        SpawnInfo::Area {
-                            radius, harmful, ..
-                        } => (radius as f32, harmful),
-                        _ => (32.0, true),
-                    };
-                    // A disc of its own size on the floor, and a burst when it appears.
-                    self.effects.area(e.id, e.pos, r, harmful, &mut self.fx);
-                }
+                self.effects.healed(over_head, amount as u32);
+                false
+            });
+            let head = e.pos + Vec3::Z * 40.0;
+            if !name.is_empty()
+                && (head - camera).length() < 900.0
+                && bsp.trace(Hull::Point, camera, head).fraction >= 1.0
+            {
+                self.tags.push(Tag {
+                    at: head,
+                    name: name.to_string(),
+                    ink: if friend {
+                        [0.55, 0.80, 1.0, 1.0]
+                    } else if creature {
+                        [1.0, 0.62, 0.30, 1.0]
+                    } else if foe {
+                        [1.0, 0.42, 0.36, 1.0]
+                    } else {
+                        hud::WHITE
+                    },
+                    health: e
+                        .health
+                        .zip(max_health)
+                        .map(|(h, max)| h as f32 / max.max(1) as f32),
+                });
             }
         }
+        let yaw = facing(
+            self.facings.get(&e.id).copied(),
+            e.yaw,
+            e.vel,
+            e.anim,
+            e.flags & gm_net::snapshot::flags::RPG != 0,
+            frame_dt,
+        );
+        self.facings.insert(e.id, yaw);
+        let look = o.looks.get(&e.id).copied().unwrap_or_default();
+        let worn = worn_overlay(
+            &mut self.content,
+            self.active.as_mut(),
+            &o.props,
+            look,
+            frame,
+        );
+        self.bodies.push(Body {
+            key: e.id,
+            origin: e.pos,
+            yaw,
+            pitch: e.pitch,
+            anim: e.anim,
+            crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
+            frame,
+            armour,
+            aspects,
+            status: e.status,
+            model: o.names.get(&e.id).and_then(|n| n.2),
+            distance: (e.pos - camera).length(),
+            lit: self.effects.flash(e.id),
+            prop: held_prop(&mut self.content, self.active.as_mut(), &o.props, look),
+            off: off_prop(&mut self.content, self.active.as_mut(), &o.props, look),
+            worn: worn.0,
+            hide: worn.1,
+            sheathed: look.sheathed,
+        });
+    }
+
+    /// A bolt: a bright head on a streak along its way, round a small solid core. The
+    /// own bolts are known by their ability (its size, its damage's colour); another's
+    /// is a bolt.
+    fn other_projectile(&mut self, e: gm_net::client::RenderEntity, seen: &Seen) {
+        self.entities.push(EntityDraw {
+            mins: e.pos - Vec3::splat(1.2),
+            maxs: e.pos + Vec3::splat(1.2),
+            color: [1.0, 0.95, 0.6, 1.0],
+        });
+        let c = self.online.as_ref().and_then(|o| o.client.as_ref());
+        let known = match (e.spawn, c) {
+            (SpawnInfo::Projectile { owner, def, .. }, Some(c)) if owner == c.my_id => {
+                c.sheet.kit.abilities.get(def as usize).and_then(|a| {
+                    a.steps.iter().find_map(|s| match &s.verb {
+                        gm_core::vocab::Verb::Projectile(p) => {
+                            Some((p.radius, damage_ink(&p.damage)))
+                        }
+                        _ => None,
+                    })
+                })
+            }
+            _ => None,
+        };
+        let (radius, ink) = known.unwrap_or((3.0, crate::fx::BOLT));
+        self.effects
+            .projectile(e.id, e.pos, e.vel, radius, ink, seen.camera, &mut self.fx);
+    }
+
+    /// An area: a disc of its own size on the floor, and a burst when it appears. What
+    /// hurts is orange, what helps is green (PROTOCOL.md 5).
+    fn other_area(&mut self, e: gm_net::client::RenderEntity) {
+        let (r, harmful) = match e.spawn {
+            SpawnInfo::Area {
+                radius, harmful, ..
+            } => (radius as f32, harmful),
+            _ => (32.0, true),
+        };
+        self.effects.area(e.id, e.pos, r, harmful, &mut self.fx);
     }
 
     /// Heard (SOUND.md 3): every new sample of every entity up to the render tick, the

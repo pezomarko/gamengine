@@ -129,66 +129,9 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     };
     let kit = &c.sheet.kit;
     let build = &c.sheet.build;
-    let now = c.tick;
     let mut cells = Vec::new();
     let mut cell = |key: &'static str, slot: Option<u8>, def: Option<u16>| {
-        let (Some(slot), Some(def)) = (slot, def) else {
-            return;
-        };
-        let (mut slot, mut def) = (slot as usize, def as usize);
-        // A chain's window (MODES.md 4.3): the cell is the next stage's.
-        let mut stage = 0;
-        if let Some((from, next, _)) = c.mover.chain
-            && from as usize == slot
-        {
-            let mut at = from;
-            let mut n = 1u8;
-            while at != next && n < 12 {
-                match kit.chain_next.get(at as usize).copied().flatten() {
-                    Some(k) => {
-                        at = k;
-                        n += 1;
-                    }
-                    None => break,
-                }
-            }
-            stage = n;
-            slot = next as usize;
-            def = kit.abilities[slot].id.0.saturating_sub(1) as usize;
-        }
-        let (Some(ab), Some(d)) = (kit.abilities.get(slot), pack.abilities.get(def)) else {
-            return;
-        };
-        let left = gm_core::sim::tick_delta(c.mover.cooldowns[slot], now).max(0) as f32;
-        let whole = ab.cooldown.ticks.max(1) as f32;
-        let ready = (1.0 - left / whole).clamp(0.0, 1.0);
-        let elemental = kit.elemental.get(slot).copied().unwrap_or(false);
-        let running = c
-            .mover
-            .script
-            .as_ref()
-            .is_some_and(|s| s.ability as usize == slot)
-            || (key == "C" && c.mover.guard != gm_core::sim::GuardState::None);
-        let state = if running {
-            "active"
-        } else if elemental && c.mover.statuses.silenced() {
-            "silenced"
-        } else if left > 0.0 {
-            "cooling"
-        } else if c.mover.stamina < ab.cost.stamina as f32 || c.mover.focus < ab.cost.focus as f32 {
-            "unaffordable"
-        } else {
-            "ready"
-        };
-        cells.push(HotbarCell {
-            key,
-            ability: d.key.clone(),
-            state,
-            ready,
-            left_secs: left * c.rate.dt(),
-            stage,
-            count: None,
-        });
+        cells.extend(hotbar_cell(c, pack, key, slot, def));
     };
     if kit.mode == gm_core::vocab::Mode::Gun {
         // The gun mode (MODES.md 3.7): the three weapons, the one in hand lit, then the
@@ -233,6 +176,72 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     }
     cells.extend(item_cells(o, c));
     cells
+}
+
+/// One cell of an ability: the key, the ability on the slot (the next stage's in a
+/// chain's window, MODES.md 4.3), and its state from the predicted mover. Nothing for
+/// an empty slot.
+fn hotbar_cell(
+    c: &ClientState,
+    pack: &ContentPack,
+    key: &'static str,
+    slot: Option<u8>,
+    def: Option<u16>,
+) -> Option<HotbarCell> {
+    let kit = &c.sheet.kit;
+    let now = c.tick;
+    let (mut slot, mut def) = (slot? as usize, def? as usize);
+    // A chain's window (MODES.md 4.3): the cell is the next stage's.
+    let mut stage = 0;
+    if let Some((from, next, _)) = c.mover.chain
+        && from as usize == slot
+    {
+        let mut at = from;
+        let mut n = 1u8;
+        while at != next && n < 12 {
+            match kit.chain_next.get(at as usize).copied().flatten() {
+                Some(k) => {
+                    at = k;
+                    n += 1;
+                }
+                None => break,
+            }
+        }
+        stage = n;
+        slot = next as usize;
+        def = kit.abilities[slot].id.0.saturating_sub(1) as usize;
+    }
+    let (ab, d) = (kit.abilities.get(slot)?, pack.abilities.get(def)?);
+    let left = gm_core::sim::tick_delta(c.mover.cooldowns[slot], now).max(0) as f32;
+    let whole = ab.cooldown.ticks.max(1) as f32;
+    let ready = (1.0 - left / whole).clamp(0.0, 1.0);
+    let elemental = kit.elemental.get(slot).copied().unwrap_or(false);
+    let running = c
+        .mover
+        .script
+        .as_ref()
+        .is_some_and(|s| s.ability as usize == slot)
+        || (key == "C" && c.mover.guard != gm_core::sim::GuardState::None);
+    let state = if running {
+        "active"
+    } else if elemental && c.mover.statuses.silenced() {
+        "silenced"
+    } else if left > 0.0 {
+        "cooling"
+    } else if c.mover.stamina < ab.cost.stamina as f32 || c.mover.focus < ab.cost.focus as f32 {
+        "unaffordable"
+    } else {
+        "ready"
+    };
+    Some(HotbarCell {
+        key,
+        ability: d.key.clone(),
+        state,
+        ready,
+        left_secs: left * c.rate.dt(),
+        stage,
+        count: None,
+    })
 }
 
 /// The hotbar's cells (LOOK.md 3.2): `n` squares of 40 dots, 3 apart, bottom centre, the
@@ -317,6 +326,12 @@ pub(crate) fn project(view_proj: glam::Mat4, size: (f32, f32), point: Vec3) -> O
     Some(((x + 1.0) * 0.5 * size.0, (1.0 - y) * 0.5 * size.1))
 }
 
+/// The HUD of one frame (COMPANIONS.md 6, LOOK.md 3): a finger's controls, the hurt
+/// edge, the names and the numbers over the bodies, the aim and the combo; then, while
+/// a zone is played, the gun's crosshair and magazine, the own portrait and bars, the
+/// hotbar with the statuses over it, the squad and the party, the creature fought and
+/// the messages. All on the first layer, in call order: a screen's plates (the same
+/// layer, drawn after) cover it, as they covered the bars before there were layers.
 pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, view: HudView<'_>) {
     let HudView {
         tags,
@@ -341,8 +356,41 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
     let cap = hud.cap();
     let line = (cap + 5.0) * s;
     let skinned = hud.skinned;
-    // A finger's controls (MODES.md 5.6): the stick where the finger landed, and the
-    // buttons in the corners, lit while held. The hotbar's cells are their own buttons.
+    hud_touch(hud, &touch, s, cap);
+    hud.set_layer(ui::LAYER_PLATES);
+    hud_hurt(hud, hurt, w, h);
+    hud_tags(hud, vp, tags, s, cap);
+    hud_pops(hud, vp, pops, s, first_person);
+    hud_aim(hud, w, h, s, combo);
+    let Some(o) = online else { return };
+    let Some(c) = &o.client else { return };
+    hud_gun(hud, c, s, cap, line, crouched, scoped, zoom);
+    let mut y = hud_own(hud, o, c, s, cap, line, skinned, manifest, own_name);
+    if skinned {
+        hud_hotbar(hud, o, c, s, cap, line, manifest);
+    }
+    let _ = time;
+    y = hud_squad(hud, o, squad_view, s, line, y);
+    hud_party(hud, party, s, line, skinned, y);
+    hud_target_and_messages(hud, o, target, s, line, w);
+}
+
+/// As much of `text` as fits in `room` pixels.
+fn fit(hud: &Hud, s: f32, text: &str, room: f32) -> String {
+    let mut out = String::new();
+    for c in text.chars() {
+        out.push(c);
+        if hud.width(s, &out) > room {
+            out.pop();
+            break;
+        }
+    }
+    out
+}
+
+/// A finger's controls (MODES.md 5.6): the stick where the finger landed, and the
+/// buttons in the corners, lit while held. The hotbar's cells are their own buttons.
+fn hud_touch(hud: &mut Hud, touch: &TouchHud<'_>, s: f32, cap: f32) {
     if let Some((centre, knob)) = touch.stick {
         let reach = touch::STICK_DOTS * s;
         let c = Vec2::new(centre.0, centre.1);
@@ -387,96 +435,91 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
             word,
         );
     }
-    // As much of `text` as fits in `room` pixels.
-    let fit = |hud: &Hud, text: &str, room: f32| -> String {
-        let mut out = String::new();
-        for c in text.chars() {
-            out.push(c);
-            if hud.width(s, &out) > room {
-                out.pop();
-                break;
-            }
-        }
-        out
-    };
-    // The whole HUD on the first layer, in call order: a screen's plates (the same layer,
-    // drawn after) cover it, as they covered the bars before there were layers.
-    hud.set_layer(ui::LAYER_PLATES);
-    // Hurt: the frame's edge goes red for a moment (LOOK.md 13).
-    if hurt > 0.0 {
-        for (k, part) in [0.035_f32, 0.07, 0.11].into_iter().enumerate() {
-            let (tx, ty) = (w * part, h * part);
-            let red = [0.85, 0.05, 0.03, 0.22 * hurt / (k as f32 + 1.0)];
-            hud.rect(0.0, 0.0, w, ty, red);
-            hud.rect(0.0, h - ty, w, ty, red);
-            hud.rect(0.0, ty, tx, h - 2.0 * ty, red);
-            hud.rect(w - tx, ty, tx, h - 2.0 * ty, red);
+}
+
+/// Hurt: the frame's edge goes red for a moment (LOOK.md 13).
+fn hud_hurt(hud: &mut Hud, hurt: f32, w: f32, h: f32) {
+    if hurt <= 0.0 {
+        return;
+    }
+    for (k, part) in [0.035_f32, 0.07, 0.11].into_iter().enumerate() {
+        let (tx, ty) = (w * part, h * part);
+        let red = [0.85, 0.05, 0.03, 0.22 * hurt / (k as f32 + 1.0)];
+        hud.rect(0.0, 0.0, w, ty, red);
+        hud.rect(0.0, h - ty, w, ty, red);
+        hud.rect(0.0, ty, tx, h - 2.0 * ty, red);
+        hud.rect(w - tx, ty, tx, h - 2.0 * ty, red);
+    }
+}
+
+/// The names over the bodies, under everything else of the HUD: small print, a shade
+/// behind it, the health under it where it is known.
+fn hud_tags(hud: &mut Hud, vp: glam::Mat4, tags: &[Tag], s: f32, cap: f32) {
+    let print = (s * 0.5).max(1.0);
+    for tag in tags {
+        let Some((x, y)) = project(vp, hud.size, tag.at) else {
+            continue;
+        };
+        let tw = hud.width(print, &tag.name);
+        let (tx, ty) = ((x - tw * 0.5).round(), (y - (cap + 3.0) * print).round());
+        hud.print(tx + 1.0, ty + 1.0, print, [0.0, 0.0, 0.0, 0.75], &tag.name);
+        hud.print(tx, ty, print, tag.ink, &tag.name);
+        if let Some(frac) = tag.health {
+            let bw = (40.0 * print).max(tw * 0.8);
+            hud.bar(
+                (x - bw * 0.5).round(),
+                y.round(),
+                bw,
+                3.0 * print,
+                frac,
+                tag.ink,
+            );
         }
     }
-    // The names over the bodies, under everything else of the HUD: small print, a shade
-    // behind it, the health under it where it is known.
-    {
-        let print = (s * 0.5).max(1.0);
-        for tag in tags {
-            let Some((x, y)) = project(vp, hud.size, tag.at) else {
+}
+
+/// The numbers (LOOK.md 13.8): in the title face over the head they belong to, what the
+/// own hand dealt the largest; each floats up as it fades, with a shade behind. The own
+/// hurts in the first person have no head in the frame: they fall from under the aim
+/// instead, where the eyes are.
+fn hud_pops(hud: &mut Hud, vp: glam::Mat4, pops: &[crate::fx::Pop], s: f32, first_person: bool) {
+    use crate::fx::Blow;
+    let (w, h) = hud.size;
+    let face = if hud.has_face(hud::FaceId::Title) {
+        hud::FaceId::Title
+    } else {
+        hud.words()
+    };
+    let (_, ascent) = hud.metrics(face);
+    for pop in pops {
+        let own = matches!(pop.blow, Blow::Taken | Blow::Healed);
+        let (x, y) = if own && first_person {
+            (w * 0.5, h * 0.5 + 100.0 * s - pop.lift * 40.0 * s)
+        } else {
+            let Some((x, y)) = project(vp, hud.size, pop.at) else {
                 continue;
             };
-            let tw = hud.width(print, &tag.name);
-            let (tx, ty) = ((x - tw * 0.5).round(), (y - (cap + 3.0) * print).round());
-            hud.print(tx + 1.0, ty + 1.0, print, [0.0, 0.0, 0.0, 0.75], &tag.name);
-            hud.print(tx, ty, print, tag.ink, &tag.name);
-            if let Some(frac) = tag.health {
-                let bw = (40.0 * print).max(tw * 0.8);
-                hud.bar(
-                    (x - bw * 0.5).round(),
-                    y.round(),
-                    bw,
-                    3.0 * print,
-                    frac,
-                    tag.ink,
-                );
-            }
-        }
-    }
-    // The numbers (LOOK.md 13.8): in the title face over the head they belong to, what
-    // the own hand dealt the largest; each floats up as it fades, with a shade behind.
-    // The own hurts in the first person have no head in the frame: they fall from
-    // under the aim instead, where the eyes are.
-    {
-        use crate::fx::Blow;
-        let face = if hud.has_face(hud::FaceId::Title) {
-            hud::FaceId::Title
-        } else {
-            hud.words()
+            (x, y - pop.lift * 44.0 * s)
         };
-        let (_, ascent) = hud.metrics(face);
-        for pop in pops {
-            let own = matches!(pop.blow, Blow::Taken | Blow::Healed);
-            let (x, y) = if own && first_person {
-                (w * 0.5, h * 0.5 + 100.0 * s - pop.lift * 40.0 * s)
-            } else {
-                let Some((x, y)) = project(vp, hud.size, pop.at) else {
-                    continue;
-                };
-                (x, y - pop.lift * 44.0 * s)
-            };
-            let print = match pop.blow {
-                Blow::Dealt | Blow::Mended => s * 1.4,
-                Blow::Taken | Blow::Healed => s,
-                Blow::Blocked => (s * 0.6).max(1.0),
-            };
-            let tw = hud.width_in(face, print, &pop.text);
-            let (tx, ty) = ((x - tw * 0.5).round(), (y - ascent * print).round());
-            let shade = [0.0, 0.0, 0.0, 0.8 * pop.ink[3]];
-            hud.text_in(face, tx + 1.0, ty + 1.0, print, shade, &pop.text);
-            hud.text_in(face, tx, ty, print, pop.ink, &pop.text);
-        }
+        let print = match pop.blow {
+            Blow::Dealt | Blow::Mended => s * 1.4,
+            Blow::Taken | Blow::Healed => s,
+            Blow::Blocked => (s * 0.6).max(1.0),
+        };
+        let tw = hud.width_in(face, print, &pop.text);
+        let (tx, ty) = ((x - tw * 0.5).round(), (y - ascent * print).round());
+        let shade = [0.0, 0.0, 0.0, 0.8 * pop.ink[3]];
+        hud.text_in(face, tx + 1.0, ty + 1.0, print, shade, &pop.text);
+        hud.text_in(face, tx, ty, print, pop.ink, &pop.text);
     }
-    // The aim: a dot in the middle.
+}
+
+/// The aim: a dot in the middle. The combo counter (MODES.md 4.6), right of the aim:
+/// two hits or more within two seconds of each other, fading over the two seconds
+/// after the last.
+fn hud_aim(hud: &mut Hud, w: f32, h: f32, s: f32, combo: (u32, f32)) {
     hud.rect(w * 0.5 - 2.0, h * 0.5 - 2.0, 4.0, 4.0, hud::SHADE);
     hud.rect(w * 0.5 - 1.0, h * 0.5 - 1.0, 2.0, 2.0, hud::WHITE);
-    // The combo counter (MODES.md 4.6), right of the aim: two hits or more within two
-    // seconds of each other, fading over the two seconds after the last.
     if combo.0 >= 2 && combo.1 < COMBO_SECS {
         let fade = 1.0 - combo.1 / COMBO_SECS;
         let text = format!("{} hits", combo.0);
@@ -491,66 +534,93 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
         );
         hud.text(w * 0.5 + 18.0 * s, h * 0.5 - 8.0 * s, print, ink, &text);
     }
-    let Some(o) = online else { return };
-    let Some(c) = &o.client else { return };
+}
 
-    // The gun mode (MODES.md 3.8): the crosshair opens with the cone, four lines whose
-    // gap is the cone's angle on the screen; the magazine over the reserve bottom right,
-    // in red below half a magazine, "reloading" while the hands are at it; the scope's
-    // mask and its lines.
-    if let Some((f, g)) = c.mover.gun_in_hand(&c.sheet.kit) {
-        let now = c.tick;
-        let cone = gm_core::sim::cone_deg(
-            f,
-            c.sheet.derived.max_speed,
-            &c.mover,
-            g,
-            crouched,
-            scoped,
-            g.spray,
-            now,
-        );
-        let per_deg = h / (crate::render::fov_y_deg() / zoom.max(1.0));
-        let gap = (cone * per_deg).max(4.0 * s);
-        let len = 6.0 * s;
-        let (cx, cy) = (w * 0.5, h * 0.5);
-        for (dx, dy, lw, lh) in [
-            (-gap - len, -s * 0.5, len, s),
-            (gap, -s * 0.5, len, s),
-            (-s * 0.5, -gap - len, s, len),
-            (-s * 0.5, gap, s, len),
-        ] {
-            hud.rect(cx + dx - 1.0, cy + dy - 1.0, lw + 2.0, lh + 2.0, hud::SHADE);
-            hud.rect(cx + dx, cy + dy, lw, lh, hud::WHITE);
-        }
-        if zoom > 1.0 {
-            let r = h * 0.42;
-            let mask = [0.0, 0.0, 0.0, 0.92];
-            hud.rect(0.0, 0.0, w, cy - r, mask);
-            hud.rect(0.0, cy + r, w, h - cy - r, mask);
-            hud.rect(0.0, cy - r, cx - r, 2.0 * r, mask);
-            hud.rect(cx + r, cy - r, w - cx - r, 2.0 * r, mask);
-            hud.rect(cx - r, cy - s * 0.5, 2.0 * r, s, [0.0, 0.0, 0.0, 0.6]);
-            hud.rect(cx - s * 0.5, cy - r, s, 2.0 * r, [0.0, 0.0, 0.0, 0.6]);
-        }
-        let low = (g.magazine as u32) * 2 < f.magazine as u32 || g.magazine == 0;
-        let ink = if low { hud::RED } else { hud::WHITE };
-        let text = format!("{} / {}", g.magazine, g.reserve);
-        let print = s * 2.0;
-        let tw = hud.width(print, &text);
-        // (Above the corner's "Esc menu" line.)
-        let (x, y) = (w - 16.0 - tw, h - 16.0 - line - cap * print);
-        hud.print(x + 1.0, y + 1.0, print, hud::SHADE, &text);
-        hud.print(x, y, print, ink, &text);
-        if c.mover.reloading(now) {
-            let word = "reloading";
-            let tw = hud.width(s, word);
-            hud.label(w - 16.0 - tw, y - line, s, hud::YELLOW, word);
-        }
+/// The gun mode (MODES.md 3.8): the crosshair opens with the cone, four lines whose gap
+/// is the cone's angle on the screen; the magazine over the reserve bottom right, in
+/// red below half a magazine, "reloading" while the hands are at it; the scope's mask
+/// and its lines.
+#[allow(clippy::too_many_arguments)]
+fn hud_gun(
+    hud: &mut Hud,
+    c: &ClientState,
+    s: f32,
+    cap: f32,
+    line: f32,
+    crouched: bool,
+    scoped: bool,
+    zoom: f32,
+) {
+    let Some((f, g)) = c.mover.gun_in_hand(&c.sheet.kit) else {
+        return;
+    };
+    let (w, h) = hud.size;
+    let now = c.tick;
+    let cone = gm_core::sim::cone_deg(
+        f,
+        c.sheet.derived.max_speed,
+        &c.mover,
+        g,
+        crouched,
+        scoped,
+        g.spray,
+        now,
+    );
+    let per_deg = h / (crate::render::fov_y_deg() / zoom.max(1.0));
+    let gap = (cone * per_deg).max(4.0 * s);
+    let len = 6.0 * s;
+    let (cx, cy) = (w * 0.5, h * 0.5);
+    for (dx, dy, lw, lh) in [
+        (-gap - len, -s * 0.5, len, s),
+        (gap, -s * 0.5, len, s),
+        (-s * 0.5, -gap - len, s, len),
+        (-s * 0.5, gap, s, len),
+    ] {
+        hud.rect(cx + dx - 1.0, cy + dy - 1.0, lw + 2.0, lh + 2.0, hud::SHADE);
+        hud.rect(cx + dx, cy + dy, lw, lh, hud::WHITE);
     }
+    if zoom > 1.0 {
+        let r = h * 0.42;
+        let mask = [0.0, 0.0, 0.0, 0.92];
+        hud.rect(0.0, 0.0, w, cy - r, mask);
+        hud.rect(0.0, cy + r, w, h - cy - r, mask);
+        hud.rect(0.0, cy - r, cx - r, 2.0 * r, mask);
+        hud.rect(cx + r, cy - r, w - cx - r, 2.0 * r, mask);
+        hud.rect(cx - r, cy - s * 0.5, 2.0 * r, s, [0.0, 0.0, 0.0, 0.6]);
+        hud.rect(cx - s * 0.5, cy - r, s, 2.0 * r, [0.0, 0.0, 0.0, 0.6]);
+    }
+    let low = (g.magazine as u32) * 2 < f.magazine as u32 || g.magazine == 0;
+    let ink = if low { hud::RED } else { hud::WHITE };
+    let text = format!("{} / {}", g.magazine, g.reserve);
+    let print = s * 2.0;
+    let tw = hud.width(print, &text);
+    // (Above the corner's "Esc menu" line.)
+    let (x, y) = (w - 16.0 - tw, h - 16.0 - line - cap * print);
+    hud.print(x + 1.0, y + 1.0, print, hud::SHADE, &text);
+    hud.print(x, y, print, ink, &text);
+    if c.mover.reloading(now) {
+        let word = "reloading";
+        let tw = hud.width(s, word);
+        hud.label(w - 16.0 - tw, y - line, s, hud::YELLOW, word);
+    }
+}
 
-    // The own body, top left (LOOK.md 3.1): a portrait in its frame, the name, the three
-    // bars; without a skin, the bars alone as before, bottom left.
+/// The own body, top left (LOOK.md 3.1): a portrait in its frame, the name, the three
+/// bars; without a skin, the bars alone as before, bottom left. Returns where the
+/// squad's lines begin under it.
+#[allow(clippy::too_many_arguments)]
+fn hud_own(
+    hud: &mut Hud,
+    o: &Online,
+    c: &ClientState,
+    s: f32,
+    cap: f32,
+    line: f32,
+    skinned: bool,
+    manifest: Option<&gm_model::manifest::Manifest>,
+    own_name: &str,
+) -> f32 {
+    let (_, h) = hud.size;
     let max_health = c.sheet.derived.health.max(1) as f32;
     let rows: [(&str, f32, f32, [f32; 4]); 3] = [
         ("hp", c.own_health.max(0) as f32, max_health, hud::RED),
@@ -580,58 +650,7 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
         };
         hud.label(16.0, at, s, hud::YELLOW, "command stance");
     }
-    if skinned {
-        let side = 48.0 * s;
-        let build = &c.sheet.build;
-        let portrait = manifest.and_then(|m| {
-            m.portrait(&format!(
-                "{}_{}",
-                gm_model::rig::frame_name(build.frame),
-                build.armour.name()
-            ))
-            .map(str::to_string)
-        });
-        hud.frame(16.0, y, side, side, "portrait_frame", s, hud::PLAIN);
-        if let Some(key) = &portrait {
-            hud.icon(
-                16.0 + 6.0 * s,
-                y + 6.0 * s,
-                side - 12.0 * s,
-                key,
-                hud::PLAIN,
-            );
-        }
-        let x = 16.0 + side + 6.0 * s;
-        let (lh, _) = hud.metrics(hud::FaceId::Text);
-        // The name the zone announced the own body by, else what the command line said.
-        let name = o
-            .names
-            .get(&c.my_id)
-            .map(|n| n.0.as_str())
-            .filter(|n| !n.is_empty())
-            .unwrap_or(own_name);
-        hud.text_in(hud::FaceId::Text, x, y, s, hud::WHITE, name);
-        let mut by = y + lh * s + 2.0 * s;
-        let bh = 10.0 * s;
-        for (_, have, max, colour) in rows {
-            hud.frame(x, by, 150.0 * s, bh + 4.0 * s, "bar_frame", s, hud::PLAIN);
-            let inner_w = (150.0 * s - 6.0 * s) * (have / max).clamp(0.0, 1.0);
-            if inner_w > 0.0 {
-                hud.image(x + 3.0 * s, by + 2.0 * s, inner_w, bh, "bar_fill", colour);
-            }
-            // The numbers, with a shade under them: white on a yellow bar is not read.
-            let text = format!("{:.0}/{:.0}", have, max);
-            let tw = hud.width(s, &text);
-            let (tx, ty) = (
-                x + 150.0 * s - tw - 4.0 * s,
-                by + 2.0 * s + (bh - cap * s) * 0.5,
-            );
-            hud.print(tx + 1.0, ty + 1.0, s, [0.0, 0.0, 0.0, 0.7], &text);
-            hud.print(tx, ty, s, hud::WHITE, &text);
-            by += bh + 6.0 * s;
-        }
-        y = by + 4.0 * s;
-    } else {
+    if !skinned {
         for (name, have, max, colour) in rows {
             hud.label(16.0, y, s, hud::WHITE, name);
             let x = 16.0 + hud.width(s, "hp ") + 4.0 * s;
@@ -645,256 +664,357 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
             );
             y += line;
         }
-        y = 16.0;
+        return 16.0;
     }
+    let side = 48.0 * s;
+    let build = &c.sheet.build;
+    let portrait = manifest.and_then(|m| {
+        m.portrait(&format!(
+            "{}_{}",
+            gm_model::rig::frame_name(build.frame),
+            build.armour.name()
+        ))
+        .map(str::to_string)
+    });
+    hud.frame(16.0, y, side, side, "portrait_frame", s, hud::PLAIN);
+    if let Some(key) = &portrait {
+        hud.icon(
+            16.0 + 6.0 * s,
+            y + 6.0 * s,
+            side - 12.0 * s,
+            key,
+            hud::PLAIN,
+        );
+    }
+    let x = 16.0 + side + 6.0 * s;
+    let (lh, _) = hud.metrics(hud::FaceId::Text);
+    // The name the zone announced the own body by, else what the command line said.
+    let name = o
+        .names
+        .get(&c.my_id)
+        .map(|n| n.0.as_str())
+        .filter(|n| !n.is_empty())
+        .unwrap_or(own_name);
+    hud.text_in(hud::FaceId::Text, x, y, s, hud::WHITE, name);
+    let mut by = y + lh * s + 2.0 * s;
+    let bh = 10.0 * s;
+    for (_, have, max, colour) in rows {
+        hud.frame(x, by, 150.0 * s, bh + 4.0 * s, "bar_frame", s, hud::PLAIN);
+        let inner_w = (150.0 * s - 6.0 * s) * (have / max).clamp(0.0, 1.0);
+        if inner_w > 0.0 {
+            hud.image(x + 3.0 * s, by + 2.0 * s, inner_w, bh, "bar_fill", colour);
+        }
+        // The numbers, with a shade under them: white on a yellow bar is not read.
+        let text = format!("{:.0}/{:.0}", have, max);
+        let tw = hud.width(s, &text);
+        let (tx, ty) = (
+            x + 150.0 * s - tw - 4.0 * s,
+            by + 2.0 * s + (bh - cap * s) * 0.5,
+        );
+        hud.print(tx + 1.0, ty + 1.0, s, [0.0, 0.0, 0.0, 0.7], &text);
+        hud.print(tx, ty, s, hud::WHITE, &text);
+        by += bh + 6.0 * s;
+    }
+    by + 4.0 * s
+}
 
-    // The hotbar, bottom centre (LOOK.md 3.2): a cell per ability of the kit, its icon or
-    // its glyph, its key, and its state from the predicted mover; the own statuses above it.
-    if skinned {
-        let cells = hotbar(o);
-        let items = cells.iter().filter(|c| c.count.is_some()).count();
-        let rects = hotbar_rects((w, h), s, cells.len(), items);
-        let side = 40.0 * s;
-        let (x0, y0) = rects.first().map_or((0.0, h - 16.0 - side), |r| (r.x, r.y));
-        // The cells without a picture show their ability's name (LOOK.md 3.4), whole and
-        // all in one size: small print when any of them is wider than a cell.
-        let name_room = side - 8.0 * s;
-        let name_print = if cells.iter().all(|c| hud.width(s, &c.ability) <= name_room) {
-            s
+/// The hotbar, bottom centre (LOOK.md 3.2): a cell per ability of the kit, its icon or
+/// its glyph, its key, and its state from the predicted mover; the item cells after
+/// them; why the last item key used nothing; the own statuses above it.
+fn hud_hotbar(
+    hud: &mut Hud,
+    o: &Online,
+    c: &ClientState,
+    s: f32,
+    cap: f32,
+    line: f32,
+    manifest: Option<&gm_model::manifest::Manifest>,
+) {
+    let (w, h) = hud.size;
+    let cells = hotbar(o);
+    let items = cells.iter().filter(|c| c.count.is_some()).count();
+    let rects = hotbar_rects((w, h), s, cells.len(), items);
+    let side = 40.0 * s;
+    let (x0, y0) = rects.first().map_or((0.0, h - 16.0 - side), |r| (r.x, r.y));
+    // The cells without a picture show their ability's name (LOOK.md 3.4), whole and
+    // all in one size: small print when any of them is wider than a cell.
+    let name_room = side - 8.0 * s;
+    let name_print = if cells.iter().all(|c| hud.width(s, &c.ability) <= name_room) {
+        s
+    } else {
+        (s * 0.5).max(1.0)
+    };
+    for (i, cell) in cells.iter().enumerate() {
+        let x = rects.get(i).map_or(x0, |r| r.x);
+        hud.frame(x, y0, side, side, "hotbar_cell", s, hud::PLAIN);
+        if cell.count.is_some() {
+            hud_item_cell(hud, cell, manifest, x, y0, side, s, cap);
         } else {
-            (s * 0.5).max(1.0)
-        };
-        for (i, cell) in cells.iter().enumerate() {
-            let x = rects.get(i).map_or(x0, |r| r.x);
-            hud.frame(x, y0, side, side, "hotbar_cell", s, hud::PLAIN);
-            // An item cell (LOOK.md 3.2): its stack's icon or name and the count; bare
-            // when nothing is set on it or none is carried, and the sweep while it is
-            // used.
-            if let Some(count) = cell.count {
-                if cell.state != "empty" {
-                    let icon = manifest
-                        .and_then(|m| m.template(&cell.ability))
-                        .and_then(|t| t.icon.clone());
-                    let inner = side - 8.0 * s;
-                    let drawn = icon
-                        .as_deref()
-                        .is_some_and(|k| hud.icon(x + 4.0 * s, y0 + 4.0 * s, inner, k, hud::PLAIN));
-                    if !drawn {
-                        let print = (s * 0.5).max(1.0);
-                        let mut short = cell.ability.clone();
-                        while hud.width(print, &short) > inner && short.pop().is_some() {}
-                        let tw = hud.width(print, &short);
-                        hud.print(
-                            x + (side - tw) * 0.5,
-                            y0 + (side - cap * print) * 0.5 - 3.0 * s,
-                            print,
-                            hud::WHITE,
-                            &short,
-                        );
-                    }
-                    let n = format!("×{count}");
-                    let tw = hud.width(s, &n);
-                    hud.print(
-                        x + side - tw - 3.0 * s + 1.0,
-                        y0 + side - (cap + 2.0) * s + 1.0,
-                        s,
-                        hud::SHADE,
-                        &n,
-                    );
-                    hud.print(
-                        x + side - tw - 3.0 * s,
-                        y0 + side - (cap + 2.0) * s,
-                        s,
-                        hud::WHITE,
-                        &n,
-                    );
-                    if cell.state == "using" {
-                        let centre = Vec2::new(x + side * 0.5, y0 + side * 0.5);
-                        hud.wedge(centre, side * 0.72, cell.ready, 1.0, [0.0, 0.0, 0.0, 0.62]);
-                    }
-                }
-                let kw = hud.width(s, cell.key) + 4.0 * s;
-                hud.frame(
-                    x - s,
-                    y0 - 4.0 * s,
-                    kw,
-                    (cap + 4.0) * s,
-                    "hotbar_key",
-                    s,
-                    hud::PLAIN,
-                );
-                hud.print(x + s, y0 - 2.0 * s, s, hud::WHITE, cell.key);
-                continue;
-            }
-            let icon = manifest
-                .and_then(|m| m.ability(&cell.ability))
-                .and_then(|a| a.icon.clone());
-            let inner = side - 8.0 * s;
-            let tint = match cell.state {
-                "unaffordable" | "silenced" => [0.45, 0.45, 0.5, 1.0],
-                _ => hud::PLAIN,
-            };
-            let drawn = icon
-                .as_deref()
-                .is_some_and(|k| hud.icon(x + 4.0 * s, y0 + 4.0 * s, inner, k, tint));
-            if !drawn {
-                let print = name_print;
-                let mut short = cell.ability.clone();
-                while hud.width(print, &short) > inner && short.pop().is_some() {}
-                let tw = hud.width(print, &short);
-                hud.print(
-                    x + (side - tw) * 0.5,
-                    y0 + (side - cap * print) * 0.5,
-                    print,
-                    if tint == hud::PLAIN {
-                        hud::WHITE
-                    } else {
-                        hud::DIM
-                    },
-                    &short,
-                );
-            }
-            match cell.state {
-                "cooling" => {
-                    // The dark sweep, clockwise from twelve, over what is left; the seconds
-                    // when more than one.
-                    let centre = Vec2::new(x + side * 0.5, y0 + side * 0.5);
-                    hud.wedge(centre, side * 0.72, cell.ready, 1.0, [0.0, 0.0, 0.0, 0.62]);
-                    if cell.left_secs >= 1.0 {
-                        let t = format!("{:.0}", cell.left_secs.ceil());
-                        let tw = hud.width(s, &t);
-                        hud.print(
-                            x + (side - tw) * 0.5,
-                            y0 + (side - cap * s) * 0.5,
-                            s,
-                            hud::WHITE,
-                            &t,
-                        );
-                    }
-                }
-                "silenced" => {
-                    hud.rect(
-                        x + 4.0 * s,
-                        y0 + side * 0.5 - s,
-                        side - 8.0 * s,
-                        2.0 * s,
-                        hud::RED,
-                    );
-                }
-                "active" => {
-                    let rim = [1.0, 0.85, 0.3, 1.0];
-                    hud.rect(x, y0, side, s, rim);
-                    hud.rect(x, y0 + side - s, side, s, rim);
-                    hud.rect(x, y0, s, side, rim);
-                    hud.rect(x + side - s, y0, s, side, rim);
-                }
-                _ => {}
-            }
-            // A chain's stage (MODES.md 4.3), bottom right of the cell.
-            if cell.stage >= 2 {
-                let numeral = ["", "I", "II", "III", "IV", "V"]
-                    .get(cell.stage as usize)
-                    .copied()
-                    .unwrap_or("V+");
-                let tw = hud.width(s, numeral);
-                hud.print(
-                    x + side - tw - 3.0 * s,
-                    y0 + side - (cap + 2.0) * s,
-                    s,
-                    [1.0, 0.85, 0.3, 1.0],
-                    numeral,
-                );
-            }
-            // The key, in its tab at the top left of the cell.
-            let kw = hud.width(s, cell.key) + 4.0 * s;
-            hud.frame(
-                x - s,
-                y0 - 4.0 * s,
-                kw,
-                (cap + 4.0) * s,
-                "hotbar_key",
-                s,
-                hud::PLAIN,
-            );
-            hud.print(x + s, y0 - 2.0 * s, s, hud::WHITE, cell.key);
+            hud_ability_cell(hud, cell, manifest, x, y0, side, s, cap, name_print);
         }
-        // Why the last press of an item key used nothing (MODES.md 11.3): in yellow over
-        // the item cells for a second.
-        if let Some(why) = kit_note_of(o.kit_note)
-            && let Some(first) = rects.get(cells.len().saturating_sub(items))
-        {
-            let last = rects.last().unwrap_or(first);
-            let mid = (first.x + last.x + last.w) * 0.5;
-            let tw = hud.width(s, why);
-            hud.label(
-                (mid - tw * 0.5).round(),
-                y0 - (cap + 4.0) * s - line,
-                s,
-                hud::YELLOW,
-                why,
-            );
-        }
-        // The statuses (LOOK.md 3.3), above the hotbar: an icon or the status's name, a
-        // ring of the time left as a wedge, the stacks.
-        let now = c.tick;
-        let mut sx = x0;
-        let sy = y0 - 30.0 * s;
-        for slot in c.mover.statuses.active() {
-            let Some(status) = slot.status else { continue };
-            let left = gm_core::sim::tick_delta(slot.until, now).max(0) as f32;
-            let side = 24.0 * s;
-            let harmful = !matches!(
-                status,
-                gm_core::vocab::Status::Regen
-                    | gm_core::vocab::Status::Haste
-                    | gm_core::vocab::Status::Fortify
-                    | gm_core::vocab::Status::Stealth
-            );
-            hud.rect(
-                sx,
-                sy,
-                side,
-                side,
-                if harmful {
-                    [0.35, 0.08, 0.06, 0.85]
-                } else {
-                    [0.08, 0.3, 0.1, 0.85]
-                },
-            );
-            let icon = manifest.and_then(|m| m.status_icon(status.name()).map(str::to_string));
-            let drawn = icon.as_deref().is_some_and(|k| {
-                hud.icon(sx + 2.0 * s, sy + 2.0 * s, side - 4.0 * s, k, hud::PLAIN)
-            });
-            if !drawn {
-                let short = fit(hud, status.name(), side - 4.0 * s);
-                hud.print(sx + 2.0 * s, sy + 2.0 * s, s, hud::WHITE, &short);
-            }
-            // The time left, as a sweep that empties: a status of 5 s is nearly whole at 4.
-            let frac = (left / 320.0).clamp(0.0, 1.0);
-            hud.wedge(
-                Vec2::new(sx + side * 0.5, sy + side * 0.5),
-                side * 0.6,
-                frac,
-                1.0,
-                [0.0, 0.0, 0.0, 0.5],
-            );
-            if slot.stacks > 1 {
-                let t = slot.stacks.to_string();
+        // The key, in its tab at the top left of the cell.
+        let kw = hud.width(s, cell.key) + 4.0 * s;
+        hud.frame(
+            x - s,
+            y0 - 4.0 * s,
+            kw,
+            (cap + 4.0) * s,
+            "hotbar_key",
+            s,
+            hud::PLAIN,
+        );
+        hud.print(x + s, y0 - 2.0 * s, s, hud::WHITE, cell.key);
+    }
+    // Why the last press of an item key used nothing (MODES.md 11.3): in yellow over
+    // the item cells for a second.
+    if let Some(why) = kit_note_of(o.kit_note)
+        && let Some(first) = rects.get(cells.len().saturating_sub(items))
+    {
+        let last = rects.last().unwrap_or(first);
+        let mid = (first.x + last.x + last.w) * 0.5;
+        let tw = hud.width(s, why);
+        hud.label(
+            (mid - tw * 0.5).round(),
+            y0 - (cap + 4.0) * s - line,
+            s,
+            hud::YELLOW,
+            why,
+        );
+    }
+    hud_statuses(hud, c, manifest, s, cap, x0, y0 - 30.0 * s);
+}
+
+/// An item cell (LOOK.md 3.2): its stack's icon or name and the count; bare when
+/// nothing is set on it or none is carried, and the sweep while it is used.
+#[allow(clippy::too_many_arguments)]
+fn hud_item_cell(
+    hud: &mut Hud,
+    cell: &HotbarCell,
+    manifest: Option<&gm_model::manifest::Manifest>,
+    x: f32,
+    y0: f32,
+    side: f32,
+    s: f32,
+    cap: f32,
+) {
+    let Some(count) = cell.count else { return };
+    if cell.state == "empty" {
+        return;
+    }
+    let icon = manifest
+        .and_then(|m| m.template(&cell.ability))
+        .and_then(|t| t.icon.clone());
+    let inner = side - 8.0 * s;
+    let drawn = icon
+        .as_deref()
+        .is_some_and(|k| hud.icon(x + 4.0 * s, y0 + 4.0 * s, inner, k, hud::PLAIN));
+    if !drawn {
+        let print = (s * 0.5).max(1.0);
+        let mut short = cell.ability.clone();
+        while hud.width(print, &short) > inner && short.pop().is_some() {}
+        let tw = hud.width(print, &short);
+        hud.print(
+            x + (side - tw) * 0.5,
+            y0 + (side - cap * print) * 0.5 - 3.0 * s,
+            print,
+            hud::WHITE,
+            &short,
+        );
+    }
+    let n = format!("×{count}");
+    let tw = hud.width(s, &n);
+    hud.print(
+        x + side - tw - 3.0 * s + 1.0,
+        y0 + side - (cap + 2.0) * s + 1.0,
+        s,
+        hud::SHADE,
+        &n,
+    );
+    hud.print(
+        x + side - tw - 3.0 * s,
+        y0 + side - (cap + 2.0) * s,
+        s,
+        hud::WHITE,
+        &n,
+    );
+    if cell.state == "using" {
+        let centre = Vec2::new(x + side * 0.5, y0 + side * 0.5);
+        hud.wedge(centre, side * 0.72, cell.ready, 1.0, [0.0, 0.0, 0.0, 0.62]);
+    }
+}
+
+/// An ability's cell: its icon or its name, dim when it cannot be afforded or is
+/// silenced; the cooldown's sweep with the seconds, the silence's bar, the active's
+/// rim; a chain's stage (MODES.md 4.3) bottom right.
+#[allow(clippy::too_many_arguments)]
+fn hud_ability_cell(
+    hud: &mut Hud,
+    cell: &HotbarCell,
+    manifest: Option<&gm_model::manifest::Manifest>,
+    x: f32,
+    y0: f32,
+    side: f32,
+    s: f32,
+    cap: f32,
+    name_print: f32,
+) {
+    let icon = manifest
+        .and_then(|m| m.ability(&cell.ability))
+        .and_then(|a| a.icon.clone());
+    let inner = side - 8.0 * s;
+    let tint = match cell.state {
+        "unaffordable" | "silenced" => [0.45, 0.45, 0.5, 1.0],
+        _ => hud::PLAIN,
+    };
+    let drawn = icon
+        .as_deref()
+        .is_some_and(|k| hud.icon(x + 4.0 * s, y0 + 4.0 * s, inner, k, tint));
+    if !drawn {
+        let print = name_print;
+        let mut short = cell.ability.clone();
+        while hud.width(print, &short) > inner && short.pop().is_some() {}
+        let tw = hud.width(print, &short);
+        hud.print(
+            x + (side - tw) * 0.5,
+            y0 + (side - cap * print) * 0.5,
+            print,
+            if tint == hud::PLAIN {
+                hud::WHITE
+            } else {
+                hud::DIM
+            },
+            &short,
+        );
+    }
+    match cell.state {
+        "cooling" => {
+            // The dark sweep, clockwise from twelve, over what is left; the seconds
+            // when more than one.
+            let centre = Vec2::new(x + side * 0.5, y0 + side * 0.5);
+            hud.wedge(centre, side * 0.72, cell.ready, 1.0, [0.0, 0.0, 0.0, 0.62]);
+            if cell.left_secs >= 1.0 {
+                let t = format!("{:.0}", cell.left_secs.ceil());
                 let tw = hud.width(s, &t);
                 hud.print(
-                    sx + side - tw - s,
-                    sy + side - cap * s - s,
+                    x + (side - tw) * 0.5,
+                    y0 + (side - cap * s) * 0.5,
                     s,
-                    hud::YELLOW,
+                    hud::WHITE,
                     &t,
                 );
             }
-            sx += side + 3.0 * s;
         }
-        let _ = time;
+        "silenced" => {
+            hud.rect(
+                x + 4.0 * s,
+                y0 + side * 0.5 - s,
+                side - 8.0 * s,
+                2.0 * s,
+                hud::RED,
+            );
+        }
+        "active" => {
+            let rim = [1.0, 0.85, 0.3, 1.0];
+            hud.rect(x, y0, side, s, rim);
+            hud.rect(x, y0 + side - s, side, s, rim);
+            hud.rect(x, y0, s, side, rim);
+            hud.rect(x + side - s, y0, s, side, rim);
+        }
+        _ => {}
     }
+    if cell.stage >= 2 {
+        let numeral = ["", "I", "II", "III", "IV", "V"]
+            .get(cell.stage as usize)
+            .copied()
+            .unwrap_or("V+");
+        let tw = hud.width(s, numeral);
+        hud.print(
+            x + side - tw - 3.0 * s,
+            y0 + side - (cap + 2.0) * s,
+            s,
+            [1.0, 0.85, 0.3, 1.0],
+            numeral,
+        );
+    }
+}
 
-    // The squad, top left under the own body: slot, name, role, order, and its health.
+/// The statuses (LOOK.md 3.3), above the hotbar: an icon or the status's name, a ring
+/// of the time left as a wedge, the stacks.
+fn hud_statuses(
+    hud: &mut Hud,
+    c: &ClientState,
+    manifest: Option<&gm_model::manifest::Manifest>,
+    s: f32,
+    cap: f32,
+    x0: f32,
+    sy: f32,
+) {
+    let now = c.tick;
+    let mut sx = x0;
+    for slot in c.mover.statuses.active() {
+        let Some(status) = slot.status else { continue };
+        let left = gm_core::sim::tick_delta(slot.until, now).max(0) as f32;
+        let side = 24.0 * s;
+        let harmful = !matches!(
+            status,
+            gm_core::vocab::Status::Regen
+                | gm_core::vocab::Status::Haste
+                | gm_core::vocab::Status::Fortify
+                | gm_core::vocab::Status::Stealth
+        );
+        hud.rect(
+            sx,
+            sy,
+            side,
+            side,
+            if harmful {
+                [0.35, 0.08, 0.06, 0.85]
+            } else {
+                [0.08, 0.3, 0.1, 0.85]
+            },
+        );
+        let icon = manifest.and_then(|m| m.status_icon(status.name()).map(str::to_string));
+        let drawn = icon
+            .as_deref()
+            .is_some_and(|k| hud.icon(sx + 2.0 * s, sy + 2.0 * s, side - 4.0 * s, k, hud::PLAIN));
+        if !drawn {
+            let short = fit(hud, s, status.name(), side - 4.0 * s);
+            hud.print(sx + 2.0 * s, sy + 2.0 * s, s, hud::WHITE, &short);
+        }
+        // The time left, as a sweep that empties: a status of 5 s is nearly whole at 4.
+        let frac = (left / 320.0).clamp(0.0, 1.0);
+        hud.wedge(
+            Vec2::new(sx + side * 0.5, sy + side * 0.5),
+            side * 0.6,
+            frac,
+            1.0,
+            [0.0, 0.0, 0.0, 0.5],
+        );
+        if slot.stacks > 1 {
+            let t = slot.stacks.to_string();
+            let tw = hud.width(s, &t);
+            hud.print(
+                sx + side - tw - s,
+                sy + side - cap * s - s,
+                s,
+                hud::YELLOW,
+                &t,
+            );
+        }
+        sx += side + 3.0 * s;
+    }
+}
+
+/// The squad, top left under the own body: slot, name, role, order, and its health.
+/// Returns where the next line goes.
+fn hud_squad(
+    hud: &mut Hud,
+    o: &Online,
+    squad_view: &[(Option<u16>, bool)],
+    s: f32,
+    line: f32,
+    mut y: f32,
+) -> f32 {
     for (i, m) in o.squad.iter().enumerate() {
         let (health, alive) = squad_view.get(i).copied().unwrap_or((None, false));
         let colour = if alive { hud::WHITE } else { hud::RED };
@@ -911,10 +1031,21 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
         hud.bar(16.0, y - 2.0 * s, 150.0, 3.0 * s, frac, hud::GREEN);
         y += 6.0 * s;
     }
-    // The party, under the squad (PARTY.md 8.2, LOOK.md 3.1): each member's health when
-    // the wire carries it (its body is here, in sight, and of the party in this fight), its
-    // name alone when its body is here and the wire does not, `away` when it is not here;
-    // with a skin, each in a small frame with a bar.
+    y
+}
+
+/// The party, under the squad (PARTY.md 8.2, LOOK.md 3.1): each member's health when
+/// the wire carries it (its body is here, in sight, and of the party in this fight), its
+/// name alone when its body is here and the wire does not, `away` when it is not here;
+/// with a skin, each in a small frame with a bar.
+fn hud_party(
+    hud: &mut Hud,
+    party: &[(String, Option<Option<u16>>)],
+    s: f32,
+    line: f32,
+    skinned: bool,
+    mut y: f32,
+) {
     for (name, here) in party {
         let (text, colour) = match here {
             Some(Some(0)) => (format!("{name}  down"), hud::RED),
@@ -945,8 +1076,17 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
             y += line;
         }
     }
+}
 
-    // The creature being fought, top middle; messages under it.
+/// The creature being fought, top middle; messages under it.
+fn hud_target_and_messages(
+    hud: &mut Hud,
+    o: &Online,
+    target: Option<&(String, u16, u16)>,
+    s: f32,
+    line: f32,
+    w: f32,
+) {
     let mut y = 16.0;
     if let Some((name, health, max)) = target {
         let tw = hud.width(s, name);
@@ -977,7 +1117,7 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
             continue;
         }
         // A long line is cut to the screen: the log has the whole of it.
-        let shown = fit(hud, text, w - 40.0);
+        let shown = fit(hud, s, text, w - 40.0);
         let tw = hud.width(s, &shown);
         hud.label((w - tw) * 0.5, y, s, *colour, &shown);
         y += line;

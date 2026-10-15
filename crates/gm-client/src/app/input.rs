@@ -66,28 +66,8 @@ impl Input {
             Some(i) => (buttons::USE, i as u8 + 1),
             None => (0, 0),
         };
-        // The RPG mode (MODES.md 5.5): `1` the primary, `2` the secondary, `3`–`6` the
-        // actives, Shift guards, Space jumps; the axes are the walk's when none is held.
         if let Some(r) = rpg {
-            let mut b = r.buttons | kit;
-            if self.down(KeyCode::Space) {
-                b |= buttons::JUMP;
-            }
-            if self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight) {
-                b |= buttons::GUARD;
-            }
-            self.just_pressed.clear();
-            return SimInput {
-                buttons: b,
-                yaw,
-                pitch,
-                forward: r.forward,
-                side: r.side,
-                ability: r.ability,
-                held: 0,
-                target: r.target,
-                use_slot,
-            };
+            return self.rpg_input(yaw, pitch, r, kit, use_slot);
         }
         let (mut forward, mut side) = self.axes();
         let mut b = kit;
@@ -105,57 +85,11 @@ impl Input {
             || self.down(KeyCode::ControlRight)
             || self.down(KeyCode::KeyC);
         let shift = self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight);
-        let mut ability;
-        if gun {
-            for (i, k) in [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3]
-                .iter()
-                .enumerate()
-            {
-                if self.just_pressed.contains(k) {
-                    self.held = i as u8;
-                    self.scoped = false;
-                }
-            }
-            ability = [
-                KeyCode::Digit4,
-                KeyCode::Digit5,
-                KeyCode::Digit6,
-                KeyCode::Digit7,
-            ]
-            .iter()
-            .position(|k| self.just_pressed.contains(k))
-            .map_or(0, |i| i as u8 + 1);
-            if ctrl {
-                b |= buttons::CROUCH;
-            }
-            if shift {
-                forward *= 0.5;
-                side *= 0.5;
-            }
-            if self.scoped {
-                b |= buttons::SCOPE;
-            }
+        let mut ability = if gun {
+            self.gun_keys(&mut b, &mut forward, &mut side, ctrl, shift)
         } else {
-            if self.mouse.contains(&MouseButton::Right) {
-                b |= buttons::SECONDARY;
-            }
-            // Guard is on C as well: a browser keeps Ctrl+W for itself (WEB.md 3.4).
-            if ctrl {
-                b |= buttons::GUARD;
-            }
-            if shift {
-                b |= buttons::ABILITY1;
-            }
-            ability = [
-                KeyCode::Digit1,
-                KeyCode::Digit2,
-                KeyCode::Digit3,
-                KeyCode::Digit4,
-            ]
-            .iter()
-            .position(|k| self.just_pressed.contains(k))
-            .map_or(0, |i| i as u8 + 1);
-        }
+            self.action_keys(&mut b, ctrl, shift)
+        };
         if dodged && let Some(d) = dodge {
             ability = d;
         }
@@ -171,6 +105,103 @@ impl Input {
             held: if gun { self.held } else { 0 },
             target: 0,
         }
+    }
+
+    /// The RPG mode (MODES.md 5.5): `1` the primary, `2` the secondary, `3`–`6` the
+    /// actives, Shift guards, Space jumps; the axes are the walk's when none is held.
+    fn rpg_input(
+        &mut self,
+        yaw: f32,
+        pitch: f32,
+        r: crate::rpg::RpgFrame,
+        kit: u16,
+        use_slot: u8,
+    ) -> SimInput {
+        let mut b = r.buttons | kit;
+        if self.down(KeyCode::Space) {
+            b |= buttons::JUMP;
+        }
+        if self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight) {
+            b |= buttons::GUARD;
+        }
+        self.just_pressed.clear();
+        SimInput {
+            buttons: b,
+            yaw,
+            pitch,
+            forward: r.forward,
+            side: r.side,
+            ability: r.ability,
+            held: 0,
+            target: r.target,
+            use_slot,
+        }
+    }
+
+    /// The gun mode's keys (MODES.md 3.7): `1 2 3` take a weapon in hand (and drop the
+    /// scope), `4`–`7` are the actives, Ctrl crouches, Shift walks at half speed, the
+    /// scope stays up while toggled. Returns the active pressed.
+    fn gun_keys(
+        &mut self,
+        b: &mut u16,
+        forward: &mut f32,
+        side: &mut f32,
+        ctrl: bool,
+        shift: bool,
+    ) -> u8 {
+        for (i, k) in [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3]
+            .iter()
+            .enumerate()
+        {
+            if self.just_pressed.contains(k) {
+                self.held = i as u8;
+                self.scoped = false;
+            }
+        }
+        let ability = [
+            KeyCode::Digit4,
+            KeyCode::Digit5,
+            KeyCode::Digit6,
+            KeyCode::Digit7,
+        ]
+        .iter()
+        .position(|k| self.just_pressed.contains(k))
+        .map_or(0, |i| i as u8 + 1);
+        if ctrl {
+            *b |= buttons::CROUCH;
+        }
+        if shift {
+            *forward *= 0.5;
+            *side *= 0.5;
+        }
+        if self.scoped {
+            *b |= buttons::SCOPE;
+        }
+        ability
+    }
+
+    /// The action mode's keys: the right button is the secondary, Ctrl (or C: a browser
+    /// keeps Ctrl+W for itself, WEB.md 3.4) guards, Shift is the first ability, `1`–`4`
+    /// the actives. Returns the active pressed.
+    fn action_keys(&mut self, b: &mut u16, ctrl: bool, shift: bool) -> u8 {
+        if self.mouse.contains(&MouseButton::Right) {
+            *b |= buttons::SECONDARY;
+        }
+        if ctrl {
+            *b |= buttons::GUARD;
+        }
+        if shift {
+            *b |= buttons::ABILITY1;
+        }
+        [
+            KeyCode::Digit1,
+            KeyCode::Digit2,
+            KeyCode::Digit3,
+            KeyCode::Digit4,
+        ]
+        .iter()
+        .position(|k| self.just_pressed.contains(k))
+        .map_or(0, |i| i as u8 + 1)
     }
 }
 
@@ -517,152 +548,171 @@ impl App {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => match state {
-                ElementState::Pressed => {
-                    if self.screen_up() {
-                        // The pointer is the screen's (CLIENT.md 3): a click is a widget's.
-                        if button == MouseButton::Left {
-                            let now = Instant::now();
-                            let double = self.last_press.is_some_and(|(at, where_)| {
-                                now.duration_since(at).as_secs_f32() < DOUBLE_CLICK_SECS
-                                    && (where_.0 - self.cursor.0).abs() < DOUBLE_CLICK_PIXELS
-                                    && (where_.1 - self.cursor.1).abs() < DOUBLE_CLICK_PIXELS
-                            });
-                            self.last_press = (!double).then_some((now, self.cursor));
-                            self.ui_press(self.cursor, double);
-                        }
-                    } else if self.rpg_mode() {
-                        // The RPG mode (MODES.md 5.5): the left button picks a body or a
-                        // place on the ground, the right one held turns the camera.
-                        match button {
-                            MouseButton::Left => self.rpg_click(),
-                            MouseButton::Right => {
-                                self.rpg_right = Some((
-                                    Instant::now(),
-                                    self.cursor,
-                                    self.sim.yaw,
-                                    self.sim.pitch,
-                                ));
-                                self.input.mouse.insert(button);
-                                self.set_grab(true);
-                            }
-                            _ => {}
-                        }
-                    } else if !self.grabbed && self.opts.bench_frames.is_none() {
-                        self.set_grab(true);
-                    } else {
-                        self.press_in_game(button);
-                    }
-                }
-                ElementState::Released => {
-                    self.input.mouse.remove(&button);
-                    if button == MouseButton::Left && self.ui_input.down {
-                        self.ui_release();
-                    }
-                    if button == MouseButton::Right && self.rpg_mode() && self.grabbed {
-                        self.set_grab(false);
-                        self.rpg_right_release();
-                    }
-                }
+                ElementState::Pressed => self.mouse_press(button),
+                ElementState::Released => self.mouse_release(button),
             },
-            WindowEvent::KeyboardInput { event, .. } => {
-                let pressed = event.state == ElementState::Pressed;
-                let code = match event.physical_key {
-                    PhysicalKey::Code(code) => Some(code),
-                    PhysicalKey::Unidentified(_) => None,
-                };
-                // The keys the screens act on (CLIENT.md 6).
-                let key = match code {
-                    Some(KeyCode::Enter | KeyCode::NumpadEnter) => Some(Key::Enter),
-                    Some(KeyCode::Escape) => Some(Key::Escape),
-                    Some(KeyCode::Tab) if self.shift => Some(Key::BackTab),
-                    Some(KeyCode::Tab) => Some(Key::Tab),
-                    Some(KeyCode::Backspace) => Some(Key::Backspace),
-                    Some(KeyCode::Delete) => Some(Key::Delete),
-                    Some(KeyCode::ArrowLeft) => Some(Key::Left),
-                    Some(KeyCode::ArrowRight) => Some(Key::Right),
-                    Some(KeyCode::ArrowUp) => Some(Key::Up),
-                    Some(KeyCode::ArrowDown) => Some(Key::Down),
-                    Some(KeyCode::Home) => Some(Key::Home),
-                    Some(KeyCode::End) => Some(Key::End),
-                    Some(KeyCode::PageUp) => Some(Key::PageUp),
-                    Some(KeyCode::PageDown) => Some(Key::PageDown),
-                    _ => None,
-                };
-                if self.capturing() {
-                    // The toolkit has the keyboard: the game gets nothing.
-                    if !pressed {
-                        return;
-                    }
-                    // Ctrl+V and Shift+Insert paste (the key that types `v`, whatever
-                    // the layout; the V key where the layout has no such letter).
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let v = match event.logical_key.as_ref() {
-                            winit::keyboard::Key::Character(c) if c.is_ascii() => {
-                                c.eq_ignore_ascii_case("v")
-                            }
-                            _ => code == Some(KeyCode::KeyV),
-                        };
-                        if (self.command && v) || (self.shift && code == Some(KeyCode::Insert)) {
-                            self.paste();
-                            return;
-                        }
-                    }
-                    match (key, &event.text) {
-                        // A key held down does not press Enter or Escape again: the
-                        // line it opened would close, the login it sent be sent again.
-                        (Some(Key::Enter | Key::Escape), _) if event.repeat => {}
-                        (Some(key), _) => self.ui_key(key),
-                        // With Ctrl held a key is a shortcut, not a letter (and a key
-                        // that has no place on this keyboard's map still has its text:
-                        // a program that types for a person sends such).
-                        (None, Some(text)) if !self.command => self.ui_text(text),
-                        _ => {}
-                    }
-                    return;
-                }
-                let Some(code) = code else { return };
-                match event.state {
-                    ElementState::Pressed => {
-                        if self.input.keys.insert(code) {
-                            self.input.just_pressed.insert(code);
-                        }
-                        match (code, key) {
-                            // Enter opens the chat line, Escape the menu.
-                            (_, Some(key @ (Key::Enter | Key::Escape))) if !event.repeat => {
-                                self.ui_key(key)
-                            }
-                            _ => {}
-                        }
-                        match code {
-                            // The inventory, and the stall the body stands at.
-                            KeyCode::KeyI if !event.repeat => self.ui_key(Key::Inventory),
-                            KeyCode::KeyO if !event.repeat => self.ui_key(Key::Equipment),
-                            KeyCode::KeyE if !event.repeat => self.ui_key(Key::Use),
-                            KeyCode::KeyP if !event.repeat => self.ui_key(Key::People),
-                            KeyCode::KeyG if !event.repeat => self.ui_key(Key::Gm),
-                            KeyCode::KeyK if !event.repeat => self.ui_key(Key::Character),
-                            KeyCode::Tab if !event.repeat => self.ui_key(Key::Tab),
-                            // Outside a zone only (the fitting room, a replay): in one
-                            // the character's mode is the camera (MODES.md 2).
-                            KeyCode::KeyV if !event.repeat && self.online.is_none() => {
-                                self.viewport = match self.viewport {
-                                    Viewport::First => Viewport::Third,
-                                    Viewport::Third => Viewport::First,
-                                };
-                                log::info!("viewport: {:?}", self.viewport);
-                            }
-                            _ => {}
-                        }
-                    }
-                    ElementState::Released => {
-                        self.input.keys.remove(&code);
-                    }
-                }
-            }
+            WindowEvent::KeyboardInput { event, .. } => self.key_event(event),
             WindowEvent::RedrawRequested => {
                 self.show_cursor();
                 self.frame(event_loop);
+            }
+            _ => {}
+        }
+    }
+
+    /// A mouse button pressed: a screen's click (CLIENT.md 3), the RPG mode's pick or
+    /// orbit (MODES.md 5.5), the click that grabs the pointer, or the game's button.
+    fn mouse_press(&mut self, button: MouseButton) {
+        if self.screen_up() {
+            // The pointer is the screen's (CLIENT.md 3): a click is a widget's.
+            if button == MouseButton::Left {
+                let now = Instant::now();
+                let double = self.last_press.is_some_and(|(at, where_)| {
+                    now.duration_since(at).as_secs_f32() < DOUBLE_CLICK_SECS
+                        && (where_.0 - self.cursor.0).abs() < DOUBLE_CLICK_PIXELS
+                        && (where_.1 - self.cursor.1).abs() < DOUBLE_CLICK_PIXELS
+                });
+                self.last_press = (!double).then_some((now, self.cursor));
+                self.ui_press(self.cursor, double);
+            }
+        } else if self.rpg_mode() {
+            // The RPG mode (MODES.md 5.5): the left button picks a body or a place on
+            // the ground, the right one held turns the camera.
+            match button {
+                MouseButton::Left => self.rpg_click(),
+                MouseButton::Right => {
+                    self.rpg_right =
+                        Some((Instant::now(), self.cursor, self.sim.yaw, self.sim.pitch));
+                    self.input.mouse.insert(button);
+                    self.set_grab(true);
+                }
+                _ => {}
+            }
+        } else if !self.grabbed && self.opts.bench_frames.is_none() {
+            self.set_grab(true);
+        } else {
+            self.press_in_game(button);
+        }
+    }
+
+    /// A mouse button let go.
+    fn mouse_release(&mut self, button: MouseButton) {
+        self.input.mouse.remove(&button);
+        if button == MouseButton::Left && self.ui_input.down {
+            self.ui_release();
+        }
+        if button == MouseButton::Right && self.rpg_mode() && self.grabbed {
+            self.set_grab(false);
+            self.rpg_right_release();
+        }
+    }
+
+    /// A key: the screens' while the toolkit has the keyboard (CLIENT.md 6), else the
+    /// game's.
+    fn key_event(&mut self, event: winit::event::KeyEvent) {
+        let code = match event.physical_key {
+            PhysicalKey::Code(code) => Some(code),
+            PhysicalKey::Unidentified(_) => None,
+        };
+        // The keys the screens act on (CLIENT.md 6).
+        let key = match code {
+            Some(KeyCode::Enter | KeyCode::NumpadEnter) => Some(Key::Enter),
+            Some(KeyCode::Escape) => Some(Key::Escape),
+            Some(KeyCode::Tab) if self.shift => Some(Key::BackTab),
+            Some(KeyCode::Tab) => Some(Key::Tab),
+            Some(KeyCode::Backspace) => Some(Key::Backspace),
+            Some(KeyCode::Delete) => Some(Key::Delete),
+            Some(KeyCode::ArrowLeft) => Some(Key::Left),
+            Some(KeyCode::ArrowRight) => Some(Key::Right),
+            Some(KeyCode::ArrowUp) => Some(Key::Up),
+            Some(KeyCode::ArrowDown) => Some(Key::Down),
+            Some(KeyCode::Home) => Some(Key::Home),
+            Some(KeyCode::End) => Some(Key::End),
+            Some(KeyCode::PageUp) => Some(Key::PageUp),
+            Some(KeyCode::PageDown) => Some(Key::PageDown),
+            _ => None,
+        };
+        if self.capturing() {
+            self.screen_key(&event, code, key);
+            return;
+        }
+        let Some(code) = code else { return };
+        match event.state {
+            ElementState::Pressed => self.game_key_press(&event, code, key),
+            ElementState::Released => {
+                self.input.keys.remove(&code);
+            }
+        }
+    }
+
+    /// The toolkit has the keyboard: the game gets nothing. Ctrl+V and Shift+Insert
+    /// paste (the key that types `v`, whatever the layout; the V key where the layout
+    /// has no such letter).
+    fn screen_key(
+        &mut self,
+        event: &winit::event::KeyEvent,
+        code: Option<KeyCode>,
+        key: Option<Key>,
+    ) {
+        if event.state != ElementState::Pressed {
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let v = match event.logical_key.as_ref() {
+                winit::keyboard::Key::Character(c) if c.is_ascii() => c.eq_ignore_ascii_case("v"),
+                _ => code == Some(KeyCode::KeyV),
+            };
+            if (self.command && v) || (self.shift && code == Some(KeyCode::Insert)) {
+                self.paste();
+                return;
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = code;
+        match (key, &event.text) {
+            // A key held down does not press Enter or Escape again: the line it opened
+            // would close, the login it sent be sent again.
+            (Some(Key::Enter | Key::Escape), _) if event.repeat => {}
+            (Some(key), _) => self.ui_key(key),
+            // With Ctrl held a key is a shortcut, not a letter (and a key that has no
+            // place on this keyboard's map still has its text: a program that types for
+            // a person sends such).
+            (None, Some(text)) if !self.command => self.ui_text(text),
+            _ => {}
+        }
+    }
+
+    /// A key pressed in the game: held for the input, and the keys that open things
+    /// (the chat line, the menu, the inventory, the stall the body stands at, the people,
+    /// the pages) act once; `V` switches the viewport outside a zone only (the fitting
+    /// room, a replay): in one the character's mode is the camera (MODES.md 2).
+    fn game_key_press(&mut self, event: &winit::event::KeyEvent, code: KeyCode, key: Option<Key>) {
+        if self.input.keys.insert(code) {
+            self.input.just_pressed.insert(code);
+        }
+        if let Some(key @ (Key::Enter | Key::Escape)) = key
+            && !event.repeat
+        {
+            self.ui_key(key);
+        }
+        if event.repeat {
+            return;
+        }
+        match code {
+            KeyCode::KeyI => self.ui_key(Key::Inventory),
+            KeyCode::KeyO => self.ui_key(Key::Equipment),
+            KeyCode::KeyE => self.ui_key(Key::Use),
+            KeyCode::KeyP => self.ui_key(Key::People),
+            KeyCode::KeyG => self.ui_key(Key::Gm),
+            KeyCode::KeyK => self.ui_key(Key::Character),
+            KeyCode::Tab => self.ui_key(Key::Tab),
+            KeyCode::KeyV if self.online.is_none() => {
+                self.viewport = match self.viewport {
+                    Viewport::First => Viewport::Third,
+                    Viewport::Third => Viewport::First,
+                };
+                log::info!("viewport: {:?}", self.viewport);
             }
             _ => {}
         }

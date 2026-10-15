@@ -186,44 +186,33 @@ pub fn open_replay(opts: &mut Options) -> Result<Option<crate::playback::Playbac
     Ok(Some(playback))
 }
 
+/// A run that somebody scripted (a benchmark, a replay, a crowd) is not a person's: the
+/// person's settings do not send it to a login screen, and do not change what it
+/// measures either (a ticked "fullscreen"). It reads settings only when it names them.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn run(mut opts: Options) -> Result<(), Error> {
-    let playback = open_replay(&mut opts)?;
-    let map_bytes =
-        std::fs::read(&opts.map).map_err(|e| format!("loading {}: {e}", opts.map.display()))?;
-    let bsp = Bsp::load(&opts.map).map_err(|e| format!("loading {}: {e}", opts.map.display()))?;
-    log::info!(
-        "loaded {} ({} faces, {} leaves)",
-        opts.map.display(),
-        bsp.faces.len(),
-        bsp.leaves.len()
-    );
-    let palette = world::load_palette(&opts.palette);
-    let sim = Sim::at(&bsp, opts.start);
-    // A run that somebody scripted (a benchmark, a replay, a crowd) is not a person's: the
-    // person's settings do not send it to a login screen, and do not change what it
-    // measures either (a ticked "fullscreen"). It reads settings only when it names them.
-    let personal = opts.bench_frames.is_none()
+fn personal(opts: &Options) -> bool {
+    opts.bench_frames.is_none()
         && opts.seconds == 0.0
         && opts.script.is_none()
         && opts.replay.is_none()
         && opts.crowd == 0
         && opts.start.is_none()
         && !opts.offline
-        && opts.connect.is_none();
-    let settings_path = match &opts.settings {
-        Some(path) => Some(path.clone()),
-        None if personal => crate::settings::default_path(),
-        None => None,
-    };
-    let settings = settings_path
-        .as_deref()
-        .map(Settings::load)
-        .unwrap_or_default();
-    // Where the hub is: the command line, else the person's settings, else what the build
-    // ships beside the program (CLIENT.md 2). `--offline` and `--connect` ask for none.
-    // A hub that is named and cannot be used is said on a screen, like one that is not
-    // named at all: nobody started this from a terminal.
+        && opts.connect.is_none()
+}
+
+/// Where the hub is: the command line, else the person's settings, else what the build
+/// ships beside the program (CLIENT.md 2). `--offline` and `--connect` ask for none. A
+/// hub that is named and cannot be used is said on a screen (the inner `Err`), like one
+/// that is not named at all: nobody started this from a terminal. A command line that
+/// is wrong ends the program, with the reason (the outer `Err`).
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::type_complexity)]
+fn hub_of(
+    opts: &Options,
+    personal: bool,
+    settings: &Settings,
+) -> Result<Result<Option<(std::net::SocketAddr, Vec<u8>)>, String>, Error> {
     let resolve = |hub: &str| {
         use std::net::ToSocketAddrs;
         hub.to_socket_addrs()
@@ -242,8 +231,7 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
         Some(addr) => read(&cert).map(|der| Some((addr, der))),
         None => Err(format!("The hub {by} names ({hub}) cannot be found.")),
     };
-    let hub_at: Result<Option<(std::net::SocketAddr, Vec<u8>)>, String> = match opts.hub {
-        // A command line that is wrong ends the program, with the reason.
+    Ok(match opts.hub {
         Some(addr) => {
             let cert = std::fs::read(&opts.hub_cert)
                 .map_err(|e| format!("reading hub certificate {}: {e}", opts.hub_cert.display()))?;
@@ -259,29 +247,27 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
             Some((hub, cert)) => named(&hub, cert, "this build"),
             None => Ok(None),
         },
-    };
-    // A person, and no hub to talk to: say so on a screen instead of walking off
-    // (CLIENT.md 2).
-    let title = match &hub_at {
-        Ok(Some(_)) => None,
-        _ if !personal => None,
-        found => Some(crate::menu::Title {
-            settings: settings_path
-                .as_deref()
-                .map_or_else(String::new, |p| p.display().to_string()),
-            why: found.as_ref().err().cloned(),
-        }),
-    };
-    let hub_at = hub_at.unwrap_or(None);
-    // The command line's password has done its work once the screens have it.
-    let auto = auto_of(&opts);
-    opts.password.clear();
-    let map_hash = fnv1a64(&map_bytes);
-    let ui_script = opts.ui_script.as_deref().map(UiScript::parse).transpose()?;
-    let content = Content::load(&crate::install_root().join(&opts.assets));
-    let start = match (hub_at, opts.connect) {
+    })
+}
+
+/// What the client starts with (CLIENT.md 2): through the hub the screens, or the
+/// command line in their place; a zone joined directly; or nothing (the local walk).
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
+fn start_of(
+    opts: &Options,
+    hub_at: Option<(std::net::SocketAddr, Vec<u8>)>,
+    playing_live: bool,
+    sim: &Sim,
+    map_hash: u64,
+    settings: Settings,
+    ui_script: Option<UiScript>,
+    content: Content,
+    auto: Option<Auto>,
+) -> Result<Start, Error> {
+    Ok(match (hub_at, opts.connect) {
         // Through the hub: the screens, or the command line in their place.
-        (Some((addr, cert_der)), _) if playback.is_none() => {
+        (Some((addr, cert_der)), _) if playing_live => {
             let hub = Hub::new(&ZoneAddr {
                 addr: Some(addr),
                 cert_der,
@@ -316,7 +302,7 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
                 zone_name: String::new(),
             };
             Start {
-                online: Some(online(&opts, &sim, map_hash, entry)?),
+                online: Some(online(opts, sim, map_hash, entry)?),
                 hub: None,
                 front: None,
                 settings,
@@ -334,7 +320,64 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
             ui_script,
             content,
         },
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run(mut opts: Options) -> Result<(), Error> {
+    let playback = open_replay(&mut opts)?;
+    let map_bytes =
+        std::fs::read(&opts.map).map_err(|e| format!("loading {}: {e}", opts.map.display()))?;
+    let bsp = Bsp::load(&opts.map).map_err(|e| format!("loading {}: {e}", opts.map.display()))?;
+    log::info!(
+        "loaded {} ({} faces, {} leaves)",
+        opts.map.display(),
+        bsp.faces.len(),
+        bsp.leaves.len()
+    );
+    let palette = world::load_palette(&opts.palette);
+    let sim = Sim::at(&bsp, opts.start);
+    let personal = personal(&opts);
+    let settings_path = match &opts.settings {
+        Some(path) => Some(path.clone()),
+        None if personal => crate::settings::default_path(),
+        None => None,
     };
+    let settings = settings_path
+        .as_deref()
+        .map(Settings::load)
+        .unwrap_or_default();
+    let hub_at = hub_of(&opts, personal, &settings)?;
+    // A person, and no hub to talk to: say so on a screen instead of walking off
+    // (CLIENT.md 2).
+    let title = match &hub_at {
+        Ok(Some(_)) => None,
+        _ if !personal => None,
+        found => Some(crate::menu::Title {
+            settings: settings_path
+                .as_deref()
+                .map_or_else(String::new, |p| p.display().to_string()),
+            why: found.as_ref().err().cloned(),
+        }),
+    };
+    let hub_at = hub_at.unwrap_or(None);
+    // The command line's password has done its work once the screens have it.
+    let auto = auto_of(&opts);
+    opts.password.clear();
+    let map_hash = fnv1a64(&map_bytes);
+    let ui_script = opts.ui_script.as_deref().map(UiScript::parse).transpose()?;
+    let content = Content::load(&crate::install_root().join(&opts.assets));
+    let start = start_of(
+        &opts,
+        hub_at,
+        playback.is_none(),
+        &sim,
+        map_hash,
+        settings,
+        ui_script,
+        content,
+        auto,
+    )?;
 
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
@@ -343,6 +386,12 @@ pub fn run(mut opts: Options) -> Result<(), Error> {
     app.title = title;
     app.settings_path = settings_path;
     event_loop.run_app(&mut app)?;
+    run_end(app)
+}
+
+/// The run is over: the goodbyes said, the settings kept, what was measured told.
+#[cfg(not(target_arch = "wasm32"))]
+fn run_end(mut app: App) -> Result<(), Error> {
     if let Some(o) = &mut app.online {
         o.net.close();
     }
@@ -438,15 +487,12 @@ pub(super) async fn fetch_map(
         .unwrap_or_else(|| Err(format!("{url}: the download took too long")))
 }
 
-/// The browser client (WEB.md 3, 5): options from the page, assets by `fetch`, the login
-/// awaited, then the event loop on the page's own.
+/// The page's options (WEB.md 3): what the query and the form said, as the command
+/// line would have said it.
 #[cfg(target_arch = "wasm32")]
-pub async fn run_web() -> Result<(), String> {
-    use crate::web::{PageOptions, parse_hash, tell_page};
+fn page_options(page: &crate::web::PageOptions) -> Result<Options, String> {
+    use crate::web::parse_hash;
     use gm_net::control::WebAddr;
-    use winit::platform::web::EventLoopExtWebSys;
-
-    let page = PageOptions::read();
     let web_addr = |url: &str, hash: &str| -> Result<Option<WebAddr>, String> {
         let Some(url) = page.string(url) else {
             return Ok(None);
@@ -485,6 +531,84 @@ pub async fn run_web() -> Result<(), String> {
     if let Some(mb) = page.number("vram-mb") {
         opts.vram_mb = mb as u64;
     }
+    Ok(opts)
+}
+
+/// What the browser client starts with (WEB.md 5): through the hub the screens, or the
+/// page's options in their place (the page's form gave the email and the password,
+/// CLIENT.md 4.1); a zone joined directly; or nothing.
+#[cfg(target_arch = "wasm32")]
+fn web_start(
+    opts: &mut Options,
+    sim: &Sim,
+    map_hash: u64,
+    settings: Settings,
+    ui_script: Option<UiScript>,
+    content: Content,
+) -> Result<Start, String> {
+    use crate::web::tell_page;
+    let through_hub = opts.hub_web.is_some() && opts.connect_web.is_none();
+    if through_hub {
+        let hub = Hub::new(&ZoneAddr {
+            addr: None,
+            cert_der: Vec::new(),
+            web: opts.hub_web.clone(),
+        })
+        .map_err(|e| e.to_string())?;
+        let front = Front::new(
+            Box::new(hub.clone()),
+            settings.email.clone(),
+            settings.character.clone(),
+            auto_of(opts),
+        );
+        // The password has done its work; nothing keeps it (WEB.md 5).
+        opts.password.clear();
+        return Ok(Start {
+            online: None,
+            hub: Some(hub),
+            front: Some(front),
+            settings,
+            map_hash,
+            ui_script,
+            content,
+        });
+    }
+    let online = match opts.connect_web.clone() {
+        Some(web) => {
+            tell_page("status", "connecting to the zone");
+            let entry = Entry {
+                zone: ZoneAddr {
+                    addr: None,
+                    cert_der: Vec::new(),
+                    web: Some(web),
+                },
+                token: Vec::new(),
+                zone_name: String::new(),
+            };
+            Some(online(opts, sim, map_hash, entry).map_err(|e| e.to_string())?)
+        }
+        None => None,
+    };
+    Ok(Start {
+        online,
+        hub: None,
+        front: None,
+        settings,
+        map_hash,
+        ui_script,
+        content,
+    })
+}
+
+/// The browser client (WEB.md 3, 5): options from the page, assets by `fetch`, the login
+/// awaited, then the event loop on the page's own.
+#[cfg(target_arch = "wasm32")]
+pub async fn run_web() -> Result<(), String> {
+    use crate::web::{PageOptions, tell_page};
+    use winit::platform::web::EventLoopExtWebSys;
+
+    let page = PageOptions::read();
+    let mut opts = page_options(&page)?;
     let map = page.string("map").unwrap_or_else(|| "test_room".into());
     if !valid_map_name(&map) {
         return Err(format!("not a map name: {map:?}"));
@@ -501,60 +625,7 @@ pub async fn run_web() -> Result<(), String> {
     let settings = Settings::load();
     let ui_script = opts.ui_script.as_deref().map(UiScript::parse).transpose()?;
     let content = Content::fetch(&opts.assets).await;
-    // Through the hub: the screens, or the page's options in their place (the page's form
-    // gave the email and the password, CLIENT.md 4.1).
-    let through_hub = opts.hub_web.is_some() && opts.connect_web.is_none();
-    let start = if through_hub {
-        let hub = Hub::new(&ZoneAddr {
-            addr: None,
-            cert_der: Vec::new(),
-            web: opts.hub_web.clone(),
-        })
-        .map_err(|e| e.to_string())?;
-        let front = Front::new(
-            Box::new(hub.clone()),
-            settings.email.clone(),
-            settings.character.clone(),
-            auto_of(&opts),
-        );
-        // The password has done its work; nothing keeps it (WEB.md 5).
-        opts.password.clear();
-        Start {
-            online: None,
-            hub: Some(hub),
-            front: Some(front),
-            settings,
-            map_hash,
-            ui_script,
-            content,
-        }
-    } else {
-        let online = match opts.connect_web.clone() {
-            Some(web) => {
-                tell_page("status", "connecting to the zone");
-                let entry = Entry {
-                    zone: ZoneAddr {
-                        addr: None,
-                        cert_der: Vec::new(),
-                        web: Some(web),
-                    },
-                    token: Vec::new(),
-                    zone_name: String::new(),
-                };
-                Some(online(&opts, &sim, map_hash, entry).map_err(|e| e.to_string())?)
-            }
-            None => None,
-        };
-        Start {
-            online,
-            hub: None,
-            front: None,
-            settings,
-            map_hash,
-            ui_script,
-            content,
-        }
-    };
+    let start = web_start(&mut opts, &sim, map_hash, settings, ui_script, content)?;
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     // Frames come from `requestAnimationFrame`: each redraw asks for the next.
     event_loop.set_control_flow(ControlFlow::Wait);

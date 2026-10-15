@@ -653,43 +653,25 @@ impl App {
     }
 
     /// The screens, the menu and the chat, over the HUD (CLIENT.md 4 to 6): drawn, and
-    /// what they asked for this frame.
+    /// what they asked for this frame. The renderer and the toolkit's memory are taken
+    /// out of `self` for the drawing, so that the screens can ask the client what they
+    /// need, and put back after.
     fn screens_frame(&mut self, chosen: u8, returns: bool, at_trainer: bool) -> Actions {
         let mut actions = Actions::default();
-        let Some(a) = &mut self.active else {
+        let Some(mut a) = self.active.take() else {
             return actions;
         };
-        let playing = self.online.as_ref().is_some_and(|o| o.client.is_some());
-        let screen = match (&self.front, &self.menu, &self.bag) {
-            _ if self.title.is_some() => "title",
-            (Some(front), _, _) if self.front_up => front.screen.name(),
-            (_, Some(menu), _) => menu.page.name(),
-            (_, _, Some(bag)) => bag.name(),
-            _ if self.people.is_some() => self.people.as_ref().map_or("", |p| p.page.name()),
-            _ if self.gm_page.is_some() => self.gm_page.as_ref().map_or("", |g| g.name()),
-            _ if self.character_page.is_some() => {
-                self.character_page.as_ref().map_or("", |p| p.name())
-            }
-            _ if self.chat.open => "chat",
-            _ => "game",
-        };
-        // Whose stall the body stands at, for the corner of the screen.
-        let near = Self::stall_in_reach(self.online.as_ref())
-            .filter(|_| playing && self.hub.is_some())
-            .map(|s| s.owner.clone());
-        let me = self.opts.name.clone();
-        let keeps_stall = self
-            .online
-            .as_ref()
-            .is_some_and(|o| o.stalls.iter().any(|s| s.owner == me));
-        self.ui_input.last_cursor = self.ui_input.cursor;
-        self.ui_input.cursor = self.cursor;
-        self.ui_input.time = self.started.elapsed().as_secs_f32();
-        self.ui.paperdolls.clear();
+        let screen = self.screen_name();
+        let mut state = std::mem::take(&mut self.ui);
+        let mut input = std::mem::take(&mut self.ui_input);
+        input.last_cursor = input.cursor;
+        input.cursor = self.cursor;
+        input.time = self.started.elapsed().as_secs_f32();
+        state.paperdolls.clear();
         let mut ui = Ui::begin_at(
             &mut a.renderer.hud,
-            &mut self.ui,
-            &self.ui_input,
+            &mut state,
+            &input,
             screen,
             PANEL_UNITS,
             chosen,
@@ -705,295 +687,285 @@ impl App {
                 actions.front = front.frame(&mut ui);
             }
         } else {
-            if playing {
-                actions.said = self.chat.frame(&mut ui, &mut self.settings.ignored);
-            } else if self.chat.open {
-                // Between two zones nothing is drawn of it: nor does it keep the keys.
-                self.chat.drop_line();
-            }
-            // The game goes away under an open inventory as under the menu; a body
-            // that stopped playing (a travel, the zone gone) has neither.
-            if !playing {
-                self.bag = None;
-                self.people = None;
-                self.gm_page = None;
-            }
-            // Who wears it, for the equipment's ribbon (EQUIPMENT.md 4.1): the
-            // class the content names, and the build.
-            let (class, ribbon) = self
-                .online
-                .as_ref()
-                .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
-                .map(|(build, pack)| {
-                    let class = crate::showcase::class_name(pack, build);
-                    let ribbon = crate::showcase::short_ribbon(&class, build);
-                    (class, ribbon)
-                })
-                .unwrap_or_default();
-            match (&mut self.bag, &self.hub) {
-                (Some(bag), Some(hub)) if self.menu.is_none() => {
-                    let looks = crate::bag::ItemLooks {
-                        manifest: self.content.manifest.as_ref(),
-                    };
-                    let wearer = crate::bag::Wearer {
-                        name: &me,
-                        ribbon: &ribbon,
-                        class: &class,
-                    };
-                    actions.bag =
-                        bag.frame_with(&mut ui, hub, keeps_stall, Instant::now(), looks, wearer);
-                }
-                _ => {}
-            }
-            // The people here and of the party, a trade, the tavern (PARTY.md 8).
-            if let (Some(people), Some(o), None, None) =
-                (&mut self.people, &mut self.online, &self.menu, &self.bag)
-                && let Some(c) = &o.client
-            {
-                // Who is here: the bodies that are people, and whether each stands
-                // near enough to trade with (the rule the zone decides with).
-                let mine: [f32; 3] = c.mover.mv.origin.into();
-                let others = c.others_at(c.render_tick(0.0));
-                let mut here: Vec<Here> = o
-                    .names
-                    .iter()
-                    .filter(|(id, _)| **id != c.my_id && o.kinds.get(id) == Some(&BodyKind::Human))
-                    .map(|(id, (name, _, _))| Here {
-                        body: *id,
-                        name: name.clone(),
-                        near: others
-                            .iter()
-                            .find(|e| e.id == *id)
-                            .is_some_and(|e| gm_net::control::trade_in_reach(mine, e.pos.into())),
-                    })
-                    .collect();
-                here.sort_by(|a, b| a.name.cmp(&b.name));
-                let hub = self
-                    .hub
-                    .as_ref()
-                    .filter(|_| self.account.is_some() && self.character.is_some())
-                    .map(|hub| hub as &dyn HubApi);
-                let unix = web_time::SystemTime::now()
-                    .duration_since(web_time::UNIX_EPOCH)
-                    .map_or(0, |d| d.as_secs());
-                let word = self.chat.zone_said(std::time::Duration::from_secs(8));
-                actions.people = people.frame_with(
-                    &mut ui,
-                    hub,
-                    &me,
-                    &mut o.social,
-                    &here,
-                    word,
-                    Instant::now(),
-                    unix,
-                    crate::bag::ItemLooks {
-                        manifest: self.content.manifest.as_ref(),
-                    },
-                );
-            }
-            // The game master's page (GM.md 4).
-            if let (Some(page), Some(o), None, None, None) = (
-                &mut self.gm_page,
-                &self.online,
-                &self.menu,
-                &self.bag,
-                &self.people,
-            ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
-            {
-                let view = GmView {
-                    pack,
-                    own: &c.sheet.build,
-                    tuning: &o.tuning,
-                    rate: o.rate,
-                    note: &o.gm_note,
-                };
-                actions.gm = page.frame(&mut ui, &view);
-            }
-            // The character's page (MATRIX.md 9.1).
-            if let (Some(page), Some(o), None, None, None, None) = (
-                &mut self.character_page,
-                &self.online,
-                &self.menu,
-                &self.bag,
-                &self.people,
-                &self.gm_page,
-            ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
-            {
-                let view = CharacterView {
-                    pack,
-                    own: &c.sheet.build,
-                    rate: o.rate,
-                    at_trainer,
-                    note: &o.respec_note,
-                };
-                actions.character = page.frame(&mut ui, &view);
-            }
-            match &mut self.menu {
-                Some(_) if self.bag.is_some() => {}
-                Some(menu) => {
-                    let hub = self
-                        .hub
-                        .as_ref()
-                        .zip(self.account.as_ref())
-                        .map(|(hub, account)| (hub as &dyn HubApi, account.session));
-                    // A page's tab is closed and made fullscreen by the browser.
-                    let offers = Offers {
-                        inventory: playing && hub.is_some() && self.character.is_some(),
-                        equipment: playing && hub.is_some() && self.character.is_some(),
-                        people: playing,
-                        gm: playing && self.online.as_ref().is_some_and(|o| o.gm),
-                        travel: playing && hub.is_some(),
-                        leave: returns && self.online.is_some(),
-                        fullscreen: cfg!(not(target_arch = "wasm32")),
-                        #[cfg(target_arch = "wasm32")]
-                        page_fullscreen: Some(crate::web::fullscreen_on()),
-                        #[cfg(not(target_arch = "wasm32"))]
-                        page_fullscreen: None,
-                        quit: cfg!(not(target_arch = "wasm32")),
-                    };
-                    let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
-                    actions.menu = menu.frame(&mut ui, hub, offers, here, &mut self.settings);
-                }
-                None if self.bag.is_some()
-                    || self.people.is_some()
-                    || self.gm_page.is_some()
-                    || self.character_page.is_some() => {}
-                None if playing && !self.chat.open => {
-                    // Where this is, and the two keys nothing else tells of.
-                    let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
-                    let hint = if here.is_empty() {
-                        "Esc menu  Enter chat".to_string()
-                    } else {
-                        format!("{here}  Esc menu  Enter chat")
-                    };
-                    let (w, h) = ui.size();
-                    ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
-                    // And the stall the body stands at, whose it is and the key.
-                    if let Some(owner) = &near {
-                        let look = format!("{owner}'s stall  E look");
-                        ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, &look);
-                    }
-                }
-                None => {}
-            }
+            self.game_screens(&mut ui, &mut actions, returns, at_trainer);
         }
         ui.end();
-        if std::mem::take(&mut self.ui.presses) > 0 {
+        if std::mem::take(&mut state.presses) > 0 {
             self.sound.play(crate::sound::synth::Cue::Click);
         }
         self.ui_drawn = true;
+        self.ui = state;
         // What happened is used up; a button still held is still held.
         self.ui_input = UiInput {
-            down: self.ui_input.down,
+            down: input.down,
             // The pointer stays where it is: the paperdoll turns by how far it moved
             // since last frame, not by where it is.
-            cursor: self.ui_input.cursor,
+            cursor: input.cursor,
             ..Default::default()
         };
+        self.active = Some(a);
         actions
+    }
+
+    /// Which screen is up, by name (the UI scripts and the gates read it).
+    fn screen_name(&self) -> &'static str {
+        match (&self.front, &self.menu, &self.bag) {
+            _ if self.title.is_some() => "title",
+            (Some(front), _, _) if self.front_up => front.screen.name(),
+            (_, Some(menu), _) => menu.page.name(),
+            (_, _, Some(bag)) => bag.name(),
+            _ if self.people.is_some() => self.people.as_ref().map_or("", |p| p.page.name()),
+            _ if self.gm_page.is_some() => self.gm_page.as_ref().map_or("", |g| g.name()),
+            _ if self.character_page.is_some() => {
+                self.character_page.as_ref().map_or("", |p| p.name())
+            }
+            _ if self.chat.open => "chat",
+            _ => "game",
+        }
+    }
+
+    /// The screens of the game: the chat line, the inventory or the stall, the people,
+    /// the game master's and the character's pages, the menu, or the corner's hints.
+    fn game_screens<C: ui::Canvas>(
+        &mut self,
+        ui: &mut Ui<'_, C>,
+        actions: &mut Actions,
+        returns: bool,
+        at_trainer: bool,
+    ) {
+        let playing = self.online.as_ref().is_some_and(|o| o.client.is_some());
+        if playing {
+            actions.said = self.chat.frame(ui, &mut self.settings.ignored);
+        } else if self.chat.open {
+            // Between two zones nothing is drawn of it: nor does it keep the keys.
+            self.chat.drop_line();
+        }
+        // The game goes away under an open inventory as under the menu; a body that
+        // stopped playing (a travel, the zone gone) has neither.
+        if !playing {
+            self.bag = None;
+            self.people = None;
+            self.gm_page = None;
+        }
+        let me = self.opts.name.clone();
+        self.bag_screen(ui, actions, &me);
+        self.people_screen(ui, actions, &me);
+        self.pages_screen(ui, actions, at_trainer);
+        self.menu_screen(ui, actions, playing, returns);
+    }
+
+    /// The inventory or a stall (ITEMS.md 6), with who wears it for the equipment's
+    /// ribbon (EQUIPMENT.md 4.1): the class the content names, and the build.
+    fn bag_screen<C: ui::Canvas>(&mut self, ui: &mut Ui<'_, C>, actions: &mut Actions, me: &str) {
+        let keeps_stall = self
+            .online
+            .as_ref()
+            .is_some_and(|o| o.stalls.iter().any(|s| s.owner == me));
+        let (class, ribbon) = self
+            .online
+            .as_ref()
+            .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
+            .map(|(build, pack)| {
+                let class = crate::showcase::class_name(pack, build);
+                let ribbon = crate::showcase::short_ribbon(&class, build);
+                (class, ribbon)
+            })
+            .unwrap_or_default();
+        if let (Some(bag), Some(hub)) = (&mut self.bag, &self.hub)
+            && self.menu.is_none()
+        {
+            let looks = crate::bag::ItemLooks {
+                manifest: self.content.manifest.as_ref(),
+            };
+            let wearer = crate::bag::Wearer {
+                name: me,
+                ribbon: &ribbon,
+                class: &class,
+            };
+            actions.bag = bag.frame_with(ui, hub, keeps_stall, Instant::now(), looks, wearer);
+        }
+    }
+
+    /// The people here and of the party, a trade, the tavern (PARTY.md 8). Who is here:
+    /// the bodies that are people, and whether each stands near enough to trade with
+    /// (the rule the zone decides with).
+    fn people_screen<C: ui::Canvas>(
+        &mut self,
+        ui: &mut Ui<'_, C>,
+        actions: &mut Actions,
+        me: &str,
+    ) {
+        let (Some(people), Some(o), None, None) =
+            (&mut self.people, &mut self.online, &self.menu, &self.bag)
+        else {
+            return;
+        };
+        let Some(c) = &o.client else { return };
+        let mine: [f32; 3] = c.mover.mv.origin.into();
+        let others = c.others_at(c.render_tick(0.0));
+        let mut here: Vec<Here> = o
+            .names
+            .iter()
+            .filter(|(id, _)| **id != c.my_id && o.kinds.get(id) == Some(&BodyKind::Human))
+            .map(|(id, (name, _, _))| Here {
+                body: *id,
+                name: name.clone(),
+                near: others
+                    .iter()
+                    .find(|e| e.id == *id)
+                    .is_some_and(|e| gm_net::control::trade_in_reach(mine, e.pos.into())),
+            })
+            .collect();
+        here.sort_by(|a, b| a.name.cmp(&b.name));
+        let hub = self
+            .hub
+            .as_ref()
+            .filter(|_| self.account.is_some() && self.character.is_some())
+            .map(|hub| hub as &dyn HubApi);
+        let unix = web_time::SystemTime::now()
+            .duration_since(web_time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let word = self.chat.zone_said(std::time::Duration::from_secs(8));
+        actions.people = people.frame_with(
+            ui,
+            hub,
+            me,
+            &mut o.social,
+            &here,
+            word,
+            Instant::now(),
+            unix,
+            crate::bag::ItemLooks {
+                manifest: self.content.manifest.as_ref(),
+            },
+        );
+    }
+
+    /// The game master's page (GM.md 4) and the character's page (MATRIX.md 9.1), each
+    /// under nothing else.
+    fn pages_screen<C: ui::Canvas>(
+        &mut self,
+        ui: &mut Ui<'_, C>,
+        actions: &mut Actions,
+        at_trainer: bool,
+    ) {
+        if let (Some(page), Some(o), None, None, None) = (
+            &mut self.gm_page,
+            &self.online,
+            &self.menu,
+            &self.bag,
+            &self.people,
+        ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
+        {
+            let view = GmView {
+                pack,
+                own: &c.sheet.build,
+                tuning: &o.tuning,
+                rate: o.rate,
+                note: &o.gm_note,
+            };
+            actions.gm = page.frame(ui, &view);
+        }
+        if let (Some(page), Some(o), None, None, None, None) = (
+            &mut self.character_page,
+            &self.online,
+            &self.menu,
+            &self.bag,
+            &self.people,
+            &self.gm_page,
+        ) && let (Some(c), Some(pack)) = (&o.client, &o.pack)
+        {
+            let view = CharacterView {
+                pack,
+                own: &c.sheet.build,
+                rate: o.rate,
+                at_trainer,
+                note: &o.respec_note,
+            };
+            actions.character = page.frame(ui, &view);
+        }
+    }
+
+    /// The menu when it is open and nothing is over it; without one, in the game, the
+    /// corner's hints: where this is, the two keys nothing else tells of, and the stall
+    /// the body stands at, whose it is and the key.
+    fn menu_screen<C: ui::Canvas>(
+        &mut self,
+        ui: &mut Ui<'_, C>,
+        actions: &mut Actions,
+        playing: bool,
+        returns: bool,
+    ) {
+        match &mut self.menu {
+            Some(_) if self.bag.is_some() => {}
+            Some(menu) => {
+                let hub = self
+                    .hub
+                    .as_ref()
+                    .zip(self.account.as_ref())
+                    .map(|(hub, account)| (hub as &dyn HubApi, account.session));
+                // A page's tab is closed and made fullscreen by the browser.
+                let offers = Offers {
+                    inventory: playing && hub.is_some() && self.character.is_some(),
+                    equipment: playing && hub.is_some() && self.character.is_some(),
+                    people: playing,
+                    gm: playing && self.online.as_ref().is_some_and(|o| o.gm),
+                    travel: playing && hub.is_some(),
+                    leave: returns && self.online.is_some(),
+                    fullscreen: cfg!(not(target_arch = "wasm32")),
+                    #[cfg(target_arch = "wasm32")]
+                    page_fullscreen: Some(crate::web::fullscreen_on()),
+                    #[cfg(not(target_arch = "wasm32"))]
+                    page_fullscreen: None,
+                    quit: cfg!(not(target_arch = "wasm32")),
+                };
+                let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
+                actions.menu = menu.frame(ui, hub, offers, here, &mut self.settings);
+            }
+            None if self.bag.is_some()
+                || self.people.is_some()
+                || self.gm_page.is_some()
+                || self.character_page.is_some() => {}
+            None if playing && !self.chat.open => {
+                let here = self.online.as_ref().map_or("", |o| o.zone_name.as_str());
+                let hint = if here.is_empty() {
+                    "Esc menu  Enter chat".to_string()
+                } else {
+                    format!("{here}  Esc menu  Enter chat")
+                };
+                let (w, h) = ui.size();
+                ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
+                let near = Self::stall_in_reach(self.online.as_ref())
+                    .filter(|_| self.hub.is_some())
+                    .map(|s| s.owner.clone());
+                if let Some(owner) = &near {
+                    let look = format!("{owner}'s stall  E look");
+                    ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, &look);
+                }
+            }
+            None => {}
+        }
     }
 
     /// The paperdoll (LOOK.md 5): the own body as the equip panel shows it, idle, turned
     /// by the drag across it, with what it holds, drawn into the panel's rectangle by a
-    /// camera of its own. On the selector (CLIENT.md 4.2) the character or the archetype
-    /// shown, with what it wears (the hub's list names the templates); an archetype
-    /// stands bare, as a new character enters.
+    /// camera of its own; on the selector (CLIENT.md 4.2) the character or the archetype
+    /// shown. Nothing without a panel this frame.
     fn doll_frame(&mut self, frame_dt: f32) -> Option<Doll> {
-        let a = self.active.as_mut()?;
-        let doll = self.ui.paperdolls.first()?;
-        let shown = doll.rect.w > 1.0 && doll.rect.h > 1.0;
-        let turn = doll.turn;
-        let draws: Vec<CharacterDraw> = if !shown {
+        let (rect, turn, open) = {
+            let d = self.ui.paperdolls.first()?;
+            (d.rect, d.turn, d.open)
+        };
+        let shown = rect.w > 1.0 && rect.h > 1.0;
+        let draws = if !shown {
             Vec::new()
         } else if self.front_up {
-            match self.front.as_ref().and_then(|f| f.shown()) {
-                Some((build, model, worn)) => {
-                    let frame = gm_model::rig::frame_index(build.frame);
-                    let place = |i: usize| worn.map(|w| w[i].as_str());
-                    let prop = template_prop(&mut self.content, Some(a), place(0));
-                    let off = template_prop(&mut self.content, Some(a), place(1));
-                    let (overlay, hide) = template_overlay(&mut self.content, Some(a), worn, frame);
-                    let body = Body {
-                        key: DOLL,
-                        origin: Vec3::new(0.0, 0.0, 24.0),
-                        yaw: 180.0 + turn * 360.0,
-                        pitch: 0.0,
-                        anim: gm_core::sim::anim::IDLE,
-                        crouched: false,
-                        frame,
-                        armour: build.armour as u8,
-                        aspects: build.aspects.0,
-                        status: 0,
-                        model,
-                        distance: 0.0,
-                        lit: 0.0,
-                        prop,
-                        off,
-                        worn: overlay,
-                        hide,
-                        // The selector shows the weapon in the hand (CLIENT.md 4.2):
-                        // a showcase, not a body in the world.
-                        sheathed: false,
-                    };
-                    a.avatars
-                        .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
-                }
-                None => Vec::new(),
-            }
+            self.doll_on_selector(frame_dt, turn)
         } else {
-            match self
-                .online
-                .as_ref()
-                .and_then(|o| o.client.as_ref().map(|c| (o, c)))
-            {
-                Some((o, c)) => {
-                    let build = &c.sheet.build;
-                    let worn = worn_overlay(
-                        &mut self.content,
-                        Some(a),
-                        &o.props,
-                        o.looks.get(&c.my_id).copied().unwrap_or_default(),
-                        gm_model::rig::frame_index(build.frame),
-                    );
-                    let body = Body {
-                        key: DOLL,
-                        origin: Vec3::new(0.0, 0.0, 24.0),
-                        yaw: 180.0 + turn * 360.0,
-                        pitch: 0.0,
-                        anim: gm_core::sim::anim::IDLE,
-                        crouched: false,
-                        frame: gm_model::rig::frame_index(build.frame),
-                        armour: build.armour as u8,
-                        aspects: build.aspects.0,
-                        status: 0,
-                        model: o.names.get(&c.my_id).and_then(|n| n.2),
-                        distance: 0.0,
-                        lit: 0.0,
-                        prop: held_prop(
-                            &mut self.content,
-                            Some(a),
-                            &o.props,
-                            o.looks.get(&c.my_id).copied().unwrap_or_default(),
-                        ),
-                        off: off_prop(
-                            &mut self.content,
-                            Some(a),
-                            &o.props,
-                            o.looks.get(&c.my_id).copied().unwrap_or_default(),
-                        ),
-                        worn: worn.0,
-                        hide: worn.1,
-                        sheathed: o.looks.get(&c.my_id).is_some_and(|l| l.sheathed),
-                    };
-                    a.avatars
-                        .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
-                }
-                None => Vec::new(),
-            }
+            self.doll_of_own(frame_dt, turn)
         };
-        let d = self.ui.paperdolls.first()?;
-        let aspect = d.rect.w / d.rect.h.max(1.0);
-        let vp = if d.open {
+        let aspect = rect.w / rect.h.max(1.0);
+        let vp = if open {
             // The whole body, head to feet, from a little further back.
             view_proj(
                 Vec3::new(DOLL_OPEN_DISTANCE, 0.0, 34.0),
@@ -1005,11 +977,86 @@ impl App {
             // In front of the body, at its chest, looking back at it.
             view_proj(Vec3::new(82.0, 0.0, 31.0), 180.0, -3.0, aspect)
         };
-        Some(Doll {
-            rect: d.rect,
-            vp,
-            draws,
-        })
+        Some(Doll { rect, vp, draws })
+    }
+
+    /// The selector's body (CLIENT.md 4.2): the character or the archetype shown, in the
+    /// open, with what it wears (the hub's list names the templates), as the zone draws
+    /// it; an archetype stands bare, as a new character enters. The selector shows the
+    /// weapon in the hand: a showcase, not a body in the world.
+    fn doll_on_selector(&mut self, frame_dt: f32, turn: f32) -> Vec<CharacterDraw> {
+        let Some(a) = self.active.as_mut() else {
+            return Vec::new();
+        };
+        let Some((build, model, worn)) = self.front.as_ref().and_then(|f| f.shown()) else {
+            return Vec::new();
+        };
+        let frame = gm_model::rig::frame_index(build.frame);
+        let place = |i: usize| worn.map(|w| w[i].as_str());
+        let prop = template_prop(&mut self.content, Some(a), place(0));
+        let off = template_prop(&mut self.content, Some(a), place(1));
+        let (overlay, hide) = template_overlay(&mut self.content, Some(a), worn, frame);
+        let body = Body {
+            key: DOLL,
+            origin: Vec3::new(0.0, 0.0, 24.0),
+            yaw: 180.0 + turn * 360.0,
+            pitch: 0.0,
+            anim: gm_core::sim::anim::IDLE,
+            crouched: false,
+            frame,
+            armour: build.armour as u8,
+            aspects: build.aspects.0,
+            status: 0,
+            model,
+            distance: 0.0,
+            lit: 0.0,
+            prop,
+            off,
+            worn: overlay,
+            hide,
+            sheathed: false,
+        };
+        a.avatars
+            .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
+    }
+
+    /// The own body on the equip panel, with what it holds and wears in the zone.
+    fn doll_of_own(&mut self, frame_dt: f32, turn: f32) -> Vec<CharacterDraw> {
+        let Some(a) = self.active.as_mut() else {
+            return Vec::new();
+        };
+        let Some(o) = self.online.as_ref() else {
+            return Vec::new();
+        };
+        let Some(c) = o.client.as_ref() else {
+            return Vec::new();
+        };
+        let build = &c.sheet.build;
+        let look = o.looks.get(&c.my_id).copied().unwrap_or_default();
+        let frame = gm_model::rig::frame_index(build.frame);
+        let worn = worn_overlay(&mut self.content, Some(a), &o.props, look, frame);
+        let body = Body {
+            key: DOLL,
+            origin: Vec3::new(0.0, 0.0, 24.0),
+            yaw: 180.0 + turn * 360.0,
+            pitch: 0.0,
+            anim: gm_core::sim::anim::IDLE,
+            crouched: false,
+            frame,
+            armour: build.armour as u8,
+            aspects: build.aspects.0,
+            status: 0,
+            model: o.names.get(&c.my_id).and_then(|n| n.2),
+            distance: 0.0,
+            lit: 0.0,
+            prop: held_prop(&mut self.content, Some(a), &o.props, look),
+            off: off_prop(&mut self.content, Some(a), &o.props, look),
+            worn: worn.0,
+            hide: worn.1,
+            sheathed: look.sheathed,
+        };
+        a.avatars
+            .doll(&body, frame_dt, &self.bsp, &a.renderer.characters)
     }
 
     /// The frame rendered and presented. `false` when a bench is still waiting for the
