@@ -1,0 +1,7 @@
+# The one compiler everyone builds with: the box, CI and a contributor's laptop, so that a
+# clippy lint added by a newer release never turns main red on its own. Move it on purpose,
+# in a commit of its own, with the lints the new release adds fixed in the same commit.
+[toolchain]
+channel = "1.97.0"
+components = ["clippy", "rustfmt"]
+targets = ["wasm32-unknown-unknown"]

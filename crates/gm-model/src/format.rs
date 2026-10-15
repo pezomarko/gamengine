@@ -121,7 +121,7 @@ pub fn id_from_hex(s: &str) -> Option<ModelId> {
         return None;
     }
     let mut id = [0u8; 32];
-    for (i, pair) in s.chunks_exact(2).enumerate() {
+    for (i, pair) in s.as_chunks::<2>().0.iter().enumerate() {
         let hi = (pair[0] as char).to_digit(16)?;
         let lo = (pair[1] as char).to_digit(16)?;
         id[i] = (hi * 16 + lo) as u8;
@@ -524,13 +524,17 @@ impl Model {
         }
         let vertices: Vec<Vertex> = r
             .bytes(vertex_count * 24)?
-            .chunks_exact(24)
-            .map(bytemuck::pod_read_unaligned)
+            .as_chunks::<24>()
+            .0
+            .iter()
+            .map(|c| bytemuck::pod_read_unaligned(c))
             .collect();
         let indices: Vec<u16> = r
             .bytes(index_count * 2)?
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
             .collect();
         let texture = r.bytes(texture_bytes(tex_w, tex_h))?.to_vec();
         if r.at != raw.len() {
