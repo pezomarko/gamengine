@@ -1655,29 +1655,15 @@ impl App {
                 self.scene.effects.healed(over_head, amount as u32);
                 false
             });
-            let head = e.pos + Vec3::Z * 40.0;
-            if !name.is_empty()
-                && (head - camera).length() < 900.0
-                && bsp.trace(Hull::Point, camera, head).fraction >= 1.0
-            {
-                self.scene.tags.push(Tag {
-                    at: head,
-                    name: name.to_string(),
-                    ink: if friend {
-                        [0.55, 0.80, 1.0, 1.0]
-                    } else if creature {
-                        [1.0, 0.62, 0.30, 1.0]
-                    } else if foe {
-                        [1.0, 0.42, 0.36, 1.0]
-                    } else {
-                        hud::WHITE
-                    },
-                    health: e
-                        .health
-                        .zip(max_health)
-                        .map(|(h, max)| h as f32 / max.max(1) as f32),
-                });
-            }
+            Self::other_tag(
+                bsp,
+                &mut self.scene.tags,
+                &e,
+                name,
+                (friend, creature, foe),
+                max_health,
+                camera,
+            );
         }
         let yaw = facing(
             self.view.facings.get(&e.id).copied(),
@@ -1715,6 +1701,44 @@ impl App {
             worn: worn.0,
             hide: worn.1,
             sheathed: look.sheathed,
+        });
+    }
+
+    /// Its name over its head, when the head is in sight and near: in the colour of
+    /// its side (`friend`, `creature`, `foe`), with its health under it when known.
+    fn other_tag(
+        bsp: &Bsp,
+        tags: &mut Vec<Tag>,
+        e: &gm_net::client::RenderEntity,
+        name: &str,
+        side: (bool, bool, bool),
+        max_health: Option<u16>,
+        camera: Vec3,
+    ) {
+        let (friend, creature, foe) = side;
+        let head = e.pos + Vec3::Z * 40.0;
+        if name.is_empty()
+            || (head - camera).length() >= 900.0
+            || bsp.trace(Hull::Point, camera, head).fraction < 1.0
+        {
+            return;
+        }
+        tags.push(Tag {
+            at: head,
+            name: name.to_string(),
+            ink: if friend {
+                [0.55, 0.80, 1.0, 1.0]
+            } else if creature {
+                [1.0, 0.62, 0.30, 1.0]
+            } else if foe {
+                [1.0, 0.42, 0.36, 1.0]
+            } else {
+                hud::WHITE
+            },
+            health: e
+                .health
+                .zip(max_health)
+                .map(|(h, max)| h as f32 / max.max(1) as f32),
         });
     }
 
