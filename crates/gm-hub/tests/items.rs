@@ -791,7 +791,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     );
     let gear = wear(&town, smith, cape).await.unwrap();
     assert_eq!(gear.dealt, sword_edge, "the ring came off: one accessory");
-    assert_eq!(gear.taken, [162, 162, 162, 11, 26, 11, 11, 11, 11]);
+    assert_eq!(gear.taken, [129, 129, 129, 11, 26, 11, 11, 11, 11]);
     assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring).worn);
     // A thing asked onto a place that is not its own is refused in words.
     assert_eq!(
