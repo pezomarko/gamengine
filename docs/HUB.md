@@ -96,7 +96,7 @@ enum HubRequest {
     ModelList { session: SessionId },
     ModelDrop { session: SessionId, model: ModelId },
     SetModel { session: SessionId, character: CharacterId, model: Option<ModelId> },
-    ModelGet { session: SessionId, model: ModelId },
+    ModelGet { session: SessionId, model: ModelId, format: u8 },   // the texture format wanted (MODELS.md 5.2), since v17
     Mod { session: SessionId, op: ModOp },      // moderators: Queue, Preview, Decide, Takedown,
                                                 // Reinstate, SetUpload, SetTrust, ClearStrikes
 }

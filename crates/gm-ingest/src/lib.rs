@@ -21,11 +21,14 @@ pub mod write;
 use std::path::Path;
 
 use gm_core::vocab::ArchetypeFrame;
-use gm_model::format::{self, FLAG_CUTOUT, FLAG_OVERLAY, FLAG_TWO_SIDED, limits};
+use gm_model::format::{self, FLAG_CUTOUT, FLAG_OVERLAY, FLAG_TWO_SIDED, TextureFormat, limits};
 use gm_model::{Model, ModelId, Patch, rig};
 // What the hub needs of an upload's answer without reading an upload lives in gm-model
 // (2026-10-15): the report's types, the envelope, the rasteriser and `verify`.
-pub use gm_model::report::{Facts, Report, Verified, WORKER_MODEL, WORKER_REPORT, verify};
+pub use gm_model::report::{
+    Facts, Report, Variants, Verified, WORKER_ETC, WORKER_MODEL, WORKER_REPORT, verify,
+    verify_variant,
+};
 pub use gm_model::{envelope, raster};
 
 /// The largest upload the pipeline looks at (MODELS.md 3).
@@ -37,6 +40,9 @@ pub struct Ingested {
     pub id: ModelId,
     /// The `.gmm` file.
     pub gmm: Vec<u8>,
+    /// The ETC2 variant of it (MODELS.md 5.2), the same model under `id` with its atlas
+    /// encoded for a GPU without BC; none for a cutout model.
+    pub etc: Option<Vec<u8>>,
     /// The moderation preview, PNG.
     pub preview: Vec<u8>,
     pub model: Model,
@@ -126,7 +132,10 @@ pub fn ingest(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Ingested>
         tex_w: atlas.w,
         tex_h: atlas.h,
         texture: atlas.bc1,
+        texture_format: TextureFormat::Bc1Srgb,
+        base: None,
     };
+    let etc_chain = atlas.etc2;
     report.facts.texture = [atlas.w as u32, atlas.h as u32];
     let gmm = match model.encode() {
         Ok(bytes) => bytes,
@@ -155,6 +164,7 @@ pub fn ingest(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Ingested>
             return (report, None);
         }
     };
+    let etc = variant_of(&model, &id, etc_chain, &mut report.notes);
     report.ok = true;
     report.id = format::id_hex(&id);
     (
@@ -162,10 +172,38 @@ pub fn ingest(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Ingested>
         Some(Ingested {
             id,
             gmm,
+            etc,
             preview,
             model,
         }),
     )
+}
+
+/// The ETC2 variant of an accepted model (MODELS.md 5.2): the same model under the same id
+/// with the chain the atlas was encoded to beside the BC1 one, checked as the hub will
+/// check it. A variant that will not encode (over a file cap) is dropped with a note: the
+/// model stands without one, and a GPU without BC decodes the BC1 file.
+fn variant_of(
+    model: &Model,
+    id: &ModelId,
+    chain: Option<Vec<u8>>,
+    notes: &mut Vec<String>,
+) -> Option<Vec<u8>> {
+    let chain = chain?;
+    let variant = model.variant(TextureFormat::Etc2Srgb, chain, *id);
+    match variant.encode() {
+        Ok(file) => match verify_variant(model, id, TextureFormat::Etc2Srgb, &file) {
+            Ok(_) => Some(file),
+            Err(why) => {
+                notes.push(format!("no ETC2 variant: {}", why.join("; ")));
+                None
+            }
+        },
+        Err(e) => {
+            notes.push(format!("no ETC2 variant: {e}"));
+            None
+        }
+    }
 }
 
 /// Validate an armour overlay (CONTENT.md 3.3 and 4) made for `frame` and re-encode it: a
@@ -239,7 +277,10 @@ pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<I
         tex_w: atlas.w,
         tex_h: atlas.h,
         texture: atlas.bc1,
+        texture_format: TextureFormat::Bc1Srgb,
+        base: None,
     };
+    let etc_chain = atlas.etc2;
     report.facts.texture = [atlas.w as u32, atlas.h as u32];
     let gmm = match model.encode() {
         Ok(bytes) => bytes,
@@ -273,6 +314,7 @@ pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<I
         }
     };
     let id = format::model_id(&gmm);
+    let etc = variant_of(&model, &id, etc_chain, &mut report.notes);
     report.ok = true;
     report.id = format::id_hex(&id);
     (
@@ -280,6 +322,7 @@ pub fn ingest_overlay(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<I
         Some(Ingested {
             id,
             gmm,
+            etc,
             preview: Vec::new(),
             model,
         }),
@@ -473,7 +516,10 @@ pub fn ingest_prop(upload: &[u8], fit: source::Fit) -> (Report, Option<Ingested>
         tex_w: atlas.w,
         tex_h: atlas.h,
         texture: atlas.bc1,
+        texture_format: TextureFormat::Bc1Srgb,
+        base: None,
     };
+    let etc_chain = atlas.etc2;
     report.facts.texture = [atlas.w as u32, atlas.h as u32];
     let gmm = match model.encode() {
         Ok(bytes) => bytes,
@@ -502,6 +548,7 @@ pub fn ingest_prop(upload: &[u8], fit: source::Fit) -> (Report, Option<Ingested>
         }
     };
     let id = format::model_id(&gmm);
+    let etc = variant_of(&model, &id, etc_chain, &mut report.notes);
     report.ok = true;
     report.id = format::id_hex(&id);
     (
@@ -509,6 +556,7 @@ pub fn ingest_prop(upload: &[u8], fit: source::Fit) -> (Report, Option<Ingested>
         Some(Ingested {
             id,
             gmm,
+            etc,
             preview: Vec::new(),
             model,
         }),
@@ -517,19 +565,28 @@ pub fn ingest_prop(upload: &[u8], fit: source::Fit) -> (Report, Option<Ingested>
 
 /// The in-process form of the worker for tests (`gm_hub::IngestMode::InProcess`): the same
 /// answer the hub reads from a worker's files.
-pub fn in_process(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Vec<u8>>) {
+pub fn in_process(upload: &[u8], frame: ArchetypeFrame) -> (Report, Option<Variants>) {
     let (report, ingested) = ingest(upload, frame);
-    (report, ingested.map(|i| i.gmm))
+    (
+        report,
+        ingested.map(|i| Variants {
+            gmm: i.gmm,
+            etc: i.etc,
+        }),
+    )
 }
 
 /// The body of the ingestion worker process: read the upload, ingest it, write the report and
-/// (when accepted) the model and its preview into `out_dir`. The caller applies the resource
+/// (when accepted) the model and its ETC2 variant into `out_dir`. The caller applies the resource
 /// limits and the wall clock (MODELS.md 6.2).
 pub fn worker(input: &Path, frame: ArchetypeFrame, out_dir: &Path) -> std::io::Result<Report> {
     let upload = std::fs::read(input)?;
     let (report, ingested) = ingest(&upload, frame);
     if let Some(i) = &ingested {
         std::fs::write(out_dir.join(WORKER_MODEL), &i.gmm)?;
+        if let Some(etc) = &i.etc {
+            std::fs::write(out_dir.join(WORKER_ETC), etc)?;
+        }
     }
     // The report goes last: its presence says the worker finished.
     let json = serde_json::to_vec_pretty(&report).map_err(std::io::Error::other)?;

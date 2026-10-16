@@ -75,6 +75,8 @@ pub enum PlayerRequest {
     ModelGet {
         session: SessionId,
         model: ModelId,
+        /// The texture format wanted (MODELS.md 5.2), a `gm_model::format::TextureFormat` byte.
+        format: u8,
     },
     /// About what one of the session's characters owns (ITEMS.md 4).
     Econ {
@@ -359,7 +361,15 @@ impl From<PlayerRequest> for HubRequest {
                 zone,
             },
             PlayerRequest::Logout { session } => HubRequest::Logout { session },
-            PlayerRequest::ModelGet { session, model } => HubRequest::ModelGet { session, model },
+            PlayerRequest::ModelGet {
+                session,
+                model,
+                format,
+            } => HubRequest::ModelGet {
+                session,
+                model,
+                format,
+            },
             PlayerRequest::Econ {
                 session,
                 character,

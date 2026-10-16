@@ -7,7 +7,7 @@
 use bitcode::{Decode, Encode};
 
 /// The format's own version: a client refuses a manifest of another.
-pub const MANIFEST_VERSION: u32 = 5;
+pub const MANIFEST_VERSION: u32 = 6;
 /// The most entries any list may have: a bound before anything is allocated.
 pub const MAX_ENTRIES: usize = 4096;
 
@@ -107,6 +107,8 @@ pub struct OverlayEntry {
     pub sha256: [u8; 32],
     pub bytes: u32,
     pub triangles: u32,
+    /// The ETC2 variant beside it, when the model has one.
+    pub etc2: Option<Variant>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
@@ -146,6 +148,16 @@ pub struct PropEntry {
     pub sha256: [u8; 32],
     pub bytes: u32,
     pub triangles: u32,
+    /// The ETC2 variant beside it (`props/<key>.etc.gmm`), when the model has one.
+    pub etc2: Option<Variant>,
+}
+
+/// A derived file beside a model's (MODELS.md 5.2): what a client without BC fetches
+/// instead, named by the hash of its bytes so that the fetch is checked as any other.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Encode, Decode)]
+pub struct Variant {
+    pub sha256: [u8; 32],
+    pub bytes: u32,
 }
 
 /// An official avatar: the look of a frame in an armour class, worn by every character of
@@ -163,6 +175,8 @@ pub struct AvatarEntry {
     pub sha256: [u8; 32],
     pub bytes: u32,
     pub triangles: u32,
+    /// The ETC2 variant beside it, when the model has one.
+    pub etc2: Option<Variant>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
@@ -313,6 +327,7 @@ mod tests {
                 sha256: [3; 32],
                 bytes: 90_000,
                 triangles: 1200,
+                etc2: None,
             }],
             props: vec![PropEntry {
                 key: "sword_iron".into(),
@@ -320,6 +335,7 @@ mod tests {
                 sha256: [7; 32],
                 bytes: 1234,
                 triangles: 48,
+                etc2: None,
             }],
             avatars: vec![AvatarEntry {
                 frame: 1,
@@ -329,6 +345,7 @@ mod tests {
                 sha256: [9; 32],
                 bytes: 415_970,
                 triangles: 2946,
+                etc2: None,
             }],
             ..Default::default()
         };

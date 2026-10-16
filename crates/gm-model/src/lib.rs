@@ -7,6 +7,7 @@
 //! - [`anim`]: the shared, procedural animation set.
 //! - [`mannequin`]: the generated stand-in figure and its finer variants.
 //! - [`det`]: the arithmetic every machine agrees on, for what must hash the same everywhere.
+//! - [`etc`]: ETC2 RGB8 block coding, for the GPUs that have ETC2 and not BC1.
 //! - [`atlas`]: the client's one texture of pictures (`ui.gma`, LOOK.md 2.2) and its reader.
 //! - [`smallfont`]: the five-by-seven font, face 0 of that atlas and the client's fallback.
 //! - [`manifest`]: what the content bundle holds (`manifest.gmc`, CONTENT.md 5.2).
@@ -21,6 +22,7 @@ pub mod atlas;
 pub mod bc1;
 pub mod det;
 pub mod envelope;
+pub mod etc;
 pub mod format;
 pub mod manifest;
 pub mod mannequin;

@@ -75,6 +75,8 @@ pub struct Options {
     pub max_fps: u32,
     pub headless: bool,
     pub software: bool,
+    /// `--texture-format auto|bc1|etc2|rgba` (MODELS.md 8): the atlas path, forced.
+    pub texture_format: crate::render::TextureChoice,
     pub width: u32,
     pub height: u32,
     pub screenshot: Option<PathBuf>,
@@ -144,7 +146,7 @@ pub struct Options {
 }
 
 const USAGE: &str = "gm-client [--map PATH] [--palette PATH] [--connect ADDR --cert PATH [--name NAME] [--build NAME] [--team N]] \
-[--third-person] [--bench N] [--no-vsync] [--present fifo|relaxed|mailbox|immediate] [--max-fps N] [--headless] [--software] \
+[--third-person] [--bench N] [--no-vsync] [--present fifo|relaxed|mailbox|immediate] [--max-fps N] [--headless] [--software] [--texture-format auto|bc1|etc2|rgba] \
 [--size WxH] [--screenshot out.ppm] [--seconds N] [--avatar FILE.gmm] [--prop KEY] [--off KEY] [--worn KEY] [--sheathed] [--crowd N [--crowd-dir DIR] [--crowd-turn DEG]] \
 [--cache-dir DIR] [--cache-mb N] [--vram-mb N] [--start X,Y,Z,YAW] [--script fight|walk] [--report] [--travel-to ZONE [--travel-after SECS]] \
 [--sound-dump FILE.wav]\n\
@@ -178,6 +180,7 @@ impl Default for Options {
             max_fps: 250,
             headless: false,
             software: false,
+            texture_format: Default::default(),
             width: 1280,
             height: 720,
             screenshot: None,
@@ -271,6 +274,12 @@ fn parse_args() -> Result<Options, String> {
             }
             "--headless" => o.headless = true,
             "--software" => o.software = true,
+            "--texture-format" => {
+                let v = value("--texture-format")?;
+                o.texture_format = crate::render::TextureChoice::parse(&v).ok_or_else(|| {
+                    format!("--texture-format: {v} is not auto, bc1, etc2 or rgba")
+                })?;
+            }
             "--screenshot" => o.screenshot = Some(PathBuf::from(value("--screenshot")?)),
             "--seconds" => {
                 o.seconds = value("--seconds")?

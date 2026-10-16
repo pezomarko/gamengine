@@ -255,13 +255,18 @@ mod native {
     }
 
     impl ModelSource for HubSource {
-        fn fetch(&self, id: &ModelId) -> Result<Vec<u8>, FetchError> {
+        fn fetch(
+            &self,
+            id: &ModelId,
+            wanted: gm_model::format::TextureFormat,
+        ) -> Result<Vec<u8>, FetchError> {
             let Some(session) = *self.line.session.lock().unwrap() else {
                 return Err(FetchError::Failed("not logged in".into()));
             };
             let req = PlayerRequest::ModelGet {
                 session,
                 model: *id,
+                format: wanted as u8,
             };
             // A loader thread must come back: a stalled stream on a live connection would
             // otherwise hold one of the four for good.

@@ -8,7 +8,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 
-use gm_model::{Model, ModelId, id_from_hex, id_hex, model_id};
+use gm_model::format::{TextureFormat, stands_for};
+use gm_model::{Model, ModelId, id_from_hex, id_hex};
 use js_sys::{Array, Uint8Array};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
@@ -30,7 +31,12 @@ const DECODES_PER_FRAME: usize = 1;
 
 /// Where model bytes come from when the store does not have them.
 pub trait WebSource {
-    fn fetch(&self, id: ModelId) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, FetchError>>>>;
+    /// The model's file for a client that samples `wanted` (MODELS.md 5.2).
+    fn fetch(
+        &self,
+        id: ModelId,
+        wanted: TextureFormat,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, FetchError>>>>;
 }
 
 struct StoreEntry {
@@ -56,6 +62,7 @@ struct StoreState {
     pinned: HashSet<ModelId>,
     /// Taken down this session: never stored again.
     revoked: HashSet<ModelId>,
+    wanted: TextureFormat,
 }
 
 #[derive(Clone)]
@@ -100,9 +107,15 @@ async fn open_cache() -> Result<(web_sys::Cache, Vec<(ModelId, u64)>), String> {
 
 impl Store {
     /// Open the cache in the background; loads wait for it.
-    pub fn open(cap: u64) -> Store {
+    /// The format this client fetches (`gm_model::format::stands_for` judges the entries).
+    pub fn wanted(&self) -> TextureFormat {
+        self.state.borrow().wanted
+    }
+
+    pub fn open(cap: u64, wanted: TextureFormat) -> Store {
         let store = Store {
             state: Rc::new(RefCell::new(StoreState {
+                wanted,
                 cap: cap.clamp(MIN_STORE_CAP, MAX_STORE_CAP),
                 ..Default::default()
             })),
@@ -188,7 +201,7 @@ impl Store {
         };
         let data = body.map(|b| Uint8Array::new(&b).to_vec());
         match data {
-            Some(data) if model_id(&data) == *id => {
+            Some(data) if stands_for(&data, id, self.wanted()) => {
                 let mut st = self.state.borrow_mut();
                 st.clock += 1;
                 let now = st.clock;
@@ -361,8 +374,8 @@ async fn load(id: ModelId, store: Store, source: Option<Rc<dyn WebSource>>) -> A
     let Some(source) = source else {
         return Arrived::Refused(id);
     };
-    match source.fetch(id).await {
-        Ok(bytes) if model_id(&bytes) == id => {
+    match source.fetch(id, store.wanted()).await {
+        Ok(bytes) if stands_for(&bytes, &id, store.wanted()) => {
             store.insert(&id, &bytes).await;
             let fetched = bytes.len();
             Arrived::Bytes { id, bytes, fetched }
@@ -391,9 +404,9 @@ pub struct Loader {
 }
 
 impl Loader {
-    pub fn new(cap: u64, source: Option<Rc<dyn WebSource>>) -> Loader {
+    pub fn new(cap: u64, source: Option<Rc<dyn WebSource>>, wanted: TextureFormat) -> Loader {
         Loader {
-            store: Store::open(cap),
+            store: Store::open(cap, wanted),
             source,
             arrived: Rc::new(RefCell::new(VecDeque::new())),
             decodes_left: DECODES_PER_FRAME,

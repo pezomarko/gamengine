@@ -13,6 +13,51 @@ pub type ModelId = [u8; 32];
 pub const MAGIC: [u8; 4] = *b"GMM1";
 /// Texture format byte: BC1 with 1-bit alpha, sRGB.
 pub const TEX_BC1_SRGB: u8 = 1;
+/// Texture format byte: ETC2 RGB8, sRGB (MODELS.md 5.2, 2026-10-15): the derived variant a
+/// GPU without BC fetches, the same model under the same id with its atlas encoded again.
+pub const TEX_ETC2_SRGB: u8 = 2;
+
+/// How a model's atlas is encoded (MODELS.md 5.2). Both are 8 bytes a 4×4 block with the same
+/// mip rules, so the chain's length is the same either way; a client uploads what its GPU
+/// samples and decodes the rest on the CPU.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum TextureFormat {
+    /// BC1 with 1-bit alpha: the file a model's id is the hash of; every desktop GPU.
+    #[default]
+    Bc1Srgb = TEX_BC1_SRGB,
+    /// ETC2 RGB8: the derived variant, nearly every phone. No alpha: a cutout model has no
+    /// ETC2 variant and is decoded on the CPU where BC is absent.
+    Etc2Srgb = TEX_ETC2_SRGB,
+}
+
+impl TextureFormat {
+    pub fn from_byte(b: u8) -> Option<TextureFormat> {
+        match b {
+            TEX_BC1_SRGB => Some(TextureFormat::Bc1Srgb),
+            TEX_ETC2_SRGB => Some(TextureFormat::Etc2Srgb),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            TextureFormat::Bc1Srgb => "bc1",
+            TextureFormat::Etc2Srgb => "etc2",
+        }
+    }
+
+    /// The file a variant lives in beside `file` (`x.gmm` → `x.etc.gmm`).
+    pub fn file_of(self, file: &str) -> String {
+        match self {
+            TextureFormat::Bc1Srgb => file.to_string(),
+            TextureFormat::Etc2Srgb => match file.strip_suffix(".gmm") {
+                Some(stem) => format!("{stem}.etc.gmm"),
+                None => format!("{file}.etc"),
+            },
+        }
+    }
+}
 pub const FLAG_CUTOUT: u16 = 1 << 0;
 pub const FLAG_TWO_SIDED: u16 = 1 << 1;
 /// A prop (CONTENT.md 4): a thing held, not a body. Its `frame` byte is `PROP_FRAME`, its
@@ -82,8 +127,12 @@ pub struct Model {
     pub indices: Vec<u16>,
     pub tex_w: u16,
     pub tex_h: u16,
-    /// BC1 blocks, largest mip first.
+    /// 4×4 blocks in `texture_format`, largest mip first.
     pub texture: Vec<u8>,
+    pub texture_format: TextureFormat,
+    /// A derived variant's origin (MODELS.md 5.2): the id of the BC1 file it was made from,
+    /// which is the id it is fetched and cached under. `None` for the BC1 file itself.
+    pub base: Option<ModelId>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -297,6 +346,32 @@ impl Model {
         })
     }
 
+    /// The same model with its atlas in another encoding, the derived variant of `id` (the
+    /// hash of this model's BC1 file): everything but the chain and the format is shared.
+    pub fn variant(&self, format: TextureFormat, chain: Vec<u8>, id: ModelId) -> Model {
+        Model {
+            texture: chain,
+            texture_format: format,
+            base: Some(id),
+            ..self.clone()
+        }
+    }
+
+    /// Whether `other` is this model with another atlas: the geometry, the rig and the
+    /// atlas size are the same, only the chain and the format differ.
+    pub fn same_but_atlas(&self, other: &Model) -> bool {
+        self.flags == other.flags
+            && self.frame == other.frame
+            && self.scale == other.scale
+            && self.average == other.average
+            && self.bone_mask == other.bone_mask
+            && self.pivots == other.pivots
+            && self.vertices == other.vertices
+            && self.indices == other.indices
+            && self.tex_w == other.tex_w
+            && self.tex_h == other.tex_h
+    }
+
     /// Bytes this model occupies on the GPU.
     pub fn gpu_bytes(&self) -> usize {
         self.vertices.len() * std::mem::size_of::<Vertex>()
@@ -388,6 +463,15 @@ impl Model {
         if self.texture.len() != texture_bytes(self.tex_w, self.tex_h) {
             return Err(ModelError::Length("texture"));
         }
+        // A variant names its origin; the original names none (its id is its own hash).
+        if (self.texture_format != TextureFormat::Bc1Srgb) != self.base.is_some() {
+            return Err(ModelError::Range(
+                "a variant names its base, the original does not",
+            ));
+        }
+        if self.texture_format == TextureFormat::Etc2Srgb && self.cutout() {
+            return Err(ModelError::Range("ETC2 RGB8 carries no cutout"));
+        }
         let n = self.vertices.len();
         if self.indices.iter().any(|&i| i as usize >= n) {
             return Err(ModelError::Range("index past the vertices"));
@@ -452,8 +536,13 @@ impl Model {
         out.extend_from_slice(&MAGIC);
         out.extend_from_slice(&self.flags.to_le_bytes());
         out.push(self.frame);
-        out.push(TEX_BC1_SRGB);
+        out.push(self.texture_format as u8);
         out.extend_from_slice(&(raw.len() as u32).to_le_bytes());
+        // A variant's header carries its base (MODELS.md 5.2), in the clear: a client tells
+        // what a fetched file stands for without inflating it.
+        if let Some(base) = &self.base {
+            out.extend_from_slice(base);
+        }
         out.extend_from_slice(&miniz_oxide::deflate::compress_to_vec_zlib(&raw, 6));
         let most = if self.is_prop() {
             limits::PROP_MAX_FILE_BYTES
@@ -487,15 +576,26 @@ impl Model {
                 limits::OVERLAY_MAX_FILE_BYTES,
             ));
         }
-        if file[7] != TEX_BC1_SRGB {
-            return Err(ModelError::TextureFormat(file[7]));
-        }
+        let texture_format =
+            TextureFormat::from_byte(file[7]).ok_or(ModelError::TextureFormat(file[7]))?;
         let raw_len = u32::from_le_bytes([file[8], file[9], file[10], file[11]]) as usize;
         if !(FIXED_BYTES..=limits::MAX_RAW_BYTES).contains(&raw_len) {
             return Err(ModelError::Range("payload length"));
         }
+        let (base, payload) = match texture_format {
+            TextureFormat::Bc1Srgb => (None, HEADER_BYTES),
+            TextureFormat::Etc2Srgb => {
+                let end = HEADER_BYTES + 32;
+                if file.len() < end {
+                    return Err(ModelError::Length("base"));
+                }
+                let mut base = [0u8; 32];
+                base.copy_from_slice(&file[HEADER_BYTES..end]);
+                (Some(base), end)
+            }
+        };
         let raw =
-            miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(&file[HEADER_BYTES..], raw_len)
+            miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(&file[payload..], raw_len)
                 .map_err(|_| ModelError::Inflate)?;
         if raw.len() != raw_len {
             return Err(ModelError::Inflate);
@@ -552,10 +652,41 @@ impl Model {
             tex_w,
             tex_h,
             texture,
+            texture_format,
+            base,
         };
         model.validate()?;
         Ok(model)
     }
+}
+
+/// Whether `file` may stand for the model `id` to a client that asked for `wanted`
+/// (MODELS.md 5.2): the BC1 original always (its hash is the id), and the derived variant
+/// in the wanted format when its header names the id as its base. A variant is trusted
+/// on its own word about its base: it came by the same road as the original (the hub's
+/// authenticated stream, or the bundle whose manifest names its hash), and its bytes
+/// decode under the strict reader before any of them reach the GPU.
+pub fn stands_for(file: &[u8], id: &ModelId, wanted: TextureFormat) -> bool {
+    if model_id(file) == *id {
+        return true;
+    }
+    wanted != TextureFormat::Bc1Srgb
+        && header_of(file).is_some_and(|(f, b)| f == wanted && b == Some(*id))
+}
+
+/// A file's texture format and, for a variant, its base, from the header alone.
+pub fn header_of(file: &[u8]) -> Option<(TextureFormat, Option<ModelId>)> {
+    if file.len() < HEADER_BYTES || file[..4] != MAGIC {
+        return None;
+    }
+    let format = TextureFormat::from_byte(file[7])?;
+    let base = match format {
+        TextureFormat::Bc1Srgb => None,
+        TextureFormat::Etc2Srgb => {
+            Some(file.get(HEADER_BYTES..HEADER_BYTES + 32)?.try_into().ok()?)
+        }
+    };
+    Some((format, base))
 }
 
 struct Reader<'a> {
@@ -630,6 +761,8 @@ pub(crate) mod tests {
             tex_w: 64,
             tex_h: 64,
             texture,
+            texture_format: TextureFormat::Bc1Srgb,
+            base: None,
         }
     }
 
@@ -646,6 +779,67 @@ pub(crate) mod tests {
             Some(model_id(&file))
         );
         assert_eq!(id_from_hex("xyz"), None);
+    }
+
+    /// The ETC2 variant of the sample (5.2): the same model under the sample's id with
+    /// its atlas encoded again.
+    pub(crate) fn sample_etc2() -> (Model, ModelId) {
+        // The sample is a cutout, which has no variant (5.2): this one is not.
+        let mut m = sample();
+        m.flags &= !FLAG_CUTOUT;
+        let id = model_id(&m.encode().unwrap());
+        let mut chain = Vec::new();
+        for (w, h, blocks) in m.mips() {
+            let rgba = crate::bc1::decode(blocks, w as usize, h as usize);
+            chain.extend_from_slice(&crate::etc::encode(&rgba, w as usize, h as usize));
+        }
+        (m.variant(TextureFormat::Etc2Srgb, chain, id), id)
+    }
+
+    #[test]
+    fn the_etc2_variant_round_trips_names_its_base_and_stands_for_it() {
+        let (v, id) = sample_etc2();
+        let file = v.encode().unwrap();
+        assert_eq!(file[7], TEX_ETC2_SRGB);
+        assert_eq!(&file[HEADER_BYTES..HEADER_BYTES + 32], &id);
+        let back = Model::decode(&file).unwrap();
+        assert_eq!(back, v);
+        assert_eq!(back.base, Some(id));
+        let mut plain = sample();
+        plain.flags &= !FLAG_CUTOUT;
+        assert!(back.same_but_atlas(&plain));
+        assert!(!back.same_but_atlas(&sample()));
+        assert_eq!(header_of(&file), Some((TextureFormat::Etc2Srgb, Some(id))));
+        // The variant stands for the id to a client that wants ETC2, not to one that wants BC1;
+        // the original stands for it either way.
+        assert!(stands_for(&file, &id, TextureFormat::Etc2Srgb));
+        assert!(!stands_for(&file, &id, TextureFormat::Bc1Srgb));
+        let original = plain.encode().unwrap();
+        assert!(stands_for(&original, &id, TextureFormat::Bc1Srgb));
+        assert!(stands_for(&original, &id, TextureFormat::Etc2Srgb));
+        assert!(!stands_for(&file, &[9; 32], TextureFormat::Etc2Srgb));
+        // A variant must name a base and the original must not.
+        let mut wrong = v.clone();
+        wrong.base = None;
+        assert_eq!(
+            wrong.validate(),
+            Err(ModelError::Range(
+                "a variant names its base, the original does not"
+            ))
+        );
+        let mut wrong = plain.clone();
+        wrong.base = Some(id);
+        assert!(wrong.validate().is_err());
+        let mut cut = v.clone();
+        cut.flags |= FLAG_CUTOUT;
+        assert_eq!(
+            cut.validate(),
+            Err(ModelError::Range("ETC2 RGB8 carries no cutout"))
+        );
+        assert_eq!(
+            TextureFormat::Etc2Srgb.file_of("props/sword.gmm"),
+            "props/sword.etc.gmm"
+        );
     }
 
     /// A small valid prop: a blade of two triangles along +X, a 64 × 64 texture.
@@ -674,6 +868,8 @@ pub(crate) mod tests {
             tex_w: 64,
             tex_h: 64,
             texture,
+            texture_format: TextureFormat::Bc1Srgb,
+            base: None,
         }
     }
 

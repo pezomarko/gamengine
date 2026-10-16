@@ -127,8 +127,9 @@ content bundle is reproduced byte for byte by the staged reader (`gm-tools conte
 What the hub stores, what clients fetch, hash and cache. Little-endian.
 
 ```
-magic "GMM1" | flags u16 (bit 0 cutout, bit 1 two-sided) | frame u8 | texture format u8 (1 = BC1 sRGB)
+magic "GMM1" | flags u16 (bit 0 cutout, bit 1 two-sided) | frame u8 | texture format u8 (1 = BC1 sRGB, 2 = ETC2 RGB8 sRGB)
 raw_len u32                      length of the payload after inflation
+base    32 B                     ETC2 only (5.2): the id of the BC1 file this is the variant of
 payload                          one zlib stream to the end of the file:
   scale        3 × f32           position = i16 / 32767 × scale
   average      4 × u8            mean opaque texel (sRGB): the colour of the stand-in
@@ -138,13 +139,44 @@ payload                          one zlib stream to the end of the file:
   vertices     24 B each: position i16 × 3 + 0, normal i8 × 3 + 0, uv u16 × 2 (unorm),
                joints u8 × 4 (standard bone indices), weights u8 × 4 (sum 255)
   indices      u16 each, a multiple of 3
-  texture      BC1 blocks, largest mip first, down to the level whose smaller side is 4
+  texture      4×4 blocks in the texture format (8 bytes each way), largest mip first,
+               down to the level whose smaller side is 4
 ```
 
 **An overlay** (2026-10-13, CONTENT.md 3.3) is a body's container with flag bit 3 set
 (`FLAG_OVERLAY`): a frame, the rig, pivots, skinned vertices as a body's, within an
 overlay's budgets (1,500 triangles, 512², 262,144 bytes); never a prop as well. A reader
 that wants a body refuses it, and a client draws it only over a body of its frame.
+
+### 5.2 The ETC2 variant (2026-10-15)
+
+BC1 is what every desktop GPU samples and what the model's id is the hash of. Nearly no
+phone samples it: on WebGPU, BC is an optional feature that Android never has and iPhones
+had only from the A15; on WebGL2 the S3TC extension is on about a quarter of Android and
+iOS browsers, while ETC2 is on 99.97 % of Android (web3dsurvey, October 2026). A client
+without BC decoded the BC1 chain on the CPU and held a 1024² atlas as 4 MB of RGBA8 (the
+largest level dropped, 1 MB), eight times the chain, which the plan's "entry-level
+Android" could not carry a crowd of. Since 2026-10-15 the ingestion encodes the same
+resampled, mipped levels a second time as **ETC2 RGB8** (`gm_model::etc`, our own
+encoder, ETC1 individual and differential plus the T and H modes, checked against
+Ericsson's reference decoder) and writes the **variant** beside the model: the same
+container with texture format 2, the same geometry, rig and atlas size, and in its header
+the id of the BC1 file it was made from. The variant is never a model of its own: it has no
+row at the hub, it is not what a character's `model` names, and a client asks for it by the
+model's id (`ModelGet { .. format }`, 6.2; the bundle's manifest names the variant's hash
+beside the model's, CONTENT.md 4) and accepts it when its header names that id as its base
+(`gm_model::format::stands_for`); a cached file is judged the same way, so a cache holds
+whichever file stood for the id when it was fetched. The hub verifies a variant the worker
+returned before storing it (`report::verify_variant`: the strict reader, the canonical
+encoding, the format, the base, the same model but for its atlas; its texels are the
+worker's encoding of the same image and are not compared) and serves the BC1 file where a
+model has none. A **cutout** model has no variant: ETC2 RGB8 carries no alpha, the
+punch-through and EAC modes are not written, and a GPU without BC decodes such a model's
+BC1 chain as before; the alternative, an alpha side channel for the few cutouts, was not
+worth a second stream in every reader. Icons, previews and the cloth patches (5.1) stay
+BC1: the rasteriser samples BC1, and a patch's blocks are decoded to texels when they are
+laid into a body's atlas in either format (`patch::composite_in`), so one patch file
+dresses a body however its atlas is held.
 
 ### 5.1 The cloth patch (`.gmp`, 2026-10-15)
 
@@ -233,7 +265,7 @@ ModelUpload { session, frame, tos_version, len }  + len bytes  → ModelAccepted
 ModelList   { session }                                        → Models(Vec<ModelSummary>)
 ModelDrop   { session, model }                                 → Ok       (give up holding it)
 SetModel    { session, character, model: Option<ModelId> }     → Ok       (offline characters only)
-ModelGet    { session, model }                                 → Blob { len } + len bytes
+ModelGet    { session, model, format }                         → Blob { len } + len bytes (the variant in `format` when stored, 5.2; the BC1 file otherwise)
 Mod         { session, op }                                    moderators only (section 10)
 ```
 
@@ -251,7 +283,7 @@ queue and the store with its files (its uploader withdrew it; the uploaded file 
 another frame of it remains), an `active` one stays for its other holders, and a `rejected` or
 `takedown` row always stays (section 10, "never again").
 
-Ingestion runs in a child process (`gm-ingest-worker`, a binary of gm-ingest beside the hub's since 2026-10-15; `--ingest-worker PATH` names another), at most **2** at a time, each with a
+Ingestion runs in a child process (`gm-ingest-worker`, a binary of gm-ingest beside the hub's since 2026-10-15; `--ingest-worker PATH` names another; it writes `model.gmm`, `model.etc.gmm` when the model has an ETC2 variant, 5.2, and `report.json` last), at most **2** at a time, each with a
 30 s wall clock, a 20 s CPU limit and a 2 GiB address-space limit. A worker is taken only when
 the whole body has arrived (a slow sender holds one of the eight places in memory, never a
 worker); an upload waits up to 30 s for one and is then answered `Busy`, which does not count
@@ -312,6 +344,15 @@ model back.
 
 **Lookup order**: GPU cache → disk cache → hub. Until a model is on the GPU its wearer is the
 mannequin.
+
+**The format fetched** (5.2, 2026-10-15): at start the client reads its adapter's features
+and fetches BC1 where the GPU samples BC, the ETC2 variant where it samples ETC2 and not
+BC (nearly every phone), and BC1 decoded on the CPU where it samples neither (software
+Vulkan, some old desktops); `--texture-format auto|bc1|etc2|rgba` forces one path for the
+fitting room and the gates. A chain the GPU samples goes up as it is; one it does not is
+decoded on the CPU (BC1 or ETC2) without its largest level. The composite of a body and its
+cloth patches (LOOK.md 6.6) is made in the format the body's chain came in, a block at a
+time; the model cache counts GPU bytes for the format uploaded.
 
 **Disk cache**: one directory (`--cache-dir`, default the platform's cache directory +
 `gamengine/models`), one file per model named by its id in hex. A file is written to a

@@ -1,6 +1,6 @@
 //! The atlas (MODELS.md 3, 5): resample the uploaded image to a power-of-two size of at most
 //! 1024, build the mip chain in linear light with the cutout's coverage carried along, and
-//! encode every level as BC1.
+//! encode every level as BC1, and as ETC2 for the derived variant (MODELS.md 5.2).
 
 use gm_model::format::{bc1_level_bytes, limits, mip_count};
 use image::RgbaImage;
@@ -10,6 +10,9 @@ pub struct Atlas {
     pub h: u16,
     /// BC1 blocks, largest mip first.
     pub bc1: Vec<u8>,
+    /// The same levels as ETC2 RGB8 blocks (MODELS.md 5.2), for the derived variant: `None`
+    /// for a cutout, whose one-bit alpha ETC2 RGB8 cannot carry.
+    pub etc2: Option<Vec<u8>>,
     /// Mean opaque texel, sRGB.
     pub average: [u8; 4],
 }
@@ -173,6 +176,9 @@ pub fn build_capped(img: &RgbaImage, factor: [f32; 4], cutout: Option<f32>, cap:
         ..Default::default()
     };
     let mut bc1 = Vec::with_capacity(gm_model::format::texture_bytes(w, h));
+    let mut etc2 = cutout
+        .is_none()
+        .then(|| Vec::with_capacity(gm_model::format::texture_bytes(w, h)));
     let mut average = [0u8; 4];
     for i in 0..mip_count(w, h) {
         if i > 0 {
@@ -197,8 +203,17 @@ pub fn build_capped(img: &RgbaImage, factor: [f32; 4], cutout: Option<f32>, cap:
         let start = bc1.len();
         bc1.resize(start + bc1_level_bytes(level.w, level.h), 0);
         texpresso::Format::Bc1.compress(&rgba, level.w, level.h, params, &mut bc1[start..]);
+        if let Some(etc2) = etc2.as_mut() {
+            etc2.extend_from_slice(&gm_model::etc::encode(&rgba, level.w, level.h));
+        }
     }
-    Atlas { w, h, bc1, average }
+    Atlas {
+        w,
+        h,
+        bc1,
+        etc2,
+        average,
+    }
 }
 
 #[cfg(test)]

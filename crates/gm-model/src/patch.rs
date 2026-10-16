@@ -8,6 +8,8 @@
 //! key, whose atlas layout it was painted in) and applies to no other.
 
 use crate::bc1;
+use crate::etc;
+use crate::format::TextureFormat;
 use crate::format::{ModelError, TEX_BC1_SRGB, bc1_level_bytes, mip_count};
 
 pub const MAGIC: [u8; 4] = *b"GMP1";
@@ -325,6 +327,22 @@ impl Patch {
 /// put over the skin's, and encoded again. Returns the blocks changed. A patch of another
 /// atlas size is skipped (it was baked for another body).
 pub fn composite(texture: &mut [u8], tex_w: u16, tex_h: u16, patches: &[&Patch]) -> usize {
+    composite_in(texture, tex_w, tex_h, patches, TextureFormat::Bc1Srgb)
+}
+
+/// The same over a chain in `format` (MODELS.md 5.2): a body held as ETC2 is decoded a block
+/// at a time, the cloth's texels (BC1 in the patch, always) put over the skin's, and the
+/// block encoded again as ETC2 (ETC1's modes alone, `encode_block_rgba_fast`: the composite
+/// is made at play time); a block the cloth fills whole is encoded from the cloth's
+/// texels alone. Patches are not re-encoded at build time: one patch file dresses a body in
+/// either format.
+pub fn composite_in(
+    texture: &mut [u8],
+    tex_w: u16,
+    tex_h: u16,
+    patches: &[&Patch],
+    format: TextureFormat,
+) -> usize {
     let mut changed = 0;
     let mut offset = 0;
     for level in 0..mip_count(tex_w, tex_h) as usize {
@@ -344,16 +362,27 @@ pub fn composite(texture: &mut [u8], tex_w: u16, tex_h: u16, patches: &[&Patch])
                 let Some(body) = dst.get_mut(*i as usize * 8..*i as usize * 8 + 8) else {
                     continue;
                 };
-                if block_cut(cloth) {
-                    let skin = bc1::decode_block(body);
-                    let over = bc1::decode_block(cloth);
-                    let mut px = [[0u8; 4]; 16];
-                    for k in 0..16 {
-                        px[k] = if over[k][3] != 0 { over[k] } else { skin[k] };
+                match format {
+                    TextureFormat::Bc1Srgb if !block_cut(cloth) => body.copy_from_slice(cloth),
+                    _ => {
+                        let skin = match format {
+                            TextureFormat::Bc1Srgb => bc1::decode_block(body),
+                            TextureFormat::Etc2Srgb => {
+                                etc::decode_block_rgba((&*body).try_into().expect("8 bytes"))
+                            }
+                        };
+                        let over = bc1::decode_block(cloth);
+                        let mut px = [[0u8; 4]; 16];
+                        for k in 0..16 {
+                            px[k] = if over[k][3] != 0 { over[k] } else { skin[k] };
+                        }
+                        match format {
+                            TextureFormat::Bc1Srgb => body.copy_from_slice(&encode_block(&px)),
+                            TextureFormat::Etc2Srgb => {
+                                body.copy_from_slice(&etc::encode_block_rgba_fast(&px))
+                            }
+                        }
                     }
-                    body.copy_from_slice(&encode_block(&px));
-                } else {
-                    body.copy_from_slice(cloth);
                 }
                 changed += 1;
             }
@@ -510,5 +539,28 @@ mod tests {
         // Another size is another body: nothing changes.
         let mut small = vec![0u8; texture_bytes(64, 32)];
         assert_eq!(composite(&mut small, 64, 32, &[&p]), 0);
+    }
+
+    #[test]
+    fn the_composite_lays_the_same_cloth_into_an_etc2_body() {
+        let p = sample_patch();
+        // The same blue body, held as ETC2 (5.2).
+        let mut body = Vec::new();
+        for level in 0..mip_count(64, 64) {
+            let (lw, lh) = ((64 >> level) as usize, (64 >> level) as usize);
+            let rgba = vec![[0u8, 0, 255, 255]; lw * lh].concat();
+            body.extend_from_slice(&etc::encode(&rgba, lw, lh));
+        }
+        let before = body.clone();
+        let changed = composite_in(&mut body, 64, 64, &[&p], TextureFormat::Etc2Srgb);
+        assert_eq!(changed, p.blocks());
+        let b0 = etc::decode_block_rgba(body[..8].try_into().unwrap());
+        assert!(b0.iter().all(|t| t[0] > 230 && t[1] < 30), "{b0:?}");
+        // Block 1 is green but its first texel: ETC1 shifts a half's texels in brightness
+        // from one base colour, so a lone texel of another hue is lost in its half (the
+        // price of the format, MODELS.md 5.2); the block comes out green.
+        let b1 = etc::decode_block_rgba(body[8..16].try_into().unwrap());
+        assert!(b1.iter().all(|t| t[1] > 150 && t[1] >= t[2]), "{b1:?}");
+        assert_eq!(&body[16..24], &before[16..24]);
     }
 }

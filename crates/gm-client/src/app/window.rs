@@ -55,6 +55,8 @@ impl App {
         if let Some(atlas) = self.content.take_atlas() {
             renderer.hud.set_atlas(&gpu, atlas);
         }
+        // The bundle's models in the format this GPU samples (MODELS.md 5.2).
+        self.content.prefer(gpu.wanted);
         // Models come from the hub, on whatever session is logged in when one is wanted.
         let source = self.session.hub.as_ref().map(|h| h.model_source());
         let avatars = Avatars::new(

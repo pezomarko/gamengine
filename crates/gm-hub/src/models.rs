@@ -13,7 +13,8 @@ use gm_hub_proto::protocol::{
     MAX_PENDING_MODELS, ModEntry, ModelId, ModelRef, ModelStatus, ModelSummary, ReasonCode,
     SessionId, TOS_VERSION, TRUSTED_TIER, UPLOAD_STRIKES,
 };
-use gm_model::report::{self, Report};
+use gm_model::format::TextureFormat;
+use gm_model::report::{self, Report, Variants};
 use gm_model::{id_hex, model_id, rig};
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
@@ -45,7 +46,7 @@ fn io(e: std::io::Error) -> HubError {
 }
 
 /// What a worker answers: the report, and the `.gmm` when it accepted the upload.
-pub type IngestFn = fn(&[u8], gm_core::vocab::ArchetypeFrame) -> (Report, Option<Vec<u8>>);
+pub type IngestFn = fn(&[u8], gm_core::vocab::ArchetypeFrame) -> (Report, Option<Variants>);
 
 /// How uploads are parsed.
 #[derive(Clone, Debug)]
@@ -94,8 +95,34 @@ impl ModelStore {
         self.dir.join(format!("{}.png", id_hex(id)))
     }
 
-    pub fn put_model(&self, id: &ModelId, gmm: &[u8], preview: &[u8]) -> std::io::Result<()> {
+    /// The ETC2 variant beside the model (MODELS.md 5.2): `<id>.etc.gmm`.
+    fn etc_path(&self, id: &ModelId) -> PathBuf {
+        self.dir.join(format!("{}.etc.gmm", id_hex(id)))
+    }
+
+    /// The file a client asking for `format` gets: the variant when it is there, the BC1
+    /// file otherwise (a model ingested before variants were, or a cutout).
+    pub fn path_for(&self, id: &ModelId, format: TextureFormat) -> PathBuf {
+        if format == TextureFormat::Etc2Srgb {
+            let etc = self.etc_path(id);
+            if etc.is_file() {
+                return etc;
+            }
+        }
+        self.model_path(id)
+    }
+
+    pub fn put_model(
+        &self,
+        id: &ModelId,
+        gmm: &[u8],
+        etc: Option<&[u8]>,
+        preview: &[u8],
+    ) -> std::io::Result<()> {
         self.put(self.model_path(id), gmm)?;
+        if let Some(etc) = etc {
+            self.put(self.etc_path(id), etc)?;
+        }
         self.put(self.preview_path(id), preview)
     }
 
@@ -117,6 +144,7 @@ impl ModelStore {
 
     fn remove(&self, id: &ModelId) {
         let _ = std::fs::remove_file(self.model_path(id));
+        let _ = std::fs::remove_file(self.etc_path(id));
         let _ = std::fs::remove_file(self.preview_path(id));
     }
 
@@ -400,25 +428,40 @@ impl Models {
         let timeout = self.timeout;
         let job = self.jobs.fetch_add(1, Ordering::Relaxed);
         tokio::task::spawn_blocking(move || {
-            let (report, gmm) = match mode {
+            let (report, files) = match mode {
                 IngestMode::InProcess(ingest) => ingest(&upload, frame),
                 IngestMode::Worker(exe) => worker(&exe, &upload, frame, job, timeout)?,
             };
-            let Some(gmm) = gmm.filter(|_| report.ok) else {
+            let Some(Variants { gmm, etc }) = files.filter(|_| report.ok) else {
                 return Ok((report, None));
             };
             match report::verify(&gmm, frame) {
-                Ok(v) => Ok((
-                    report,
-                    Some(Accepted {
-                        id: v.id,
-                        triangles: v.model.triangles() as i32,
-                        vertices: v.model.vertices.len() as i32,
-                        texture: [v.model.tex_w as i16, v.model.tex_h as i16],
-                        gmm,
-                        preview: v.preview,
-                    }),
-                )),
+                Ok(v) => {
+                    // The variant is believed as far as its own bytes prove it is this model
+                    // with another atlas (MODELS.md 6.2); one that is not is left out, and
+                    // the model stands without it.
+                    let etc = etc.filter(|file| {
+                        match report::verify_variant(&v.model, &v.id, TextureFormat::Etc2Srgb, file) {
+                            Ok(_) => true,
+                            Err(why) => {
+                                warn!("the ingestion worker returned an ETC2 variant the hub refuses: {why:?}");
+                                false
+                            }
+                        }
+                    });
+                    Ok((
+                        report,
+                        Some(Accepted {
+                            id: v.id,
+                            triangles: v.model.triangles() as i32,
+                            vertices: v.model.vertices.len() as i32,
+                            texture: [v.model.tex_w as i16, v.model.tex_h as i16],
+                            gmm,
+                            etc,
+                            preview: v.preview,
+                        }),
+                    ))
+                }
                 Err(why) => {
                     warn!("the ingestion worker returned a model the hub refuses: {why:?}");
                     Err(HubError::Invalid("the file could not be processed".into()))
@@ -467,7 +510,9 @@ impl Models {
         // Files first: a row never names bytes that are not there. And files that no row
         // came to name (the upload was refused at the last step) do not stay.
         let _files = self.files.lock().await;
-        self.store.put_model(&id, &a.gmm, &a.preview).map_err(io)?;
+        self.store
+            .put_model(&id, &a.gmm, a.etc.as_deref(), &a.preview)
+            .map_err(io)?;
         self.store.put_source(&source_hash, &upload).map_err(io)?;
         let recorded = self
             .record(account, frame, &a, &source_hash, source_bytes)
@@ -836,6 +881,7 @@ impl Models {
         session: SessionId,
         account: AccountId,
         model: &ModelId,
+        format: TextureFormat,
     ) -> Result<Vec<u8>, HubError> {
         let r = sqlx::query(
             "select m.status, m.bytes, exists (select 1 from model_holders h where h.hash = m.hash and h.account_id = $2) as holds \
@@ -877,7 +923,7 @@ impl Models {
             }
         }
         let id = *model;
-        let path = self.store.model_path(&id);
+        let path = self.store.path_for(&id, format);
         tokio::task::spawn_blocking(move || std::fs::read(path))
             .await
             .map_err(|_| HubError::Internal)?
@@ -1254,6 +1300,8 @@ pub const MODEL_SLOTS: i16 = DEFAULT_MODEL_SLOTS;
 struct Accepted {
     id: ModelId,
     gmm: Vec<u8>,
+    /// The ETC2 variant, verified (MODELS.md 5.2).
+    etc: Option<Vec<u8>>,
     preview: Vec<u8>,
     triangles: i32,
     vertices: i32,
@@ -1261,7 +1309,7 @@ struct Accepted {
 }
 
 /// A worker's answer: its report and, when it accepted the upload, the `.gmm` it wrote.
-type WorkerAnswer = (Report, Option<Vec<u8>>);
+type WorkerAnswer = (Report, Option<Variants>);
 
 /// Run one ingestion in a child process: a scratch directory, the wall clock, and whatever
 /// the child wrote. A child that crashes, hangs or leaves no report refuses the upload.
@@ -1315,19 +1363,28 @@ fn worker(
             return Ok(None);
         };
         // Never more than a model may be: the file is the worker's, the limit is ours.
-        let gmm = if report.ok {
-            let path = dir.join(report::WORKER_MODEL);
+        let sized = |name: &str| -> std::io::Result<Option<Vec<u8>>> {
+            let path = dir.join(name);
             if std::fs::symlink_metadata(&path)
                 .is_ok_and(|m| m.is_file() && m.len() <= gm_model::limits::MAX_FILE_BYTES as u64)
             {
-                Some(std::fs::read(path)?)
+                Ok(Some(std::fs::read(path)?))
             } else {
-                return Ok(None);
+                Ok(None)
             }
+        };
+        let files = if report.ok {
+            let Some(gmm) = sized(report::WORKER_MODEL)? else {
+                return Ok(None);
+            };
+            // The variant is optional (a cutout has none) and its presence is the worker's
+            // word; the hub checks it against the model before it stores it.
+            let etc = sized(report::WORKER_ETC)?;
+            Some(Variants { gmm, etc })
         } else {
             None
         };
-        Ok(Some((report, gmm)))
+        Ok(Some((report, files)))
     })();
     let _ = std::fs::remove_dir_all(&dir);
     match result {

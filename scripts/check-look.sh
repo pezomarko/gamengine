@@ -79,10 +79,17 @@ fi
 # The bundle a client takes whole (the manifest, the atlases, the props), and apart from it
 # what is worn (the avatars and the armour overlays, fetched a file at a time as they are
 # first seen: EQUIPMENT.md 6 step 4, 8.1 finding 9).
-bundle_bytes="$(find assets/built/content -type f -not -path '*/armour/*' -not -path '*/avatars/*' -printf '%s\n' | awk '{s+=$1} END {print s+0}')"
-atmost "$bundle_bytes" "$(budget content max_bundle_bytes)" "bundle bytes"
-wear_bytes="$(find assets/built/content/armour assets/built/content/avatars -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
-atmost "$wear_bytes" "$(budget content max_wear_bytes)" "worn bytes (avatars and overlays)"
+# A client fetches one kind of atlas (MODELS.md 5.2): the BC1 files, or their ETC2 variants
+# (`*.etc.gmm`) where the GPU has no BC. Each kind is counted on its own against the budget.
+bundle_bytes="$(find assets/built/content -type f -not -path '*/armour/*' -not -path '*/avatars/*' -not -name '*.etc.gmm' -printf '%s\n' | awk '{s+=$1} END {print s+0}')"
+atmost "$bundle_bytes" "$(budget content max_bundle_bytes)" "bundle bytes (BC1)"
+bundle_etc="$(find assets/built/content -type f -not -path '*/armour/*' -not -path '*/avatars/*' -not -name '*.gmm' -printf '%s\n' | awk '{s+=$1} END {print s+0}')"
+bundle_etc=$(( bundle_etc + $(find assets/built/content -type f -not -path '*/armour/*' -not -path '*/avatars/*' -name '*.etc.gmm' -printf '%s\n' | awk '{s+=$1} END {print s+0}') ))
+atmost "$bundle_etc" "$(budget content max_bundle_bytes)" "bundle bytes (ETC2)"
+wear_bytes="$(find assets/built/content/armour assets/built/content/avatars -type f -not -name '*.etc.gmm' -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+atmost "$wear_bytes" "$(budget content max_wear_bytes)" "worn bytes (avatars and overlays, BC1)"
+wear_etc="$(find assets/built/content/armour assets/built/content/avatars -type f \( -name '*.etc.gmm' -o -name '*.gmp' \) -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+atmost "$wear_etc" "$(budget content max_wear_bytes)" "worn bytes (avatars and overlays, ETC2 with the patches)"
 # One atlas per UI scale (LOOK.md 2.2): a client fetches the first and the one of its scale.
 for d in 1 2 3 4; do
   f="assets/built/content/ui${d#1}.gma"

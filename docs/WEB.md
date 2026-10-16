@@ -338,6 +338,14 @@ its fullscreen setting. Before the game (the characters) the way back is the pho
 
 ## 4. The model cache without a filesystem
 
+**What a phone fetches and holds** (MODELS.md 5.2, 2026-10-15): the WebGPU build reads the
+adapter's `texture-compression-bc` and `texture-compression-etc2` features and the WebGL2
+build its extensions; a phone, which has ETC2 and not BC, fetches each model's ETC2 variant
+(the same bytes as the BC1 file, near enough) and holds it compressed, 0.7 MB for a 1024²
+atlas with its mips, where it held 5.3 MB of RGBA8 (4 MB without the largest level) before.
+The store's entries are judged by `stands_for`: a BC1 file always stands for its id, a
+variant when its header names the id.
+
 MODELS.md 8 holds, with the Cache API in place of the directory
 (`crates/gm-client/src/web/store.rs`; the state machine above it, `cache.rs`, is shared with
 the native client):
