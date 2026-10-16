@@ -172,7 +172,7 @@ people() {
       where h.kind = 'character' and c.name = 'Quartermaster'"
   if [[ "$(psql "$URL" -Atc "$qm_items" 2>/dev/null || echo 0)" == 0 ]]; then
     for _ in 1 2 3; do
-      for stack in "ball 10" "pistol_round 16" "carbine_round 30" "kit 1"; do
+      for stack in "ball 10" "pistol_round 16" "carbine_round 30" "arrow 20" "kit 1"; do
         # shellcheck disable=SC2086
         hubctl --grant-item Quartermaster $stack >>"$D/log/grants.log" 2>&1
       done

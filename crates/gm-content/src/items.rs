@@ -73,6 +73,32 @@ fn dtype_element(d: DamageType) -> Option<Element> {
     d.element()
 }
 
+/// A shield's block (GEAR.md 7), as `items.toml` says it: the fields of the `block`
+/// guard verb (VOCABULARY.md 5.6).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TemplateBlock {
+    pub arc: f32,
+    pub mitigation: f32,
+    pub stamina_per_hit: u16,
+    #[serde(default)]
+    pub stops_projectiles: bool,
+    #[serde(default = "one")]
+    pub move_speed_scale: f32,
+}
+
+impl TemplateBlock {
+    pub fn to_block(&self) -> gm_core::vocab::Block {
+        gm_core::vocab::Block {
+            arc_deg: self.arc,
+            mitigation: self.mitigation,
+            stamina_per_hit: self.stamina_per_hit,
+            stops_projectiles: self.stops_projectiles,
+            move_speed_scale: self.move_speed_scale,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ItemTemplate {
@@ -99,6 +125,10 @@ pub struct ItemTemplate {
     /// or `plate`, what the body wearing it is in; a chest piece that names none is cloth.
     #[serde(default)]
     pub class: Option<String>,
+    /// A shield's own block (GEAR.md 7): the numbers its guard plays with in place of the
+    /// guard ability's (the buckler narrow and cheap, the tower shield wide and slow).
+    #[serde(default)]
+    pub block: Option<TemplateBlock>,
     /// A stack (MODES.md 11.1): the most of it one holder carries (the strict limit), and
     /// what one of it heals when it is a kit. No layers, no materials.
     #[serde(default)]
@@ -1031,6 +1061,24 @@ impl ItemContent {
                 if !["cloth", "leather", "mail", "plate"].contains(&class.as_str()) {
                     return bad(format!(
                         "template {:?}: the class is cloth, leather, mail or plate, not {class:?}",
+                        t.id
+                    ));
+                }
+            }
+            // A shield's own block (GEAR.md 7): a shield's, within the verb's bounds.
+            if let Some(b) = &t.block {
+                if t.kind != "shield" {
+                    return bad(format!(
+                        "template {:?}: only a shield carries a block",
+                        t.id
+                    ));
+                }
+                if !(10.0..=360.0).contains(&b.arc)
+                    || !(0.0..=1.0).contains(&b.mitigation)
+                    || !(0.0..=1.0).contains(&b.move_speed_scale)
+                {
+                    return bad(format!(
+                        "template {:?}: a block's arc is 10–360, its mitigation and move speed 0–1",
                         t.id
                     ));
                 }

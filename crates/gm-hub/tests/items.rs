@@ -381,28 +381,41 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     // client works either out.
     let at = |t: DamageType| t as usize;
     let mut sword_edge = [0u16; 9];
-    sword_edge[at(DamageType::Slash)] = 220;
-    sword_edge[at(DamageType::Fire)] = 190;
-    // The chest counts for 12 of the body's 20 (EQUIPMENT.md 10.8): 220 is 132 taken.
-    let cuirass_edge = [132u16, 132, 132, 0, 0, 0, 0, 0, 0];
+    sword_edge[at(DamageType::Slash)] = 165;
+    sword_edge[at(DamageType::Fire)] = 135;
+    // The chest counts for 12 of the body's 20 (EQUIPMENT.md 10.8): 165 is 99 taken. (The
+    // best craft is 195 since the shard layer went, GEAR.md 6: 60 + 30 + 45 + 60.)
+    let cuirass_edge = [99u16, 99, 99, 0, 0, 0, 0, 0, 0];
     let plain_edge = [40u16, 0, 0, 0, 0, 0, 0, 0, 0];
     let have = inventory(&smith_conn, smith_s, smith).await;
     let find = |list: &[ItemSummary], id: i64| list.iter().find(|i| i.id == id).unwrap().clone();
     assert_eq!(have.len(), 6);
     let shown = find(&have, sword);
     assert_eq!((shown.place, shown.edge), (PLACE_WEAPON, sword_edge));
-    assert_eq!(shown.what, "a weapon, 250 of 250");
-    assert_eq!(shown.does, ["slash +11.0%", "fire +9.5%"]);
+    assert_eq!(shown.what, "a weapon, 195 of 250");
+    assert_eq!(
+        shown.does,
+        [
+            "slash +8.3%",
+            "fire +6.8%",
+            "burns one blow in five for 2.0 s",
+            "its burns last 200% as long",
+            "blows cost 75% of their stamina"
+        ]
+    );
     // Whose hands it is for (EQUIPMENT.md 2): the presets whose kits hold a sword, by
     // their class names, whoever asks; an armour says nothing of the kind.
     assert_eq!(shown.hands, "Blade");
     let shown = find(&have, cuirass);
     assert_eq!(
         (shown.place, shown.edge),
-        (PLACE_ARMOUR, [220, 220, 220, 0, 0, 0, 0, 0, 0])
+        (PLACE_ARMOUR, [165, 165, 165, 0, 0, 0, 0, 0, 0])
     );
-    assert_eq!(shown.what, "an armour, 220 of 250");
-    assert_eq!(shown.does, ["physical -9.9%"]);
+    assert_eq!(shown.what, "an armour, 165 of 250");
+    assert_eq!(
+        shown.does,
+        ["physical -7.6%", "blocks cost 75% of their stamina"]
+    );
     assert_eq!(shown.hands, "");
     assert_eq!(find(&have, plain).edge, plain_edge);
     let shown = find(&have, ember);
@@ -566,10 +579,10 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
 
     // A second one-hander goes into the empty left hand (EQUIPMENT.md 4.4): worn beside
     // the best one, adding under the cap and the left hand's half (EQUIPMENT.md 5.5:
-    // 220 + 40 / 2 of slash is 240); taken off, the best one stands alone again.
+    // 165 + 40 / 2 of slash is 185); taken off, the best one stands alone again.
     let gear = wear(&town, smith, plain).await.unwrap();
     let mut both = sword_edge;
-    both[at(DamageType::Slash)] = 240;
+    both[at(DamageType::Slash)] = 185;
     assert_eq!((gear.dealt, gear.taken), (both, cuirass_edge));
     let have = inventory(&smith_conn, smith_s, smith).await;
     assert_eq!(
@@ -648,10 +661,10 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
 
     // The off hand (ITEMS.md 2, 2026-10-13). The plain sword goes into the left hand
     // beside the best one when asked, and adds half of itself under the cap (EQUIPMENT.md
-    // 5.5): 220 + 40 / 2 of slash is 240.
+    // 5.5): 165 + 40 / 2 of slash is 185.
     let reading = wear_in(&town, smith, plain, PLACE_OFF).await.unwrap();
     let mut both = sword_edge;
-    both[at(DamageType::Slash)] = 240;
+    both[at(DamageType::Slash)] = 185;
     assert_eq!(
         (reading.gear.dealt, reading.gear.taken),
         (both, cuirass_edge)
@@ -707,14 +720,14 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         Err(HubError::Invalid("no such place".into()))
     );
     // A shield goes into the left hand by nature, takes the plain sword's place there,
-    // and guards beside the cuirass for half of itself: 132 + 40 / 2 of a blow is 152.
+    // and guards beside the cuirass for half of itself: 99 + 40 / 2 of a blow is 119.
     let shield = direct
         .grant_item(smith, "shield", &iron, room("shield").as_deref())
         .await
         .unwrap();
     let gear = wear(&town, smith, shield).await.unwrap();
     assert_eq!(gear.dealt, sword_edge);
-    assert_eq!(gear.taken, [152, 152, 152, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(gear.taken, [119, 119, 119, 0, 0, 0, 0, 0, 0]);
     let have = inventory(&smith_conn, smith_s, smith).await;
     let shown = find(&have, shield);
     assert_eq!(
@@ -770,15 +783,15 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         ]
     );
     assert_eq!(find(&have, ring).what, "a trinket, 40 of 250");
-    assert_eq!(gear.dealt, [220, 0, 0, 210, 5, 5, 5, 5, 5]);
+    assert_eq!(gear.dealt, [165, 0, 0, 155, 5, 5, 5, 5, 5]);
     assert_eq!(
         gear.taken,
-        [162, 162, 162, 6, 6, 6, 6, 6, 6],
+        [129, 129, 129, 6, 6, 6, 6, 6, 6],
         "the shield still on"
     );
     let gear = wear(&town, smith, cape).await.unwrap();
     assert_eq!(gear.dealt, sword_edge, "the ring came off: one accessory");
-    assert_eq!(gear.taken, [162, 162, 162, 11, 26, 11, 11, 11, 11]);
+    assert_eq!(gear.taken, [129, 129, 129, 11, 26, 11, 11, 11, 11]);
     assert!(!find(&inventory(&smith_conn, smith_s, smith).await, ring).worn);
     // A thing asked onto a place that is not its own is refused in words.
     assert_eq!(

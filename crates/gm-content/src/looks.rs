@@ -39,6 +39,8 @@ pub struct TemplateLook {
     pub guard: Option<String>,
     /// A chest piece's armour class (GEAR.md 3), what the body wearing it is in.
     pub class: Option<gm_core::matrix::ArmourClass>,
+    /// A shield's own block (GEAR.md 7), played in place of the guard ability's.
+    pub block: Option<gm_core::vocab::Block>,
     pub retired: bool,
 }
 
@@ -282,6 +284,7 @@ impl Looks {
                         .into_iter()
                         .find(|a| a.name() == c)
                 }),
+                block: t.block.as_ref().map(|b| b.to_block()),
                 retired: t.retired,
             });
         }

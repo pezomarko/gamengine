@@ -119,7 +119,7 @@ pub struct Build {
 /// with the item content (`gm_content::worn`) and tells the owning client, so that
 /// neither the simulation nor a client reads `items.toml`, and both build the one sheet.
 /// `NONE` is a body in nothing: the build's own kit, as before gear brought any.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Worn {
@@ -139,6 +139,9 @@ pub struct Worn {
     pub stamina_blows: u8,
     /// The guard pieces' frames: the stamina of the guard and of a block, percent.
     pub stamina_block: u8,
+    /// A shield's own block (GEAR.md 7), played in place of the guard ability's numbers
+    /// when the guard is the shield's.
+    pub block: Option<crate::vocab::Block>,
 }
 
 impl Worn {
@@ -148,6 +151,7 @@ impl Worn {
         class: None,
         stamina_blows: 100,
         stamina_block: 100,
+        block: None,
     };
 }
 
@@ -688,6 +692,14 @@ impl Kit {
                 Slot::Extra => {}
             }
         }
+        // A shield's own block (GEAR.md 7): the guard it brought plays the shield's numbers.
+        if let (Some(g), Some(block), true) = (kit.guard, &worn.block, worn.guard.is_some()) {
+            for step in &mut kit.abilities[g as usize].steps {
+                if let crate::vocab::Verb::Guard(crate::vocab::Guard::Block(b)) = &mut step.verb {
+                    *b = block.clone();
+                }
+            }
+        }
         // The stages of every chain (MODES.md 4.3), then the knife of a gun (3.7): they
         // come with what was slotted and cost nothing.
         let mut k = 0;
@@ -910,6 +922,66 @@ mod tests {
             ..Worn::NONE
         });
         assert_eq!(slots.last(), Some(&(wall, Slot::Guard)));
+    }
+
+    #[test]
+    fn a_shield_s_own_block_plays_in_place_of_the_wall_s() {
+        use crate::vocab::{Block, Guard, Verb};
+        let pack = test_content::pack(TickRate::COMBAT);
+        let blade = pack.build("blade").unwrap().clone();
+        let wall = pack.find("shield_wall").unwrap();
+        let buckler = Block {
+            arc_deg: 90.0,
+            mitigation: 0.7,
+            stamina_per_hit: 8,
+            stops_projectiles: false,
+            move_speed_scale: 0.8,
+        };
+        let block_of = |sheet: &Sheet| {
+            let g = sheet.kit.guard.unwrap();
+            sheet.kit.abilities[g as usize]
+                .steps
+                .iter()
+                .find_map(|s| match &s.verb {
+                    Verb::Guard(Guard::Block(b)) => Some(b.clone()),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let plain = Sheet::wearing(
+            blade.clone(),
+            Worn {
+                guard: Some(wall),
+                ..Worn::NONE
+            },
+            &pack,
+            0,
+        );
+        let with = Sheet::wearing(
+            blade.clone(),
+            Worn {
+                guard: Some(wall),
+                block: Some(buckler.clone()),
+                ..Worn::NONE
+            },
+            &pack,
+            0,
+        );
+        assert_ne!(block_of(&plain), buckler);
+        assert_eq!(block_of(&with), buckler);
+        // The pack itself is untouched: the next body gets the wall as content wrote it.
+        assert_ne!(
+            block_of(&Sheet::wearing(
+                blade,
+                Worn {
+                    guard: Some(wall),
+                    ..Worn::NONE
+                },
+                &pack,
+                0
+            )),
+            buckler
+        );
     }
 
     #[test]

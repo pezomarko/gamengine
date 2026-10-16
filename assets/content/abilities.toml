@@ -714,6 +714,7 @@ name = "Greatsword"
 slot = "primary"
 cost = 2
 prop = "greatsword"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
 move_scale = 0.45
 interrupt = "on_stagger"
@@ -855,6 +856,7 @@ name = "Spear"
 slot = "primary"
 cost = 2
 prop = "spear"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 900
 move_scale = 0.6
 interrupt = "on_stagger"
@@ -871,12 +873,13 @@ name = "Bow"
 slot = "primary"
 cost = 2
 prop = "bow"
+ammo = "arrow"               # GEAR.md 7: one of the stack a shot, refused with none carried
 cooldown_ms = 1100
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 150
-projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 60, type = "pierce", knockback = 80, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 75, type = "pierce", knockback = 80, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 # The wand: a caster's one-hand primary, a quick bolt of force (blunt, no aspect, so any
 # build may take it; the elemental bolts stay the staff's), with a focus in the left
@@ -937,6 +940,7 @@ name = "Claymore"
 slot = "primary"
 cost = 2
 prop = "claymore"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1000
 move_scale = 0.5
 interrupt = "on_stagger"
@@ -951,6 +955,7 @@ name = "Greataxe"
 slot = "primary"
 cost = 2
 prop = "greataxe"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
 move_scale = 0.5
 interrupt = "on_stagger"
@@ -965,6 +970,7 @@ name = "Warhammer"
 slot = "primary"
 cost = 2
 prop = "warhammer"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1200
 move_scale = 0.45
 interrupt = "on_stagger"
@@ -979,6 +985,7 @@ name = "Scythe"
 slot = "primary"
 cost = 2
 prop = "scythe"
+heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
 move_scale = 0.5
 interrupt = "on_stagger"

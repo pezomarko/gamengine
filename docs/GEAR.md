@@ -198,10 +198,9 @@ The catalog's findings 4 and 5, in numbers rather than systems:
 
 - **A heavy blow** (`heavy = true` on the ability: greatsword, claymore, greataxe,
   warhammer, scythe, spear): blocked, it costs the blocker **twice** the guard's
-  `stamina_per_hit`; and once its windup has passed, **Stagger does not interrupt its
-  active frames** (`interrupt = "on_stagger"` reads the windup only). A shield wall
-  that eats three warhammer blows is out of stamina; a sword that taps a claymore's
-  swing no longer stops it. The 1.5 share of the edge stays.
+  `stamina_per_hit`; and once begun, **Stagger does not stop it** (as built: the windup
+  too, see 11). A shield wall that eats three warhammer blows is out of stamina; a sword
+  that taps a claymore's swing no longer stops it. The 1.5 share of the edge stays.
 - **The bow** gets an arrow stack (`arrow`, cap 60, the quartermaster's at 1 silver,
   as the balls) and 75 damage for 60, so it is a gun-mode alternative in the action
   mode rather than a free crossbow.
@@ -336,4 +335,26 @@ plays every one before the next.
   "burns last 60% as long on you", "blows cost 75% of their stamina"). Not done: ironwood's
   +10 stagger (a plain 100 for now), the dummy's reading of a status (the numbers are
   the proposal's, to tune in step 7).
+- **2026-10-16, step 5** (heavy blows, the arrow, the three shields). Content v18. An
+  ability may be **`heavy`** (the greatsword, the claymore, the greataxe, the warhammer,
+  the scythe, the spear): blocked, its blow costs the blocker twice the guard's
+  `stamina_per_hit` (`Swing.heavy` into `apply_damage`), and once begun a stagger no
+  longer stops it (`Mover::armoured`), on the zone (`apply_status`) and in the prediction
+  alike; a shock or the ground still does. (The proposal said "past its windup": a melee
+  blow lands on its first active tick, so that armour would have guarded nothing; a heavy
+  swing is committed from its first frame.) The
+  **bow** names `ammo = "arrow"` (`Ability::ammo_stack`: a firearm's `firearm.ammo`, else
+  the ability's own): the `arrow` stack (cap 60, the quartermaster's at 1 silver beside
+  the balls) fills the hand's reserve as a firearm's does (`set_stacks`), a shot takes one
+  at activation and is refused with none (`try_activate`), and the zone's reading of the
+  reserve (`RoundsLoaded`) tells the hub as it does for a reload; the bow's arrow is 75 for
+  60. The **three shields** carry their own `block` on the template (heater 150° / 0.8 /
+  12 / 0.5 and stops projectiles, as the wall; buckler 90° / 0.7 / 8 / 0.8, no
+  projectiles; tower 180° / 0.9 / 16 / 0.35), which `worn_of` carries in `Worn.block`
+  (`PROTOCOL_VERSION` 25) and `Kit::from_build` plays in place of the guard's verb. Not
+  done: a count of arrows on the action HUD (the bag shows the stack; the gun HUD's
+  numbers are the gun mode's), the helmets' difference (section 7 left them as looks).
+- **Step 6 (the shop) is skipped** by the director's word the same evening: "we skip
+  step 8 for now, good economy will come at later stage, this is provisional only"
+  (section 8's asks). The bots' asks stay the test fixtures they are.
 

@@ -97,6 +97,9 @@ each the key of a file in 2:
 | `[[material]]` | `status`, `chance`, `duration_ms`, `magnitude` | a catalyst's job (GEAR.md 6, 2026-10-16): on a weapon, its element's status on a blow that lands, at `chance` percent, for `duration_ms`, at `magnitude`; the status must be the element's own (fire burns, water chills, electric shocks, grass weakens, ground slows, air exposes); on an armour, a shield or a cape that status lasts 60% as long on the wearer |
 | | `stamina` | a frame's job: the stamina of the blows (a weapon) or of the blocks and the guard (a shield, an armour), percent of the cost, 25–100 |
 | | `ward` | a gem's job: an element by name, or `catalyst` for the item's own catalyst's; on an armour, a shield or a cape that element's status lasts half as long on the wearer, on a weapon half again as long on whoever the blow lands on |
+| `[[template]]` | `block` | a shield's own block (GEAR.md 7, 2026-10-16): `{ arc, mitigation, stamina_per_hit, stops_projectiles, move_speed_scale }`, the numbers the guard it brings plays in place of the guard ability's; a shield's alone |
+| `[[ability]]` | `heavy` | a heavy blow (GEAR.md 7, 2026-10-16; the two-handers): blocked, it costs the blocker twice the guard's stamina, and once its windup has passed a stagger does not stop it |
+| | `ammo` | the stack a shot draws one of (GEAR.md 7: the bow's `arrow`), by the stack template's key; refused with none carried; a firearm's is `firearm.ammo` |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | | `look` | an armour: `overlay` (the default) or `patch`, cloth painted into the official avatar's atlas (3.3); a patch covers nothing |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |

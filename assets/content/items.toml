@@ -303,6 +303,7 @@ layers = ["core", "frame", "gem"]
 model = "shield"
 held = "left"
 guard = "shield_wall"
+block = { arc = 150, mitigation = 0.8, stamina_per_hit = 12, stops_projectiles = true, move_speed_scale = 0.5 }   # the heater, as the wall itself
 
 # Two more shields (EQUIPMENT.md 10.7): KayKit's round and square shields, flat as
 # they come (the face along -Z), stood up with the face out, as the heater shield's is;
@@ -315,6 +316,7 @@ layers = ["core", "frame", "gem"]
 model = "buckler"
 held = "left"
 guard = "shield_wall"
+block = { arc = 90, mitigation = 0.7, stamina_per_hit = 8, stops_projectiles = false, move_speed_scale = 0.8 }   # narrow, cheap, quick
 fit = { turn = [-90, 0, 0], scale = 0.7 }
 
 [[template]]
@@ -325,6 +327,7 @@ layers = ["core", "frame", "gem"]
 model = "tower_shield"
 held = "left"
 guard = "shield_wall"
+block = { arc = 180, mitigation = 0.9, stamina_per_hit = 16, stops_projectiles = true, move_speed_scale = 0.35 }   # wide, dear, slow
 fit = { turn = [-90, 0, 0], scale = 0.85 }
 
 # A caster's focus (EQUIPMENT.md 5.4 and 5.6): worn in the left hand like a shield and by
@@ -366,6 +369,12 @@ id = "ball"               # the musket's: the root's AWP carries 30
 kind = "stack"
 layers = []
 cap = 30
+
+[[template]]
+id = "arrow"              # the bow's (GEAR.md 7): one a shot, none carried and it does not loose
+kind = "stack"
+layers = []
+cap = 60
 
 [[template]]
 id = "pistol_round"

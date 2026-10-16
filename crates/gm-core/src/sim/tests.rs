@@ -1347,6 +1347,161 @@ fn a_spot_near_somebody_is_free_and_on_the_ground() {
 /// the moment the zone is told; a bolt keeps the edge it was loosed with; the pulses of a
 /// status take none; a body in nothing is hit as before.
 #[test]
+fn a_heavy_blow_costs_a_blocker_twice_and_stands_through_a_stagger() {
+    use crate::vocab::{ApplyStatus, Guard, StackRule, StatusTarget, Verb};
+    // The attacker swings a hammer, heavy or not; the blocker holds a shield wall.
+    let fight = |heavy: bool| {
+        let pack = test_content::pack(RATE);
+        let hammer = pack.find("hammer").unwrap();
+        let wall = pack.find("shield_wall").unwrap();
+        let attacker = Build {
+            primary: hammer,
+            ..phase2_build(&pack)
+        };
+        let blocker = Build {
+            guard: Some(wall),
+            ..phase2_build(&pack)
+        };
+        let (world, mut zone, ids) = arena_with(vec![
+            (attacker, Vec3::new(0.0, 0.0, REST_Z), 0.0),
+            (blocker, Vec3::new(48.0, 0.0, REST_Z), 180.0),
+        ]);
+        let mut pack = zone.content.clone();
+        pack.abilities[hammer as usize].ability.heavy = heavy;
+        zone.retune(pack);
+        (world, zone, ids[0], ids[1])
+    };
+    let per_hit = |zone: &Zone, b: EntityId| {
+        let p = zone.player(b).unwrap();
+        let g = p.sheet.kit.guard.unwrap();
+        p.sheet.kit.abilities[g as usize]
+            .steps
+            .iter()
+            .find_map(|s| match &s.verb {
+                Verb::Guard(Guard::Block(blk)) => Some(blk.stamina_per_hit as f32),
+                _ => None,
+            })
+            .unwrap()
+    };
+    // Blocked: a plain blow costs the guard's stamina, a heavy one twice that.
+    let blocked = |heavy: bool| {
+        let (world, mut zone, a, b) = fight(heavy);
+        let full = zone.player(b).unwrap().mover.stamina;
+        run(
+            &mut zone,
+            &world,
+            &[
+                (a, input(0.0, 0.0, buttons::PRIMARY)),
+                (b, input(180.0, 0.0, buttons::GUARD)),
+            ],
+            2,
+        );
+        let raised = zone.player(b).unwrap().mover.stamina;
+        run(
+            &mut zone,
+            &world,
+            &[
+                (a, input(0.0, 0.0, 0)),
+                (b, input(180.0, 0.0, buttons::GUARD)),
+            ],
+            40,
+        );
+        let after = zone.player(b).unwrap().mover.stamina;
+        let p = zone.player(b).unwrap();
+        assert!(
+            p.health < 900,
+            "the blow landed through the wall for something"
+        );
+        (full, raised, raised - after, per_hit(&zone, b))
+    };
+    let (_, _, plain, per) = blocked(false);
+    let (_, _, heavy, _) = blocked(true);
+    assert!((plain - per).abs() < 0.01, "plain: {plain} of {per}");
+    assert!((heavy - 2.0 * per).abs() < 0.01, "heavy: {heavy} of {per}");
+
+    // Staggered in the windup: a plain swing stops, a heavy one lands all the same.
+    let staggered = |heavy: bool| {
+        let (world, mut zone, a, b) = fight(heavy);
+        run(
+            &mut zone,
+            &world,
+            &[
+                (a, input(0.0, 0.0, buttons::PRIMARY)),
+                (b, input(180.0, 0.0, 0)),
+            ],
+            1,
+        );
+        run(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, 0)), (b, input(180.0, 0.0, 0))],
+            4,
+        );
+        assert!(zone.player(a).unwrap().mover.script.is_some(), "swinging");
+        zone.apply_status(
+            a,
+            b,
+            &ApplyStatus {
+                status: Status::Stagger,
+                duration: 40,
+                magnitude: 1.0,
+                max_stacks: 1,
+                stacking: StackRule::Refresh,
+                target: StatusTarget::Hit,
+                dispellable: false,
+            },
+        );
+        let kept = zone.player(a).unwrap().mover.script.is_some();
+        run(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, 0)), (b, input(180.0, 0.0, 0))],
+            40,
+        );
+        (kept, 900 - zone.player(b).unwrap().health)
+    };
+    assert_eq!(staggered(false), (false, 0), "a plain swing is stopped");
+    let (kept, dealt) = staggered(true);
+    assert!(
+        kept && dealt > 0,
+        "a heavy swing lands: kept {kept}, dealt {dealt}"
+    );
+}
+
+#[test]
+fn an_arrow_is_spent_a_shot_and_none_means_no_shot() {
+    let pack = test_content::pack(RATE);
+    let bow = pack.find("crossbow").unwrap();
+    let (world, mut zone, ids) = arena_with(vec![(
+        bolt_build(&pack, "crossbow"),
+        Vec3::new(0.0, 0.0, REST_Z),
+        0.0,
+    )]);
+    let a = ids[0];
+    let mut pack = zone.content.clone();
+    pack.abilities[bow as usize].ability.ammo = "arrow".into();
+    zone.retune(pack);
+    // Two arrows carried: the reserve is two, as a firearm's would be.
+    zone.set_stacks(a, &[("arrow".to_string(), 2, None)], &[]);
+    assert_eq!(zone.player(a).unwrap().mover.guns[0].reserve, 2);
+    let shoot = |zone: &mut Zone| {
+        run(zone, &world, &[(a, input(0.0, 0.0, buttons::PRIMARY))], 2);
+        let started = zone.player(a).unwrap().mover.script.is_some();
+        // Past the shot and the cooldown.
+        run(zone, &world, &[(a, input(0.0, 0.0, 0))], 130);
+        started
+    };
+    assert!(shoot(&mut zone));
+    assert_eq!(zone.player(a).unwrap().mover.guns[0].reserve, 1);
+    assert!(shoot(&mut zone));
+    assert_eq!(zone.player(a).unwrap().mover.guns[0].reserve, 0);
+    assert_eq!(zone.projectiles().len() + 2, 2 + zone.projectiles().len());
+    // The quiver empty: the bow does not loose, and nothing is spent.
+    assert!(!shoot(&mut zone), "no arrow, no shot");
+    assert_eq!(zone.player(a).unwrap().mover.guns[0].reserve, 0);
+}
+
+#[test]
 fn a_catalyst_burns_a_landing_blow_and_the_wards_move_the_burn_s_length() {
     use crate::matrix::{Element, Gear, OnHit};
     use crate::vocab::{ApplyStatus, StackRule, StatusTarget};

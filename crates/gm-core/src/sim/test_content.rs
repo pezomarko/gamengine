@@ -212,6 +212,8 @@ fn ability(
         chain: None,
         firearm: None,
         range: 0.0,
+        heavy: false,
+        ammo: String::new(),
     }
 }
 
@@ -2053,7 +2055,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 Interrupt::OnStagger,
                 vec![(
                     150,
-                    projectile(r, 1600.0, 0.4, 2.0, packet(60, Pierce, 80.0, 10), vec![]),
+                    projectile(r, 1600.0, 0.4, 2.0, packet(75, Pierce, 80.0, 10), vec![]),
                 )],
                 r,
             ),
@@ -2597,6 +2599,22 @@ pub fn pack(rate: TickRate) -> ContentPack {
             },
         ),
     ];
+    // GEAR.md 7: the two-handers are heavy blows, the bow draws on its arrows.
+    for key in [
+        "greatsword",
+        "claymore",
+        "greataxe",
+        "warhammer",
+        "scythe",
+        "spear",
+    ] {
+        if let Some(i) = pack.find(key) {
+            pack.abilities[i as usize].ability.heavy = true;
+        }
+    }
+    if let Some(i) = pack.find("bow") {
+        pack.abilities[i as usize].ability.ammo = "arrow".into();
+    }
     pack
 }
 
