@@ -224,6 +224,38 @@ fn planar(word: u64) -> [[i32; 3]; 16] {
     out
 }
 
+/// Decode one block to RGBA8 texels in row-major order (`y * 4 + x`, as `bc1::decode_block`
+/// gives them), alpha 255.
+pub fn decode_block_rgba(block: &[u8; 8]) -> [[u8; 4]; 16] {
+    let texels = decode_block(u64::from_be_bytes(*block));
+    std::array::from_fn(|i| {
+        let (x, y) = (i % 4, i / 4);
+        let t = texels[x * 4 + y];
+        [t[0] as u8, t[1] as u8, t[2] as u8, 255]
+    })
+}
+
+/// Encode sixteen RGBA8 texels in row-major order as one block; alpha is ignored.
+pub fn encode_block_rgba(px: &[[u8; 4]; 16]) -> [u8; 8] {
+    encode_block(&column_major(px)).to_be_bytes()
+}
+
+/// The same with ETC1's modes alone (no T or H): what the client's composite uses, a few
+/// times faster on the blocks the cloth touches, at the quality ETC1 gives them.
+pub fn encode_block_rgba_fast(px: &[[u8; 4]; 16]) -> [u8; 8] {
+    encode_etc1_with(&column_major(px), true).0.to_be_bytes()
+}
+
+fn column_major(px: &[[u8; 4]; 16]) -> [[i32; 3]; 16] {
+    let mut cm = [[0i32; 3]; 16];
+    for (k, t) in cm.iter_mut().enumerate() {
+        let (x, y) = (k / 4, k % 4);
+        let p = px[y * 4 + x];
+        *t = [i32::from(p[0]), i32::from(p[1]), i32::from(p[2])];
+    }
+    cm
+}
+
 /// Decode one level of ETC2 RGB8 blocks to RGBA8 with alpha 255. `blocks` must hold
 /// `ceil(w / 4) × ceil(h / 4) × 8` bytes; a short buffer decodes as far as it goes.
 pub fn decode(blocks: &[u8], w: usize, h: usize) -> Vec<u8> {
@@ -347,7 +379,14 @@ fn fit_table(
 /// below `limit`: every table at the quantized mean, then the mean's neighbours at the best
 /// table and the two beside it. The first pass runs in full, so that the tables of the
 /// second are chosen well even when the mean itself is over the limit.
-fn fit_half(tex: &[[i32; 3]; 8], bits: u32, lo: [i32; 3], hi: [i32; 3], limit: i32) -> Option<Fit> {
+fn fit_half(
+    tex: &[[i32; 3]; 8],
+    bits: u32,
+    lo: [i32; 3],
+    hi: [i32; 3],
+    limit: i32,
+    quick: bool,
+) -> Option<Fit> {
     let mut sum = [0i32; 3];
     for p in tex {
         for (s, c) in sum.iter_mut().zip(p) {
@@ -371,7 +410,7 @@ fn fit_half(tex: &[[i32; 3]; 8], bits: u32, lo: [i32; 3], hi: [i32; 3], limit: i
         }
     }
     let found = best?;
-    if found.err == 0 {
+    if found.err == 0 || quick {
         return best.filter(|f| f.err < limit);
     }
     let tables = found.table.saturating_sub(1)..=(found.table + 1).min(7);
@@ -416,6 +455,12 @@ fn diff_range(anchor: [i32; 3], second: bool) -> ([i32; 3], [i32; 3]) {
 /// searched under the error the block as a whole still has to beat, so later candidates
 /// bail out early.
 fn encode_etc1(px: &[[i32; 3]; 16]) -> (u64, i32) {
+    encode_etc1_with(px, false)
+}
+
+/// The same, and with `quick` the mean alone as each half's base (no neighbours): the
+/// client's composite, a few times faster.
+fn encode_etc1_with(px: &[[i32; 3]; 16], quick: bool) -> (u64, i32) {
     let mut best = (0u64, i32::MAX);
     for flip in [false, true] {
         let halves: [[[i32; 3]; 8]; 2] =
@@ -434,10 +479,10 @@ fn encode_etc1(px: &[[i32; 3]; 16]) -> (u64, i32) {
             consider(&mut best, flip, true, f0, Some(f1));
         } else {
             let (lo, hi) = diff_range(f0.q, true);
-            let second = fit_half(&halves[1], 5, lo, hi, best.1 - f0.err);
+            let second = fit_half(&halves[1], 5, lo, hi, best.1 - f0.err, quick);
             consider(&mut best, flip, true, f0, second);
             let (lo, hi) = diff_range(f1.q, false);
-            if let Some(first) = fit_half(&halves[0], 5, lo, hi, best.1 - f1.err) {
+            if let Some(first) = fit_half(&halves[0], 5, lo, hi, best.1 - f1.err, quick) {
                 consider(&mut best, flip, true, first, Some(f1));
             }
         }
@@ -869,18 +914,19 @@ mod tests {
     }
 
     #[test]
-    fn a_megatexel_encodes_in_bounded_time() {
+    fn a_megatexel_encodes_at_the_recorded_quality() {
+        // The time it takes is gm-ingest's record (tests/ingest.rs, the official avatar):
+        // the browser build's gate greps this crate for std's clock.
         let (w, h) = (1024, 1024);
         let img = noisy(w, h);
-        let start = std::time::Instant::now();
         let blocks = encode(&img, w, h);
-        let took = start.elapsed();
         let db = psnr(&img, &decode(&blocks, w, h));
         println!(
-            "etc2 {w}×{h}: {took:?}, {db:.2} dB, {} bytes for {} raw ({:.1}:1)",
+            "etc2 {w}×{h}: {db:.2} dB, {} bytes for {} raw ({:.1}:1)",
             blocks.len(),
             img.len(),
             img.len() as f64 / blocks.len() as f64
         );
+        assert!(db > 30.0, "{db} dB");
     }
 }

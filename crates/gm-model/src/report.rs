@@ -91,3 +91,46 @@ pub fn verify(gmm: &[u8], frame: ArchetypeFrame) -> Result<Verified, Vec<String>
 /// finished), and the model when the upload was accepted.
 pub const WORKER_REPORT: &str = "report.json";
 pub const WORKER_MODEL: &str = "model.gmm";
+/// The ETC2 variant beside the model (MODELS.md 5.2), when the upload has one.
+pub const WORKER_ETC: &str = "model.etc.gmm";
+
+/// What an accepted upload is: the `.gmm` whose hash is the id, and the ETC2 variant of it
+/// when there is one (none for a cutout model).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Variants {
+    pub gmm: Vec<u8>,
+    pub etc: Option<Vec<u8>>,
+}
+
+/// Check a derived variant against the model it claims to come from (MODELS.md 6.2): it is
+/// read with the strict reader, is in its canonical encoding, is in `format`, names `id`
+/// as its base, and is the same model but for its atlas. Its texels are not compared to
+/// the original's: they are the worker's encoding of the same resampled image, and the
+/// worst a bad encoding can do is look wrong on phones.
+pub fn verify_variant(
+    original: &Model,
+    id: &ModelId,
+    format: crate::format::TextureFormat,
+    file: &[u8],
+) -> Result<Model, Vec<String>> {
+    let model =
+        Model::decode(file).map_err(|e| vec![format!("the variant cannot be stored: {e}")])?;
+    let mut v = Vec::new();
+    if model.texture_format != format {
+        v.push(format!(
+            "the variant is {}, not {}",
+            model.texture_format.name(),
+            format.name()
+        ));
+    }
+    if model.base.as_ref() != Some(id) {
+        v.push("the variant names another model as its base".to_string());
+    }
+    if !original.same_but_atlas(&model) {
+        v.push("the variant is not the model with another atlas".to_string());
+    }
+    if model.encode().ok().as_deref() != Some(file) {
+        v.push("the variant is not in its canonical encoding".to_string());
+    }
+    if v.is_empty() { Ok(model) } else { Err(v) }
+}
