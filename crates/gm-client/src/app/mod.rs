@@ -205,6 +205,8 @@ struct Scene {
     /// The script's aim (`--script fight`): the nearest living enemy as of the last frame,
     /// its id, position and velocity, and when it was seen.
     script_target: Option<(u32, Vec3, Vec3, Instant)>,
+    /// The script's walk: where it last checked its progress, and the side-step on.
+    script_stuck: ScriptStuck,
 }
 
 /// The map besides its BSP: its mesh until the renderer takes it, its palette, a map to

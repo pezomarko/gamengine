@@ -161,14 +161,36 @@ pub(super) const SCRIPT_MELEE_REACH: f32 = 84.0;
 
 pub(super) const SCRIPT_AREA_REACH: f32 = 150.0;
 
+/// The script walks straight at its enemy, and a wall between them stops it there for
+/// the run (the WebGL fight on a software GPU, 2026-10-16: no damage either way in 40 s).
+/// Every `SCRIPT_STUCK_TICKS` the eye is compared with where it was: under
+/// `SCRIPT_STUCK_MOVE` units on, the body side-steps for `SCRIPT_SIDESTEP_TICKS`, the
+/// other way than last time, with a jump at the start, and slides along the wall.
+pub(super) const SCRIPT_STUCK_TICKS: u32 = 32;
+
+pub(super) const SCRIPT_STUCK_MOVE: f32 = 24.0;
+
+pub(super) const SCRIPT_SIDESTEP_TICKS: u32 = 48;
+
+/// The script's memory of its walk: where the eye was at the last check and the tick of
+/// it, the tick a side-step lasts until, and which way it goes.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct ScriptStuck {
+    checked: Option<(Vec3, u32)>,
+    until: u32,
+    side: f32,
+}
+
 /// `--script fight` (WEB.md 8): face the nearest enemy and walk at it; in reach strike and
 /// use the first active (an area for most builds, which a guard does not turn away as it
 /// does a swing); further off loose the ranged secondary where the enemy will be. With
-/// nobody in sight, walk and turn. `target` is the enemy's position and velocity.
+/// nobody in sight, walk and turn. `target` is the enemy's position and velocity; a walk
+/// that gets nowhere side-steps (`ScriptStuck`).
 pub(super) fn fight_input(
     eye: Vec3,
     target: Option<(Vec3, Vec3)>,
     sim: &mut Sim,
+    stuck: &mut ScriptStuck,
     tick: u32,
 ) -> SimInput {
     let mut input = SimInput {
@@ -215,6 +237,24 @@ pub(super) fn fight_input(
             sim.yaw = (sim.yaw + 0.6).rem_euclid(360.0);
             sim.pitch = 0.0;
             input.yaw = sim.yaw;
+        }
+    }
+    if input.forward > 0.0 {
+        if tick < stuck.until {
+            input.side = stuck.side;
+            if tick + SCRIPT_SIDESTEP_TICKS == stuck.until {
+                input.buttons |= buttons::JUMP;
+            }
+        } else if let Some((was, then)) = stuck.checked {
+            if tick.wrapping_sub(then) >= SCRIPT_STUCK_TICKS {
+                if (eye - was).length() < SCRIPT_STUCK_MOVE {
+                    stuck.side = if stuck.side > 0.0 { -1.0 } else { 1.0 };
+                    stuck.until = tick + SCRIPT_SIDESTEP_TICKS;
+                }
+                stuck.checked = Some((eye, tick));
+            }
+        } else {
+            stuck.checked = Some((eye, tick));
         }
     }
     input
