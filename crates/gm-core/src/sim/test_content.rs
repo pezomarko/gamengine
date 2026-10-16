@@ -2049,7 +2049,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 57,
                 "Bow",
                 1100,
-                0,
+                20,
                 0,
                 0.6,
                 Interrupt::OnStagger,

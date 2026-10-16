@@ -357,4 +357,33 @@ plays every one before the next.
 - **Step 6 (the shop) is skipped** by the director's word the same evening: "we skip
   step 8 for now, good economy will come at later stage, this is provisional only"
   (section 8's asks). The bots' asks stay the test fixtures they are.
+- **2026-10-16, step 7** (measured). The arena test gained a match in worn gear
+  (`play_worn`: `Zone::set_worn` after the join, the class read from the sheet) and an
+  **open hands' table** (`open_hands`, ignored by default: each odd thing the open hands
+  allow against every preset in its own gear, both sides, `ARENA_SEEDS` × `ARENA_SECS`;
+  what a body wears is read as the hub reads it, `worn_of` over six template keys, so the
+  table measures the kit and the class, not an item's edge). Two seeds of 60 s, the share
+  of kills the odd case took:
+
+  | case | blade | ironclad | frostweaver | shade | mender | musketeer | shaman | mean |
+  |---|---|---|---|---|---|---|---|---|
+  | blade with a warhammer | 58% | 35% | 48% | 64% | 96% | 38% | 32% | 53% |
+  | blade with a tower shield | 56% | 19% | 67% | 60% | 100% | 54% | 47% | 58% |
+  | frostweaver in plate | 62% | 95% | 28% | 66% | 48% | 76% | 14% | 56% |
+  | ironclad with a bow | 74% | 31% | 18% | 62% | 57% | 88% | 19% | 50% |
+  | blade with a bow | 51% | 16% | 80% | 60% | 89% | 70% | 37% | 58% |
+  | shade with a greataxe | 38% | 16% | 48% | 52% | 98% | 40% | 54% | 49% |
+  | blade in cloth | 32% | 11% | 63% | 54% | 98% | 32% | 45% | 48% |
+
+  Every odd case sits in the 48–58% band but for the bow as first built: **an archer in
+  mail took 80% of its kills and an archer in plate 83%** (two seeds), whatever the
+  arrow's damage (74% and 77% at 60), and a slower draw (1.5 s) left the plate archer at
+  82%: a body that kites and never tires. **The draw costs stamina now, 20 a shot**
+  (`stamina = 20` on the bow; no other primary costs any): the archer blade is at 58% and
+  the archer ironclad at 50%, its plate's regen (0.75) being what tires it; 15 a shot left
+  them at 64% and 61%. The arrow stays 75. The presets in their own gear are the round
+  robin as it stood (one seed of 60 s): blade 53%, frostweaver 57%, ironclad 68%, mender
+  5% (the healer, as a duelist), musketeer 63%, shade 44%, shaman 60%; none of this PR's
+  work touched their kits, and the ironclad's 68% and the shade's 44% are the director's
+  to weigh. The mender's 100% rows above are the healer's as a duelist too.
 

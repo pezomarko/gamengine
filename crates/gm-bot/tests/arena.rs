@@ -403,6 +403,11 @@ fn open_hands() {
             worn("ironclad", "bow", "", "plate"),
         ),
         (
+            "blade with a bow",
+            "blade",
+            worn("blade", "bow", "", "mail_shirt"),
+        ),
+        (
             "shade with a greataxe",
             "shade",
             worn("shade", "greataxe", "", "cuirass"),

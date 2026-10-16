@@ -875,6 +875,7 @@ cost = 2
 prop = "bow"
 ammo = "arrow"               # GEAR.md 7: one of the stack a shot, refused with none carried
 cooldown_ms = 1100
+stamina = 20                 # GEAR.md 11, step 7: drawing tires; a plate archer without it took 83% of its kills
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
