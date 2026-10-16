@@ -354,7 +354,8 @@ async fn what_the_screens_lean_on() {
         hub.player_download(
             &PlayerRequest::ModelGet {
                 session: s,
-                model: [7; 32]
+                model: [7; 32],
+                format: gm_model::format::TEX_BC1_SRGB,
             },
             1 << 20
         )

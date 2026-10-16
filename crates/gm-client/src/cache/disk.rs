@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, SystemTime};
 
+use gm_model::format::{TextureFormat, stands_for};
 use gm_model::{Model, ModelId, id_from_hex, id_hex, model_id};
 
 use super::{FetchError, Loaded, MAX_IN_FLIGHT};
@@ -18,7 +19,9 @@ const STALE_TEMP: Duration = Duration::from_secs(600);
 
 /// Where model bytes come from when the disk does not have them.
 pub trait ModelSource: Send + Sync {
-    fn fetch(&self, id: &ModelId) -> Result<Vec<u8>, FetchError>;
+    /// The model's file for a client that samples `wanted` (MODELS.md 5.2): the variant in
+    /// that format when the source has one, the BC1 file otherwise.
+    fn fetch(&self, id: &ModelId, wanted: TextureFormat) -> Result<Vec<u8>, FetchError>;
 }
 
 /// A directory of ingested models indexed by their ids: the offline crowd's source.
@@ -47,7 +50,7 @@ impl DirSource {
 }
 
 impl ModelSource for DirSource {
-    fn fetch(&self, id: &ModelId) -> Result<Vec<u8>, FetchError> {
+    fn fetch(&self, id: &ModelId, _: TextureFormat) -> Result<Vec<u8>, FetchError> {
         let path = self
             .files
             .get(id)
@@ -70,6 +73,10 @@ struct DiskState {
 /// The disk cache: `<dir>/<id in hex>.gmm`, least recently used out first.
 pub struct DiskCache {
     dir: PathBuf,
+    /// The format this client fetches: a cached file must stand for its id in it
+    /// (`gm_model::format::stands_for`); one that does not (another GPU's variant) is
+    /// replaced.
+    wanted: TextureFormat,
     cap: u64,
     state: Mutex<DiskState>,
     /// One insertion at a time: making room and writing are one step, or four loaders would
@@ -87,10 +94,11 @@ struct DiskFile {
 
 impl DiskCache {
     /// Open (and create) the directory, clear stale temporary files and enforce the cap.
-    pub fn open(dir: &Path, cap: u64) -> std::io::Result<DiskCache> {
+    pub fn open(dir: &Path, cap: u64, wanted: TextureFormat) -> std::io::Result<DiskCache> {
         std::fs::create_dir_all(dir)?;
         let cache = DiskCache {
             dir: dir.to_path_buf(),
+            wanted,
             cap: cap.max(MIN_DISK_CAP),
             state: Mutex::new(DiskState {
                 total: 0,
@@ -128,8 +136,11 @@ impl DiskCache {
     pub fn read(&self, id: &ModelId) -> Option<Vec<u8>> {
         let path = self.path(id);
         let bytes = std::fs::read(&path).ok()?;
-        if model_id(&bytes) != *id {
-            log::warn!("cached model {} is corrupt; deleting it", id_hex(id));
+        if !stands_for(&bytes, id, self.wanted) {
+            log::warn!(
+                "cached model {} is corrupt or of another format; deleting it",
+                id_hex(id)
+            );
             if std::fs::remove_file(&path).is_ok() {
                 let mut st = self.state.lock().unwrap();
                 st.total = st.total.saturating_sub(bytes.len() as u64);
@@ -312,8 +323,8 @@ pub(super) fn load(id: ModelId, disk: &DiskCache, source: Option<&dyn ModelSourc
             let Some(source) = source else {
                 return Loaded::Refused(id);
             };
-            match source.fetch(&id) {
-                Ok(b) if model_id(&b) == id => {
+            match source.fetch(&id, disk.wanted) {
+                Ok(b) if stands_for(&b, &id, disk.wanted) => {
                     if let Err(e) = disk.insert(&id, &b) {
                         log::warn!("caching model {}: {e}", id_hex(&id));
                     }
@@ -363,8 +374,9 @@ impl Loader {
         dir: &Path,
         disk_cap: u64,
         source: Option<Arc<dyn ModelSource>>,
+        wanted: TextureFormat,
     ) -> std::io::Result<Loader> {
-        let disk = Arc::new(DiskCache::open(dir, disk_cap)?);
+        let disk = Arc::new(DiskCache::open(dir, disk_cap, wanted)?);
         let (jobs, job_rx) = mpsc::channel::<ModelId>();
         let (done_tx, done) = mpsc::channel::<Loaded>();
         let job_rx = Arc::new(Mutex::new(job_rx));

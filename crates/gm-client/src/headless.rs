@@ -38,11 +38,12 @@ pub fn run(opts: &Options) -> Result<(), Error> {
 
     let instance =
         wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
-    let gpu = Gpu::new(&instance, None, opts.software)?;
+    let gpu = Gpu::new(&instance, None, opts.software, opts.texture_format)?;
     let (w, h) = (opts.width.max(1), opts.height.max(1));
     let mut renderer = Renderer::new(&gpu, FORMAT, &mesh, (w, h));
     let mut avatars = Avatars::new(&gpu, &mut renderer.characters, opts, &bsp, None)?;
     let mut content = crate::content::Content::load(&crate::install_root().join(&opts.assets));
+    content.prefer(gpu.wanted);
     // The official avatars of the bundle (CONTENT.md 3.2), worn as the windowed client
     // wears them: a frame's look in an armour class before its mannequin.
     for frame in 0..4u8 {

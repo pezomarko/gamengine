@@ -2,6 +2,7 @@
 //! entity boxes in one more, and one per character (`characters`).
 
 use glam::{Mat4, Vec3};
+use gm_model::format::TextureFormat;
 
 use crate::Error;
 use crate::characters::{CharacterDraw, Characters};
@@ -18,25 +19,67 @@ pub struct Gpu {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub info: wgpu::AdapterInfo,
-    /// BC texture compression is available: model atlases upload as they are (MODELS.md 8).
+    /// BC texture compression is available: BC1 atlases upload as they are (MODELS.md 8).
     pub bc: bool,
+    /// ETC2 texture compression is available: ETC2 atlases upload as they are.
+    pub etc2: bool,
+    /// The atlas encoding this client fetches (MODELS.md 5.2): BC1 where the GPU samples
+    /// it, ETC2 where only ETC2 is sampled (nearly every phone), BC1 decoded on the CPU
+    /// where neither is. `--texture-format` overrides it for the fitting room and the gates.
+    pub wanted: TextureFormat,
+}
+
+/// What `--texture-format` asks for (BUILDING.md): the path a GPU would choose on its own,
+/// or one of the three forced, so that each is seen on one machine.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextureChoice {
+    #[default]
+    Auto,
+    /// BC1 fetched; uploaded as BC1 where the GPU has BC, decoded otherwise.
+    Bc1,
+    /// ETC2 fetched; uploaded as ETC2 where the GPU has ETC2, decoded otherwise.
+    Etc2,
+    /// BC1 fetched and decoded on the CPU, as a GPU with neither does.
+    Rgba,
+}
+
+impl TextureChoice {
+    pub fn parse(s: &str) -> Option<TextureChoice> {
+        match s {
+            "auto" => Some(TextureChoice::Auto),
+            "bc1" => Some(TextureChoice::Bc1),
+            "etc2" => Some(TextureChoice::Etc2),
+            "rgba" => Some(TextureChoice::Rgba),
+            _ => None,
+        }
+    }
 }
 
 impl Gpu {
+    /// Whether a chain in `format` goes up as it is (or is decoded on the CPU first).
+    pub fn uploads(&self, format: TextureFormat) -> bool {
+        match format {
+            TextureFormat::Bc1Srgb => self.bc,
+            TextureFormat::Etc2Srgb => self.etc2,
+        }
+    }
+
     /// Blocking, for programs with a thread to block (everything but a browser).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn new(
         instance: &wgpu::Instance,
         surface: Option<&wgpu::Surface<'_>>,
         software: bool,
+        choice: TextureChoice,
     ) -> Result<Gpu, Error> {
-        pollster::block_on(Gpu::request(instance, surface, software))
+        pollster::block_on(Gpu::request(instance, surface, software, choice))
     }
 
     pub async fn request(
         instance: &wgpu::Instance,
         surface: Option<&wgpu::Surface<'_>>,
         software: bool,
+        choice: TextureChoice,
     ) -> Result<Gpu, Error> {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -59,14 +102,39 @@ impl Gpu {
             info.driver,
             info.driver_info
         );
-        let bc = adapter
+        let has_bc = adapter
             .features()
             .contains(wgpu::Features::TEXTURE_COMPRESSION_BC);
-        if !bc {
-            log::warn!(
-                "no BC texture compression on this GPU: model atlases are decoded on the CPU"
-            );
-        }
+        let has_etc2 = adapter
+            .features()
+            .contains(wgpu::Features::TEXTURE_COMPRESSION_ETC2);
+        // What is uploaded as it is, and what is fetched (MODELS.md 5.2 and 8): the GPU's
+        // own formats, unless the flag forces one path.
+        let (bc, etc2, wanted) = match choice {
+            TextureChoice::Auto => (
+                has_bc,
+                has_etc2,
+                if has_bc || !has_etc2 {
+                    TextureFormat::Bc1Srgb
+                } else {
+                    TextureFormat::Etc2Srgb
+                },
+            ),
+            TextureChoice::Bc1 => (has_bc, false, TextureFormat::Bc1Srgb),
+            TextureChoice::Etc2 => (false, has_etc2, TextureFormat::Etc2Srgb),
+            TextureChoice::Rgba => (false, false, TextureFormat::Bc1Srgb),
+        };
+        log::info!(
+            "texture compression: BC {} ETC2 {}; atlases fetched as {}, uploaded {}",
+            if has_bc { "yes" } else { "no" },
+            if has_etc2 { "yes" } else { "no" },
+            wanted.name(),
+            match (bc, etc2) {
+                (true, _) if wanted == TextureFormat::Bc1Srgb => "as BC1",
+                (_, true) if wanted == TextureFormat::Etc2Srgb => "as ETC2",
+                _ => "decoded on the CPU",
+            }
+        );
         // The renderer stays inside the downlevel limits (PLAN.md 11.2); WebGL2 has a
         // smaller set of its own (no storage buffers, no compute), and asking it for more
         // fails the request.
@@ -79,10 +147,15 @@ impl Gpu {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("gm-client"),
-                required_features: if bc {
-                    wgpu::Features::TEXTURE_COMPRESSION_BC
-                } else {
-                    wgpu::Features::empty()
+                required_features: {
+                    let mut f = wgpu::Features::empty();
+                    if bc {
+                        f |= wgpu::Features::TEXTURE_COMPRESSION_BC;
+                    }
+                    if etc2 {
+                        f |= wgpu::Features::TEXTURE_COMPRESSION_ETC2;
+                    }
+                    f
                 },
                 required_limits: limits,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
@@ -97,6 +170,8 @@ impl Gpu {
             queue,
             info,
             bc,
+            etc2,
+            wanted,
         })
     }
 }

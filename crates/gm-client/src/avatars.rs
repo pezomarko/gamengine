@@ -11,6 +11,7 @@ use gm_core::trace::{CollisionWorld, Hull};
 use gm_core::vocab::Status;
 use gm_model::Model;
 use gm_model::anim::{Animator, armour_weight};
+use gm_model::format::TextureFormat;
 use gm_model::mannequin::{self, ARMOUR_TINTS, MANNEQUIN_TEXTURE_SIZE, Shape};
 use gm_model::{ModelId, Patch, Pose, patch, rig};
 
@@ -124,6 +125,8 @@ struct BodyAtlas {
     tex_w: u16,
     tex_h: u16,
     texture: Vec<u8>,
+    /// The chain's encoding (MODELS.md 5.2): what the composite is made in.
+    format: TextureFormat,
 }
 
 /// A body's atlas with an outfit of patches in it, on the GPU.
@@ -255,6 +258,7 @@ impl Avatars {
                 opts.cache_mb * 1024 * 1024,
                 opts.vram_mb as usize * 1024 * 1024,
                 source,
+                gpu.wanted,
             )
             .map_err(|e| format!("opening the model cache {}: {e}", dir.display()))?;
             log::info!(
@@ -271,7 +275,7 @@ impl Avatars {
         #[cfg(target_arch = "wasm32")]
         let cache = source.map(|source| {
             ModelCache::with_loader(
-                crate::cache::Loader::new(opts.cache_mb * 1024 * 1024, Some(source)),
+                crate::cache::Loader::new(opts.cache_mb * 1024 * 1024, Some(source), gpu.wanted),
                 opts.vram_mb as usize * 1024 * 1024,
             )
         });
@@ -325,6 +329,7 @@ impl Avatars {
                 tex_w: model.tex_w,
                 tex_h: model.tex_h,
                 texture: model.texture.clone(),
+                format: model.texture_format,
             },
         );
     }
@@ -383,8 +388,10 @@ impl Avatars {
             .flatten()
             .filter_map(|i| self.patches.get(*i))
             .collect();
-        patch::composite(&mut texture, body.tex_w, body.tex_h, &worn);
-        if let Some(made) = characters.add_composite(gpu, slot, body.tex_w, body.tex_h, &texture) {
+        patch::composite_in(&mut texture, body.tex_w, body.tex_h, &worn, body.format);
+        if let Some(made) =
+            characters.add_composite(gpu, slot, body.tex_w, body.tex_h, &texture, body.format)
+        {
             let ms = start.elapsed().as_secs_f32() * 1000.0;
             self.composited += 1;
             self.composite_ms += ms;

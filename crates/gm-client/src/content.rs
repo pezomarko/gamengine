@@ -7,7 +7,8 @@
 use std::collections::HashMap;
 
 use gm_model::atlas::Atlas;
-use gm_model::manifest::Manifest;
+use gm_model::format::TextureFormat;
+use gm_model::manifest::{Manifest, Variant};
 use gm_model::{Model, Patch};
 
 /// Where the bundle's files are, under the assets: `<assets>/built/content`.
@@ -65,6 +66,9 @@ pub struct Content {
     inbox: Inbox<String>,
     /// What was said about the bundle, for the report.
     pub note: String,
+    /// The atlas encoding this client fetches (MODELS.md 5.2): the manifest names a
+    /// variant beside a model, and `prefer` says which is read.
+    wanted: TextureFormat,
 }
 
 impl Content {
@@ -84,6 +88,29 @@ impl Content {
             #[cfg(target_arch = "wasm32")]
             inbox: Default::default(),
             note: why.to_string(),
+            wanted: TextureFormat::Bc1Srgb,
+        }
+    }
+
+    /// Fetch the ETC2 variants (or the BC1 files) from here on: what the GPU samples.
+    pub fn prefer(&mut self, wanted: TextureFormat) {
+        self.wanted = wanted;
+    }
+
+    /// The file to read for a model and the hash it must have: the variant in the wanted
+    /// format when the manifest names one, the original otherwise.
+    fn pick(&self, file: &str, sha: [u8; 32], etc2: Option<Variant>) -> (String, [u8; 32]) {
+        match (self.wanted, etc2) {
+            (TextureFormat::Etc2Srgb, Some(v)) => (self.wanted.file_of(file), v.sha256),
+            _ => (file.to_string(), sha),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn pick_sha(&self, sha: [u8; 32], etc2: Option<Variant>) -> [u8; 32] {
+        match (self.wanted, etc2) {
+            (TextureFormat::Etc2Srgb, Some(v)) => v.sha256,
+            _ => sha,
         }
     }
 
@@ -276,7 +303,7 @@ impl Content {
             self.props.insert(key.to_string(), PropState::Missing);
             return None;
         };
-        let (file, sha) = (entry.file.clone(), entry.sha256);
+        let (file, sha) = self.pick(&entry.file, entry.sha256, entry.etc2);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let path = std::path::Path::new(&self.base).join(&file);
@@ -338,7 +365,7 @@ impl Content {
             self.avatars[f][a] = Some(PropState::Missing);
             return None;
         };
-        let (file, sha) = (entry.file.clone(), entry.sha256);
+        let (file, sha) = self.pick(&entry.file, entry.sha256, entry.etc2);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let path = std::path::Path::new(&self.base).join(&file);
@@ -397,7 +424,7 @@ impl Content {
             self.overlays.insert(at, PropState::Missing);
             return None;
         };
-        let (file, sha) = (entry.file.clone(), entry.sha256);
+        let (file, sha) = self.pick(&entry.file, entry.sha256, entry.etc2);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let path = std::path::Path::new(&self.base).join(&file);
@@ -618,7 +645,7 @@ impl Content {
                 .manifest
                 .as_ref()
                 .and_then(|m| m.overlay(&key, frame))
-                .map(|e| e.sha256)
+                .map(|e| self.pick_sha(e.sha256, e.etc2))
                 .unwrap_or([0; 32]);
             let state = match bytes {
                 Some(bytes) => Self::decoded_overlay(&key, frame, &bytes, sha, &mut load),
@@ -641,7 +668,7 @@ impl Content {
                 .manifest
                 .as_ref()
                 .and_then(|m| m.avatar(frame, armour))
-                .map(|e| e.sha256)
+                .map(|e| self.pick_sha(e.sha256, e.etc2))
                 .unwrap_or([0; 32]);
             let state = match bytes {
                 Some(bytes) => Self::decoded_body(frame, armour, &bytes, sha, &mut load),
@@ -657,7 +684,7 @@ impl Content {
             .manifest
             .as_ref()
             .and_then(|m| m.prop(&key))
-            .map(|p| p.sha256)
+            .map(|p| self.pick_sha(p.sha256, p.etc2))
             .unwrap_or([0; 32]);
         let state = match bytes {
             Some(bytes) => Self::decoded(&key, &bytes, sha, &mut load),

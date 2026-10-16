@@ -418,7 +418,12 @@ impl ApplicationHandler for App {
                 .create_surface(window.clone())
                 .map_err(Error::from)
                 .and_then(|surface| {
-                    let gpu = Gpu::new(&instance, Some(&surface), self.opts.software)?;
+                    let gpu = Gpu::new(
+                        &instance,
+                        Some(&surface),
+                        self.opts.software,
+                        self.opts.texture_format,
+                    )?;
                     self.activate(window.clone(), surface, gpu)
                 });
             if let Err(e) = result {
@@ -430,6 +435,7 @@ impl ApplicationHandler for App {
         {
             let slot = self.web.pending_gpu.clone();
             let software = self.opts.software;
+            let choice = self.opts.texture_format;
             wasm_bindgen_futures::spawn_local(async move {
                 let made = async {
                     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
@@ -443,7 +449,7 @@ impl ApplicationHandler for App {
                     let surface = instance
                         .create_surface(window.clone())
                         .map_err(|e| e.to_string())?;
-                    let gpu = Gpu::request(&instance, Some(&surface), software)
+                    let gpu = Gpu::request(&instance, Some(&surface), software, choice)
                         .await
                         .map_err(|e| e.to_string())?;
                     Ok((surface, gpu))

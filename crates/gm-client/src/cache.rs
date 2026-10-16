@@ -6,6 +6,8 @@
 
 use std::collections::{HashMap, VecDeque};
 
+#[cfg(not(target_arch = "wasm32"))]
+use gm_model::format::TextureFormat;
 use gm_model::{Model, ModelId};
 use web_time::{Duration, Instant};
 
@@ -109,9 +111,10 @@ impl ModelCache {
         disk_cap: u64,
         vram_cap: usize,
         source: Option<std::sync::Arc<dyn ModelSource>>,
+        wanted: TextureFormat,
     ) -> std::io::Result<ModelCache> {
         Ok(ModelCache::with_loader(
-            Loader::new(dir, disk_cap, source)?,
+            Loader::new(dir, disk_cap, source, wanted)?,
             vram_cap,
         ))
     }
@@ -225,7 +228,7 @@ impl ModelCache {
             let Some((id, model)) = self.uploads.pop_front() else {
                 break;
             };
-            let need = model_gpu_bytes(&model, gpu.bc);
+            let need = model_gpu_bytes(&model, gpu.uploads(model.texture_format));
             if !self.make_room(need, characters) {
                 // Everything loaded is in view: the nearest wearers keep their models and
                 // this one stays a mannequin for now.
@@ -396,7 +399,7 @@ mod tests {
     #[test]
     fn the_cap_holds_after_every_insert_and_the_oldest_go_first() {
         let dir = temp_dir("cap");
-        let cache = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let cache = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         let size = 1024 * 1024;
         let mut ids = Vec::new();
         for i in 0..40u8 {
@@ -428,7 +431,7 @@ mod tests {
     #[test]
     fn use_refreshes_a_file_and_pins_go_last() {
         let dir = temp_dir("lru");
-        let cache = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let cache = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         let size = 2 * 1024 * 1024;
         let files: Vec<(ModelId, Vec<u8>)> = (0..8u8).map(|i| blob(i, size)).collect();
         for (i, (id, bytes)) in files.iter().enumerate() {
@@ -437,7 +440,7 @@ mod tests {
         }
         // The cache is full (8 × 2 MiB). The oldest is pinned; the second oldest is read.
         cache.pin(&files[0].0);
-        let reopened = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let reopened = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         reopened.pin(&files[0].0);
         assert!(reopened.read(&files[1].0).is_some());
         // Two more arrive: the two oldest that are neither pinned nor just used must go.
@@ -463,7 +466,7 @@ mod tests {
     #[test]
     fn a_corrupt_file_is_deleted_and_stale_temporaries_are_cleared() {
         let dir = temp_dir("corrupt");
-        let cache = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let cache = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         let (id, bytes) = blob(1, 4096);
         cache.insert(&id, &bytes).unwrap();
         assert_eq!(cache.read(&id), Some(bytes.clone()));
@@ -485,7 +488,7 @@ mod tests {
         f.set_modified(SystemTime::now() - Duration::from_secs(3600))
             .unwrap();
         std::fs::write(dir.join("notes.txt"), b"keep me").unwrap();
-        let reopened = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let reopened = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         assert!(!stale.exists());
         assert!(dir.join("notes.txt").exists());
         assert_eq!(reopened.total(), 0);
@@ -505,8 +508,8 @@ mod tests {
     #[test]
     fn two_caches_on_one_directory_keep_the_cap() {
         let dir = temp_dir("shared");
-        let a = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
-        let b = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let a = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
+        let b = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         for i in 0..40u8 {
             let (id, bytes) = blob(i, 1024 * 1024);
             if i % 2 == 0 { &a } else { &b }
@@ -527,7 +530,7 @@ mod tests {
     #[test]
     fn concurrent_loaders_never_overshoot_the_cap() {
         let dir = temp_dir("threads");
-        let cache = Arc::new(DiskCache::open(&dir, MIN_DISK_CAP).unwrap());
+        let cache = Arc::new(DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap());
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         // A watcher samples the directory while eight threads fill it three times over.
         let watcher = {
@@ -580,7 +583,7 @@ mod tests {
     struct Down(AtomicU64);
 
     impl ModelSource for Down {
-        fn fetch(&self, _: &ModelId) -> Result<Vec<u8>, FetchError> {
+        fn fetch(&self, _: &ModelId, _: TextureFormat) -> Result<Vec<u8>, FetchError> {
             self.0.fetch_add(1, Ordering::Relaxed);
             Err(FetchError::Failed("the hub is down".into()))
         }
@@ -590,7 +593,14 @@ mod tests {
     fn a_failing_fetch_waits_twice_as_long_each_time_and_stops_when_nobody_wears_the_model() {
         let dir = temp_dir("backoff");
         let source = Arc::new(Down(AtomicU64::new(0)));
-        let mut cache = ModelCache::new(&dir, MIN_DISK_CAP, 1 << 20, Some(source.clone())).unwrap();
+        let mut cache = ModelCache::new(
+            &dir,
+            MIN_DISK_CAP,
+            1 << 20,
+            Some(source.clone()),
+            TextureFormat::Bc1Srgb,
+        )
+        .unwrap();
         let id = [5u8; 32];
         let mut now = Instant::now();
         let mut delays = Vec::new();
@@ -660,6 +670,8 @@ mod tests {
             tex_w: 64,
             tex_h: 64,
             texture: vec![0; gm_model::format::texture_bytes(64, 64)],
+            texture_format: gm_model::format::TextureFormat::Bc1Srgb,
+            base: None,
         };
         let bytes = model.encode().unwrap();
         (model_id(&bytes), bytes, model)
@@ -672,7 +684,7 @@ mod tests {
     }
 
     impl ModelSource for Gated {
-        fn fetch(&self, _: &ModelId) -> Result<Vec<u8>, FetchError> {
+        fn fetch(&self, _: &ModelId, _: TextureFormat) -> Result<Vec<u8>, FetchError> {
             let _ = self.go.lock().unwrap().recv();
             self.answer
                 .clone()
@@ -693,7 +705,14 @@ mod tests {
                 go: Mutex::new(gate),
                 answer,
             });
-            let mut cache = ModelCache::new(&dir, MIN_DISK_CAP, 1 << 24, Some(source)).unwrap();
+            let mut cache = ModelCache::new(
+                &dir,
+                MIN_DISK_CAP,
+                1 << 24,
+                Some(source),
+                TextureFormat::Bc1Srgb,
+            )
+            .unwrap();
             let now = Instant::now();
             cache.frame += 1;
             cache.want(&id, 1.0);
@@ -744,7 +763,7 @@ mod tests {
     struct MapSource(HashMap<ModelId, Vec<u8>>);
 
     impl ModelSource for MapSource {
-        fn fetch(&self, id: &ModelId) -> Result<Vec<u8>, FetchError> {
+        fn fetch(&self, id: &ModelId, _: TextureFormat) -> Result<Vec<u8>, FetchError> {
             self.0
                 .get(id)
                 .cloned()
@@ -755,7 +774,7 @@ mod tests {
     #[test]
     fn a_load_verifies_the_hash_before_parsing_and_fills_the_disk() {
         let dir = temp_dir("load");
-        let disk = DiskCache::open(&dir, MIN_DISK_CAP).unwrap();
+        let disk = DiskCache::open(&dir, MIN_DISK_CAP, TextureFormat::Bc1Srgb).unwrap();
         let (id, garbage) = blob(7, 2000);
         // The source answers with other bytes than were asked for.
         let mut lying = HashMap::new();

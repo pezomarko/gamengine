@@ -226,13 +226,21 @@ async fn download(line: &Line, req: &PlayerRequest, max: usize) -> Result<Vec<u8
 }
 
 impl WebSource for HubSource {
-    fn fetch(&self, id: ModelId) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, FetchError>>>> {
+    fn fetch(
+        &self,
+        id: ModelId,
+        wanted: gm_model::format::TextureFormat,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, FetchError>>>> {
         let line = self.line.clone();
         Box::pin(async move {
             let Some(session) = line.session.get() else {
                 return Err(FetchError::Failed("not logged in".into()));
             };
-            let req = PlayerRequest::ModelGet { session, model: id };
+            let req = PlayerRequest::ModelGet {
+                session,
+                model: id,
+                format: wanted as u8,
+            };
             // A load slot must come back: a stalled stream would otherwise hold one of the
             // four for good.
             match super::timeout_ms(
