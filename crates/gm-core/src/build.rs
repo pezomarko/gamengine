@@ -7,9 +7,11 @@ use crate::vocab::{
     Ability, ArchetypeFrame, DamageType, Guard, Mode, MoveKind, MoveSelf, Riposte, Trigger, Verb,
 };
 
-/// The kit's budget (MATRIX.md 9): armour, a second aspect and the abilities may cost at
-/// most this many points. Attributes are not in it: they come from `Attributes::FREE_POINTS`.
-pub const BUDGET: u32 = 40;
+/// The kit's budget (MATRIX.md 9): a second aspect and the abilities may cost at most this
+/// many points (40 until 2026-10-16, when the armour class, 0 to 12 of it, moved onto the
+/// chest piece, GEAR.md 3: 34 keeps every preset as it was). Attributes are not in it: they
+/// come from `Attributes::FREE_POINTS`.
+pub const BUDGET: u32 = 34;
 /// Second aspect cost (MATRIX.md 5).
 pub const SECOND_ASPECT_COST: u32 = 10;
 pub const MAX_ACTIVES: usize = 4;
@@ -127,12 +129,18 @@ pub struct Worn {
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
+    /// The armour class the chest piece gives (GEAR.md 3): the robe cloth, the cuirass
+    /// leather, the mail shirt mail, the plate plate; cloth with nothing on the chest. Under
+    /// a hub it is always said; `None` is a body no hub dresses (a creature, a companion, a
+    /// bot of a zone without a hub, a test), which is in its build's class.
+    pub class: Option<ArmourClass>,
 }
 
 impl Worn {
     pub const NONE: Worn = Worn {
         primary: None,
         guard: None,
+        class: None,
     };
 }
 
@@ -249,15 +257,17 @@ impl core::fmt::Display for ContentError {
 impl core::error::Error for ContentError {}
 
 impl Build {
-    /// Kit points spent (MATRIX.md 9): armour, the second aspect, the abilities.
+    /// Kit points spent (MATRIX.md 9): the second aspect and the abilities. (The armour
+    /// class cost 0 to 12 until 2026-10-16; it is the chest piece's now, GEAR.md 3, and
+    /// `armour` is what a body no hub dresses fights in.)
     pub fn cost(&self, pack: &ContentPack) -> u32 {
         let ability = |i: u16| pack.abilities.get(i as usize).map_or(0, |a| a.cost as u32);
-        self.armour.cost()
-            + if self.aspects.count() >= 2 {
-                SECOND_ASPECT_COST
-            } else {
-                0
-            }
+        let aspects = if self.aspects.count() >= 2 {
+            SECOND_ASPECT_COST
+        } else {
+            0
+        };
+        aspects
             + ability(self.primary)
             + ability(self.secondary)
             + self.guard.map_or(0, ability)
@@ -767,6 +777,10 @@ pub struct Sheet {
     pub build: Build,
     /// What the kit was compiled with (GEAR.md 2): nothing, for a creature or a companion.
     pub worn: Worn,
+    /// The armour class the body is in (GEAR.md 3): the worn chest piece's, else the
+    /// build's. Everything the class does (MATRIX.md 4: speed, regen, the triangle, the
+    /// look) reads this, never `build.armour`.
+    pub class: ArmourClass,
     pub kit: Kit,
     pub derived: Derived,
     /// Build points left after the kit; informational.
@@ -782,9 +796,11 @@ impl Sheet {
     /// A body wearing `worn` (GEAR.md 2): the kit the worn things bring over the build's.
     /// The zone and the owning client both build their sheet here, from the same two.
     pub fn wearing(build: Build, worn: Worn, pack: &ContentPack, team: u8) -> Sheet {
+        let class = worn.class.unwrap_or(build.armour);
         Sheet {
             kit: Kit::from_build(&build, &worn, pack),
-            derived: build.derived(),
+            derived: Derived::compute(build.attributes, build.frame, class),
+            class,
             build,
             worn,
             team,
@@ -843,6 +859,7 @@ mod tests {
             Worn {
                 primary: Some(hammer),
                 guard: Some(wall),
+                class: None,
             },
             &pack,
             0,
@@ -866,8 +883,44 @@ mod tests {
         let slots = musketeer.kit_slots(&Worn {
             primary: None,
             guard: Some(wall),
+            class: None,
         });
         assert_eq!(slots.last(), Some(&(wall, Slot::Guard)));
+    }
+
+    #[test]
+    fn the_chest_piece_s_class_is_the_body_s_and_costs_no_points() {
+        let pack = test_content::pack(TickRate::COMBAT);
+        let blade = pack.build("blade").unwrap().clone();
+        assert_eq!(blade.armour, ArmourClass::Mail);
+        // In nothing a hub dresses: the build's class. Under a hub, the chest's: a blade in
+        // plate is slower and regenerates less, in cloth it is quicker (MATRIX.md 4).
+        let bare = Sheet::new(blade.clone(), &pack, 0);
+        assert_eq!(bare.class, ArmourClass::Mail);
+        let dressed = |class| {
+            Sheet::wearing(
+                blade.clone(),
+                Worn {
+                    class: Some(class),
+                    ..Worn::NONE
+                },
+                &pack,
+                0,
+            )
+        };
+        let plate = dressed(ArmourClass::Plate);
+        let cloth = dressed(ArmourClass::Cloth);
+        assert_eq!(
+            (plate.class, cloth.class),
+            (ArmourClass::Plate, ArmourClass::Cloth)
+        );
+        assert!(plate.derived.max_speed < bare.derived.max_speed);
+        assert!(cloth.derived.max_speed > bare.derived.max_speed);
+        assert!(plate.derived.stamina_regen < cloth.derived.stamina_regen);
+        // The class is off the kit's bill: a build in plate costs what the same in cloth does.
+        let mut heavy = blade.clone();
+        heavy.armour = ArmourClass::Plate;
+        assert_eq!(heavy.cost(&pack), blade.cost(&pack));
     }
 
     #[test]
@@ -936,8 +989,10 @@ mod tests {
         let mut b = base.clone();
         b.attributes.str_ -= 1;
         assert_eq!(b.validate(&pack), Ok(()));
+        // (The armour class is off the kit's bill since GEAR.md 3: a second aspect is
+        // what pushes four plain actives over.)
         let mut b = base.clone();
-        b.armour = ArmourClass::Plate;
+        b.aspects = Aspects::two(Element::Water, Element::Fire);
         b.actives = (0..pack.abilities.len() as u16)
             .filter(|&i| {
                 pack.abilities[i as usize].slot == Slot::Active

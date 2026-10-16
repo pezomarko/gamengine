@@ -286,4 +286,22 @@ plays every one before the next.
   guard (`guard = "shield_wall"`; the focus `brace`; CONTENT.md 3). Not done in this
   step: the K page's words for the primary slot (it still says `weapon`), and the look
   gate's swing of a bought mace (the hub tests wear and the content tests derive).
+- **2026-10-16, step 3** (the class on the chest). `Worn.class: Option<ArmourClass>`, said
+  by the zone for every body a hub dresses (`worn_of`: the chest template's `class`, cloth
+  for none), `Sheet.class` = the worn class else the build's, and everything the class
+  does reads the sheet: the derived stats, the triangle (`DefenderStats.armour_class`),
+  the body's look on the wire (`SpawnInfo.armour`), the minds (`gm-ai`), the HUD's
+  portrait, the equipment ribbon. `Build::cost` no longer bills the class and
+  `ArmourClass::cost` is gone; `BUDGET` 34; `Build.armour` stays as the class in nothing
+  a hub dresses (MATRIX.md 4: the arena's presets, the bots, the creatures), so no stored
+  build and no test harness changed. Templates: `class` on `robe` (cloth) and `cuirass`
+  (leather), and two new chest pieces, **`mail_shirt`** and **`plate`**, numbers without a
+  mesh or a patch (none in the free packs; the director: patches first, meshes later, and
+  a patch too wants a cut to bake from): the class shows in the gait and the mannequin's
+  tint, and a striker in the mail shirt wears the official avatar. Content v16. The
+  selector's ribbon says the frame without a class (`colossus  |  ground  |  action
+  mode`), the hub's build line likewise (`ironclad: colossus`), and the equipment window
+  says the class the body is in. The K page lost the class row. Not done: a stall keeper's
+  mannequin is still tinted by its build's class (the hub's stall list has no chest), and
+  the K page's derived preview is computed in the class the body is in now.
 

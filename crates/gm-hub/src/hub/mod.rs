@@ -1104,12 +1104,12 @@ fn econ_err(e: EconError) -> HubError {
     }
 }
 
-/// A build as a person is told it (PARTY.md 7): the content's name for it with its frame
-/// and armour, and the role a mind plays it in (the same reading the zone's minds make).
-/// The hub says both, so that no client works them out. Nothing for a build the content
-/// no longer has (a sheet is made of it, and a sheet is made of what the content says).
+/// A build as a person is told it (PARTY.md 7): the content's name for it with its frame,
+/// and the role a mind plays it in (the same reading the zone's minds make). The hub says
+/// both, so that no client works them out. Nothing for a build the content no longer has
+/// (a sheet is made of it, and a sheet is made of what the content says). The armour class
+/// left the line on 2026-10-16: it is the chest piece's (GEAR.md 3), not the build's.
 fn build_words(content: &ContentPack, build: &Build) -> Option<(String, String)> {
-    use gm_core::matrix::ArmourClass;
     use gm_core::vocab::ArchetypeFrame;
     build.validate(content).ok()?;
     let name = content
@@ -1123,15 +1123,9 @@ fn build_words(content: &ContentPack, build: &Build) -> Option<(String, String)>
         ArchetypeFrame::Caster => "caster",
         ArchetypeFrame::Infiltrator => "infiltrator",
     };
-    let armour = match build.armour {
-        ArmourClass::Cloth => "cloth",
-        ArmourClass::Leather => "leather",
-        ArmourClass::Mail => "mail",
-        ArmourClass::Plate => "plate",
-    };
     let sheet = gm_core::build::Sheet::new(build.clone(), content, 1);
     let role = gm_ai::Role::of(&sheet).name();
-    Some((format!("{name}: {frame} in {armour}"), role.to_string()))
+    Some((format!("{name}: {frame}"), role.to_string()))
 }
 
 /// What a build's hands hold (ITEMS.md 2): the props of its slotted abilities, in kit

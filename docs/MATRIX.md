@@ -58,17 +58,22 @@ Mass divides knockback taken. Mobility multiplies move speed.
 
 ## 4. Armour class
 
-A build choice. (It was to come from the worn gear, with the build points refunded. Phase 11
-gave gear its edge and left the class with the build: ITEMS.md 9 says what moving it would
-cost. **GEAR.md, proposed 2026-10-16**, moves it onto the worn chest piece and the
-primary and the guard onto the worn hands.)
+**The worn chest piece's** (GEAR.md 3, built 2026-10-16): the robe is cloth, the cuirass
+leather, the mail shirt mail, the plate plate, and a body with nothing on the chest is in
+cloth. The class costs no build points: a thing that is bought, traded and taken off cannot
+(PLAN.md 3.4: gear is balanced by its penalties, which are the speed and the regen below).
+A body no hub dresses (a creature, a companion, a bot of a zone without a hub, a test) is in
+its **build's** class, `Build.armour`, which is what the presets of `builds.toml` fight in
+on the arena; under a hub that field is ignored. (From Phase 3 to 2026-10-16 the class was a
+build choice at 0 / 4 / 8 / 12 of the kit's points: ITEMS.md 9 kept the move open, GEAR.md
+3 made it.)
 
-| Class | Cost | Speed | Stamina regen | Bonus |
-|---|---|---|---|---|
-| Cloth | 0 | 1.00 | 1.00 | ward +0.05 |
-| Leather | 4 | 1.00 | 1.00 | evasion +0.05 |
-| Mail | 8 | 0.95 | 0.90 | — |
-| Plate | 12 | 0.90 | 0.75 | — |
+| Class | Speed | Stamina regen | Bonus |
+|---|---|---|---|
+| Cloth | 1.00 | 1.00 | ward +0.05 |
+| Leather | 1.00 | 1.00 | evasion +0.05 |
+| Mail | 0.95 | 0.90 | — |
+| Plate | 0.90 | 0.75 | — |
 
 ### 4.1 Physical kind × armour class
 
@@ -257,11 +262,12 @@ duration on reapplication; `Extend` adds the duration (capped at 3× the verb's 
 Build {
   frame:        Colossus | Striker | Caster | Infiltrator       free
   attributes:   STR AGI CON INT SPR, each 5..=25                 Σ(attr − 5) ≤ 30, the character's own
-  armour:       Cloth | Leather | Mail | Plate                   0 / 4 / 8 / 12
+  armour:       Cloth | Leather | Mail | Plate                   free; the class in nothing a hub dresses (4)
   aspects:      0..=2 of Fire Water Grass Electric Ground Air    0 / 10 (none: neutral)
   kit:          primary, secondary, guard (optional), up to 4 actives   Σ ability cost
 }
-armour + aspects + kit ≤ 40 (the kit's budget); unspent is allowed.
+aspects + kit ≤ 34 (the kit's budget; 40 with the armour in it until 2026-10-16, GEAR.md 3); unspent is allowed.
+Under a hub the worn weapon fills the primary and the worn off hand the guard (GEAR.md 2).
 ```
 
 Rules enforced by `gm-core::build::validate`:

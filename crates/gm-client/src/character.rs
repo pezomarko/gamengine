@@ -84,6 +84,7 @@ pub fn build_editor<C: Canvas>(
     pack: &ContentPack,
     rate: TickRate,
     b: &mut Build,
+    class: ArmourClass,
 ) {
     let s = ui.scale;
     let gap = 5.0 * s;
@@ -147,7 +148,7 @@ pub fn build_editor<C: Canvas>(
         both.w - body.w - 2.0 * gap,
         both.h,
     );
-    body_column(ui, body, b);
+    body_column(ui, body, b, class);
     let (over, why) = kit_columns(ui, kit, pack, b);
     // What the ability under the cursor does, in the lines there are (the last cut if
     // it must be), after why it cannot be taken where it cannot; else what the lines
@@ -187,7 +188,7 @@ pub fn build_editor<C: Canvas>(
 
 /// The frame and the armour, the aspects, and the attributes: a name, `-`, the value,
 /// `+`, and what the points buy, a row each (MATRIX.md 6).
-fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
+fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build, class: ArmourClass) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (fh, line) = (ui.field_height(), ui.line());
@@ -207,15 +208,15 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
     ) {
         b.frame = FRAMES[frame];
     }
-    let mut armour = b.armour as usize;
-    if ui.choice(
-        col.take(fh),
-        "armour  (kit points)",
-        &["cloth 0", "leather 4", "mail 8", "plate 12"],
-        &mut armour,
-    ) {
-        b.armour = ArmourClass::from_index(armour as u8).unwrap_or_default();
-    }
+    // The armour class is the chest piece's (GEAR.md 3): said, not chosen.
+    let row = col.take(fh);
+    ui.label(
+        row.x,
+        row.y,
+        row.w,
+        ui::FAINT,
+        &format!("armour   {} (what the chest piece makes it)", class.name()),
+    );
     // Aspects: one or two of six (the second costs 10).
     let row = col.take(fh);
     ui.label(
@@ -274,7 +275,7 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
     ui.label(head.x, head.y, head.w, ink, &budget);
     const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
     let mut attrs = b.attributes.as_array();
-    let d = b.derived();
+    let d = gm_core::matrix::Derived::compute(b.attributes, b.frame, class);
     let buys = [
         format!("blows x{:.2}", d.physical_mult),
         format!("speed {:.0} u/s", d.max_speed),
@@ -826,6 +827,9 @@ pub struct CharacterView<'a> {
     pub pack: &'a ContentPack,
     /// The build worn now.
     pub own: &'a Build,
+    /// The armour class the body is in (GEAR.md 3): the worn chest piece's, which the
+    /// page shows and reckons the derived numbers in; not a choice here.
+    pub class: ArmourClass,
     /// The zone's tick rate: the abilities' ticks read in seconds.
     pub rate: TickRate,
     /// Standing by the trainer (within `TRAINER_REACH` of one) in a zone of the world; in a
@@ -886,6 +890,7 @@ impl CharacterPage {
             v.pack,
             v.rate,
             b,
+            v.class,
         );
         // The buttons, and beside them what is wrong with the draft, else the zone's
         // word, else where this may be worn.
@@ -1022,6 +1027,7 @@ mod tests {
         let v = CharacterView {
             pack: &pack,
             own: &own,
+            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1045,6 +1051,7 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
+            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1052,7 +1059,7 @@ mod tests {
         let (mut page, mut st) = (CharacterPage::default(), UiState::default());
         frame(&mut page, &mut st, &UiInput::default(), &away);
         assert!(st.shows("0 of 30 points left"), "{:?}", st.seen);
-        assert!(st.shows("kit 30/40"), "{:?}", st.seen);
+        assert!(st.shows("kit 22/34"), "{:?}", st.seen);
         // All thirty spent: no `+` is offered; a point taken off STR, and `+` is.
         assert!(st.find("+").is_none(), "{:?}", st.seen);
         assert_eq!(
@@ -1089,7 +1096,7 @@ mod tests {
             .map(|k| pack.find(k).unwrap())
             .collect();
         frame(&mut page, &mut st, &UiInput::default(), &here);
-        assert!(st.shows("kit costs 52 of 40 points"), "{:?}", st.seen);
+        assert!(st.shows("kit costs 40 of 34 points"), "{:?}", st.seen);
         assert!(st.find("Wear it").is_none());
     }
 
@@ -1103,6 +1110,7 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
+            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1211,12 +1219,15 @@ mod tests {
             why_not(&pack, &ironclad, Slot::Primary, ironclad.primary),
             None
         );
-        // The budget: the ironclad spends all forty, so any active without an aspect
-        // would take it over.
+        // The budget: the ironclad spends 28 of 34 (its plate is its chest piece's since
+        // GEAR.md 3, not the kit's), so an active of eight or more without an aspect would
+        // take it over.
         let plain = pack
             .abilities
             .iter()
-            .position(|a| a.slot == Slot::Active && a.aspect.is_none() && !a.creature && a.cost > 0)
+            .position(|a| {
+                a.slot == Slot::Active && a.aspect.is_none() && !a.creature && a.cost >= 8
+            })
             .expect("an active with no aspect") as u16;
         let why = why_not(&pack, &ironclad, Slot::Active, plain).expect("over the budget");
         assert!(why.starts_with("would take the kit to"), "{why}");
@@ -1225,6 +1236,7 @@ mod tests {
         let view = CharacterView {
             pack: &pack,
             own: &blade,
+            class: blade.armour,
             rate: TickRate::TOWN,
             at_trainer: true,
             note: "",

@@ -2197,7 +2197,7 @@ impl App {
             &o.props,
             o.looks.get(&c.my_id).copied().unwrap_or_default(),
             gm_model::rig::frame_index(build.frame),
-            build.armour as u8,
+            c.sheet.class as u8,
         );
         self.scene.bodies.push(Body {
             key: OWN,
@@ -2207,7 +2207,7 @@ impl App {
             anim: own_anim,
             crouched: c.mover.crouched,
             frame: gm_model::rig::frame_index(build.frame),
-            armour: build.armour as u8,
+            armour: c.sheet.class as u8,
             aspects: build.aspects.0,
             status: c.mover.statuses.mask(),
             model: o.names.get(&c.my_id).and_then(|n| n.2),

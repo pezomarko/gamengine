@@ -562,10 +562,9 @@ Open:
   predicts).
 - **A caster's edge is smaller than a fighter's**: an element is reached by the catalyst
   (30) where a blow is reached by the core (60): 190 against 220 at best.
-- **Whether the armour class moves from the build to the armour.** It would refund the 0–12
-  points the class costs today, and every stored build (which spends exactly 100) would
-  have to be rebuilt. **Proposed 2026-10-16: GEAR.md 3** (the chest piece carries it,
-  the budget 34, no migration: the hub's repair takes the rest).
+- ~~**Whether the armour class moves from the build to the armour.**~~ **Done 2026-10-16,
+  GEAR.md 3**: the chest piece carries it, the budget is 34, no migration (`Build.armour`
+  stays as the class in nothing a hub dresses, MATRIX.md 4).
 - **Whether a hired avatar wears its owner's gear.**
 - **When a fight begins** for the lock: at the first damage, as built, or when a blow is
   made (and for both sides of a parried one).

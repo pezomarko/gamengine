@@ -37,6 +37,8 @@ pub struct TemplateLook {
     pub patch: bool,
     /// A shield's guard ability (GEAR.md 2), brought to whoever wears it in the left hand.
     pub guard: Option<String>,
+    /// A chest piece's armour class (GEAR.md 3), what the body wearing it is in.
+    pub class: Option<gm_core::matrix::ArmourClass>,
     pub retired: bool,
 }
 
@@ -275,6 +277,11 @@ impl Looks {
                 covers: items::covers_mask(&t.covers),
                 patch: t.is_patch(),
                 guard: t.guard.clone(),
+                class: t.class.as_deref().and_then(|c| {
+                    gm_core::matrix::ArmourClass::ALL
+                        .into_iter()
+                        .find(|a| a.name() == c)
+                }),
                 retired: t.retired,
             });
         }

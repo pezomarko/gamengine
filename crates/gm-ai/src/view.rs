@@ -33,7 +33,7 @@ impl ZoneView {
                 vel: p.mover.mv.velocity,
                 yaw: p.mover.yaw,
                 frame: p.frame(),
-                armour: p.sheet.build.armour,
+                armour: p.sheet.class,
                 team: p.team(),
                 party: p.party,
                 alive: p.alive && !p.ghost,

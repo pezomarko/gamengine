@@ -205,6 +205,7 @@ fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye:
 id = "cuirass"
 kind = "armour"
 guards = "physical"
+class = "leather"                            # the chest piece carries the class (GEAR.md 3)
 layers = ["shard", "core", "frame", "gem"]
 model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
 # Cloth inside the body's silhouette is pixels on the body's own atlas (LOOK.md 6.6): one
@@ -268,9 +269,29 @@ covers = ["head"]
 id = "robe"
 kind = "armour"
 guards = "elements"
+class = "cloth"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "robe"                               # the cloth tunic with sleeves, on the striker
 covers = ["spine", "chest"]
+
+# The chest piece carries the armour class (GEAR.md 3, MATRIX.md 4): a body is in what it
+# wears on the chest, cloth in nothing. The mail shirt and the plate are numbers until a
+# mesh or a patch is baked for them (no mail and no plate in the free packs, EQUIPMENT.md
+# 7): the body shows its class in its gait and its tint (MODELS.md 9), and a striker in a
+# mail shirt wears the official avatar (avatars.toml).
+[[template]]
+id = "mail_shirt"
+kind = "armour"
+guards = "physical"
+class = "mail"
+layers = ["shard", "core", "frame", "gem"]
+
+[[template]]
+id = "plate"
+kind = "armour"
+guards = "physical"
+class = "plate"
+layers = ["shard", "core", "frame", "gem"]
 
 # A shield (ITEMS.md 2): worn in the left hand by anyone, guarding like an armour; a
 # shield wall's own shield is the same model, held bare (abilities.toml).

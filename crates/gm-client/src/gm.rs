@@ -43,6 +43,8 @@ pub enum GmAction {
 pub struct GmView<'a> {
     pub pack: &'a ContentPack,
     pub own: &'a Build,
+    /// The armour class the body is in (GEAR.md 3), for the editor's numbers.
+    pub class: gm_core::matrix::ArmourClass,
     pub tuning: &'a Tuning,
     pub rate: TickRate,
     /// The zone's last word on what was asked.
@@ -371,6 +373,7 @@ impl GmPage {
             v.pack,
             v.rate,
             b,
+            v.class,
         );
         // The buttons, and what the pack says of the draft when it is not whole.
         let (valid, verdict) = character::verdict(v.pack, b);
@@ -433,6 +436,7 @@ mod tests {
         GmView {
             pack,
             own,
+            class: own.armour,
             tuning,
             rate: TickRate::TOWN,
             note: "",
@@ -549,7 +553,7 @@ mod tests {
         page.tab = Tab::Build;
         frame(&mut page, &mut st, &UiInput::default(), &v);
         assert!(st.shows("0 of 30 points left"), "{:?}", st.seen);
-        assert!(st.shows("kit 40/40"), "{:?}", st.seen);
+        assert!(st.shows("kit 28/34"), "{:?}", st.seen);
         // Worn already: nothing to wear.
         assert!(st.find("Wear it now").is_none());
         let b = page.build.as_mut().unwrap();

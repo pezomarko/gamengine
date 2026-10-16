@@ -1,7 +1,10 @@
 # Preset builds (MATRIX.md 9, 11, 15 and 17: seven, one frame-and-element face each). `mode` is the game the archetype plays (MODES.md 2:
 # gun, action, rpg); a gun build's primary is a firearm and it has no guard. Attributes are the character's own thirty points
-# (each point above 5; a preset spends all thirty). The kit costs at most 40: armour
-# (cloth 0 / leather 4 / mail 8 / plate 12), a second aspect (10) and the slotted abilities.
+# (each point above 5; a preset spends all thirty). The kit costs at most 34: a second aspect
+# (10) and the slotted abilities. `armour` costs nothing since 2026-10-16 (GEAR.md 3): under a
+# hub a body is in the class of the chest piece it wears, and this is the class a preset
+# fights in where no hub dresses it (the arena, the bots); the costs noted beside each are
+# the abilities' (the old armour figures stand in the comments for the record).
 # The range is the weapon's (2026-10-06): a melee primary has no bolt, a ranged primary is
 # the whole of its damage at range. `blurb` is what the archetype is, in a line or two of
 # plain words (CLIENT.md 4.3): at most 160 characters of ASCII.
