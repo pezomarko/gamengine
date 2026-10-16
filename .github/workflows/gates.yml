@@ -41,6 +41,7 @@ jobs:
           - name: dungeon (a leader and three companions clear it on a real zone; 4 leaders at once)
             run: |
               cargo test -p gm-server --test companions --locked -- --ignored
+              cargo test -p gm-server --test dungeon --locked -- --ignored
               SKIP_TESTS=1 LEADERS=4 scripts/check-dungeon.sh
     steps:
       - uses: actions/checkout@v4
