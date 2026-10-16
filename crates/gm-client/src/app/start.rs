@@ -165,6 +165,7 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
             fingers: Fingers::expecting(touch),
             touch_buttons: Vec::new(),
             tap_fire: None,
+            dragged: false,
             rpg_right: None,
         },
     }

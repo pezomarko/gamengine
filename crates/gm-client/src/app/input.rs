@@ -439,6 +439,7 @@ impl App {
                     let gain = touch::LOOK_GAIN / dpr;
                     self.input.mouse_dx += dx * gain;
                     self.input.mouse_dy += dy * gain;
+                    self.pointer.dragged = true;
                 }
                 TouchEvent::Pinch(ratio) => {
                     if self.rpg_mode() && ratio > 0.0 {

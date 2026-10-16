@@ -238,7 +238,9 @@ impl App {
             self.sim.yaw = self.view.bench_yaw0 + BENCH_CROWD_SWING_DEG * (t * 0.7).sin();
         } else if bench {
             self.sim.yaw += BENCH_YAW_DEG_PER_S * frame_dt;
-        } else if (self.pointer.grabbed || self.pointer.fingers.turning()) && !up {
+        } else if (self.pointer.grabbed || self.pointer.fingers.turning() || self.pointer.dragged)
+            && !up
+        {
             let turn = self.settings.sensitivity / self.view.zoom.max(1.0);
             let tilt = if self.settings.invert { -turn } else { turn };
             self.sim.yaw -= self.input.mouse_dx * turn;
@@ -258,6 +260,7 @@ impl App {
         self.sim.yaw = self.sim.yaw.rem_euclid(360.0);
         self.input.mouse_dx = 0.0;
         self.input.mouse_dy = 0.0;
+        self.pointer.dragged = false;
     }
 
     /// The scene of this frame and the camera `(position, yaw, pitch)`: a replay being

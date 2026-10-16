@@ -273,6 +273,10 @@ struct Pointer {
     fingers: Fingers,
     touch_buttons: Vec<(TouchButton, ui::Rect)>,
     tap_fire: Option<Instant>,
+    /// A finger dragged the look since the last frame, whether or not it is still down: a
+    /// swipe shorter than a slow frame (a phone on a software GPU, 2026-10-16) lifts before
+    /// the frame that applies it, and its turn must not be thrown away with it.
+    dragged: bool,
     /// A right press in the RPG mode: when and where, and the camera's yaw and pitch
     /// then, to tell a tap on the target (the secondary) from a drag of the orbit.
     rpg_right: Option<(Instant, (f32, f32), f32, f32)>,
