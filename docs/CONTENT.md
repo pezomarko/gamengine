@@ -249,6 +249,13 @@ baked from it as an overlay's is, and goes no further. The client composites (LO
 
 ## 4. Kinds and budgets
 
+**Two files a model** (MODELS.md 5.2, 2026-10-15): `content build` writes the ETC2 variant
+beside every prop, avatar and overlay it ingests (`x.gmm` and `x.etc.gmm`; a cutout has
+none) and the manifest names both hashes (`etc2` on the entry); a client fetches one kind
+for its GPU and checks it as it checks the original. The patches (`.gmp`) are BC1 alone.
+The bundle budgets count what one client fetches: the BC1 files, and the variants, each on
+its own (`scripts/check-look.sh`).
+
 | Kind | Triangles | Texture | `.gmm` bytes | Extent | Rig |
 |---|---|---|---|---|---|
 | avatar (player upload, official) | ≤ 3,500 | ≤ 1024², BC1 | ≤ 1,572,864 | the frame's envelope | 24 bones, T-pose |
