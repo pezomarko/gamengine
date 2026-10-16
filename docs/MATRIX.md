@@ -60,7 +60,8 @@ Mass divides knockback taken. Mobility multiplies move speed.
 
 A build choice. (It was to come from the worn gear, with the build points refunded. Phase 11
 gave gear its edge and left the class with the build: ITEMS.md 9 says what moving it would
-cost.)
+cost. **GEAR.md, proposed 2026-10-16**, moves it onto the worn chest piece and the
+primary and the guard onto the worn hands.)
 
 | Class | Cost | Speed | Stamina regen | Bonus |
 |---|---|---|---|---|
