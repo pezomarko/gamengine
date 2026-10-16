@@ -25,6 +25,7 @@ const CHEST: usize = 2;
 ///   so does an empty hand or a weapon no ability holds: the build's primary plays.
 /// - **The left hand**: the template's `guard` ability, when it is one and the mode has a
 ///   guard (a gun build has none, MODES.md 2). A second one-hander brings nothing.
+///   A shield's own `block` (GEAR.md 7) comes with its guard, played in its place.
 /// - **The chest** (GEAR.md 3): the template's `class`, cloth for a chest piece that names
 ///   none and for nothing on the chest. Always said: a body a hub dresses is in what it
 ///   wears, whatever its build says.
@@ -81,6 +82,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
         && pack.abilities[i as usize].slot == Slot::Guard
     {
         worn.guard = Some(i);
+        worn.block = t.block.clone();
     }
     worn.class = Some(
         template(CHEST)

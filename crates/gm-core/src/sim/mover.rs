@@ -280,6 +280,15 @@ impl Mover {
         }
     }
 
+    /// Swinging a heavy blow (GEAR.md 7): once begun, a stagger does not stop it, on the
+    /// zone or in the prediction. (The blow lands on the first active tick, so an armour
+    /// that began after the windup would guard nothing: a heavy swing is committed from
+    /// its first frame.)
+    pub fn armoured(&self, kit: &crate::build::Kit) -> bool {
+        self.script
+            .is_some_and(|sc| kit.abilities[sc.ability as usize].heavy)
+    }
+
     /// The ability the primary mouse button fires (MODES.md 3.7): the weapon in hand in
     /// the gun mode, the primary elsewhere.
     pub fn in_hand(&self, kit: &crate::build::Kit) -> Option<u8> {
@@ -506,7 +515,11 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
     // ground (MODES.md 4.5) is as helpless.
     let staggered = m.statuses.staggered() || m.statuses.downed();
     if staggered {
-        m.script = None;
+        // A heavy blow past its windup is not stopped by a stagger (GEAR.md 7): the swing
+        // lands; everything else the stagger takes, it takes.
+        if !m.armoured(&sheet.kit) {
+            m.script = None;
+        }
         m.guard = GuardState::None;
         m.lock_yaw = None;
         m.chain = None;
@@ -1043,6 +1056,22 @@ fn try_activate<W: CollisionWorld + ?Sized>(
     }
     if m.stamina < kit.blow_cost(ab) || m.focus < ab.cost.focus as f32 {
         return false;
+    }
+    // A shot that draws on a stack without a magazine (GEAR.md 7: the bow's arrows): one
+    // of the reserve, or nothing.
+    if ab.firearm.is_none() && ab.ammo_stack().is_some() {
+        let hand = if kit.primary == Some(slot as u8) {
+            0
+        } else if kit.secondary == Some(slot as u8) {
+            1
+        } else {
+            return false;
+        };
+        let g = &mut m.guns[hand];
+        if g.reserve == 0 {
+            return false;
+        }
+        g.reserve -= 1;
     }
     // A firearm (MODES.md 3.2): a round in the magazine, no reload under way, and a
     // bolt-action worked standing or walking.

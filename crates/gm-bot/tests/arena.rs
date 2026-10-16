@@ -9,6 +9,7 @@ use std::sync::Arc;
 use glam::Vec3;
 use gm_bot::{Behaviour, Brain, View};
 use gm_bsp::Bsp;
+use gm_core::build::Worn;
 use gm_core::sim::{Input, Spawn, Zone, ZoneEvent};
 use gm_core::tick::TickRate;
 use gm_core::vocab::EntityId;
@@ -43,29 +44,38 @@ fn spawns(bsp: &Bsp) -> Vec<Spawn> {
 
 /// Play `secs` seconds of team 1 (`build_a`) against team 2 (`build_b`), 8 v 8.
 fn play(bsp: &Arc<Bsp>, build_a: &str, build_b: &str, seed: u64, secs: u32) -> Outcome {
+    play_worn(
+        bsp,
+        (build_a, &Worn::NONE),
+        (build_b, &Worn::NONE),
+        seed,
+        secs,
+    )
+}
+
+/// A match of eight against eight, each side a preset in what it wears (GEAR.md 2 and 3:
+/// `Worn::NONE` is the preset in nothing a hub dresses, its build's class and kit).
+fn play_worn(bsp: &Arc<Bsp>, a: (&str, &Worn), b: (&str, &Worn), seed: u64, secs: u32) -> Outcome {
     let content = std::env::var("ARENA_CONTENT").unwrap_or_else(|_| CONTENT.to_string());
     let pack = gm_content::load_dir(Path::new(&content), RATE).expect("content");
     let mut zone = Zone::new(RATE, seed, spawns(bsp), pack.clone());
+    // A gun is issued with its magazine only, and a bow with nothing; the rounds and the
+    // arrows a body carries are stacks the hub tells the zone of (MODES.md 11, GEAR.md 7).
+    // Here every bot carries plenty of each.
     let ammo: Vec<(String, u32, Option<i32>)> = pack
         .abilities
         .iter()
-        .filter_map(|a| a.ability.firearm.as_ref())
-        .filter(|f| !f.ammo.is_empty())
-        .map(|f| (f.ammo.clone(), 500, None))
+        .filter_map(|a| a.ability.ammo_stack())
+        .map(|key| (key.to_string(), 500, None))
         .collect();
     let mut bots: Vec<(EntityId, Brain, u8)> = Vec::new();
     for i in 0..16 {
-        let (team, name) = if i % 2 == 0 {
-            (1u8, build_a)
-        } else {
-            (2u8, build_b)
-        };
+        let (team, (name, worn)) = if i % 2 == 0 { (1u8, a) } else { (2u8, b) };
         let build = pack.build(name).expect(name).clone();
         let id = zone
             .add_player(bsp.as_ref(), build, team)
             .expect("preset validates");
-        // A gun is issued with its magazine only; the rounds a body carries are stacks
-        // the hub tells the zone of (MODES.md 11). Here every bot carries plenty of each.
+        zone.set_worn(id, worn.clone());
         zone.set_stacks(id, &ammo, &[]);
         bots.push((
             id,
@@ -87,7 +97,7 @@ fn play(bsp: &Arc<Bsp>, build_a: &str, build_b: &str, seed: u64, secs: u32) -> O
                     frame: 0,
                     team: p.team(),
                     aspects: p.sheet.build.aspects.0,
-                    armour: p.sheet.build.armour as u8,
+                    armour: p.sheet.class as u8,
                 },
                 pos: p.mover.mv.origin,
                 yaw: p.mover.yaw,
@@ -328,5 +338,108 @@ fn round_robin() {
             }
         }
         println!(" {:.0}% |", sum / (n - 1) as f64 * 100.0);
+    }
+}
+
+/// The open hands (GEAR.md 9, step 7): each preset in its own gear against the odd
+/// things the open hands allow (a blade with a warhammer, a frostweaver in plate, an
+/// ironclad with a bow...), both sides, `ARENA_SEEDS` × `ARENA_SECS` (default 1 × 60).
+/// What a body wears is read as the hub would read it (`gm_content::worn::worn_of` over
+/// the six template keys), so the table measures the kit and the class the gear brings,
+/// not an item's edge. Prints the share of kills each odd case took against each preset;
+/// run on demand:
+/// `cargo test -p gm-bot --release --test arena open_hands -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn open_hands() {
+    let bsp = Arc::new(Bsp::load(Path::new(MAP)).expect("arena built"));
+    let pack = gm_content::load_dir(Path::new(CONTENT), RATE).expect("content");
+    let looks = gm_content::looks::Looks::load_dir(Path::new(CONTENT)).expect("looks");
+    let seeds: u64 = std::env::var("ARENA_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1);
+    let secs: u32 = std::env::var("ARENA_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60);
+    let worn = |preset: &str, right: &str, left: &str, chest: &str| -> Worn {
+        let six = [right, left, chest, "", "", ""].map(str::to_string);
+        gm_content::worn::worn_of(&looks, &pack, pack.build(preset).unwrap(), &six)
+    };
+    // Each preset in its own gear: its weapon, its shield where it has one, the chest piece
+    // of its class.
+    let own: Vec<(&str, Worn)> = vec![
+        ("blade", worn("blade", "sword", "", "mail_shirt")),
+        (
+            "ironclad",
+            worn("ironclad", "greatsword", "shield", "plate"),
+        ),
+        ("frostweaver", worn("frostweaver", "staff", "", "robe")),
+        ("shade", worn("shade", "dagger", "", "cuirass")),
+        ("mender", worn("mender", "staff", "", "robe")),
+        ("musketeer", worn("musketeer", "musket", "", "cuirass")),
+        ("shaman", worn("shaman", "hammer", "", "cuirass")),
+    ];
+    let odd: Vec<(&str, &str, Worn)> = vec![
+        (
+            "blade with a warhammer",
+            "blade",
+            worn("blade", "warhammer", "", "mail_shirt"),
+        ),
+        (
+            "blade with a tower shield",
+            "blade",
+            worn("blade", "sword", "tower_shield", "mail_shirt"),
+        ),
+        (
+            "frostweaver in plate",
+            "frostweaver",
+            worn("frostweaver", "staff", "", "plate"),
+        ),
+        (
+            "ironclad with a bow",
+            "ironclad",
+            worn("ironclad", "bow", "", "plate"),
+        ),
+        (
+            "blade with a bow",
+            "blade",
+            worn("blade", "bow", "", "mail_shirt"),
+        ),
+        (
+            "shade with a greataxe",
+            "shade",
+            worn("shade", "greataxe", "", "cuirass"),
+        ),
+        ("blade in cloth", "blade", worn("blade", "sword", "", "")),
+    ];
+    println!(
+        "\nshare of kills (the odd case against each preset in its own gear), {seeds} seed(s) x {secs} s, both sides:"
+    );
+    print!("| case |");
+    for (name, _) in &own {
+        print!(" {name} |");
+    }
+    println!(" mean |");
+    println!("|---|{}---|", "---|".repeat(own.len()));
+    for (label, preset, w) in &odd {
+        print!("| {label} |");
+        let mut sum = 0.0;
+        for (name, theirs) in &own {
+            let (mut for_, mut against) = (0u32, 0u32);
+            for seed in 1..=seeds {
+                let o = play_worn(&bsp, (preset, w), (name, theirs), seed, secs);
+                for_ += o.kills[1];
+                against += o.kills[2];
+                let o = play_worn(&bsp, (name, theirs), (preset, w), seed, secs);
+                for_ += o.kills[2];
+                against += o.kills[1];
+            }
+            let share = for_ as f64 / (for_ + against).max(1) as f64;
+            sum += share;
+            print!(" {:.0}% ({for_}:{against}) |", share * 100.0);
+        }
+        println!(" {:.0}% |", sum / own.len() as f64 * 100.0);
     }
 }

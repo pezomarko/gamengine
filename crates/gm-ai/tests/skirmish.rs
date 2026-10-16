@@ -48,7 +48,12 @@ fn run(squad: &[&str], commander: &str, fights: bool, seed: u64) -> Outcome {
         commander,
         fights,
         seed,
-        max_secs: 300,
+        // Six minutes: the fighting leader's squad kills the Warden in 258–300 s on the
+        // reference machine (one seed of three ran out at 300 before and after the gear
+        // work of 2026-10-16, GEAR.md), and the sum of a fight's floats differs from one
+        // machine to the next, so a cap at 300 flipped seeds on the shared runner. The
+        // squads that must not clear are at 9,000–15,000 of the Warden's health at 300 s.
+        max_secs: 360,
         boss_health: std::env::var("GM_BOSS_HEALTH")
             .ok()
             .and_then(|v| v.parse().ok()),

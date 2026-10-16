@@ -156,8 +156,9 @@ impl Run {
             } else {
                 kit.secondary
             };
-            let f = kit.abilities[slot? as usize].firearm.as_ref()?;
-            Some(f.ammo.clone())
+            kit.abilities[slot? as usize]
+                .ammo_stack()
+                .map(str::to_string)
         });
         if let Some(template) = spent {
             consume_stack(

@@ -145,6 +145,13 @@ pub(crate) struct AbilityToml {
     chain: Option<ChainToml>,
     /// A firearm's numbers (MODES.md 3.2).
     firearm: Option<FirearmToml>,
+    /// A heavy blow (GEAR.md 7): a blocker pays twice, a stagger does not stop it past its
+    /// windup. The two-handers.
+    #[serde(default)]
+    heavy: bool,
+    /// The stack a shot draws one of (GEAR.md 7): the bow's arrow.
+    #[serde(default)]
+    ammo: String,
     /// How far a target-action reaches (MODES.md 5.3); without it, a melee arc's reach,
     /// an aimed area's range, or 600 for a bolt.
     range: Option<f32>,
@@ -1032,6 +1039,8 @@ fn compile_ability(
             chain,
             firearm,
             range,
+            heavy: a.heavy,
+            ammo: a.ammo.clone(),
         },
         slot,
         cost: a.cost,
@@ -1307,6 +1316,8 @@ mod tests {
             assert_eq!(a.ability.cooldown, b.ability.cooldown, "{}", a.key);
             assert_eq!(a.ability.move_scale, b.ability.move_scale, "{}", a.key);
             assert_eq!(a.ability.interrupt, b.ability.interrupt, "{}", a.key);
+            assert_eq!(a.ability.heavy, b.ability.heavy, "{}", a.key);
+            assert_eq!(a.ability.ammo, b.ability.ammo, "{}", a.key);
             assert_eq!(a.ability.chain, b.ability.chain, "{}", a.key);
             assert_eq!(a.ability.firearm, b.ability.firearm, "{}", a.key);
             assert_eq!(a.ability.range, b.ability.range, "{}", a.key);

@@ -538,6 +538,7 @@ pub struct MoveSelf {
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Block {
     pub arc_deg: f32,
     /// 0..1 damage removed.
@@ -707,12 +708,30 @@ pub struct Ability {
     pub chain: Option<Chain>,
     /// A firearm's numbers (MODES.md 3.2), on a gun.
     pub firearm: Option<Firearm>,
+    /// GEAR.md 7: a heavy blow (the two-handers). Blocked, it costs the blocker twice the
+    /// guard's stamina; once begun, a stagger does not stop it.
+    pub heavy: bool,
+    /// GEAR.md 7: the stack a shot of this (a bow's arrow) draws one of, by its template key;
+    /// empty for none. A firearm's is `firearm.ammo`; `ammo_stack` reads either.
+    pub ammo: String,
     /// How far a target-action reaches (MODES.md 5.3): a melee arc's reach, a bolt's
     /// range as content gives it, an aimed area's; 0 when nothing of this ability aims.
     pub range: f32,
 }
 
 /// Validation limits (VOCABULARY.md section 11). Content outside these ranges fails to load.
+impl Ability {
+    /// The stack a shot draws on (GEAR.md 7, MODES.md 11.2): a firearm's `ammo`, else the
+    /// ability's own; `None` for neither.
+    pub fn ammo_stack(&self) -> Option<&str> {
+        let key = match &self.firearm {
+            Some(f) => f.ammo.as_str(),
+            None => self.ammo.as_str(),
+        };
+        (!key.is_empty()).then_some(key)
+    }
+}
+
 pub mod limits {
     pub const MAX_MELEE_REACH: f32 = 160.0;
     /// A bullet (MODES.md 3.6) is a bolt at 20,000 u/s: swept per tick as every bolt is.
@@ -1019,6 +1038,8 @@ mod tests {
             interrupt: Interrupt::OnStagger,
             chain: None,
             firearm: None,
+            heavy: false,
+            ammo: String::new(),
             range: 0.0,
         };
         assert_eq!(ability.validate(rate), Ok(()));
@@ -1044,6 +1065,8 @@ mod tests {
             interrupt: Interrupt::Never,
             chain: None,
             firearm: None,
+            heavy: false,
+            ammo: String::new(),
             range: 0.0,
         };
         assert_eq!(
@@ -1084,6 +1107,8 @@ mod tests {
             interrupt: Interrupt::Never,
             chain: None,
             firearm: None,
+            heavy: false,
+            ammo: String::new(),
             range: 0.0,
         };
         assert!(ability.validate(rate).is_err());

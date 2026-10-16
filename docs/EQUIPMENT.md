@@ -594,9 +594,10 @@ client's 115 unit tests, the content's and the tool's pass; clippy is clean.
    comes up, turned back in the view); the bow the plain hold, so it stands upright when
    the arm is raised to aim; the focus upright with its cover out. Sheathed, each takes the
    sword's place on the back with its own fit, so the spear slings point-up over the right
-   shoulder and the bow stands upright along the back. Not done: arrows as a stack (the firearm's reserve is
-   gun-mode machinery), the quiver, and whether a preset should gain one of them, which
-   is the director's.
+   shoulder and the bow stands upright along the back. Arrows as a stack came on 2026-10-16
+   (GEAR.md 7: `ammo = "arrow"` on the bow, the firearm's reserve made the ability's).
+   Not done: the quiver, and whether a preset should gain one of them, which is the
+   director's.
 
 7. **The second batch** (2026-10-14, the director: "sellers for those so I can buy and
    test with my blade, but ok we need more content anyway"). **Sellers first**: three more

@@ -911,6 +911,15 @@ own block reshaped:
 - Nothing new in the control stream. Hub protocol 12 and the players' protocol 7 carry
   the bar's arrangement (ITEMS.md 4).
 
+## 37. Changes in v25 (the shield's own block, 2026-10-16)
+
+`PROTOCOL_VERSION` 25 (GEAR.md 7). `Worn` carries **`block: Option<Block>`**, the worn
+shield's own numbers (the buckler narrow and cheap, the tower shield wide and slow),
+which the kit plays in place of the guard ability's `block` verb when the guard is the
+shield's; the client compiles the same kit, so a block's cost and arc are predicted as
+the zone resolves them. Content v18 also gave abilities `heavy` and `ammo` (the bow's
+arrows): both ride in the `ContentPack` as every ability field does.
+
 ## 36. Changes in v24 (the frames' stamina, 2026-10-16)
 
 `PROTOCOL_VERSION` 24 (GEAR.md 6). `Worn` carries two more numbers, **`stamina_blows`** and

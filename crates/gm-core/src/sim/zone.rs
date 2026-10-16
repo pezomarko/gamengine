@@ -192,6 +192,8 @@ pub struct Swing {
     pub on_hit: Vec<ApplyStatus>,
     /// A parry riposte: not tied to a running script.
     pub riposte: bool,
+    /// A heavy blow (GEAR.md 7): a blocker pays twice.
+    pub heavy: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -599,20 +601,17 @@ impl Zone {
             return;
         };
         let kit = &p.sheet.kit;
+        // A firearm's reserve, and a bow's arrows (GEAR.md 7): the stack the ability names.
         for (g, slot) in p.mover.guns.iter_mut().zip([kit.primary, kit.secondary]) {
-            let Some(f) = slot.and_then(|i| kit.abilities[i as usize].firearm.as_ref()) else {
+            let Some(ammo) = slot.and_then(|i| kit.abilities[i as usize].ammo_stack()) else {
                 continue;
             };
-            g.reserve = if f.ammo.is_empty() {
-                0
-            } else {
-                stacks
-                    .iter()
-                    .filter(|(t, _, _)| *t == f.ammo)
-                    .map(|(_, q, _)| *q)
-                    .sum::<u32>()
-                    .min(u16::MAX as u32) as u16
-            };
+            g.reserve = stacks
+                .iter()
+                .filter(|(t, _, _)| t == ammo)
+                .map(|(_, q, _)| *q)
+                .sum::<u32>()
+                .min(u16::MAX as u32) as u16;
         }
         for cell in 0..crate::sim::BAR_CELLS {
             let template = bar.get(cell).and_then(|t| t.as_deref());
@@ -1079,6 +1078,7 @@ impl Zone {
                             hit: Vec::new(),
                             on_hit,
                             riposte: false,
+                            heavy: ab.heavy,
                         });
                     }
                     Action::Fire {
@@ -1168,6 +1168,7 @@ impl Zone {
             packet: DamagePacket,
             stats: AttackerStats,
             parryable: bool,
+            heavy: bool,
             on_hit: Vec<ApplyStatus>,
             dir: Vec3,
             point: Vec3,
@@ -1226,6 +1227,7 @@ impl Zone {
                     packet,
                     stats: s.stats,
                     parryable: s.arc.parryable,
+                    heavy: s.heavy,
                     on_hit: s.on_hit.clone(),
                     dir,
                     point,
@@ -1241,6 +1243,7 @@ impl Zone {
                 h.dir,
                 HitKind::Melee,
                 Some(h.parryable),
+                h.heavy,
                 Some(h.point),
             );
             if landed {
@@ -1484,6 +1487,7 @@ impl Zone {
                     dir,
                     HitKind::Projectile,
                     None,
+                    false,
                     Some(proj.pos),
                 );
                 if landed {
@@ -1797,6 +1801,7 @@ impl Zone {
                         dir,
                         HitKind::Area,
                         None,
+                        false,
                         None,
                     );
                 }
@@ -1861,6 +1866,7 @@ impl Zone {
                             Vec3::ZERO,
                             HitKind::Dot,
                             None,
+                            false,
                             None,
                         );
                     }
@@ -1964,12 +1970,17 @@ impl Zone {
             return;
         }
         if s.status == Status::Stagger || s.status == Status::Shock || s.status.downs() {
-            t.mover.script = None;
+            // A heavy blow past its windup stands through a stagger (GEAR.md 7); a shock
+            // or the ground stops it like anything else.
+            let armoured = s.status == Status::Stagger && t.mover.armoured(&t.sheet.kit);
+            if !armoured {
+                t.mover.script = None;
+                self.swings.retain(|sw| sw.attacker != target || sw.riposte);
+            }
             t.mover.dash = None;
             t.mover.guard = GuardState::None;
             t.mover.lock_yaw = None;
             t.mover.chain = None;
-            self.swings.retain(|sw| sw.attacker != target || sw.riposte);
             if s.status == Status::Launched {
                 // The lift (MODES.md 4.5): the magnitude is the velocity up.
                 t.mover.mv.velocity.z += s.magnitude.max(0.0);
@@ -2002,6 +2013,7 @@ impl Zone {
         dir: Vec3,
         kind: HitKind,
         parryable: Option<bool>,
+        heavy: bool,
         at: Option<Vec3>,
     ) -> bool {
         let now = self.tick;
@@ -2048,7 +2060,10 @@ impl Zone {
                     if facing_deg <= b.arc_deg * 0.5
                         && (kind == HitKind::Melee || b.stops_projectiles) =>
                 {
-                    let cost = b.stamina_per_hit as f32 * t.sheet.kit.stamina_block as f32 / 100.0;
+                    // A heavy blow (GEAR.md 7) costs the blocker twice; the guard pieces'
+                    // frames price it (6).
+                    let cost = b.stamina_per_hit as f32 * t.sheet.kit.stamina_block as f32 / 100.0
+                        * if heavy { 2.0 } else { 1.0 };
                     if t.mover.stamina >= cost {
                         t.mover.stamina -= cost;
                         t.mover.regen_pause_until = frame_now
@@ -2091,6 +2106,7 @@ impl Zone {
                                     hit: Vec::new(),
                                     on_hit: Vec::new(),
                                     riposte: true,
+                                    heavy: false,
                                 });
                             }
                         }
