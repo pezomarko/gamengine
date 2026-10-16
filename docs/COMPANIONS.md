@@ -471,7 +471,7 @@ with four pillars and a dais (2,677 nav nodes; the walk from the entry to the Wa
     everyone sees it. Walk out.
   - `stone_throw` and `stomp` from the player content, for whoever stands far or crowds it.
   - Loot: 3 components; `standard` core/iron, frame/ash, catalyst/basalt; `top`
-    core/dragonbone, shard/boss_scale, catalyst/basalt; 30 silver. Respawns after 120 s.
+    core/dragonbone, frame/whalebone (shard/boss_scale until 2026-10-16: the shard layer went, GEAR.md 6), catalyst/basalt; 30 silver. Respawns after 120 s.
 
 Two abilities and one build join the player content for the healer the dungeon needs, and
 one for the leader (MATRIX.md 10 bands):

@@ -44,7 +44,7 @@ respawn_s = 120
 [creature.loot]
 components = 3
 standard = ["core/iron", "frame/ash", "catalyst/basalt"]
-top = ["core/dragonbone", "shard/boss_scale", "catalyst/basalt"]
+top = ["core/dragonbone", "frame/whalebone", "catalyst/basalt"]
 coin = 30
 
 # The town (2026-10-06): a dummy to count one's damage on and a trainer to redo the build at.

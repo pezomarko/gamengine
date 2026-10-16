@@ -134,6 +134,11 @@ pub struct Worn {
     /// a hub it is always said; `None` is a body no hub dresses (a creature, a companion, a
     /// bot of a zone without a hub, a test), which is in its build's class.
     pub class: Option<ArmourClass>,
+    /// The worn weapon's frame (GEAR.md 6): the stamina of the blows, percent of the cost.
+    /// The client predicts stamina, so it rides here, not in the zone's gear alone.
+    pub stamina_blows: u8,
+    /// The guard pieces' frames: the stamina of the guard and of a block, percent.
+    pub stamina_block: u8,
 }
 
 impl Worn {
@@ -141,6 +146,8 @@ impl Worn {
         primary: None,
         guard: None,
         class: None,
+        stamina_blows: 100,
+        stamina_block: 100,
     };
 }
 
@@ -646,6 +653,10 @@ pub struct Kit {
     pub chain_next: Vec<Option<u8>>,
     /// The knife of a gun build (MODES.md 3.7): the pack's `knife`, when it has one.
     pub knife: Option<u8>,
+    /// GEAR.md 6: the stamina of the blows and of the guard, percent of the cost (the worn
+    /// frames; 100 in nothing).
+    pub stamina_blows: u8,
+    pub stamina_block: u8,
 }
 
 impl Kit {
@@ -653,6 +664,8 @@ impl Kit {
     pub fn from_build(build: &Build, worn: &Worn, pack: &ContentPack) -> Kit {
         let mut kit = Kit::empty();
         kit.mode = build.mode;
+        kit.stamina_blows = worn.stamina_blows.clamp(1, 100);
+        kit.stamina_block = worn.stamina_block.clamp(1, 100);
         // (pack index, kit index) of everything pushed: a chain's stages are shared.
         let mut pushed: Vec<(u16, u8)> = Vec::new();
         for (index, slot) in build.kit_slots(worn) {
@@ -716,7 +729,19 @@ impl Kit {
             guard: None,
             chain_next: Vec::new(),
             knife: None,
+            stamina_blows: 100,
+            stamina_block: 100,
         }
+    }
+
+    /// What a blow of `ab` costs in stamina with the worn weapon's frame (GEAR.md 6).
+    pub fn blow_cost(&self, ab: &Ability) -> f32 {
+        ab.cost.stamina as f32 * self.stamina_blows as f32 / 100.0
+    }
+
+    /// What the guard costs in stamina with the guard pieces' frames (GEAR.md 6).
+    pub fn guard_cost(&self, ab: &Ability) -> f32 {
+        ab.cost.stamina as f32 * self.stamina_block as f32 / 100.0
     }
 
     /// Append an ability and return its index.
@@ -859,7 +884,7 @@ mod tests {
             Worn {
                 primary: Some(hammer),
                 guard: Some(wall),
-                class: None,
+                ..Worn::NONE
             },
             &pack,
             0,
@@ -881,9 +906,8 @@ mod tests {
         let musketeer = pack.build("musketeer").unwrap().clone();
         assert!(musketeer.guard.is_none());
         let slots = musketeer.kit_slots(&Worn {
-            primary: None,
             guard: Some(wall),
-            class: None,
+            ..Worn::NONE
         });
         assert_eq!(slots.last(), Some(&(wall, Slot::Guard)));
     }

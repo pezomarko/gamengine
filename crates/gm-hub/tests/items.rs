@@ -285,7 +285,6 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     // allows, a plain sword, and a sword for somebody else. A grant obeys a craft's rule
     // and the template's room.
     let best = strings(&[
-        "shard/boss_scale",
         "core/dragonbone",
         "catalyst/ember",
         "frame/whalebone",
@@ -306,13 +305,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         .grant_item(
             smith,
             "cuirass",
-            &strings(&[
-                "shard/boss_scale",
-                "core/dragonbone",
-                "frame/whalebone",
-                "gem/opal",
-                "gem/opal",
-            ]),
+            &strings(&["core/dragonbone", "frame/whalebone", "gem/opal", "gem/opal"]),
             room("cuirass").as_deref(),
         )
         .await

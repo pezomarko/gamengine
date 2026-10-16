@@ -1347,6 +1347,101 @@ fn a_spot_near_somebody_is_free_and_on_the_ground() {
 /// the moment the zone is told; a bolt keeps the edge it was loosed with; the pulses of a
 /// status take none; a body in nothing is hit as before.
 #[test]
+fn a_catalyst_burns_a_landing_blow_and_the_wards_move_the_burn_s_length() {
+    use crate::matrix::{Element, Gear, OnHit};
+    use crate::vocab::{ApplyStatus, StackRule, StatusTarget};
+    let fire = Element::Fire.slot();
+    let ember = |chance: u8| Gear {
+        on_hit: Some(OnHit {
+            status: Status::Burn,
+            chance,
+            duration_ms: 2000,
+            magnitude_pm: 3000,
+        }),
+        ..Gear::NONE
+    };
+    // A sword with an ember catalyst at a chance of 100: the blow burns; at 0 it never
+    // does. (The zone's die decides between; the content says one in five.)
+    let swing = |attacker: Gear| {
+        let (world, mut zone, ids) = arena(&[
+            (Vec3::new(0.0, 0.0, REST_Z), 0.0),
+            (Vec3::new(48.0, 0.0, REST_Z), 180.0),
+        ]);
+        let (a, b) = (ids[0], ids[1]);
+        zone.set_gear(a, attacker);
+        run(
+            &mut zone,
+            &world,
+            &[
+                (a, input(0.0, 0.0, buttons::PRIMARY)),
+                (b, input(180.0, 0.0, 0)),
+            ],
+            13,
+        );
+        let p = zone.player(b).unwrap();
+        (
+            900 - p.health,
+            p.mover.statuses.has(Status::Burn),
+            p.mover.statuses.magnitude(Status::Burn),
+        )
+    };
+    assert_eq!(swing(Gear::NONE), (60, false, 0.0));
+    assert_eq!(swing(ember(0)), (60, false, 0.0));
+    let (dealt, burning, magnitude) = swing(ember(100));
+    assert!(dealt >= 60 && burning, "{dealt} dealt, burning {burning}");
+    assert!((magnitude - 3.0).abs() < 1e-6, "{magnitude}");
+
+    // The wards (GEAR.md 6): the source's gems lengthen its element's status, the target's
+    // catalysts and gems shorten it; a status of no element is moved by neither.
+    let (_, mut zone, ids) = arena(&[
+        (Vec3::new(0.0, 0.0, REST_Z), 0.0),
+        (Vec3::new(48.0, 0.0, REST_Z), 180.0),
+    ]);
+    let (a, b) = (ids[0], ids[1]);
+    let verb = |status: Status| ApplyStatus {
+        status,
+        duration: 400,
+        magnitude: 1.0,
+        max_stacks: 1,
+        stacking: StackRule::Refresh,
+        target: StatusTarget::Hit,
+        dispellable: true,
+    };
+    let left = |zone: &Zone, status: Status| {
+        let p = zone.player(b).unwrap();
+        let slot = p.mover.statuses.get(status).expect("applied");
+        crate::sim::tick_delta(slot.until, p.last_input_tick)
+    };
+    zone.apply_status(b, a, &verb(Status::Burn));
+    let plain = left(&zone, Status::Burn);
+    assert!(plain > 0);
+    let mut gems = Gear::NONE;
+    gems.status_dealt[fire] = 200;
+    zone.set_gear(a, gems);
+    zone.apply_status(b, a, &verb(Status::Burn));
+    assert_eq!(
+        left(&zone, Status::Burn),
+        plain * 2,
+        "the sword's gems: twice as long"
+    );
+    let mut warded = Gear::NONE;
+    warded.status_taken[fire] = 50;
+    zone.set_gear(b, warded);
+    zone.apply_status(b, a, &verb(Status::Burn));
+    assert_eq!(
+        left(&zone, Status::Burn),
+        plain,
+        "the robe's ward: half of that"
+    );
+    zone.set_gear(a, Gear::NONE);
+    zone.apply_status(b, a, &verb(Status::Burn));
+    assert_eq!(left(&zone, Status::Burn), plain / 2, "the ward alone: half");
+    // A slow is Ground's, not Fire's: the fire ward leaves it alone.
+    zone.apply_status(b, a, &verb(Status::Slow));
+    assert_eq!(left(&zone, Status::Slow), plain);
+}
+
+#[test]
 fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
     use crate::matrix::Gear;
     let swing = |attacker: Gear, defender: Gear| {

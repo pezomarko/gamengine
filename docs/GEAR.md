@@ -168,9 +168,16 @@ and none of it is a number on damage.
 |---|---|---|
 | core | the edge, as today | the edge, as today |
 | catalyst | its element's **status on hit**, at a chance per landing blow (not on pulses): ember Burn 2 s, rime one stack of Chill 2 s, thunderstone Shock (10%), umbra Weaken 10% for 2 s, basalt Slow 20% for 1.5 s, zephyr Expose 1.5 s; 20% unless said | the durations of its element's status **taken** × 0.6 (MATRIX.md 6's status duration factor, per element) |
-| shard | **Bleed on hit** at 15%: glass m 1, riverglass m 2, boss scale m 4, for 3 s | **thorns**: a melee attacker takes flat pierce on each blow landed, no gear, no matrix (as Bleed's pulse): glass 3, riverglass 6, boss scale 12 |
 | frame | the **stamina** of the weapon's blows × : oak 1.0, yew 0.95, ash 0.9, ironwood 1.0 with +10 stagger, whalebone 0.75 | a block's `stamina_per_hit` × the same |
 | gem | a status **dealt** lasts × 1.5: garnet Burn, opal the item's catalyst's element, quartz nothing (plain edge) | a status **taken** lasts × 0.5: the same three |
+
+**The shard layer is gone** (the director, 2026-10-16: "remove shards and bleeds
+completely, for bleeds, we will just use specific bleed skills at some point, so bleed is
+bound to skill not the weapon. Weapon craft is therefore simpler"): no bleed on hit, no
+thorns, and glass, riverglass and boss scale with it (migration 0018). A craft is a core
+on a frame, a catalyst if the template has room, and two gems at most; the best craft is
+195 of the cap of 250 (60 + 30 + 45 + 60), an exchange of 20% at the very best against
+nothing, within PLAN.md 0's 15–25%.
 
 Every number is proposed and is tuned at the dummy (MATRIX.md 9.1) before it ships; the
 chances are per blow that lands, rolled by the zone (the client predicts none of it, as
@@ -304,4 +311,29 @@ plays every one before the next.
   says the class the body is in. The K page lost the class row. Not done: a stall keeper's
   mannequin is still tinted by its build's class (the hub's stall list has no chest), and
   the K page's derived preview is computed in the class the body is in now.
+- **2026-10-16, step 4** (the layers' jobs; the shard gone). `items.toml` v17: the shard
+  materials and the layer are gone (`LAYERS` 4 in `gm-content` and the hub, `MAX_PARTS`
+  5, migration 0018 retires every loose shard and strips the row from every craft, the
+  Warden's top drop is whalebone in its place); a catalyst carries its `status`, `chance`,
+  `duration_ms` and `magnitude` (ember burns one blow in five for 2 s at 3; rime chills;
+  thunderstone shocks one in ten; umbra weakens 10%; basalt slows 20%; zephyr exposes), a
+  frame its `stamina` (oak 100, yew 95, ash 90, ironwood 100, whalebone 75), a gem its
+  `ward` (garnet fire, opal the item's own catalyst). `ItemContent::jobs` reads a craft
+  into `Jobs` (the on-hit, the per-element wards and edges, the stamina), with the
+  constants `CATALYST_WARD` 60, `GEM_WARD` 50, `GEM_EDGE` 150, `WARD_FLOOR` 25,
+  `EDGE_CEILING` 200; the hub folds them into the reading (`Gear.on_hit`,
+  `status_taken`, `status_dealt`, `stamina_blows`, `stamina_block`; `HUB_VERSION` 18): the
+  right hand's weapon gives its on-hit, its gems and its frame, every guard piece its wards
+  and its frame, a second weapon and a ring their edge alone. In the zone: a blow that
+  lands (a swing or a shot, never an area or a pulse) rolls the attacker's on-hit by the
+  zone's die and puts the status on (`Chill` as the content stacks it, the rest one,
+  refreshed); a status of an element lasts × the source's `status_dealt` × the target's
+  `status_taken` (a fixed one, Shock and Stagger, is moved by neither); a block costs
+  `stamina_per_hit` × `stamina_block`. The frames' stamina rides to the owning client in
+  `Worn` (`stamina_blows`, `stamina_block`; `PROTOCOL_VERSION` 24) and into the kit
+  (`Kit::blow_cost`, `Kit::guard_cost`), which the shared mover spends, so the prediction
+  agrees. The item's words say each after the edge ("burns one blow in five for 2.0 s",
+  "burns last 60% as long on you", "blows cost 75% of their stamina"). Not done: ironwood's
+  +10 stagger (a plain 100 for now), the dummy's reading of a status (the numbers are
+  the proposal's, to tune in step 7).
 

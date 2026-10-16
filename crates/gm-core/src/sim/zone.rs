@@ -1899,6 +1899,18 @@ impl Zone {
                 return;
             }
         }
+        // The worn things (GEAR.md 6): the source's weapon gems lengthen its element's
+        // status, the target's armour catalysts and gems shorten it; a status of no
+        // element, or of a fixed duration, is moved by neither.
+        let dealt = s
+            .status
+            .element()
+            .filter(|_| !s.status.fixed_duration())
+            .map_or(100, |e| {
+                self.players
+                    .get(&source)
+                    .map_or(100, |p| p.gear.status_dealt[e.slot()])
+            });
         let Some(t) = self.players.get_mut(&target) else {
             return;
         };
@@ -1910,7 +1922,13 @@ impl Zone {
         } else {
             t.sheet.derived.status_duration
         };
-        let mut duration = ((s.duration as f32) * factor).round().max(1.0) as Tick;
+        let taken = s
+            .status
+            .element()
+            .filter(|_| !s.status.fixed_duration())
+            .map_or(100, |e| t.gear.status_taken[e.slot()]);
+        let worn = dealt as f32 / 100.0 * taken as f32 / 100.0;
+        let mut duration = ((s.duration as f32) * factor * worn).round().max(1.0) as Tick;
         let now = t.last_input_tick;
         // Diminishing returns on controls (MODES.md 4.5): the second within ten seconds
         // lasts half, the third does nothing and the body is immune for ten seconds.
@@ -2030,7 +2048,7 @@ impl Zone {
                     if facing_deg <= b.arc_deg * 0.5
                         && (kind == HitKind::Melee || b.stops_projectiles) =>
                 {
-                    let cost = b.stamina_per_hit as f32;
+                    let cost = b.stamina_per_hit as f32 * t.sheet.kit.stamina_block as f32 / 100.0;
                     if t.mover.stamina >= cost {
                         t.mover.stamina -= cost;
                         t.mover.regen_pause_until = frame_now
@@ -2094,6 +2112,8 @@ impl Zone {
         } else {
             AttackerStats {
                 gear: [0; 9],
+                on_hit: None,
+                status_dealt: [100; 6],
                 ..stats
             }
         };
@@ -2192,6 +2212,30 @@ impl Zone {
                     .wrapping_add(rate.ms_to_ticks(STAGGER_IMMUNITY_MS));
                 self.events.push(ZoneEvent::Staggered(target));
             }
+        }
+        // The worn weapon's catalyst (GEAR.md 6): its element's status on a blow that
+        // lands, at its chance; a swing or a shot, never an area or a pulse. Rolled here,
+        // by the zone's die, after everything else the blow did.
+        if let Some(oh) = stats.on_hit
+            && matches!(kind, HitKind::Melee | HitKind::Projectile)
+            && amount > 0
+            && (self.rng.below(100) as u8) < oh.chance
+        {
+            let chill = oh.status == Status::Chill;
+            let verb = ApplyStatus {
+                status: oh.status,
+                duration: self.rate.ms_to_ticks(oh.duration_ms as u32).max(1),
+                magnitude: oh.magnitude_pm as f32 / 1000.0,
+                max_stacks: if chill { 3 } else { 1 },
+                stacking: if chill {
+                    StackRule::Extend
+                } else {
+                    StackRule::Refresh
+                },
+                target: StatusTarget::Hit,
+                dispellable: true,
+            };
+            self.apply_status(target, attacker, &verb);
         }
         true
     }

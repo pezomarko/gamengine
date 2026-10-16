@@ -496,26 +496,26 @@ async fn a_full_owner_cannot_keep_a_stall_tile() {
     econ.stall_open(owner, "full_town", 1, 1).await.unwrap();
     let mut listed = Vec::new();
     for _ in 0..STALL_SLOTS {
-        let item = component(&econ, owner, "shard/glass").await;
+        let item = component(&econ, owner, "gem/quartz").await;
         econ.stall_list(owner, "full_town", item, 999_999)
             .await
             .unwrap();
         listed.push(item);
     }
-    let extra = component(&econ, owner, "shard/glass").await;
+    let extra = component(&econ, owner, "gem/quartz").await;
     assert_eq!(
         econ.stall_list(owner, "full_town", extra, 1).await,
         Err(EconError::Full)
     );
     // Fill the storage and the inventory with junk.
     for _ in 0..STORAGE_SLOTS {
-        let j = component(&econ, owner, "shard/glass").await;
+        let j = component(&econ, owner, "gem/quartz").await;
         econ.storage_deposit(owner, j).await.unwrap();
     }
-    let j = component(&econ, owner, "shard/glass").await;
+    let j = component(&econ, owner, "gem/quartz").await;
     assert_eq!(econ.storage_deposit(owner, j).await, Err(EconError::Full));
     while econ.inventory(owner).await.unwrap().1.len() < INVENTORY_SLOTS as usize {
-        component(&econ, owner, "shard/glass").await;
+        component(&econ, owner, "gem/quartz").await;
     }
     // Expiry still closes the stall: the items overflow into storage and the tile is free.
     econ.stall_close(owner).await.unwrap();
@@ -685,7 +685,7 @@ async fn boss_drops_follow_the_corrected_split() {
     let shares = loot::split(8, &parties);
     let grants: Vec<(i64, String)> = shares
         .iter()
-        .flat_map(|&(id, n)| (0..n).map(move |_| (id as i64, "shard/boss_scale".to_string())))
+        .flat_map(|&(id, n)| (0..n).map(move |_| (id as i64, "frame/whalebone".to_string())))
         .collect();
     assert_eq!(
         grants.len(),
@@ -712,7 +712,6 @@ async fn crafting_and_decomposition_never_create_anything() {
     let p = player(&econ, 0).await;
     let core = component(&econ, p, "core/iron").await;
     let frame = component(&econ, p, "frame/oak").await;
-    let shard = component(&econ, p, "shard/boss_scale").await;
     let catalyst = component(&econ, p, "catalyst/ember").await;
     let gem1 = component(&econ, p, "gem/opal").await;
     let gem2 = component(&econ, p, "gem/opal").await;
@@ -740,19 +739,14 @@ async fn crafting_and_decomposition_never_create_anything() {
         econ.craft(other, "sword", &[core, frame], None).await,
         Err(EconError::Forbidden)
     );
-    assert_eq!(econ.inventory(p).await.unwrap().1.len(), 7);
+    assert_eq!(econ.inventory(p).await.unwrap().1.len(), 6);
 
     let sword = econ
-        .craft(
-            p,
-            "sword",
-            &[core, frame, shard, catalyst, gem1, gem2],
-            None,
-        )
+        .craft(p, "sword", &[core, frame, catalyst, gem1, gem2], None)
         .await
         .unwrap();
     let (_, items) = econ.inventory(p).await.unwrap();
-    assert_eq!(items.len(), 2, "six components became one item");
+    assert_eq!(items.len(), 2, "five components became one item");
     assert_eq!(
         items
             .iter()
@@ -760,7 +754,7 @@ async fn crafting_and_decomposition_never_create_anything() {
             .unwrap()
             .components
             .len(),
-        6
+        5
     );
     // The consumed components are gone: they cannot be used or traded again.
     assert!(econ.craft(p, "axe", &[core, frame], None).await.is_err());
@@ -769,7 +763,7 @@ async fn crafting_and_decomposition_never_create_anything() {
     let core2 = component(&econ, p, "core/iron").await;
     let frame2 = component(&econ, p, "frame/oak").await;
     let ember = component(&econ, p, "catalyst/ember").await;
-    let room: Vec<String> = ["shard", "core", "frame", "gem"]
+    let room: Vec<String> = ["core", "frame", "gem"]
         .iter()
         .map(|l| l.to_string())
         .collect();
@@ -785,17 +779,17 @@ async fn crafting_and_decomposition_never_create_anything() {
         .unwrap();
     assert!(has(&econ, p, cuirass).await);
 
-    // Decomposition returns half, rounded down, and the item is gone.
+    // Decomposition returns half, rounded down (two of the five), and the item is gone.
     let back = econ.decompose(p, sword).await.unwrap();
-    assert_eq!(back.len(), 3);
+    assert_eq!(back.len(), 2);
     assert!(econ.decompose(p, sword).await.is_err());
     assert!(
         econ.decompose(p, back[0]).await.is_err(),
         "a lone component does not decompose"
     );
-    // The three that came back, one part bought apart earlier, the cuirass and the ember
+    // The two that came back, one part bought apart earlier, the cuirass and the ember
     // it had no room for.
-    assert_eq!(econ.inventory(p).await.unwrap().1.len(), 6);
+    assert_eq!(econ.inventory(p).await.unwrap().1.len(), 5);
 
     // Padding a craft with junk never raises what comes back above half.
     for item in 0..2_000i64 {

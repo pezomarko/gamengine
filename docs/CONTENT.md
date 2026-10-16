@@ -94,6 +94,9 @@ each the key of a file in 2:
 | | `place` | an armour's place on the body (EQUIPMENT.md 5.2, content v10): `chest` (default), `head`, `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring` |
 | | `guard` | a shield's or a focus's guard ability (GEAR.md 2, 2026-10-16): the key of the guard the thing in the left hand brings to whoever wears it (`shield_wall`, `brace`), in place of the build's |
 | | `class` | a chest piece's armour class (GEAR.md 3, 2026-10-16): `cloth`, `leather`, `mail` or `plate`, what the body wearing it is in; a chest piece that names none is cloth; nothing but an armour on the chest may name one |
+| `[[material]]` | `status`, `chance`, `duration_ms`, `magnitude` | a catalyst's job (GEAR.md 6, 2026-10-16): on a weapon, its element's status on a blow that lands, at `chance` percent, for `duration_ms`, at `magnitude`; the status must be the element's own (fire burns, water chills, electric shocks, grass weakens, ground slows, air exposes); on an armour, a shield or a cape that status lasts 60% as long on the wearer |
+| | `stamina` | a frame's job: the stamina of the blows (a weapon) or of the blocks and the guard (a shield, an armour), percent of the cost, 25–100 |
+| | `ward` | a gem's job: an element by name, or `catalyst` for the item's own catalyst's; on an armour, a shield or a cape that element's status lasts half as long on the wearer, on a weapon half again as long on whoever the blow lands on |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | | `look` | an armour: `overlay` (the default) or `patch`, cloth painted into the official avatar's atlas (3.3); a patch covers nothing |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |

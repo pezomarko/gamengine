@@ -229,4 +229,97 @@ mod tests {
         assert_eq!(chest("mail_shirt"), Some(ArmourClass::Mail));
         assert_eq!(chest("plate"), Some(ArmourClass::Plate));
     }
+
+    #[test]
+    fn the_layers_do_their_jobs() {
+        use crate::items::Jobs;
+        use gm_core::matrix::{Element, OnHit};
+        use gm_core::vocab::Status;
+        let dir =
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/content"));
+        let items = crate::items::load_items(dir).unwrap();
+        // The best sword: an ember catalyst burns one blow in five, two opals make its
+        // burns last twice as long (150% twice, under the ceiling), whalebone prices its
+        // blows at three quarters.
+        let best = [
+            "core/dragonbone",
+            "catalyst/ember",
+            "frame/whalebone",
+            "gem/opal",
+            "gem/opal",
+        ];
+        let sword = items.jobs("sword", best).unwrap();
+        assert_eq!(
+            sword.on_hit,
+            Some(OnHit {
+                status: Status::Burn,
+                chance: 20,
+                duration_ms: 2000,
+                magnitude_pm: 3000,
+            })
+        );
+        assert_eq!(sword.status_dealt[Element::Fire.slot()], 200);
+        assert_eq!(sword.status_dealt[Element::Water.slot()], 100);
+        assert_eq!(sword.status_taken, [100; 6]);
+        assert_eq!(sword.stamina, 75);
+        // A plain sword of iron and oak does nothing but its edge.
+        assert_eq!(
+            items.jobs("sword", ["core/iron", "frame/oak"]),
+            Some(Jobs::NONE)
+        );
+        // A cuirass has no catalyst, so its opals ward nothing; a garnet wards fire; ash
+        // prices its blocks at nine tenths.
+        let cuirass = items
+            .jobs(
+                "cuirass",
+                ["core/iron", "frame/ash", "gem/opal", "gem/garnet"],
+            )
+            .unwrap();
+        assert_eq!(cuirass.on_hit, None);
+        assert_eq!(cuirass.status_taken[Element::Fire.slot()], 50);
+        assert_eq!(cuirass.status_taken[Element::Water.slot()], 100);
+        assert_eq!(cuirass.stamina, 90);
+        // A robe on rime with an opal: chills last 60% of 50%, 30%, on its wearer.
+        let robe = items
+            .jobs(
+                "robe",
+                ["core/iron", "catalyst/rime", "frame/oak", "gem/opal"],
+            )
+            .unwrap();
+        assert_eq!(robe.status_taken[Element::Water.slot()], 30);
+        // The words say each, after the edge.
+        let view = items.view(
+            "sword",
+            best.iter().map(|m| (m.split_once('/').unwrap().0, *m)),
+        );
+        assert!(
+            view.does
+                .contains(&"burns one blow in five for 2.0 s".to_string()),
+            "{:?}",
+            view.does
+        );
+        assert!(
+            view.does
+                .contains(&"its burns last 200% as long".to_string())
+        );
+        assert!(
+            view.does
+                .contains(&"blows cost 75% of their stamina".to_string())
+        );
+        let view = items.view(
+            "robe",
+            [
+                ("core", "core/iron"),
+                ("catalyst", "catalyst/rime"),
+                ("frame", "frame/oak"),
+                ("gem", "gem/opal"),
+            ],
+        );
+        assert!(
+            view.does
+                .contains(&"chills last 30% as long on you".to_string()),
+            "{:?}",
+            view.does
+        );
+    }
 }

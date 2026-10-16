@@ -728,9 +728,9 @@ fn guard_step(
                     && !staggered
                     && m.script.is_none()
                     && ready
-                    && m.stamina >= ab.cost.stamina as f32
+                    && m.stamina >= kit.guard_cost(ab)
                 {
-                    m.stamina -= ab.cost.stamina as f32;
+                    m.stamina -= kit.guard_cost(ab);
                     if ab.cost.stamina > 0 {
                         m.regen_pause_until = now.wrapping_add(regen_pause_ticks());
                     }
@@ -1041,7 +1041,7 @@ fn try_activate<W: CollisionWorld + ?Sized>(
     if kit.elemental[slot] && m.statuses.silenced() {
         return false;
     }
-    if m.stamina < ab.cost.stamina as f32 || m.focus < ab.cost.focus as f32 {
+    if m.stamina < kit.blow_cost(ab) || m.focus < ab.cost.focus as f32 {
         return false;
     }
     // A firearm (MODES.md 3.2): a round in the magazine, no reload under way, and a
@@ -1066,7 +1066,7 @@ fn try_activate<W: CollisionWorld + ?Sized>(
         g.last_shot = now;
         g.magazine -= 1;
     }
-    m.stamina -= ab.cost.stamina as f32;
+    m.stamina -= kit.blow_cost(ab);
     m.focus -= ab.cost.focus as f32;
     if ab.cost.stamina > 0 {
         m.regen_pause_until = now.wrapping_add(regen_pause_ticks());

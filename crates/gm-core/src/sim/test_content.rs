@@ -2488,7 +2488,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 ],
                 top: vec![
                     "core/dragonbone".into(),
-                    "shard/boss_scale".into(),
+                    "frame/whalebone".into(),
                     "catalyst/basalt".into(),
                 ],
                 coin: 30,

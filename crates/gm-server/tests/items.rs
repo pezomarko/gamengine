@@ -651,7 +651,6 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         .unwrap();
     let direct = Economy::new(db.pool().clone());
     let best = strings(&[
-        "shard/boss_scale",
         "core/dragonbone",
         "catalyst/ember",
         "frame/whalebone",
@@ -675,13 +674,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         .grant_item(
             smith.character,
             "cuirass",
-            &strings(&[
-                "shard/boss_scale",
-                "core/dragonbone",
-                "frame/whalebone",
-                "gem/opal",
-                "gem/opal",
-            ]),
+            &strings(&["core/dragonbone", "frame/whalebone", "gem/opal", "gem/opal"]),
             None,
         )
         .await

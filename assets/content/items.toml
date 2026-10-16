@@ -31,7 +31,7 @@
 id = "sword"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "sword"
 held = "either"                              # one in each hand: the crusader's way (ITEMS.md 2)
 fit = { turn = [90, 0, 0], scale = 0.36 }   # Quaternius' warrior sword (LICENSES.md): 3.2 m along +Y as it comes
@@ -42,14 +42,14 @@ fit = { turn = [90, 0, 0], scale = 0.36 }   # Quaternius' warrior sword (LICENSE
 id = "greatsword"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "greatsword"
 
 [[template]]
 id = "dagger"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "dagger"
 held = "either"
 fit = { turn = [90, 0, 0], scale = 0.55 }
@@ -58,7 +58,7 @@ fit = { turn = [90, 0, 0], scale = 0.55 }
 id = "hammer"
 kind = "weapon"
 strikes = "blunt"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "hammer"
 
 # A staff takes both hands (EQUIPMENT.md 3): worn, it empties the left hand, and a shield
@@ -67,7 +67,7 @@ model = "hammer"
 id = "staff"
 kind = "weapon"
 strikes = "blunt"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "staff"
 held = "two"
 fit = { move = [0.0, 0.0, 0.3], turn = [90, -20, 0], scale = 0.6 }
@@ -82,7 +82,7 @@ fit = { move = [0.0, 0.0, 0.3], turn = [90, -20, 0], scale = 0.6 }
 id = "axe"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "axe"
 held = "either"
 fit = { turn = [90, 0, 0], scale = 0.6 }
@@ -91,7 +91,7 @@ fit = { turn = [90, 0, 0], scale = 0.6 }
 id = "spear"
 kind = "weapon"
 strikes = "pierce"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "spear"
 held = "two"
 fit = { turn = [0, 90, 0] }
@@ -101,7 +101,7 @@ fit_view = { turn = [0, -90, 0] }
 id = "bow"
 kind = "weapon"
 strikes = "pierce"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "bow"
 held = "two"
 
@@ -109,7 +109,7 @@ held = "two"
 id = "wand"
 kind = "weapon"
 strikes = "blunt"                            # the bolt is a blow of force (abilities.toml: wand)
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "wand"
 fit = { turn = [90, 0, 0], scale = 0.5 }
 
@@ -123,7 +123,7 @@ fit = { turn = [90, 0, 0], scale = 0.5 }
 id = "mace"
 kind = "weapon"
 strikes = "blunt"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "mace"
 held = "either"
 
@@ -131,7 +131,7 @@ held = "either"
 id = "katana"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "katana"
 held = "either"
 
@@ -139,7 +139,7 @@ held = "either"
 id = "claymore"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "claymore"
 held = "two"
 
@@ -147,7 +147,7 @@ held = "two"
 id = "greataxe"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "greataxe"
 held = "two"
 fit = { turn = [90, 0, 0], scale = 0.9 }
@@ -156,7 +156,7 @@ fit = { turn = [90, 0, 0], scale = 0.9 }
 id = "warhammer"
 kind = "weapon"
 strikes = "blunt"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "warhammer"
 held = "two"
 
@@ -164,7 +164,7 @@ held = "two"
 id = "scythe"
 kind = "weapon"
 strikes = "slash"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "scythe"
 held = "two"
 
@@ -172,7 +172,7 @@ held = "two"
 id = "crossbow"
 kind = "weapon"
 strikes = "pierce"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "crossbow"
 fit = { turn = [0, 100, 0], scale = 0.7 }
 fit_view = { turn = [0, -100, 0] }
@@ -181,7 +181,7 @@ fit_view = { turn = [0, -100, 0] }
 id = "musket"
 kind = "weapon"
 strikes = "pierce"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "musket"
 fit = { turn = [0, 88, 0] }
 fit_view = { turn = [0, -88, 0] }
@@ -192,7 +192,7 @@ fit_view = { turn = [0, -88, 0] }
 id = "pistol"
 kind = "weapon"
 strikes = "pierce"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "pistol"
 fit = { turn = [0, 88, 0] }
 fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye: a short thing
@@ -206,7 +206,7 @@ id = "cuirass"
 kind = "armour"
 guards = "physical"
 class = "leather"                            # the chest piece carries the class (GEAR.md 3)
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
 # Cloth inside the body's silhouette is pixels on the body's own atlas (LOOK.md 6.6): one
 # draw, one texture, nothing to poke through. The jerkin's cut is the icon's.
@@ -217,7 +217,7 @@ id = "hood"
 kind = "armour"
 place = "head"
 guards = "elements"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "hood"                               # the ranger's hood: cloth, over the hair
 covers = []
 
@@ -226,7 +226,7 @@ id = "trousers"
 kind = "armour"
 place = "legs"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "trousers"                           # the ranger's trousers and boots in one, over the body's own
 # Painted onto the body's legs (LOOK.md 6.6): the body keeps its own geometry, and the band
 # of skin between a lifted jerkin and the waistband (2026-10-14) cannot exist, the cloth being
@@ -243,7 +243,7 @@ id = "helm"
 kind = "armour"
 place = "head"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "helm"                               # the knight's open helm with a nasal and cheek guards
 covers = []
 
@@ -252,7 +252,7 @@ id = "barbute"
 kind = "armour"
 place = "head"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "barbute"                            # the knight's helm with cheek guards, the face open
 covers = []
 
@@ -261,7 +261,7 @@ id = "great_helm"
 kind = "armour"
 place = "head"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "great_helm"                         # the knight's closed helm with the cross slit: the whole head under it
 covers = ["head"]
 
@@ -270,7 +270,7 @@ id = "robe"
 kind = "armour"
 guards = "elements"
 class = "cloth"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "robe"                               # the cloth tunic with sleeves, on the striker
 covers = ["spine", "chest"]
 
@@ -284,14 +284,14 @@ id = "mail_shirt"
 kind = "armour"
 guards = "physical"
 class = "mail"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 
 [[template]]
 id = "plate"
 kind = "armour"
 guards = "physical"
 class = "plate"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 
 # A shield (ITEMS.md 2): worn in the left hand by anyone, guarding like an armour; a
 # shield wall's own shield is the same model, held bare (abilities.toml).
@@ -299,7 +299,7 @@ layers = ["shard", "core", "frame", "gem"]
 id = "shield"
 kind = "shield"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "shield"
 held = "left"
 guard = "shield_wall"
@@ -311,7 +311,7 @@ guard = "shield_wall"
 id = "buckler"
 kind = "shield"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "buckler"
 held = "left"
 guard = "shield_wall"
@@ -321,7 +321,7 @@ fit = { turn = [-90, 0, 0], scale = 0.7 }
 id = "tower_shield"
 kind = "shield"
 guards = "physical"
-layers = ["shard", "core", "frame", "gem"]
+layers = ["core", "frame", "gem"]
 model = "tower_shield"
 held = "left"
 guard = "shield_wall"
@@ -334,7 +334,7 @@ fit = { turn = [-90, 0, 0], scale = 0.85 }
 id = "focus"
 kind = "shield"
 guards = "elements"
-layers = ["shard", "core", "catalyst", "frame", "gem"]
+layers = ["core", "catalyst", "frame", "gem"]
 model = "focus"
 held = "left"
 guard = "brace"
@@ -416,80 +416,103 @@ edge = 60
 note = "light and hard; boss core"
 tint = [0.92, 0.88, 0.76]
 
-# Frames: speed, stamina, crit.
+# Frames: the stamina of the blows (a weapon) or of the blocks (a shield, an armour),
+# in percent of the cost (GEAR.md 6): oak 100, yew 95, ash 90, ironwood 100, whalebone 75.
 [[material]]
 id = "frame/oak"
 edge = 10
 note = "steady"
+stamina = 100
 
 [[material]]
 id = "frame/ash"
 edge = 25
 note = "quick"
+stamina = 90
 
 [[material]]
 id = "frame/yew"
 edge = 18
 note = "springy"
+stamina = 95
 
 [[material]]
 id = "frame/ironwood"
 edge = 35
 note = "heavy, hard"
+stamina = 100
 
 [[material]]
 id = "frame/whalebone"
 edge = 45
 note = "stamina; boss frame"
+stamina = 75
 
-# Catalysts: the element (MATRIX.md 4).
+# Catalysts: the element (MATRIX.md 5), and its status (GEAR.md 6): on a weapon, put on
+# a landing blow at `chance` percent for `duration_ms` at `magnitude`; on an armour, a
+# shield or a cape, that status lasts 60% as long on the wearer.
 [[material]]
 id = "catalyst/ember"
 edge = 30
 element = "fire"
+status = "burn"
+chance = 20
+duration_ms = 2000
+magnitude = 3.0
 
 [[material]]
 id = "catalyst/rime"
 edge = 30
 element = "water"
+status = "chill"
+chance = 20
+duration_ms = 2000
+magnitude = 1.0
 
 [[material]]
 id = "catalyst/thunderstone"
 edge = 30
 element = "electric"
+status = "shock"
+chance = 10
+duration_ms = 50
+magnitude = 1.0
 
 [[material]]
 id = "catalyst/umbra"
 edge = 30
 element = "grass"
+status = "weaken"
+chance = 20
+duration_ms = 2000
+magnitude = 0.10
 
 [[material]]
 id = "catalyst/basalt"
 edge = 30
 element = "ground"
+status = "slow"
+chance = 20
+duration_ms = 1500
+magnitude = 0.20
 
 [[material]]
 id = "catalyst/zephyr"
 edge = 30
 element = "air"
+status = "expose"
+chance = 20
+duration_ms = 1500
+magnitude = 1.0
 
-# Shards: a passive trait; boss drops only.
-[[material]]
-id = "shard/glass"
-edge = 5
-note = "decorative"
+# (The shard layer went on 2026-10-16, GEAR.md 6: the director, "remove shards and bleeds
+# completely ... bleed is bound to skill not the weapon. Weapon craft is therefore simpler".
+# Migration 0018 took the shards out of every item.)
 
-[[material]]
-id = "shard/riverglass"
-edge = 15
-note = "a dull shine"
-
-[[material]]
-id = "shard/boss_scale"
-edge = 55
-note = "thorns"
-
-# Gems: counter-meta sockets, two per item.
+# Gems: counter-meta sockets, two per item. A gem may `ward` an element (GEAR.md 6): on an
+# armour, a shield or a cape that element's status lasts half as long on the wearer; on a
+# weapon it lasts half again as long on whoever the blow lands on. `ward = "catalyst"` is
+# the item's own catalyst's element.
 [[material]]
 id = "gem/quartz"
 edge = 10
@@ -498,9 +521,11 @@ note = "plain"
 [[material]]
 id = "gem/garnet"
 edge = 20
+ward = "fire"
 note = "wards fire"
 
 [[material]]
 id = "gem/opal"
 edge = 30
 note = "resists one element"
+ward = "catalyst"

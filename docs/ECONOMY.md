@@ -66,7 +66,7 @@ stall and escrow holders are kept: the ledger rows that name them are their hist
 
 ```
 items           (id, template, holder_id, created)
-item_components (item_id, layer, material)        layer: shard | core | catalyst | frame | gem
+item_components (item_id, layer, material)        layer: core | catalyst | frame | gem   (shard until 2026-10-16, GEAR.md 6; migration 0018)
 ```
 
 Templates and materials are content (`assets/content/items.toml`): a template names its kind
