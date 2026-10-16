@@ -1379,7 +1379,7 @@ mod tests {
         assert_eq!(run.front.screen, Screen::NewCharacter);
         // The archetypes with the content's words, and no way back to an empty list.
         assert!(run.says("ironclad"), "{:?}", run.said());
-        assert!(run.says("colossus in plate  |  ground  |  action mode"));
+        assert!(run.says("colossus  |  ground  |  action mode"));
         assert!(run.says("A wall of plate behind a shield."));
         assert!(run.says("Greatsword  weapon"));
         assert!(run.says("Bellow  active"));
@@ -1752,7 +1752,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         assert!(
-            run.says("colossus in plate  |  ground  |  action mode"),
+            run.says("colossus  |  ground  |  action mode"),
             "{:?}",
             run.said()
         );

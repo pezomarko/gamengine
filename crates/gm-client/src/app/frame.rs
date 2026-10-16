@@ -796,10 +796,10 @@ impl App {
         let (class, ribbon) = self
             .online
             .as_ref()
-            .and_then(|o| o.client.as_ref().map(|c| (&c.sheet.build, o.pack.as_ref())))
-            .map(|(build, pack)| {
-                let class = crate::showcase::class_name(pack, build);
-                let ribbon = crate::showcase::short_ribbon(&class, build);
+            .and_then(|o| o.client.as_ref().map(|c| (&c.sheet, o.pack.as_ref())))
+            .map(|(sheet, pack)| {
+                let class = crate::showcase::class_name(pack, &sheet.build);
+                let ribbon = crate::showcase::short_ribbon(&class, &sheet.build, sheet.class);
                 (class, ribbon)
             })
             .unwrap_or_default();
@@ -899,6 +899,7 @@ impl App {
             let view = GmView {
                 pack,
                 own: &c.sheet.build,
+                class: c.sheet.class,
                 tuning: &o.tuning,
                 rate: o.rate,
                 note: &o.gm_note,
@@ -917,6 +918,7 @@ impl App {
             let view = CharacterView {
                 pack,
                 own: &c.sheet.build,
+                class: c.sheet.class,
                 rate: o.rate,
                 at_trainer,
                 note: &o.respec_note,
@@ -1082,7 +1084,7 @@ impl App {
             &o.props,
             look,
             frame,
-            build.armour as u8,
+            c.sheet.class as u8,
         );
         let body = Body {
             key: DOLL,
@@ -1092,7 +1094,7 @@ impl App {
             anim: gm_core::sim::anim::IDLE,
             crouched: false,
             frame,
-            armour: build.armour as u8,
+            armour: c.sheet.class as u8,
             aspects: build.aspects.0,
             status: 0,
             model: o.names.get(&c.my_id).and_then(|n| n.2),

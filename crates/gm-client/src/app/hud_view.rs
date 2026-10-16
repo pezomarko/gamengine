@@ -672,7 +672,7 @@ fn hud_own(
         m.portrait(&format!(
             "{}_{}",
             gm_model::rig::frame_name(build.frame),
-            build.armour.name()
+            c.sheet.class.name()
         ))
         .map(str::to_string)
     });

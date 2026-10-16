@@ -4,6 +4,7 @@
 //! owning client the result, so a client reads no item content.
 
 use gm_core::build::{Build, ContentPack, Slot, Worn};
+use gm_core::matrix::ArmourClass;
 use gm_core::vocab::Mode;
 
 use crate::looks::Looks;
@@ -12,6 +13,7 @@ use crate::looks::Looks;
 /// (`gm_hub_proto::protocol::PLACE_NAMES`: weapon, off, ...).
 const RIGHT: usize = 0;
 const LEFT: usize = 1;
+const CHEST: usize = 2;
 
 /// The `Worn` of `build` in `templates` (the hub's six, by place; empty for nothing).
 ///
@@ -23,6 +25,9 @@ const LEFT: usize = 1;
 ///   so does an empty hand or a weapon no ability holds: the build's primary plays.
 /// - **The left hand**: the template's `guard` ability, when it is one and the mode has a
 ///   guard (a gun build has none, MODES.md 2). A second one-hander brings nothing.
+/// - **The chest** (GEAR.md 3): the template's `class`, cloth for a chest piece that names
+///   none and for nothing on the chest. Always said: a body a hub dresses is in what it
+///   wears, whatever its build says.
 pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[String]) -> Worn {
     let template = |place: usize| {
         templates
@@ -77,6 +82,11 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
     {
         worn.guard = Some(i);
     }
+    worn.class = Some(
+        template(CHEST)
+            .and_then(|t| t.class)
+            .unwrap_or(ArmourClass::Cloth),
+    );
     worn
 }
 
@@ -109,8 +119,15 @@ mod tests {
         let (looks, pack) = load();
         let blade = pack.build("blade").unwrap().clone();
         let by = |k: &str| pack.find(k).unwrap();
-        // The blade in nothing: the build's kit.
-        assert_eq!(worn_of(&looks, &pack, &blade, &six("", "")), Worn::NONE);
+        // The blade in nothing: the build's kit, in cloth (a hub dresses it in what it
+        // wears, GEAR.md 3).
+        assert_eq!(
+            worn_of(&looks, &pack, &blade, &six("", "")),
+            Worn {
+                class: Some(ArmourClass::Cloth),
+                ..Worn::NONE
+            }
+        );
         // Its own sword: the same primary, said.
         assert_eq!(
             worn_of(&looks, &pack, &blade, &six("sword", "")).primary,
@@ -186,11 +203,30 @@ mod tests {
         );
         assert_eq!(
             worn_of(&looks, &pack, &gun, &six("sword", "shield")),
-            Worn::NONE
+            Worn {
+                class: Some(ArmourClass::Cloth),
+                ..Worn::NONE
+            }
         );
         assert_eq!(
             worn_of(&looks, &pack, &blade, &six("musket", "")).primary,
             None
         );
+    }
+
+    #[test]
+    fn the_chest_piece_says_the_class() {
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let chest = |t: &str| {
+            let mut six = six("", "");
+            six[CHEST] = t.into();
+            worn_of(&looks, &pack, &blade, &six).class
+        };
+        assert_eq!(chest(""), Some(ArmourClass::Cloth));
+        assert_eq!(chest("robe"), Some(ArmourClass::Cloth));
+        assert_eq!(chest("cuirass"), Some(ArmourClass::Leather));
+        assert_eq!(chest("mail_shirt"), Some(ArmourClass::Mail));
+        assert_eq!(chest("plate"), Some(ArmourClass::Plate));
     }
 }

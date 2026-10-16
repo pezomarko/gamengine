@@ -119,9 +119,10 @@ pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
 }
 
 /// `Class  |  frame in armour`, the equipment's line under the name (EQUIPMENT.md 4.1):
-/// the ribbon without the aspects and the mode, which the selector says.
-pub fn short_ribbon(class: &str, b: &Build) -> String {
-    let body = format!("{} in {}", frame_name(b.frame), b.armour.name());
+/// the ribbon without the aspects and the mode, which the selector says. `armour` is the
+/// class the body is in, the worn chest piece's (GEAR.md 3), not the build's.
+pub fn short_ribbon(class: &str, b: &Build, armour: gm_core::matrix::ArmourClass) -> String {
+    let body = format!("{} in {}", frame_name(b.frame), armour.name());
     if class.is_empty() {
         body
     } else {
@@ -129,8 +130,9 @@ pub fn short_ribbon(class: &str, b: &Build) -> String {
     }
 }
 
-/// `Class  |  frame in armour  |  aspects  |  mode`, the line under the name; the class
-/// leads it when the content is here to name one.
+/// `Class  |  frame  |  aspects  |  mode`, the line under the name; the class leads it
+/// when the content is here to name one. (The armour left the line on 2026-10-16: it is
+/// the chest piece's, GEAR.md 3, worn in the world and not chosen here.)
 pub fn ribbon(class: &str, b: &Build) -> String {
     let aspects: Vec<&str> = b.aspects.iter().map(|e| e.name()).collect();
     let aspects = if aspects.is_empty() {
@@ -144,9 +146,8 @@ pub fn ribbon(class: &str, b: &Build) -> String {
         format!("{class}  |  ")
     };
     format!(
-        "{lead}{} in {}  |  {}  |  {} mode",
+        "{lead}{}  |  {}  |  {} mode",
         frame_name(b.frame),
-        b.armour.name(),
         aspects,
         b.mode.name()
     )
@@ -479,13 +480,14 @@ mod tests {
     fn the_ribbon_reads_the_build() {
         let pack = gm_core::sim::test_content::pack(TickRate::COMBAT);
         let ironclad = &pack.builds[0].build;
-        assert_eq!(
-            ribbon("", ironclad),
-            "colossus in plate  |  ground  |  action mode"
-        );
+        assert_eq!(ribbon("", ironclad), "colossus  |  ground  |  action mode");
         assert_eq!(
             ribbon(&class_name(Some(&pack), ironclad), ironclad),
-            "Ironclad  |  colossus in plate  |  ground  |  action mode"
+            "Ironclad  |  colossus  |  ground  |  action mode"
+        );
+        assert_eq!(
+            short_ribbon("Ironclad", ironclad, gm_core::matrix::ArmourClass::Cloth),
+            "Ironclad  |  colossus in cloth"
         );
         let mut neutral = ironclad.clone();
         neutral.aspects = gm_core::matrix::Aspects::default();

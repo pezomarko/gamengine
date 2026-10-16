@@ -170,15 +170,6 @@ impl ArmourClass {
     }
 
     /// Build points (MATRIX.md 4).
-    pub const fn cost(self) -> u32 {
-        match self {
-            ArmourClass::Cloth => 0,
-            ArmourClass::Leather => 4,
-            ArmourClass::Mail => 8,
-            ArmourClass::Plate => 12,
-        }
-    }
-
     pub const fn mods(self) -> ArmourMods {
         match self {
             ArmourClass::Cloth => ArmourMods {

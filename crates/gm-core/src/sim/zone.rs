@@ -2100,7 +2100,7 @@ impl Zone {
         let t = self.players.get_mut(&target).expect("still there");
         let d = &t.sheet.derived;
         let defender = DefenderStats {
-            armour_class: t.sheet.build.armour,
+            armour_class: t.sheet.class,
             aspects: t.sheet.build.aspects,
             armour: d.armour,
             ward: d.ward,

@@ -199,7 +199,7 @@ props of its primary and its guard, which the director saw as "char with sword, 
 as it is ingame"; an archetype on the new-character screen stands bare, as it will
 enter), in the open with no well under it (the paperdoll of LOOK.md 5, `paperdoll_open`),
 turned by a drag across it; its name over it in the title face, under the name a
-line that reads the build (`striker in mail  |  water  |  action mode`), and under that
+line that reads the build (`striker  |  water  |  action mode`; `striker in mail` until 2026-10-16, GEAR.md 3: the class is the chest piece's, said in the equipment window), and under that
 what it is: the preset's name or "custom", where the character is (`in town`, or `not
 yet in the world`) and how long it was played. Left, a panel of the **attributes**: the
 five with what each buys (`STR  17  blows x1.28`) and what else the body comes to

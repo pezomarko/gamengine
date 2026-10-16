@@ -104,7 +104,7 @@ impl Role {
             return Role::Heal;
         }
         let heavy = sheet.build.frame == ArchetypeFrame::Colossus
-            && matches!(sheet.build.armour, ArmourClass::Mail | ArmourClass::Plate);
+            && matches!(sheet.class, ArmourClass::Mail | ArmourClass::Plate);
         if heavy
             || matches!(
                 plan.guard,

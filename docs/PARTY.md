@@ -334,7 +334,7 @@ A page of the menu (ECONOMY.md 11 is the rule; the hub had the requests since Ph
   longer has is not shown and sells nothing: `that character is not for hire now: its
   owner must list it again`; the hub validates the build before any coin moves and before
   it says a word of it (the first build could have aborted the hub on a stale one).
-- **In the hub's words**: what somebody is (`ironclad: colossus in plate`) and the role a
+- **In the hub's words**: what somebody is (`ironclad: colossus`; `in plate` until 2026-10-16, when the class became the chest piece's, GEAR.md 3) and the role a
   mind will play it in (`tank`), which the hub reads from the build as the zone's minds do
   (`gm_ai::Role::of`). No client works either out.
 - The requests (the players' messages v3): `Tavern`, `Hires`, `HireListed`, `Hire { avatar,
