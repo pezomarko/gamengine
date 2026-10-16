@@ -69,8 +69,11 @@ the reviews and what running it found.
   PROTOCOL.md 4 to 7 hold unchanged. In the browser incoming datagrams queue in the session's
   `datagrams.readable`; the client sets the queue to 16 datagrams (the property is
   `incomingMaxBufferedDatagrams` in Chromium, where it defaults to **one**, and
-  `incomingHighWaterMark` in the specification: both are set) and `incomingMaxAge` /
-  `outgoingMaxAge` to 250 ms. When the queue is full the browser drops the oldest. The
+  `incomingHighWaterMark` in the specification: both are set), the outgoing queue to 16 as
+  well (`outgoingHighWaterMark`, one by default: a page drawing fewer frames than the zone
+  ticks writes two or more input datagrams in one frame, and the browser kept only the
+  last, so the zone starved on every other tick, 2026-10-16), and `incomingMaxAge` /
+  `outgoingMaxAge` to 250 ms. When a queue is full the browser drops the oldest. The
   client's own queue between its reader task and the frame is bounded the same way (32
   snapshots, oldest out): reader tasks run in a hidden tab, frames do not.
 - **Handshake** is PROTOCOL.md 8: the client opens one bidirectional stream, sends `Hello`,

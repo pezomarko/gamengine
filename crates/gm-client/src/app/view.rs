@@ -220,12 +220,21 @@ pub(super) fn fight_input(
             sim.pitch = (-to.z / reach).clamp(-1.0, 1.0).asin().to_degrees();
             input.yaw = sim.yaw;
             input.pitch = sim.pitch;
+            // The sim takes a press, not a hold (`pressed = buttons & !buttons_prev`): a
+            // button held every tick swung once, when the enemy came in reach, and the
+            // blows after it came from the frames that flickered the reach (12 hits at
+            // 60 fps, one at 30, none at 16; 2026-10-16). The buttons pulse, pressed on
+            // the even ticks and released on the odd: a press during a swing is refused
+            // and the next lands within two ticks of its end.
+            let pressed = tick.is_multiple_of(2);
             if melee {
-                input.buttons |= buttons::PRIMARY;
+                if pressed {
+                    input.buttons |= buttons::PRIMARY;
+                }
                 if distance < 48.0 {
                     input.forward = 0.0;
                 }
-            } else if distance < 900.0 {
+            } else if distance < 900.0 && pressed {
                 input.buttons |= buttons::SECONDARY;
             }
             // The first active as often as it comes back, the second now and then.

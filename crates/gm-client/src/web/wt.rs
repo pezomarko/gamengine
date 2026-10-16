@@ -10,6 +10,8 @@ use wasm_bindgen_futures::JsFuture;
 /// Datagrams the browser keeps for us between two frames (WEB.md 2.1): a frame at 60 Hz sees
 /// one or two snapshots, a stalled page must not hold a second of them.
 const INCOMING_DATAGRAMS: u32 = 16;
+/// Input datagrams a slow frame may write at once before the browser drops the oldest.
+const OUTGOING_DATAGRAMS: u32 = 16;
 /// Datagrams older than this are dropped by the browser on either side, milliseconds.
 const DATAGRAM_MAX_AGE_MS: f64 = 250.0;
 
@@ -110,11 +112,17 @@ impl Session {
         let datagrams = wt.datagrams();
         // The queue between the network and the page: short and young, so that a stalled
         // page comes back to the present instead of replaying the past. Chromium names the
-        // limit `incomingMaxBufferedDatagrams` and defaults it to one.
+        // limit `incomingMaxBufferedDatagrams` and defaults it to one. The outgoing queue
+        // defaults to one as well, and a page drawing fewer frames than the zone ticks
+        // writes two or more input datagrams in one frame: with the default the browser
+        // kept only the last, the zone starved on every other tick and the WebGL fight of
+        // the web gate landed nothing (2026-10-16; the phone's page at 7 fps lost nine of
+        // ten). As many as the tick rate may bunch in a slow frame.
         for (k, v) in [
             ("incomingMaxAge", JsValue::from(DATAGRAM_MAX_AGE_MS)),
             ("outgoingMaxAge", JsValue::from(DATAGRAM_MAX_AGE_MS)),
             ("incomingHighWaterMark", JsValue::from(INCOMING_DATAGRAMS)),
+            ("outgoingHighWaterMark", JsValue::from(OUTGOING_DATAGRAMS)),
             (
                 "incomingMaxBufferedDatagrams",
                 JsValue::from(INCOMING_DATAGRAMS),

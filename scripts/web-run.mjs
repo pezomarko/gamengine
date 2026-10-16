@@ -66,10 +66,20 @@ const flags = [
   ...(software ? [] : ["--use-angle=vulkan"]),
   "about:blank",
 ];
+// The browser's last words are kept for a start that fails (the gates' sound job on
+// GitHub, 2026-10-16: no DevTools endpoint in ten seconds, both builds, nothing to read).
 const browser = spawn(chrome, flags, {
-  stdio: ["ignore", "ignore", "ignore"],
+  stdio: ["ignore", "ignore", "pipe"],
   env: { ...process.env, TMPDIR: scratch },
 });
+const lastWords = [];
+browser.stderr.on("data", (chunk) => {
+  for (const line of String(chunk).split("\n")) {
+    if (line.trim()) lastWords.push(line.slice(0, 200));
+  }
+  while (lastWords.length > 30) lastWords.shift();
+});
+const said = () => (lastWords.length ? "\n  " + lastWords.join("\n  ") : "");
 let finished = false;
 let gone = false;
 const finish = (code) => {
@@ -92,15 +102,15 @@ const fail = (why) => {
   finish(1);
 };
 browser.on("error", (e) => { gone = true; fail(`the browser did not start (${chrome}): ${e.message}`); });
-browser.on("exit", () => { gone = true; if (!finished) fail("the browser exited"); });
-// Whatever hangs (a renderer that stops answering, a page that never loads) ends here.
-setTimeout(() => fail(`nothing came of it in ${seconds + 40} s`), (seconds + 40) * 1000);
+browser.on("exit", () => { gone = true; if (!finished) fail("the browser exited" + said()); });
 process.on("uncaughtException", (e) => fail(String(e && e.stack ? e.stack : e)));
 process.on("unhandledRejection", (e) => fail(String(e && e.stack ? e.stack : e)));
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => fail(`stopped by ${signal}`));
 
+// A loaded runner (a zone and fifteen bots beside it) takes its time to bring the
+// browser up: up to 45 s, and the run's own clock starts once it answers.
 async function target() {
-  for (let i = 0; i < 100 && !finished; i++) {
+  for (let i = 0; i < 450 && !finished; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = list.find((t) => t.type === "page");
@@ -108,11 +118,13 @@ async function target() {
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error("no DevTools endpoint");
+  throw new Error("no DevTools endpoint in 45 s" + said());
 }
 
 async function main() {
   const ws = new WebSocket(await target());
+  // Whatever hangs (a renderer that stops answering, a page that never loads) ends here.
+  setTimeout(() => fail(`nothing came of it in ${seconds + 40} s`), (seconds + 40) * 1000);
   let nextId = 1;
   const waiting = new Map();
   // One command of the DevTools protocol; an answer that is an error, or none in 20 s, ends
