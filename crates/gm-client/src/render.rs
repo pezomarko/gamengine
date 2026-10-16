@@ -2,7 +2,6 @@
 //! entity boxes in one more, and one per character (`characters`).
 
 use glam::{Mat4, Vec3};
-use wgpu::util::DeviceExt;
 
 use crate::Error;
 use crate::characters::{CharacterDraw, Characters};
@@ -112,6 +111,32 @@ struct Globals {
 
 /// View-projection for a Quake-convention camera (Z up, yaw counter-clockwise from +X, positive
 /// pitch looks down), producing wgpu clip space.
+impl Gpu {
+    /// A buffer filled from `contents` through the queue, never mapped at creation: Chrome's
+    /// software WebGPU (the CPU adapter the browser gates run on, 2026-10-15) refuses
+    /// `mappedAtCreation` above a few tens of kilobytes ("too large for the implementation"),
+    /// and a model's vertices are more. The copy costs nothing a frame later.
+    pub fn buffer(&self, label: &str, usage: wgpu::BufferUsages, contents: &[u8]) -> wgpu::Buffer {
+        // A copy through the queue is four-byte aligned (COPY_BUFFER_ALIGNMENT): an odd run of
+        // 16-bit indices is padded with zeros nobody indexes.
+        let size = (contents.len() as u64).next_multiple_of(4);
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(label),
+            size,
+            usage: usage | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        if contents.len() as u64 == size {
+            self.queue.write_buffer(&buffer, 0, contents);
+        } else {
+            let mut padded = contents.to_vec();
+            padded.resize(size as usize, 0);
+            self.queue.write_buffer(&buffer, 0, &padded);
+        }
+        buffer
+    }
+}
+
 pub fn view_proj(eye: Vec3, yaw_deg: f32, pitch_deg: f32, aspect: f32) -> Mat4 {
     view_proj_zoomed(eye, yaw_deg, pitch_deg, aspect, 1.0)
 }
@@ -458,16 +483,16 @@ fn world_gpu(
             },
         ],
     });
-    let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("world vertices"),
-        contents: bytemuck::cast_slice(&world.vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-    let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("world indices"),
-        contents: bytemuck::cast_slice(&world.indices),
-        usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-    });
+    let vertex_buf = gpu.buffer(
+        "world vertices",
+        wgpu::BufferUsages::VERTEX,
+        bytemuck::cast_slice(&world.vertices),
+    );
+    let index_buf = gpu.buffer(
+        "world indices",
+        wgpu::BufferUsages::INDEX,
+        bytemuck::cast_slice(&world.indices),
+    );
     WorldGpu {
         textures_bg,
         vertex_buf,
