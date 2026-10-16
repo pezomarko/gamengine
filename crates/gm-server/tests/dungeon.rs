@@ -28,7 +28,12 @@ fn raid(seed: u64, recruits: &[&str], seconds: u64) -> common::Outcome {
     })
 }
 
+// Nightly (the `gates` workflow's dungeon gate), not every pull request: a real-time raid
+// of 420 s on a shared runner wiped at the Warden on four of five runs on 2026-10-16
+// while it stood 4 of 4 on an idle machine, so it was the one thing that kept green
+// pull requests out of main. `cargo test -p gm-server --test dungeon -- --ignored`.
 #[test]
+#[ignore = "a 7-minute real-time raid: the nightly dungeon gate runs it"]
 fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
     // A gate that wipes the squad once or twice costs half a minute each time: the run has
     // time for that (24 runs of 24 finished inside 230 s when this was written).
