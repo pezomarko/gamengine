@@ -373,6 +373,14 @@ impl Mover {
     }
 
     /// Forget every running thing (death, respawn); cooldowns survive.
+    /// The body rearmed for another kit (GEAR.md 2): nothing running, no guard, no statuses,
+    /// every cooldown ready, the guns filled for the kit; the pools and the place stand.
+    pub fn rearm(&mut self, sheet: &Sheet) {
+        self.reset_actions();
+        self.cooldowns = [0; MAX_ABILITIES];
+        self.fill_guns(sheet);
+    }
+
     pub fn reset_actions(&mut self) {
         self.script = None;
         self.dash = None;

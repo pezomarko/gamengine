@@ -417,7 +417,7 @@ enum FromZone {
     BuyResult { listing: i64, result: Result<(), String> },   // the answer to StallBuy, always
     WearResult { item: i64, result: Result<(), String> },     // the answer to Wear / TakeOff, always
     Welcome { entity: u32, server_tick: u32, hz: u16, map: String, map_hash: u64 },
-    Content { pack: ContentPack, own: Build, team: u8 },      // right after Welcome
+    Content { pack: ContentPack, own: Build, team: u8, props: Vec<String>, worn: Worn },  // right after Welcome
     RespecResult(Result<(), String>),
     BuildApplied(Build),                       // the respawn switched the build
     TravelTicket { zone: String, addr: String, cert_der: Vec<u8>, token: Vec<u8>, web: Option<WebAddr> },
@@ -440,6 +440,7 @@ enum FromZone {
     Heard { channel: u8, from: String, text: String },        // 1 the party's, 2 a whisper, 3 one's own whisper as it went out
     TradeAsked { from: u32 },                  // the body `from` asks for a trade
     TradeOpened { trade: i64, with: String },  // the hub opened it: the window is the hub's from here
+    Worn(Worn),                                // v23: what the own body wears changed its kit (last: Reject and Kick keep their numbers)
 }
 
 enum BodyKind { Human, Companion { owner: u32 }, Creature { def: u16 } }
@@ -909,6 +910,25 @@ own block reshaped:
   bit. The client adopts them as it adopts the rounds, and drops a use the zone cleared.
 - Nothing new in the control stream. Hub protocol 12 and the players' protocol 7 carry
   the bar's arrangement (ITEMS.md 4).
+
+## 35. Changes in v23 (the worn kit, 2026-10-16)
+
+`PROTOCOL_VERSION` 23 (GEAR.md 2 and 4). The worn gear reaches the owning client's sheet:
+
+- **`Content.worn: Worn`** and **`FromZone::Worn(Worn)`**: `gm_core::build::Worn` is what
+  the own body wears as its kit reads it, two indices into the content pack: the primary
+  the weapon in the right hand brings and the guard the thing in the left hand brings,
+  either `None` for nothing (the build's own plays). The zone derives it from the hub's six
+  worn template keys with its looks (`gm_content::worn::worn_of`), puts it into the body
+  at once (`Zone::set_worn`: the sheet compiled again, the body rearmed, every cooldown
+  ready) and tells the client, which compiles its sheet by the same `Sheet::wearing` and
+  rearms its prediction. `Worn` is the last message of the enum, so `Reject` (14) and
+  `Kick` (25) keep their numbers for the handshake. Sent with `Content` at the claim, and as `Worn` after every
+  reading that changed it and after a respawn that applied a build (the staff's bolt is
+  the build's choice among its weapon's primaries). Nothing changes for other bodies:
+  their `Look` drew what they wear already.
+- A client never reads `items.toml`: what travels is the result, so a hub and a zone on
+  different content versions disagree about nothing a client predicts with.
 
 ## 34. Changes in v22 (six places, 2026-10-14)
 

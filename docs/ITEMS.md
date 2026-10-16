@@ -77,6 +77,12 @@ the armour as an overlay over the body).
 - A worn item **stays in the inventory** and takes its slot there.
 - Gear is **unbound and un-classed** (PLAN.md 3.4): any character may wear any armour, and
   what an item is good for is decided by what it is made of (3.2), not by who holds it.
+  **Since 2026-10-16 the worn weapon brings its own ability** (GEAR.md 2): a weapon fits
+  every hand its mode holds, a firearm a gun build's and anything else an action or RPG
+  build's (`economy::fits`, "a musket is a firearm: only a gun build holds one"), and
+  the primary of the kit is the worn weapon's, the guard the worn shield's or focus's
+  (`Sheet::wearing`, PROTOCOL.md 35). What follows is the rule as it stood from
+  2026-10-08 to then, kept for the record.
   **A weapon is worn only by hands that hold one** (the director, 2026-10-08: "my musket
   can equip a staff? make it say it can't and disable it"): an item of a weapon template
   is worn only when an ability of the character's build has the template's `model` as

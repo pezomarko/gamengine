@@ -544,21 +544,30 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         Err(HubError::Invalid(NOT_CARRIED.into()))
     );
 
-    // A weapon the build's hands do not hold (ITEMS.md 2): the blade swings a sword, so a
-    // staff is refused in words, and the inventory says so of it before anyone asks.
+    // A weapon is the mode's business and nobody else's (GEAR.md 2 and 5): the blade may
+    // wear a staff (it would bring the staff's blow), which says whose kits prefer it; a
+    // musket is a firearm, for a gun build's hands only, refused in words, and the
+    // inventory says so of it before anyone asks.
     let staff = direct
         .grant_item(smith, "staff", &iron, room("staff").as_deref())
         .await
         .unwrap();
-    let words = "this build's hands are for the sword: not a staff";
+    let musket = direct
+        .grant_item(smith, "musket", &iron, room("musket").as_deref())
+        .await
+        .unwrap();
+    let words = "a musket is a firearm: only a gun build holds one";
     assert_eq!(
-        wear(&town, smith, staff).await,
+        wear(&town, smith, musket).await,
         Err(HubError::Invalid(words.into()))
     );
     let have = inventory(&smith_conn, smith_s, smith).await;
-    let shown = find(&have, staff);
+    let shown = find(&have, musket);
     assert!(!shown.fits && !shown.worn, "{shown:?}");
     assert_eq!(shown.does.last().map(String::as_str), Some(words));
+    assert_eq!(shown.hands, "Musketeer");
+    let shown = find(&have, staff);
+    assert!(shown.fits && !shown.worn, "{shown:?}");
     assert_eq!(shown.hands, "Frostweaver, Mender");
     assert!(find(&have, plain).fits && find(&have, cuirass).fits);
 
@@ -665,8 +674,9 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         "a sword goes either way"
     );
     assert!(!find(&have, cuirass).off);
-    // Not an armour, not a two-handed staff (held right only), not a dagger this build
-    // does not swing (the hands rule holds in the left hand too); the words say why.
+    // Not an armour, not a two-handed staff (held right only), not a pistol (a firearm:
+    // the mode's rule holds in the left hand too); the words say why. A dagger would go:
+    // any one-hander beside the sword (GEAR.md 2).
     assert_eq!(
         wear_in(&town, smith, cuirass, PLACE_OFF).await,
         Err(HubError::Invalid(
@@ -679,15 +689,25 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
             "a staff does not go on the left hand".into()
         ))
     );
+    let pistol = direct
+        .grant_item(smith, "pistol", &iron, room("pistol").as_deref())
+        .await
+        .unwrap();
+    assert_eq!(
+        wear_in(&town, smith, pistol, PLACE_OFF).await,
+        Err(HubError::Invalid(
+            "a pistol is a firearm: only a gun build holds one".into()
+        ))
+    );
     let dagger = direct
         .grant_item(smith, "dagger", &iron, room("dagger").as_deref())
         .await
         .unwrap();
-    assert_eq!(
-        wear_in(&town, smith, dagger, PLACE_OFF).await,
-        Err(HubError::Invalid(
-            "this build's hands are for the sword: not a dagger".into()
-        ))
+    let have = inventory(&smith_conn, smith_s, smith).await;
+    assert!(
+        find(&have, dagger).fits && find(&have, dagger).off,
+        "{:?}",
+        find(&have, dagger)
     );
     assert_eq!(
         wear_in(&town, smith, plain, 99).await,

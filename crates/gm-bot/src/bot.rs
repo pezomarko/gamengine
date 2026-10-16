@@ -266,6 +266,9 @@ struct BotRun {
     exit: BotExit,
     pack: gm_core::build::ContentPack,
     team: u8,
+    /// What the body wears, as its kit reads it (GEAR.md 2): the sheet is built from the
+    /// build and this, as the zone's was.
+    worn: gm_core::build::Worn,
     /// What it says and how often, in this zone's ticks.
     say: Option<(String, u32)>,
     current_build: String,
@@ -339,10 +342,14 @@ impl BotRun {
         let content = control::recv(&mut recv)
             .await?
             .ok_or_else(|| anyhow::anyhow!("server closed before Content"))?;
-        let (pack, own, team) = match content {
+        let (pack, own, team, worn) = match content {
             FromZone::Content {
-                pack, own, team, ..
-            } => (pack, own, team),
+                pack,
+                own,
+                team,
+                worn,
+                ..
+            } => (pack, own, team, worn),
             other => anyhow::bail!("expected Content, got {other:?}"),
         };
         let rate = TickRate::new(hz as u32);
@@ -352,7 +359,7 @@ impl BotRun {
             .as_ref()
             .map(|(line, secs)| (line.clone(), ((secs * hz as f32).round() as u32).max(1)));
         let current_build = build_name(&pack, &own);
-        let client = ClientState::new(entity, rate, Sheet::new(own, &pack, team));
+        let client = ClientState::new(entity, rate, Sheet::wearing(own, worn.clone(), &pack, team));
         let mut brain = Brain::new(cfg.seed, cfg.behaviour);
         brain.hz = rate.hz();
         let aimer = crate::aim::Aimer::new(cfg.aim, cfg.seed);
@@ -391,6 +398,7 @@ impl BotRun {
             exit: BotExit::Done,
             pack,
             team,
+            worn,
             say,
             current_build,
             client,
@@ -650,17 +658,43 @@ impl BotRun {
             FromZone::BuildApplied(build) => {
                 if build != self.client.sheet.build {
                     self.current_build = build_name(&self.pack, &build);
-                    self.client
-                        .set_sheet(Sheet::new(build, &self.pack, self.team));
+                    self.client.set_sheet(Sheet::wearing(
+                        build,
+                        self.worn.clone(),
+                        &self.pack,
+                        self.team,
+                    ));
+                }
+            }
+            // What the body wears changed (GEAR.md 2): the kit compiled again, the body
+            // rearmed as the zone's was.
+            FromZone::Worn(worn) => {
+                if worn != self.worn {
+                    self.worn = worn;
+                    let build = self.client.sheet.build.clone();
+                    self.client.set_sheet(Sheet::wearing(
+                        build,
+                        self.worn.clone(),
+                        &self.pack,
+                        self.team,
+                    ));
+                    self.client.mover.rearm(&self.client.sheet);
                 }
             }
             // Content tuned under the zone (GM.md 3): the same build on the new numbers;
             // the prediction goes on.
-            FromZone::Content { pack, own, .. } => {
+            FromZone::Content {
+                pack, own, worn, ..
+            } => {
                 self.pack = pack;
+                self.worn = worn;
                 self.current_build = build_name(&self.pack, &own);
-                self.client
-                    .set_sheet(Sheet::new(own, &self.pack, self.team));
+                self.client.set_sheet(Sheet::wearing(
+                    own,
+                    self.worn.clone(),
+                    &self.pack,
+                    self.team,
+                ));
             }
             FromZone::TravelTicket {
                 zone,

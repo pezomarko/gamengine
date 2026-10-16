@@ -281,6 +281,7 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "shield"
 held = "left"
+guard = "shield_wall"
 
 # Two more shields (EQUIPMENT.md 10.7): KayKit's round and square shields, flat as
 # they come (the face along -Z), stood up with the face out, as the heater shield's is;
@@ -292,6 +293,7 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "buckler"
 held = "left"
+guard = "shield_wall"
 fit = { turn = [-90, 0, 0], scale = 0.7 }
 
 [[template]]
@@ -301,6 +303,7 @@ guards = "physical"
 layers = ["shard", "core", "frame", "gem"]
 model = "tower_shield"
 held = "left"
+guard = "shield_wall"
 fit = { turn = [-90, 0, 0], scale = 0.85 }
 
 # A caster's focus (EQUIPMENT.md 5.4 and 5.6): worn in the left hand like a shield and by
@@ -313,6 +316,7 @@ guards = "elements"
 layers = ["shard", "core", "catalyst", "frame", "gem"]
 model = "focus"
 held = "left"
+guard = "brace"
 fit = { turn = [90, 0, 0], scale = 0.7 }   # upright, the cover out, as a shield's face
 
 # The accessory (EQUIPMENT.md 10.8): one place, numbers only, nothing drawn, built round a

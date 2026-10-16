@@ -1157,13 +1157,48 @@ pub fn hands(cfg: &HubConfig, build: &Build) -> Vec<String> {
     out
 }
 
-/// What the answers that show items need of the asker (ITEMS.md 2, EQUIPMENT.md 2): the
-/// asker's own hands, and every preset's by its class name, so that an item can say
-/// whose it is whoever asks.
+/// What the answers that show items need of the asker (GEAR.md 5, EQUIPMENT.md 2): the
+/// asker's mode and the firearm models (whether a weapon fits its hands), and every
+/// preset's hands by its class name, so that an item can say whose it is whoever asks.
 #[derive(Clone, Debug, Default)]
 pub struct Hands {
-    pub own: Vec<String>,
+    pub mode: gm_core::vocab::Mode,
+    pub firearms: Vec<String>,
     pub presets: Vec<(String, Vec<String>)>,
+}
+
+impl Hands {
+    pub fn holding(&self) -> crate::economy::Holding<'_> {
+        crate::economy::Holding {
+            mode: self.mode,
+            firearms: &self.firearms,
+        }
+    }
+}
+
+/// The models a firearm ability holds (`economy::fits`): the musket, the pistol, the
+/// carbine; what a gun build's hands are for and nobody else's.
+pub fn firearm_props(cfg: &HubConfig) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for def in cfg
+        .content
+        .abilities
+        .iter()
+        .filter(|a| a.ability.firearm.is_some())
+    {
+        let prop = cfg
+            .looks
+            .abilities
+            .iter()
+            .find(|a| a.key == def.key)
+            .and_then(|a| a.prop.clone());
+        if let Some(prop) = prop
+            && !out.contains(&prop)
+        {
+            out.push(prop);
+        }
+    }
+    out
 }
 
 /// A preset's name as a class is called (EQUIPMENT.md 2): its first letter up.
@@ -1219,14 +1254,15 @@ async fn hands_of(hub: &Hub, character: CharacterId) -> Result<Hands, HubError> 
         .await?
         .ok_or(HubError::NotFound)?;
     Ok(Hands {
-        own: hands(&hub.cfg, &row.build),
+        mode: row.build.mode,
+        firearms: firearm_props(&hub.cfg),
         presets: preset_hands(&hub.cfg),
     })
 }
 
 /// An item as a person is shown it: where it is worn, what it does there and the words
 /// for both are the content's to say (ITEMS.md 3.2), so that no client works them out.
-/// `hands` are the asking character's (ITEMS.md 2): a weapon they do not hold says so.
+/// `hands` are the asking character's (GEAR.md 5): a weapon their mode does not hold says so.
 fn item_summary(
     content: &ItemContent,
     pack: &gm_core::build::ContentPack,
@@ -1234,7 +1270,6 @@ fn item_summary(
     i: crate::economy::Item,
 ) -> ItemSummary {
     let whose = hands_words(content, &hands.presets, &i.template);
-    let hands = &hands.own[..];
     let mut view = content.view(
         &i.template,
         i.components
@@ -1271,10 +1306,11 @@ fn item_summary(
         }
         None => 0,
     };
-    let fits = crate::economy::fits(content, hands, &i.template, view.place).is_ok();
-    if let Err(why) = crate::economy::fits(content, hands, &i.template, view.place) {
-        view.does.push(why);
+    let fits = crate::economy::fits(content, hands.holding(), &i.template, view.place);
+    if let Err(why) = &fits {
+        view.does.push(why.clone());
     }
+    let fits = fits.is_ok();
     ItemSummary {
         quantity: i.quantity,
         cap,
@@ -1789,7 +1825,7 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
         // its row held: a claim elsewhere sees the change or comes first (ITEMS.md 3.3).
         ZoneEconOp::Wear { character, item } => {
             let hands = hands_of(hub, character).await?;
-            e.wear(character, zone, item, &hub.cfg.items, &hands.own, None)
+            e.wear(character, zone, item, &hub.cfg.items, hands.holding(), None)
                 .await
                 .map(|r| EconReply::Gear(reading(r)))
                 .map_err(econ_err)
@@ -1808,7 +1844,7 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
                 zone,
                 item,
                 &hub.cfg.items,
-                &hands.own,
+                hands.holding(),
                 Some(place),
             )
             .await

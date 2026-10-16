@@ -7,6 +7,7 @@
 pub mod items;
 pub mod looks;
 pub mod tuning;
+pub mod worn;
 
 use std::path::Path;
 

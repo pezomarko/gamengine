@@ -112,6 +112,30 @@ pub struct Build {
     pub actives: Vec<u16>,
 }
 
+/// What a body wears, as its sheet reads it (GEAR.md 2 and 4): the kit the worn things
+/// bring, as indices into the content pack. The zone derives it from the worn templates
+/// with the item content (`gm_content::worn`) and tells the owning client, so that
+/// neither the simulation nor a client reads `items.toml`, and both build the one sheet.
+/// `NONE` is a body in nothing: the build's own kit, as before gear brought any.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Worn {
+    /// The primary the weapon in the right hand brings (GEAR.md 2), in place of the
+    /// build's; `None`: the hand is empty, the build's primary plays.
+    pub primary: Option<u16>,
+    /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
+    /// place of the build's; `None`: the build's guard, or none.
+    pub guard: Option<u16>,
+}
+
+impl Worn {
+    pub const NONE: Worn = Worn {
+        primary: None,
+        guard: None,
+    };
+}
+
 /// A build with the name content gave it.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
@@ -242,12 +266,19 @@ impl Build {
 
     /// Every slotted ability index in kit order: primary, secondary, actives, guard.
     pub fn slots(&self) -> Vec<(u16, Slot)> {
+        self.kit_slots(&Worn::NONE)
+    }
+
+    /// The slots as the kit plays them with `worn` (GEAR.md 2): the worn weapon's primary
+    /// in place of the build's, the off hand's guard in place of the build's (or added,
+    /// when the build has none). Nothing worn: `slots()`.
+    pub fn kit_slots(&self, worn: &Worn) -> Vec<(u16, Slot)> {
         let mut out = vec![
-            (self.primary, Slot::Primary),
+            (worn.primary.unwrap_or(self.primary), Slot::Primary),
             (self.secondary, Slot::Secondary),
         ];
         out.extend(self.actives.iter().map(|&i| (i, Slot::Active)));
-        if let Some(g) = self.guard {
+        if let Some(g) = worn.guard.or(self.guard) {
             out.push((g, Slot::Guard));
         }
         out
@@ -609,13 +640,17 @@ pub struct Kit {
 
 impl Kit {
     /// Compile a validated build against its pack.
-    pub fn from_build(build: &Build, pack: &ContentPack) -> Kit {
+    pub fn from_build(build: &Build, worn: &Worn, pack: &ContentPack) -> Kit {
         let mut kit = Kit::empty();
         kit.mode = build.mode;
         // (pack index, kit index) of everything pushed: a chain's stages are shared.
         let mut pushed: Vec<(u16, u8)> = Vec::new();
-        for (index, slot) in build.slots() {
-            let def = &pack.abilities[index as usize];
+        for (index, slot) in build.kit_slots(worn) {
+            // A worn index the pack does not know (a zone and a client on different
+            // content: never, by the version check) plays as the build's.
+            let Some(def) = pack.abilities.get(index as usize) else {
+                continue;
+            };
             let i = kit.push(def.ability.clone(), def.aspect.is_some());
             pushed.push((index, i));
             match slot {
@@ -730,6 +765,8 @@ pub fn script_duration(a: &Ability) -> Tick {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sheet {
     pub build: Build,
+    /// What the kit was compiled with (GEAR.md 2): nothing, for a creature or a companion.
+    pub worn: Worn,
     pub kit: Kit,
     pub derived: Derived,
     /// Build points left after the kit; informational.
@@ -737,11 +774,19 @@ pub struct Sheet {
 }
 
 impl Sheet {
+    /// A body in nothing: the build's own kit.
     pub fn new(build: Build, pack: &ContentPack, team: u8) -> Sheet {
+        Sheet::wearing(build, Worn::NONE, pack, team)
+    }
+
+    /// A body wearing `worn` (GEAR.md 2): the kit the worn things bring over the build's.
+    /// The zone and the owning client both build their sheet here, from the same two.
+    pub fn wearing(build: Build, worn: Worn, pack: &ContentPack, team: u8) -> Sheet {
         Sheet {
-            kit: Kit::from_build(&build, pack),
+            kit: Kit::from_build(&build, &worn, pack),
             derived: build.derived(),
             build,
+            worn,
             team,
         }
     }
@@ -777,13 +822,52 @@ mod tests {
                 "{}",
                 nb.name
             );
-            let kit = Kit::from_build(&nb.build, &pack);
+            let kit = Kit::from_build(&nb.build, &Worn::NONE, &pack);
             assert!(
                 kit.primary.is_some() && kit.secondary.is_some(),
                 "{}",
                 nb.name
             );
         }
+    }
+
+    #[test]
+    fn what_is_worn_plays_over_the_build_s_hands_and_guard() {
+        let pack = test_content::pack(TickRate::COMBAT);
+        let blade = pack.build("blade").unwrap().clone();
+        let hammer = pack.find("hammer").unwrap();
+        let wall = pack.find("shield_wall").unwrap();
+        let bare = Sheet::new(blade.clone(), &pack, 0);
+        let armed = Sheet::wearing(
+            blade.clone(),
+            Worn {
+                primary: Some(hammer),
+                guard: Some(wall),
+            },
+            &pack,
+            0,
+        );
+        // The hammer swings in place of the sword, the wall stands in place of the parry;
+        // the rest of the kit is the build's, and the build itself is untouched.
+        let key = |s: &Sheet, i: Option<u8>| s.kit.abilities[i.unwrap() as usize].name.clone();
+        assert_eq!(key(&bare, bare.kit.primary), "Sword");
+        assert_eq!(key(&armed, armed.kit.primary), "Hammer");
+        assert_eq!(key(&bare, bare.kit.guard), "Parry");
+        assert_eq!(key(&armed, armed.kit.guard), "Shield wall");
+        assert_eq!(
+            key(&armed, armed.kit.secondary),
+            key(&bare, bare.kit.secondary)
+        );
+        assert_eq!(armed.build, blade);
+        assert_eq!(blade.kit_slots(&Worn::NONE), blade.slots());
+        // A guard brought to a build that has none is added, not dropped.
+        let musketeer = pack.build("musketeer").unwrap().clone();
+        assert!(musketeer.guard.is_none());
+        let slots = musketeer.kit_slots(&Worn {
+            primary: None,
+            guard: Some(wall),
+        });
+        assert_eq!(slots.last(), Some(&(wall, Slot::Guard)));
     }
 
     #[test]

@@ -502,15 +502,12 @@ async fn the_economy_over_the_wire() {
     );
     assert_eq!(listings[0].item.place, PLACE_WEAPON);
     assert_eq!(listings[0].item.edge, [40, 0, 0, 0, 0, 0, 0, 0, 0]);
-    // The viewer is an ironclad: the listing says its hands are not for this (ITEMS.md 2).
-    assert!(!listings[0].item.fits);
-    assert_eq!(
-        listings[0].item.does,
-        [
-            "slash +2.0%",
-            "this build's hands are for the greatsword and the shield: not a sword"
-        ]
-    );
+    // The viewer is an ironclad: a sword fits its hands all the same (GEAR.md 2: the worn
+    // weapon brings its swing; only a firearm is refused outside the gun mode), and the
+    // listing says whose kits prefer it.
+    assert!(listings[0].item.fits);
+    assert_eq!(listings[0].item.does, ["slash +2.0%"]);
+    assert_eq!(listings[0].item.hands, "Blade");
     // Buying is done standing at the stall (ITEMS.md 5): the zone the buyer plays in asks,
     // and names the stall it saw the buyer at.
     let buy = |zone: &HubClient, stall: i64| {

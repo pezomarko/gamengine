@@ -135,6 +135,14 @@ impl Run {
                 s.send_control(FromZone::Look { id, look });
             }
         }
+        // The build the respawn applied may choose otherwise among its weapon's
+        // primaries (GEAR.md 2): the kit is compiled again with what is worn.
+        let templates = self
+            .hub_slots
+            .get(&id)
+            .map(|h| h.worn.clone())
+            .unwrap_or_default();
+        self.refit(id, &templates);
     }
 
     /// Rounds loaded and kits used (MODES.md 11.2, 11.3): the simulation spent

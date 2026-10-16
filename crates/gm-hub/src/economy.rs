@@ -4,6 +4,7 @@
 //! ownership.
 
 use gm_core::sim::BAR_CELLS;
+use gm_core::vocab::Mode;
 use std::time::Duration;
 
 use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, PLACES, Place};
@@ -29,35 +30,43 @@ pub const CHEST_SLOTS: i32 = 48;
 pub const CONTRACT_TIMEOUT_MINUTES: i32 = 120;
 /// What every mover says to a worn item (ITEMS.md 2).
 pub const WORN: &str = "it is worn: take it off first";
-/// Whether a build whose abilities hold `hands` (the props, `hub::hands`) may wear an
-/// item of `template` in `place` (ITEMS.md 2): a weapon only when its model is one of
-/// them; anything else, yes. `Err` carries the words for the player: "this build's hands
-/// are for the musket, the pistol and the dagger: not a staff".
+/// What decides whether a weapon fits a character's hands (`fits`): the mode of its build
+/// and the firearm models (`hub::firearm_props`).
+#[derive(Clone, Copy, Debug)]
+pub struct Holding<'a> {
+    pub mode: Mode,
+    pub firearms: &'a [String],
+}
+
+/// Whether a character in `mode` may wear an item of `template` in `place` (GEAR.md 2 and
+/// 5): a weapon in either hand is the mode's business and nobody else's. A gun build's
+/// hands take a firearm (a template whose model a firearm ability holds: `firearms`,
+/// `hub::firearm_props`) and nothing else; an action or RPG build's take anything but a
+/// firearm. A shield, an armour, a part or a stack fits everyone. `Err` carries the words
+/// for the player. (Until 2026-10-16 a weapon wanted the build's hands, an ability of its
+/// kit holding the model, ITEMS.md 2; now the worn weapon brings its ability.)
 pub fn fits(
     content: &ItemContent,
-    hands: &[String],
+    holding: Holding<'_>,
     template: &str,
     place: Option<Place>,
 ) -> Result<(), String> {
-    // A weapon, in either hand, wants the build's hands; a shield and an armour fit all.
     if !matches!(place, Some(Place::Weapon | Place::Off))
         || !content.template(template).is_some_and(|t| t.deals())
     {
         return Ok(());
     }
     let model = content.model(template).unwrap_or(template);
-    if hands.iter().any(|h| h == model) {
-        return Ok(());
+    let firearm = holding.firearms.iter().any(|f| f == model);
+    match (holding.mode == Mode::Gun, firearm) {
+        (true, false) => Err(format!(
+            "a gun build's hands are for a firearm: not a {template}"
+        )),
+        (false, true) => Err(format!(
+            "a {template} is a firearm: only a gun build holds one"
+        )),
+        _ => Ok(()),
     }
-    let held: Vec<String> = hands.iter().map(|h| format!("the {h}")).collect();
-    let held = match held.len() {
-        0 => "nothing".to_string(),
-        1 => held[0].clone(),
-        n => format!("{} and {}", held[..n - 1].join(", "), held[n - 1]),
-    };
-    Err(format!(
-        "this build's hands are for {held}: not a {template}"
-    ))
 }
 
 /// What is said of an item somebody would wear and does not carry.
@@ -1111,8 +1120,8 @@ impl Economy {
     /// claim by another zone either sees what was put on, or comes first and this is
     /// refused.
     ///
-    /// `hands` is what the character's build holds (`hub::hands`): a weapon whose model
-    /// none of its abilities holds is refused in words (ITEMS.md 2). `place` is where it
+    /// `holding` is the character's mode and the firearm models (`fits`): a weapon the
+    /// mode does not hold is refused in words (GEAR.md 5). `place` is where it
     /// is to go when the asker says (a sword into the left hand beside another); nobody
     /// saying, the template's own place. An item that does not go there is refused in
     /// words.
@@ -1122,7 +1131,7 @@ impl Economy {
         zone: &str,
         item: i64,
         content: &ItemContent,
-        hands: &[String],
+        holding: Holding<'_>,
         place: Option<Place>,
     ) -> Result<Reading, EconError> {
         let mut tx = self.begin().await?;
@@ -1203,7 +1212,7 @@ impl Economy {
                 }
             }
         };
-        fits(content, hands, &template, Some(place)).map_err(EconError::Invalid)?;
+        fits(content, holding, &template, Some(place)).map_err(EconError::Invalid)?;
         // It is one item: it leaves the place it was in (a sword moved from the right
         // hand to the left), then takes this one from whatever was there.
         sqlx::query("delete from worn where character_id = $1 and item_id = $2")

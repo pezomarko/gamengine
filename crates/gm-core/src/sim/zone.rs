@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use glam::Vec3;
 
-use crate::build::{Build, BuildError, ContentPack, Kit, Sheet};
+use crate::build::{Build, BuildError, ContentPack, Kit, Sheet, Worn};
 use crate::collide::{Aabb, BodyGrid, EntityWorld};
 use crate::geom::{Capsule, ray_capsule, sweep_sphere_capsule};
 use crate::matrix::{
@@ -100,6 +100,9 @@ pub struct Player {
     pub stagger: f32,
     /// Build applied at the next respawn.
     pub pending_build: Option<Build>,
+    /// What the body wears, as its sheet read it (GEAR.md 2): kept so that a pending
+    /// build, applied at the respawn, is compiled with it too.
+    pub worn: Worn,
     /// Server tick of the last hit taken (statistics, diagnostics).
     pub last_hit_tick: Tick,
     /// Server tick at which it last dealt or took damage; `None`: never. The zone reads
@@ -529,6 +532,7 @@ impl Zone {
             deaths: 0,
             stagger: 0.0,
             pending_build: None,
+            worn: Worn::NONE,
             last_hit_tick: 0,
             fought_at: None,
             ghost: false,
@@ -559,6 +563,25 @@ impl Zone {
         if let Some(p) = self.players.get_mut(&id) {
             p.gear = gear.clamped();
         }
+    }
+
+    /// What a body's worn things bring to its kit (GEAR.md 2), from now on: the sheet is
+    /// compiled again with the build it has, and the body is rearmed (nothing running, every
+    /// cooldown ready, as at a respec), since the slots now hold other abilities. Health,
+    /// stamina, focus and the place stand. A change of gear is refused in a fight (ITEMS.md
+    /// 5), so nothing is interrupted that mattered. `true` when something changed.
+    pub fn set_worn(&mut self, id: EntityId, worn: Worn) -> bool {
+        let content = &self.content;
+        let Some(p) = self.players.get_mut(&id) else {
+            return false;
+        };
+        if p.worn == worn {
+            return false;
+        }
+        p.worn = worn.clone();
+        p.sheet = Sheet::wearing(p.sheet.build.clone(), worn, content, p.team());
+        p.mover.rearm(&p.sheet);
+        true
     }
 
     /// The stacks a body carries (MODES.md 11), as the hub reads them: `(template,
@@ -651,7 +674,7 @@ impl Zone {
         };
         let was_dead = !p.alive;
         if let Some(build) = p.pending_build.take() {
-            p.sheet = Sheet::new(build, content, p.team());
+            p.sheet = Sheet::wearing(build, p.worn.clone(), content, p.team());
         }
         let cooldowns = p.mover.cooldowns;
         p.mover = Mover::spawn(origin, yaw, &p.sheet);
@@ -727,7 +750,7 @@ impl Zone {
     pub fn retune(&mut self, pack: ContentPack) {
         self.content = pack;
         for p in self.players.values_mut() {
-            p.sheet.kit = Kit::from_build(&p.sheet.build, &self.content);
+            p.sheet.kit = Kit::from_build(&p.sheet.build, &p.worn, &self.content);
         }
     }
 
@@ -2181,7 +2204,7 @@ impl Zone {
             return;
         };
         if let Some(build) = p.pending_build.take() {
-            p.sheet = Sheet::new(build, content, p.team());
+            p.sheet = Sheet::wearing(build, p.worn.clone(), content, p.team());
         }
         let cooldowns = p.mover.cooldowns;
         // The rounds in the guns and the item bar's stacks come back with the body
