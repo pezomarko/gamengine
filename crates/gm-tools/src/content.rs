@@ -18,7 +18,7 @@ use gm_model::atlas::{self, Atlas, Cell, Face, Glyph, Piece};
 use gm_model::manifest::{
     AbilityEntry, AvatarEntry, BuildEntry, CreatureEntry, HELD_BACK, HELD_EITHER, HELD_LEFT,
     HELD_RIGHT, HELD_TWO, IconEntry, MANIFEST_VERSION, Manifest, MaterialEntry, OverlayEntry,
-    PatchEntry, PropEntry, TemplateEntry,
+    PatchEntry, PropEntry, TemplateEntry, Variant,
 };
 use gm_model::{Model, Patch, mannequin, rig, smallfont};
 use serde::Deserialize;
@@ -544,6 +544,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             Some(ing) if report.ok => {
                 let out = format!("props/{}.gmm", key.replace('/', "_"));
                 facts.push((key.clone(), report.facts.clone()));
+                file_variant(&mut files, &out, ing.etc);
                 files.insert(out, ing.gmm);
                 props.insert(key.clone(), ing.model);
             }
@@ -575,6 +576,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             Some(ing) if report.ok => {
                 let out = format!("avatars/{name}.gmm");
                 facts.push((format!("avatar/{name}"), report.facts.clone()));
+                let etc2 = file_variant(&mut files, &out, ing.etc);
                 avatar_entries.push(AvatarEntry {
                     frame: rig::frame_index(a.frame),
                     armour: a.armour as u8,
@@ -583,6 +585,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                     sha256: sha(&ing.gmm),
                     bytes: ing.gmm.len() as u32,
                     triangles: ing.model.triangles() as u32,
+                    etc2,
                 });
                 files.insert(out, ing.gmm);
                 avatars.insert(name, ing.model);
@@ -627,6 +630,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                     if !t.patch {
                         let out = format!("armour/{name}.gmm");
                         facts.push((format!("overlay/{name}"), report.facts.clone()));
+                        let etc2 = file_variant(&mut files, &out, ing.etc);
                         overlay_entries.push(OverlayEntry {
                             key: model.clone(),
                             frame: rig::frame_index(frame),
@@ -634,6 +638,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                             sha256: sha(&ing.gmm),
                             bytes: ing.gmm.len() as u32,
                             triangles: ing.model.triangles() as u32,
+                            etc2,
                         });
                         files.insert(out, ing.gmm);
                     }
@@ -909,12 +914,19 @@ pub fn build(dir: &Path) -> Result<Bundle> {
     for (key, model) in &props {
         let file = format!("props/{}.gmm", key.replace('/', "_"));
         let bytes = &files[&file];
+        let etc2 = files
+            .get(&gm_model::format::TextureFormat::Etc2Srgb.file_of(&file))
+            .map(|etc| Variant {
+                sha256: sha(etc),
+                bytes: etc.len() as u32,
+            });
         manifest.props.push(PropEntry {
             key: key.clone(),
             file,
             sha256: sha(bytes),
             bytes: bytes.len() as u32,
             triangles: model.triangles() as u32,
+            etc2,
         });
     }
     // Every ability of the pack has a row of looks (the same file): a prop named by an
@@ -1292,6 +1304,8 @@ fn mannequin_model(frame: gm_core::vocab::ArchetypeFrame, tint: [f32; 3]) -> Mod
         tex_w: atlas.w,
         tex_h: atlas.h,
         texture: atlas.bc1,
+        texture_format: gm_model::format::TextureFormat::Bc1Srgb,
+        base: None,
     }
 }
 
@@ -1638,10 +1652,33 @@ fn compare(bundle: &Bundle, committed: &Path) -> Result<()> {
     Ok(())
 }
 
+/// File a model's ETC2 variant beside it (MODELS.md 5.2, CONTENT.md 4): `x.gmm` gets
+/// `x.etc.gmm`, and the manifest's entry names its hash so that a client fetching it checks
+/// it as it checks the original.
+fn file_variant(
+    files: &mut BTreeMap<String, Vec<u8>>,
+    file: &str,
+    etc: Option<Vec<u8>>,
+) -> Option<Variant> {
+    let etc = etc?;
+    let entry = Variant {
+        sha256: sha(&etc),
+        bytes: etc.len() as u32,
+    };
+    files.insert(gm_model::format::TextureFormat::Etc2Srgb.file_of(file), etc);
+    Some(entry)
+}
+
 fn print_summary(b: &Bundle) {
-    let total: usize = b.files.values().map(Vec::len).sum();
+    let etc: usize = b
+        .files
+        .iter()
+        .filter(|(n, _)| n.ends_with(".etc.gmm"))
+        .map(|(_, f)| f.len())
+        .sum();
+    let total: usize = b.files.values().map(Vec::len).sum::<usize>() - etc;
     println!(
-        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} avatars, {} overlays, {} patches, {} icons ({} baked), atlases {}, bundle {} files, {} bytes",
+        "content: version {}, {} templates, {} materials, {} abilities, {} creatures, {} props, {} avatars, {} overlays, {} patches, {} icons ({} baked), atlases {}, bundle {} files, {} bytes as BC1 and {} bytes of ETC2 variants beside them (a client fetches one kind)",
         b.manifest.content_version,
         b.manifest.templates.len(),
         b.manifest.materials.len(),
@@ -1660,19 +1697,20 @@ fn print_summary(b: &Bundle) {
             .collect::<Vec<_>>()
             .join(", "),
         b.files.len(),
-        total
+        total,
+        etc
     );
 }
 
 fn report(b: &Bundle) {
     println!(
-        "{:<20} {:<10} {:>9} {:>9} {:>8}  icon",
-        "prop", "texture", "tris", "bytes", "reach"
+        "{:<20} {:<10} {:>9} {:>9} {:>9} {:>8}  icon",
+        "prop", "texture", "tris", "bytes", "etc2", "reach"
     );
     for p in &b.manifest.props {
         let f = b.facts.iter().find(|(k, _)| k == &p.key).map(|(_, f)| f);
         println!(
-            "{:<20} {:<10} {:>9} {:>9} {:>8.1}",
+            "{:<20} {:<10} {:>9} {:>9} {:>9} {:>8.1}",
             p.key,
             f.map_or(String::new(), |f| format!(
                 "{}x{}",
@@ -1680,13 +1718,14 @@ fn report(b: &Bundle) {
             )),
             p.triangles,
             p.bytes,
+            p.etc2.map_or(0, |v| v.bytes),
             f.map_or(0.0, |f| f.top)
         );
     }
     println!();
     println!(
-        "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
-        "avatar", "model", "texture", "tris", "bytes", "bones"
+        "{:<20} {:<16} {:<10} {:>9} {:>9} {:>9} {:>6}",
+        "avatar", "model", "texture", "tris", "bytes", "etc2", "bones"
     );
     for a in &b.manifest.avatars {
         let name = a
@@ -1699,7 +1738,7 @@ fn report(b: &Bundle) {
             .find(|(k, _)| k == &format!("avatar/{name}"))
             .map(|(_, f)| f);
         println!(
-            "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
+            "{:<20} {:<16} {:<10} {:>9} {:>9} {:>9} {:>6}",
             name,
             a.key,
             f.map_or(String::new(), |f| format!(
@@ -1708,13 +1747,14 @@ fn report(b: &Bundle) {
             )),
             a.triangles,
             a.bytes,
+            a.etc2.map_or(0, |v| v.bytes),
             b.avatars.get(name).map_or(0, |m| m.bone_mask.count_ones())
         );
     }
     println!();
     println!(
-        "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
-        "overlay", "model", "texture", "tris", "bytes", "bones"
+        "{:<20} {:<16} {:<10} {:>9} {:>9} {:>9} {:>6}",
+        "overlay", "model", "texture", "tris", "bytes", "etc2", "bones"
     );
     for o in &b.manifest.overlays {
         let name = o
@@ -1727,7 +1767,7 @@ fn report(b: &Bundle) {
             .find(|(k, _)| k == &format!("overlay/{name}"))
             .map(|(_, f)| f);
         println!(
-            "{:<20} {:<16} {:<10} {:>9} {:>9} {:>6}",
+            "{:<20} {:<16} {:<10} {:>9} {:>9} {:>9} {:>6}",
             name,
             o.key,
             f.map_or(String::new(), |f| format!(
@@ -1736,6 +1776,7 @@ fn report(b: &Bundle) {
             )),
             o.triangles,
             o.bytes,
+            o.etc2.map_or(0, |v| v.bytes),
             b.overlays.get(name).map_or(0, |m| m.bone_mask.count_ones())
         );
     }

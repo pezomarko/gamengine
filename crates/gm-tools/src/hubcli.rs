@@ -504,7 +504,11 @@ pub fn moderate(cmd: ModCmd) -> Result<()> {
                     .map_err(refusal)?;
                 let gmm = client
                     .download(
-                        &HubRequest::ModelGet { session, model: id },
+                        &HubRequest::ModelGet {
+                            session,
+                            model: id,
+                            format: gm_model::format::TEX_BC1_SRGB,
+                        },
                         MAX_MODEL_BYTES as usize,
                     )
                     .await
@@ -904,7 +908,7 @@ pub fn hub(cmd: HubCmd) -> Result<()> {
                         .await
                         .map_err(refusal)?;
                     let gmm = client
-                        .download(&HubRequest::ModelGet { session: s, model }, MAX_MODEL_BYTES as usize)
+                        .download(&HubRequest::ModelGet { session: s, model , format: gm_model::format::TEX_BC1_SRGB }, MAX_MODEL_BYTES as usize)
                         .await
                         .map_err(refusal)?;
                     ingested += gmm.len() as u64;
