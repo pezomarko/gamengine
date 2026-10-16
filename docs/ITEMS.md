@@ -178,16 +178,18 @@ material's edge into the kinds of damage the item is for, and into no other:
 |---|---|---|
 | core | the physical kind the template **strikes** with | what the template **guards** against: `physical` (Slash, Pierce, Blunt) or `elements` (the six) |
 | catalyst | its element | its element |
-| shard, frame, gem | every kind the core and the catalyst reach | the same |
+| frame, gem | every kind the core and the catalyst reach | the same |
+
+(The shard layer went on 2026-10-16, GEAR.md 6, with its materials; migration 0018 took it out of every item. The layers' second jobs, beyond the edge, are GEAR.md 6: the catalyst's status on hit, the gems' wards, the frame's stamina.)
 
 | Template | Kind | | Layers |
 |---|---|---|---|
-| `sword`, `dagger` | weapon | strikes slash | shard, core, catalyst, frame, gem |
-| `hammer`, `staff` | weapon | strikes blunt | shard, core, catalyst, frame, gem |
-| `crossbow` | weapon | strikes pierce | shard, core, frame, gem |
-| `cuirass` | armour | guards physical | shard, core, frame, gem |
-| `robe` | armour | guards elements | shard, core, catalyst, frame, gem |
-| `shield` | shield | guards physical | shard, core, frame, gem |
+| `sword`, `dagger` | weapon | strikes slash | core, catalyst, frame, gem |
+| `hammer`, `staff` | weapon | strikes blunt | core, catalyst, frame, gem |
+| `crossbow` | weapon | strikes pierce | core, frame, gem |
+| `cuirass` | armour | guards physical | core, frame, gem |
+| `robe` | armour | guards elements | core, catalyst, frame, gem |
+| `shield` | shield | guards physical | core, frame, gem |
 
 (`dagger` is new in Phase 11: the dagger ability had no weapon.) Nothing in the rule names
 an ability or a build. A hammer does nothing for a sword's blows; a staff with an ember

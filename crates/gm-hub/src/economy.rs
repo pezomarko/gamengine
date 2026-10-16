@@ -21,10 +21,10 @@ pub const HIRE_WINDOW_HOURS: i64 = 12;
 pub const HIRES_BEFORE_DEMOTION: i64 = 3;
 /// The most any one amount may be, in silver (ECONOMY.md 2): a hundred million gold.
 pub const MAX_PRICE: i64 = 10_000_000_000;
-pub const LAYERS: [&str; 5] = ["shard", "core", "catalyst", "frame", "gem"];
+pub const LAYERS: [&str; 4] = ["core", "catalyst", "frame", "gem"];
 pub const MAX_GEMS: usize = 2;
-/// The most parts an item is made of: a shard, a core, a catalyst, a frame and the gems.
-pub const MAX_PARTS: usize = 4 + MAX_GEMS;
+/// The most parts an item is made of: a core, a catalyst, a frame and the gems.
+pub const MAX_PARTS: usize = 3 + MAX_GEMS;
 pub const CHEST_SLOTS: i32 = 48;
 /// An active contract the zone never reported on is refunded after this long.
 pub const CONTRACT_TIMEOUT_MINUTES: i32 = 120;
@@ -584,7 +584,7 @@ async fn new_holder(tx: &mut Tx<'_>, kind: &str, capacity: i32) -> Result<i64, E
 async fn components_of(tx: &mut Tx<'_>, item: i64) -> Result<Vec<Component>, EconError> {
     let rows = sqlx::query(
         "select layer, material from item_components where item_id = $1 order by \
-         array_position(array['shard','core','catalyst','frame','gem'], layer), position",
+         array_position(array['core','catalyst','frame','gem'], layer), position",
     )
     .bind(item)
     .fetch_all(&mut **tx)
@@ -679,12 +679,12 @@ async fn gear_in(
             continue;
         };
         let parts = components_of(tx, id).await?;
-        let materials = parts.iter().map(|c| c.material.as_str());
+        let materials = || parts.iter().map(|c| c.material.as_str());
         // Content that no longer knows the template, or no longer lets it into the place
         // it was put into, gives nothing (and is still named: what is worn is worn,
         // whatever it does).
         if content.may_wear_in(&template, place)
-            && let Some((_, edges, _)) = content.edges(&template, materials)
+            && let Some((_, edges, _)) = content.edges(&template, materials())
         {
             let deals = content.template(&template).is_some_and(|t| t.deals());
             let share = if place == Place::Weapon && content.two_handed(&template) {
@@ -696,6 +696,24 @@ async fn gear_in(
                 add(&mut gear.dealt, edges, share);
             } else {
                 add(&mut gear.taken, edges, share);
+            }
+            // The layers' jobs (GEAR.md 6): the right hand's weapon puts its catalyst's
+            // status on its blows, its gems lengthen them and its frame prices them; what
+            // guards (a shield, the body's pieces, a cape) shortens the statuses its
+            // catalyst and gems ward and prices the blocks by its frame. A second weapon
+            // in the left hand and a ring bring their edge and nothing else.
+            if let Some(jobs) = content.jobs(&template, materials()) {
+                if place == Place::Weapon {
+                    gear.on_hit = jobs.on_hit;
+                    gear.status_dealt = jobs.status_dealt;
+                    gear.stamina_blows = jobs.stamina;
+                } else if !deals {
+                    for (into, pct) in gear.status_taken.iter_mut().zip(jobs.status_taken) {
+                        let v = *into as u32 * pct as u32 / 100;
+                        *into = v.max(gm_content::items::WARD_FLOOR as u32) as u8;
+                    }
+                    gear.stamina_block = gear.stamina_block.min(jobs.stamina);
+                }
             }
         }
         templates[place.index()] = template;
@@ -782,8 +800,8 @@ async fn is_worn(tx: &mut Tx<'_>, item: i64) -> Result<bool, EconError> {
         .is_some())
 }
 
-/// What an item may be made of (ECONOMY.md 10): one core and one frame, at most one shard
-/// and one catalyst, at most two gems, and nothing of a layer its template has no room for.
+/// What an item may be made of (ECONOMY.md 10): one core and one frame, at most one
+/// catalyst, at most two gems, and nothing of a layer its template has no room for.
 fn check_parts(
     parts: &[Component],
     template: &str,
@@ -812,7 +830,7 @@ fn check_parts(
             "a craft needs exactly one core and one frame".into(),
         ));
     }
-    if count("shard") > 1 || count("catalyst") > 1 || count("gem") > MAX_GEMS {
+    if count("catalyst") > 1 || count("gem") > MAX_GEMS {
         return Err(EconError::Invalid("too many components for a layer".into()));
     }
     Ok(())
@@ -2264,7 +2282,7 @@ impl Economy {
         let ids: Vec<i64> = offered.iter().map(|(_, i)| i.id).collect();
         let parts = sqlx::query(
             "select item_id, layer, material from item_components where item_id = any($1) \
-             order by item_id, array_position(array['shard','core','catalyst','frame','gem'], layer), position",
+             order by item_id, array_position(array['core','catalyst','frame','gem'], layer), position",
         )
         .bind(&ids)
         .fetch_all(&self.pool)

@@ -145,6 +145,46 @@ impl Status {
         matches!(self, Status::Stagger | Status::Shock)
     }
 
+    /// The element whose status this is (GEAR.md 6, MATRIX.md 5): what a catalyst of that
+    /// element puts on a blow, and what an armour's catalyst or a gem of it wards. Fire
+    /// burns, Water chills, Electric shocks, Grass weakens, Ground slows, Air exposes.
+    pub const fn element(self) -> Option<crate::matrix::Element> {
+        use crate::matrix::Element;
+        match self {
+            Status::Burn => Some(Element::Fire),
+            Status::Chill => Some(Element::Water),
+            Status::Shock => Some(Element::Electric),
+            Status::Weaken => Some(Element::Grass),
+            Status::Slow => Some(Element::Ground),
+            Status::Expose => Some(Element::Air),
+            _ => None,
+        }
+    }
+
+    /// A status by its content name (the lowercase of its variant), or `None`.
+    pub fn parse(name: &str) -> Option<Status> {
+        Some(match name {
+            "slow" => Status::Slow,
+            "haste" => Status::Haste,
+            "root" => Status::Root,
+            "bleed" => Status::Bleed,
+            "burn" => Status::Burn,
+            "chill" => Status::Chill,
+            "shock" => Status::Shock,
+            "silence" => Status::Silence,
+            "stagger" => Status::Stagger,
+            "fortify" => Status::Fortify,
+            "weaken" => Status::Weaken,
+            "expose" => Status::Expose,
+            "regen" => Status::Regen,
+            "stealth" => Status::Stealth,
+            "knockdown" => Status::Knockdown,
+            "launched" => Status::Launched,
+            "taunt" => Status::Taunt,
+            _ => return None,
+        })
+    }
+
     /// A control (MODES.md 4.5): the second within ten seconds lasts half, the third does
     /// nothing, and the body is then immune to this kind for ten seconds.
     pub const fn is_control(self) -> bool {

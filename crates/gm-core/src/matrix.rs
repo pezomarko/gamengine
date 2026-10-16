@@ -4,7 +4,7 @@
 //! Keep this file and the document in lockstep. When they disagree, the document wins and the
 //! code is wrong.
 
-use crate::vocab::{ArchetypeFrame, Bypass, DamagePacket, DamageType};
+use crate::vocab::{ArchetypeFrame, Bypass, DamagePacket, DamageType, Status};
 
 /// The six elements, in the order of MATRIX.md 5's table (the well-known chart, with
 /// Air for its Flying): a type beats what its row says, and nothing more.
@@ -22,6 +22,10 @@ pub enum Element {
 }
 
 impl Element {
+    /// Its place in `ALL` and in every per-element table (GEAR.md 6).
+    pub const fn slot(self) -> usize {
+        self as usize
+    }
     pub const COUNT: usize = 6;
     /// The bits of `Aspects` that name an element.
     pub const MASK: u8 = 0x3f;
@@ -413,17 +417,52 @@ impl Derived {
 /// armour, per mille, one number per damage type in `DamageType`'s order. `dealt` raises
 /// what the body deals of that type, `taken` lowers what it takes. A body in nothing has
 /// all eighteen at 0.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
 pub struct Gear {
     pub dealt: [u16; 9],
     pub taken: [u16; 9],
+    /// GEAR.md 6: the worn weapon's catalyst, its element's status on a landing blow.
+    pub on_hit: Option<OnHit>,
+    /// Per element (`Element::slot`), percent: how long that element's status lasts on this
+    /// body (the catalysts and the gems of what guards it); 100 for nothing.
+    pub status_taken: [u8; 6],
+    /// Per element, percent: how long that element's status, put on by this body's blows,
+    /// lasts on whoever they land on (the worn weapon's gems); 100 for nothing.
+    pub status_dealt: [u8; 6],
+    /// The worn weapon's frame: the stamina of the blows, percent of the cost.
+    pub stamina_blows: u8,
+    /// The guard pieces' frames: the stamina of a block and of the guard, percent.
+    pub stamina_block: u8,
+}
+
+/// The status a weapon's catalyst puts on a landing blow (GEAR.md 6): at `chance` percent
+/// per blow that lands, for `duration_ms`, at `magnitude_pm` per mille of the status's
+/// magnitude. Rolled by the zone; a client predicts none of it, as with damage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+pub struct OnHit {
+    pub status: Status,
+    pub chance: u8,
+    pub duration_ms: u16,
+    pub magnitude_pm: u16,
+}
+
+impl Default for Gear {
+    fn default() -> Gear {
+        Gear::NONE
+    }
 }
 
 impl Gear {
     pub const NONE: Gear = Gear {
         dealt: [0; 9],
         taken: [0; 9],
+        on_hit: None,
+        status_taken: [100; 6],
+        status_dealt: [100; 6],
+        stamina_blows: 100,
+        stamina_block: 100,
     };
     /// The most any one of the sixteen may be: the cap on an item's whole edge (PLAN.md 0).
     pub const MAX: u16 = 250;
@@ -437,6 +476,7 @@ impl Gear {
         Gear {
             dealt: self.dealt.map(|e| e.min(Gear::MAX)),
             taken: self.taken.map(|e| e.min(Gear::MAX)),
+            ..self
         }
     }
 }
@@ -462,6 +502,10 @@ pub struct AttackerStats {
     pub weaken: f32,
     /// The edge of its worn weapon, per mille per damage type (`Gear::dealt`).
     pub gear: [u16; 9],
+    /// The worn weapon's catalyst (GEAR.md 6), rolled when a blow lands.
+    pub on_hit: Option<OnHit>,
+    /// The worn weapon's gems (GEAR.md 6): how long an element's status lasts, percent.
+    pub status_dealt: [u8; 6],
 }
 
 impl AttackerStats {
@@ -469,6 +513,8 @@ impl AttackerStats {
         physical_mult: 1.0,
         elemental_mult: 1.0,
         knockback_dealt: 1.0,
+        on_hit: None,
+        status_dealt: [100; 6],
         weaken: 0.0,
         gear: [0; 9],
     };
@@ -480,6 +526,8 @@ impl AttackerStats {
             knockback_dealt: d.knockback_dealt,
             weaken,
             gear: gear.dealt,
+            on_hit: gear.on_hit,
+            status_dealt: gear.status_dealt,
         }
     }
 }
@@ -783,6 +831,7 @@ mod tests {
         let wild = Gear {
             dealt: [9000; 9],
             taken: [0, 251, 250, 3, 0, 0, 0, 0, 65535],
+            ..Gear::NONE
         };
         assert_eq!(wild.clamped().dealt, [250; 9]);
         assert_eq!(wild.clamped().taken, [0, 250, 250, 3, 0, 0, 0, 0, 250]);
@@ -832,6 +881,8 @@ mod tests {
             knockback_dealt: 1.0,
             weaken: 0.0,
             gear: [0; 9],
+            on_hit: None,
+            status_dealt: [100; 6],
         };
         // Slash into plate: 100 * 1.1 * 0.5 * (1 - 0.2) = 44.
         let d = defender(ArmourClass::Plate, Aspects::one(Element::Ground));

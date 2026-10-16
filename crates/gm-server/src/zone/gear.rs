@@ -283,8 +283,12 @@ impl Run {
         let Some(p) = self.zone.player(body) else {
             return;
         };
-        let worn =
+        let mut worn =
             gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
+        // The frames' stamina (GEAR.md 6) is the hub's reading of the materials, set into
+        // the body before this is asked; the client predicts with it, so it rides in `Worn`.
+        worn.stamina_blows = p.gear.stamina_blows;
+        worn.stamina_block = p.gear.stamina_block;
         if self.zone.set_worn(body, worn.clone()) {
             info!(body, primary = ?worn.primary, guard = ?worn.guard, "worn");
             if let Some(s) = self.sessions.get(&body) {

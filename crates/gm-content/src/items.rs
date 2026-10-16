@@ -4,17 +4,74 @@
 
 use std::path::Path;
 
-use gm_core::matrix::Gear;
-use gm_core::vocab::DamageType;
+use gm_core::matrix::{Element, Gear, OnHit};
+use gm_core::vocab::{DamageType, Status};
 use serde::Deserialize;
 
 use crate::ContentError;
 
-pub const LAYERS: [&str; 5] = ["shard", "core", "catalyst", "frame", "gem"];
+/// The layers of a craft (ECONOMY.md 4). The shard went on 2026-10-16 (GEAR.md 6).
+pub const LAYERS: [&str; 4] = ["core", "catalyst", "frame", "gem"];
 /// Gem sockets per item.
 pub const MAX_GEMS: u32 = 2;
 /// The largest total edge of a fully crafted item over a standard one, per mille.
 pub const MAX_EDGE_PER_MILLE: u32 = 250;
+/// GEAR.md 6: how long an element's status lasts on the wearer of an armour, a shield or a
+/// cape whose catalyst is that element, percent.
+pub const CATALYST_WARD: u8 = 60;
+/// How long the warded element's status lasts on the wearer of a piece with that gem.
+pub const GEM_WARD: u8 = 50;
+/// How long the warded element's status, put on by a blow of a weapon with that gem, lasts.
+pub const GEM_EDGE: u8 = 150;
+/// The floor of what wards stack to on one body, percent.
+pub const WARD_FLOOR: u8 = 25;
+/// The ceiling of what a weapon's gems stack to, percent.
+pub const EDGE_CEILING: u8 = 200;
+
+/// What a craft's layers do besides its edge (GEAR.md 6; `ItemContent::jobs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Jobs {
+    /// A weapon's catalyst: its element's status on a landing blow.
+    pub on_hit: Option<OnHit>,
+    /// Per element (`Element::ALL`'s order): how long that element's status lasts on the
+    /// wearer, percent; 100 for nothing. A guard piece's catalyst and gems.
+    pub status_taken: [u8; 6],
+    /// Per element: how long that element's status, put on by this weapon's blows, lasts
+    /// on whoever they land on, percent. A weapon's gems.
+    pub status_dealt: [u8; 6],
+    /// The frame: the stamina of the blows (a weapon) or of the blocks (a guard piece),
+    /// percent of the cost.
+    pub stamina: u8,
+}
+
+impl Jobs {
+    pub const NONE: Jobs = Jobs {
+        on_hit: None,
+        status_taken: [100; 6],
+        status_dealt: [100; 6],
+        stamina: 100,
+    };
+
+    /// A ward on `e` of `pct` percent, multiplied into what is there, under the floor.
+    pub fn ward(&mut self, e: Element, pct: u8) {
+        let i = e.slot();
+        let v = self.status_taken[i] as u32 * pct as u32 / 100;
+        self.status_taken[i] = v.max(WARD_FLOOR as u32) as u8;
+    }
+
+    /// A weapon's gem on `e` of `pct` percent, multiplied into what is there, under the
+    /// ceiling.
+    pub fn edge(&mut self, e: Element, pct: u8) {
+        let i = e.slot();
+        let v = self.status_dealt[i] as u32 * pct as u32 / 100;
+        self.status_dealt[i] = v.min(EDGE_CEILING as u32) as u8;
+    }
+}
+
+/// The element of a damage type, for the six that are one.
+fn dtype_element(d: DamageType) -> Option<Element> {
+    d.element()
+}
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -181,6 +238,67 @@ fn per_cent(deals: bool, edge: u16) -> String {
 
 /// The edges in words, the strongest first. Kinds of one group that share an edge are
 /// said together (`physical`, `elements`, or `other elements` beside one that stands out).
+/// What the layers' jobs say (GEAR.md 6), after the edge: the catalyst's status on the
+/// blows, the gems' wards, the frame's stamina.
+fn job_words(deals: bool, jobs: &Jobs) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(oh) = jobs.on_hit {
+        let verb = match oh.status {
+            Status::Burn => "burns",
+            Status::Chill => "chills",
+            Status::Shock => "shocks",
+            Status::Weaken => "weakens",
+            Status::Slow => "slows",
+            Status::Expose => "exposes",
+            _ => "marks",
+        };
+        const COUNT: [&str; 11] = [
+            "", "", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        ];
+        let one_in = match oh.chance {
+            100 => "every blow".to_string(),
+            c if c > 0 && 100 % c == 0 && 100 / c <= 10 => {
+                format!("one blow in {}", COUNT[(100 / c) as usize])
+            }
+            c => format!("{c}% of blows"),
+        };
+        out.push(format!(
+            "{verb} {one_in} for {:.1} s",
+            oh.duration_ms as f32 / 1000.0
+        ));
+    }
+    let table = if deals {
+        &jobs.status_dealt
+    } else {
+        &jobs.status_taken
+    };
+    for (e, pct) in Element::ALL.into_iter().zip(table) {
+        if *pct != 100 {
+            let noun = match e {
+                Element::Fire => "burns",
+                Element::Water => "chills",
+                Element::Electric => "shocks",
+                Element::Grass => "weakenings",
+                Element::Ground => "slows",
+                Element::Air => "exposures",
+            };
+            out.push(if deals {
+                format!("its {noun} last {pct}% as long")
+            } else {
+                format!("{noun} last {pct}% as long on you")
+            });
+        }
+    }
+    if jobs.stamina != 100 {
+        out.push(format!(
+            "{} cost {}% of their stamina",
+            if deals { "blows" } else { "blocks" },
+            jobs.stamina
+        ));
+    }
+    out
+}
+
 fn words(deals: bool, edge: &[u16; 9]) -> Vec<String> {
     let mut said: Vec<(u16, String)> = Vec::new();
     for (group, name) in [(&PHYSICAL[..], "physical"), (&ELEMENTS[..], "elements")] {
@@ -357,6 +475,29 @@ pub struct Material {
     pub element: Option<String>,
     #[serde(default)]
     pub note: String,
+    /// A catalyst's job (GEAR.md 6): on a weapon, the status its element puts on a landing
+    /// blow (`burn`, `chill`, `shock`, `weaken`, `slow`, `expose`: the element's own,
+    /// `Status::element`), at `chance` percent, for `duration_ms`, at `magnitude`; on an
+    /// armour, a shield or a cape, that status lasts `CATALYST_WARD` percent as long on the
+    /// wearer.
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub chance: Option<u8>,
+    #[serde(default)]
+    pub duration_ms: Option<u16>,
+    #[serde(default)]
+    pub magnitude: Option<f32>,
+    /// A frame's job (GEAR.md 6): the stamina of the blows (a weapon) or of the blocks (a
+    /// shield, an armour), in percent of the cost; absent: 100.
+    #[serde(default)]
+    pub stamina: Option<u8>,
+    /// A gem's job (GEAR.md 6): the element it wards, by name, or `catalyst` for the item's
+    /// own catalyst's; on an armour, a shield or a cape that element's status lasts
+    /// `GEM_WARD` percent as long on the wearer, on a weapon `GEM_EDGE` percent as long on
+    /// whoever the blow lands on.
+    #[serde(default)]
+    pub ward: Option<String>,
     /// The look fields (CONTENT.md 3): a picture for the crafting screens, and the tint a
     /// worn item's texture takes when this is its core.
     #[serde(default)]
@@ -576,17 +717,94 @@ impl ItemContent {
         ))
     }
 
+    /// What the layers of a craft do besides its edge (GEAR.md 6): the catalyst's status,
+    /// the gems' wards, the frame's stamina, as the hub folds them into a body's gear and as
+    /// the words say them. `None`: a template the content does not know, or a stack.
+    pub fn jobs<'a>(
+        &self,
+        template: &str,
+        materials: impl IntoIterator<Item = &'a str>,
+    ) -> Option<Jobs> {
+        let t = self.templates.iter().find(|t| t.id == template)?;
+        Self::default_place(t)?;
+        let known: Vec<&Material> = materials
+            .into_iter()
+            .filter_map(|id| self.materials.iter().find(|m| m.id == id))
+            .filter(|m| t.layers.iter().any(|l| l == m.layer()))
+            .collect();
+        let deals = t.deals();
+        let mut jobs = Jobs::NONE;
+        let catalyst = known
+            .iter()
+            .find(|m| m.layer() == "catalyst")
+            .and_then(|m| m.element.as_deref())
+            .and_then(element)
+            .and_then(dtype_element);
+        for m in &known {
+            match m.layer() {
+                "catalyst" => {
+                    let Some(e) = catalyst else { continue };
+                    if deals {
+                        if let (Some(status), Some(chance), Some(duration_ms), Some(magnitude)) = (
+                            m.status.as_deref().and_then(Status::parse),
+                            m.chance,
+                            m.duration_ms,
+                            m.magnitude,
+                        ) {
+                            jobs.on_hit = Some(OnHit {
+                                status,
+                                chance,
+                                duration_ms,
+                                magnitude_pm: (magnitude * 1000.0).round().clamp(0.0, 65535.0)
+                                    as u16,
+                            });
+                        }
+                    } else {
+                        jobs.ward(e, CATALYST_WARD);
+                    }
+                }
+                "gem" => {
+                    let e = match m.ward.as_deref() {
+                        Some("catalyst") => catalyst,
+                        Some(name) => element(name).and_then(dtype_element),
+                        None => None,
+                    };
+                    let Some(e) = e else { continue };
+                    if deals {
+                        jobs.edge(e, GEM_EDGE);
+                    } else {
+                        jobs.ward(e, GEM_WARD);
+                    }
+                }
+                "frame" => {
+                    if let Some(pct) = m.stamina {
+                        jobs.stamina = jobs.stamina.min(pct);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(jobs)
+    }
+
     /// The item as a person is shown it. `components` are `(layer, material)`.
     pub fn view<'a>(
         &self,
         template: &str,
         components: impl IntoIterator<Item = (&'a str, &'a str)> + Clone,
     ) -> ItemView {
-        let materials = components.clone().into_iter().map(|(_, m)| m);
+        let parts: Vec<(&str, &str)> = components.into_iter().collect();
+        let materials = parts.iter().map(|(_, m)| *m);
+        let jobs = self.jobs(template, parts.iter().map(|(_, m)| *m));
         match self.edges(template, materials) {
             Some((place, edge, whole)) => {
+                let deals = self.template(template).is_some_and(|t| t.deals());
+                let mut does = words(deals, &edge);
+                if let Some(jobs) = jobs {
+                    does.extend(job_words(deals, &jobs));
+                }
                 let t = self.templates.iter().find(|t| t.id == template);
-                let (kind, deals) = t.map_or(("weapon", true), |t| (t.kind.as_str(), t.deals()));
+                let kind = t.map_or("weapon", |t| t.kind.as_str());
                 ItemView {
                     place: Some(place),
                     off: place != Place::Off && self.may_wear_in(template, Place::Off),
@@ -595,7 +813,7 @@ impl ItemContent {
                         "{} {kind}, {whole} of {MAX_EDGE_PER_MILLE}",
                         if kind == "armour" { "an" } else { "a" },
                     ),
-                    does: words(deals, &edge),
+                    does,
                 }
             }
             None => match self.stack(template) {
@@ -608,7 +826,7 @@ impl ItemContent {
                     ..ItemView::default()
                 },
                 None => ItemView {
-                    what: match components.into_iter().next() {
+                    what: match parts.first().copied() {
                         Some((layer, _)) if template == "component" => {
                             format!("a {layer}, for crafting")
                         }
@@ -649,6 +867,70 @@ impl ItemContent {
                 }
                 if element(e).is_none() {
                     return bad(format!("material {:?}: unknown element {e:?}", m.id));
+                }
+            }
+            // The jobs (GEAR.md 6): each layer's own, and a catalyst's status its element's.
+            let has_status = m.status.is_some()
+                || m.chance.is_some()
+                || m.duration_ms.is_some()
+                || m.magnitude.is_some();
+            if has_status {
+                if layer != "catalyst" {
+                    return bad(format!(
+                        "material {:?}: only a catalyst puts a status on a blow",
+                        m.id
+                    ));
+                }
+                let (Some(status), Some(chance), Some(duration), Some(_)) =
+                    (&m.status, m.chance, m.duration_ms, m.magnitude)
+                else {
+                    return bad(format!(
+                        "material {:?}: a status wants status, chance, duration_ms and magnitude",
+                        m.id
+                    ));
+                };
+                let Some(st) = Status::parse(status) else {
+                    return bad(format!("material {:?}: unknown status {status:?}", m.id));
+                };
+                let own = m
+                    .element
+                    .as_deref()
+                    .and_then(element)
+                    .and_then(dtype_element);
+                if st.element() != own {
+                    return bad(format!(
+                        "material {:?}: {status} is not the {}'s status",
+                        m.id,
+                        m.element.as_deref().unwrap_or("")
+                    ));
+                }
+                if !(1..=100).contains(&chance) || duration == 0 {
+                    return bad(format!(
+                        "material {:?}: chance is 1–100 and duration_ms at least 1",
+                        m.id
+                    ));
+                }
+            }
+            if let Some(pct) = m.stamina {
+                if layer != "frame" {
+                    return bad(format!(
+                        "material {:?}: only a frame moves the stamina",
+                        m.id
+                    ));
+                }
+                if !(25..=100).contains(&pct) {
+                    return bad(format!("material {:?}: stamina is 25–100 percent", m.id));
+                }
+            }
+            if let Some(w) = &m.ward {
+                if layer != "gem" {
+                    return bad(format!("material {:?}: only a gem wards", m.id));
+                }
+                if w != "catalyst" && element(w).is_none() {
+                    return bad(format!(
+                        "material {:?}: wards catalyst or an element, not {w:?}",
+                        m.id
+                    ));
                 }
             }
         }
@@ -833,8 +1115,9 @@ mod tests {
             .map(|t| items.best_edge(t))
             .max()
             .unwrap();
-        // The best sword: scale 55 + dragonbone 60 + catalyst 30 + whalebone 45 + two opals.
-        assert_eq!(best, 250);
+        // The best sword: dragonbone 60 + catalyst 30 + whalebone 45 + two opals (the shard's
+        // 55 went with the layer, GEAR.md 6).
+        assert_eq!(best, 195);
     }
 
     #[test]
@@ -844,7 +1127,6 @@ mod tests {
         // The best sword, with an ember catalyst (ITEMS.md 3.2): its core is for the
         // sword's own kind, its catalyst for its element, the rest for those two.
         let best = [
-            "shard/boss_scale",
             "core/dragonbone",
             "catalyst/ember",
             "frame/whalebone",
@@ -852,34 +1134,28 @@ mod tests {
             "gem/opal",
         ];
         let (place, sword, whole) = items.edges("sword", best).unwrap();
-        assert_eq!((place, whole), (Place::Weapon, 250));
+        assert_eq!((place, whole), (Place::Weapon, 195));
         let mut expect = [0u16; 9];
-        expect[at(DamageType::Slash)] = 220;
-        expect[at(DamageType::Fire)] = 190;
+        expect[at(DamageType::Slash)] = 165;
+        expect[at(DamageType::Fire)] = 135;
         assert_eq!(sword, expect, "nothing for a kind the sword is not for");
         // The same parts in a hammer sharpen Blunt, not Slash.
         let (_, hammer, _) = items.edges("hammer", best).unwrap();
         assert_eq!(
             (hammer[at(DamageType::Blunt)], hammer[at(DamageType::Slash)]),
-            (220, 0)
+            (165, 0)
         );
         // A cuirass guards against blows and takes no catalyst: one handed to it (an item
         // made before the rule) adds nothing.
-        let plain = [
-            "shard/boss_scale",
-            "core/dragonbone",
-            "frame/whalebone",
-            "gem/opal",
-            "gem/opal",
-        ];
+        let plain = ["core/dragonbone", "frame/whalebone", "gem/opal", "gem/opal"];
         let (place, cuirass, whole) = items.edges("cuirass", plain).unwrap();
-        assert_eq!((place, whole), (Place::Armour, 220));
-        assert_eq!(cuirass, [220, 220, 220, 0, 0, 0, 0, 0, 0]);
+        assert_eq!((place, whole), (Place::Armour, 165));
+        assert_eq!(cuirass, [165, 165, 165, 0, 0, 0, 0, 0, 0]);
         assert_eq!(items.edges("cuirass", best).unwrap().1, cuirass);
         // A robe guards against the elements, and its catalyst against one the more.
         let (_, robe, whole) = items.edges("robe", best).unwrap();
-        assert_eq!(whole, 250);
-        assert_eq!(robe, [0, 0, 0, 250, 220, 220, 220, 220, 220]);
+        assert_eq!(whole, 195);
+        assert_eq!(robe, [0, 0, 0, 195, 165, 165, 165, 165, 165]);
         let (_, robe, _) = items
             .edges("robe", ["core/iron", "catalyst/rime", "frame/oak"])
             .unwrap();
@@ -921,8 +1197,8 @@ mod tests {
         // A shield guards like an armour and is said as a shield; a sword says it may go
         // into the off hand too, a shield (there by nature) does not.
         let (place, shield, whole) = items.edges("shield", plain).unwrap();
-        assert_eq!((place, whole), (Place::Off, 220));
-        assert_eq!(shield, [220, 220, 220, 0, 0, 0, 0, 0, 0]);
+        assert_eq!((place, whole), (Place::Off, 165));
+        assert_eq!(shield, [165, 165, 165, 0, 0, 0, 0, 0, 0]);
         let view = items.view("shield", [("core", "core/iron"), ("frame", "frame/oak")]);
         assert_eq!(view.what, "a shield, 40 of 250");
         assert_eq!(view.does, ["physical -2.0%"]);
@@ -966,28 +1242,52 @@ mod tests {
                 .collect()
         };
         let best = parts(&[
-            "shard/boss_scale",
             "core/dragonbone",
             "catalyst/ember",
             "frame/whalebone",
             "gem/opal",
             "gem/opal",
         ]);
-        // A place counts for half its item's edge (ITEMS.md 3.1): 220 per mille is 11%.
+        // A place counts for half its item's edge (ITEMS.md 3.1): 165 per mille is 8.3%;
+        // then the layers' jobs (GEAR.md 6), each in a line.
         let sword = items.view("sword", best.clone());
-        assert_eq!(sword.what, "a weapon, 250 of 250");
-        assert_eq!(sword.does, ["slash +11.0%", "fire +9.5%"]);
-        // An armour takes off what 2000 / 2220 leaves: 9.9%.
+        assert_eq!(sword.what, "a weapon, 195 of 250");
+        assert_eq!(
+            sword.does,
+            [
+                "slash +8.3%",
+                "fire +6.8%",
+                "burns one blow in five for 2.0 s",
+                "its burns last 200% as long",
+                "blows cost 75% of their stamina"
+            ]
+        );
+        // An armour takes off what 2000 / 2105 leaves: 5.0%; its whalebone prices the blocks.
         let cuirass = items.view("cuirass", parts(&["core/dragonbone", "frame/whalebone"]));
         assert_eq!(cuirass.what, "an armour, 105 of 250");
-        assert_eq!(cuirass.does, ["physical -5.0%"]);
+        assert_eq!(
+            cuirass.does,
+            ["physical -5.0%", "blocks cost 75% of their stamina"]
+        );
+        // The robe's ember and two opals ward fire down to the floor.
         let robe = items.view("robe", best.clone());
-        assert_eq!(robe.does, ["fire -11.1%", "other elements -9.9%"]);
+        assert_eq!(
+            robe.does,
+            [
+                "fire -8.9%",
+                "other elements -7.6%",
+                "burns last 25% as long on you",
+                "blocks cost 75% of their stamina"
+            ]
+        );
         let robe = items.view("robe", parts(&["core/iron", "frame/oak"]));
         assert_eq!(robe.does, ["elements -2.0%"]);
         // Half a per mille is rounded, not lost: 45 is 2.3%.
         let staff = items.view("staff", parts(&["core/tin", "frame/ash", "gem/quartz"]));
-        assert_eq!(staff.does, ["blunt +2.3%"]);
+        assert_eq!(
+            staff.does,
+            ["blunt +2.3%", "blows cost 90% of their stamina"]
+        );
         // A part says what it is; what nobody knows says so.
         let part = items.view("component", parts(&["catalyst/ember"]));
         assert_eq!(
@@ -996,7 +1296,7 @@ mod tests {
         );
         assert!(part.does.is_empty() && part.edge == [0; 9]);
         assert_eq!(items.view("lute", best).what, "nothing this world knows");
-        assert_eq!(items.layers("crossbow").unwrap().len(), 4);
+        assert_eq!(items.layers("crossbow").unwrap().len(), 3);
         assert_eq!(items.layers("lute"), None);
     }
 

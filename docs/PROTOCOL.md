@@ -911,6 +911,16 @@ own block reshaped:
 - Nothing new in the control stream. Hub protocol 12 and the players' protocol 7 carry
   the bar's arrangement (ITEMS.md 4).
 
+## 36. Changes in v24 (the frames' stamina, 2026-10-16)
+
+`PROTOCOL_VERSION` 24 (GEAR.md 6). `Worn` carries two more numbers, **`stamina_blows`** and
+**`stamina_block`** (percent of a cost, 100 in nothing): the worn weapon's frame prices
+the blows and the guard pieces' frames the guard and a block, and the client predicts
+stamina, so the numbers ride with the kit (`Kit::blow_cost`, `Kit::guard_cost`) rather
+than staying the zone's. The hub's reading grew the same way on its own wire
+(`Gear.on_hit`, `status_taken`, `status_dealt`, the two stamina numbers; `HUB_VERSION`
+18); what a blow's status does stays the zone's alone.
+
 ## 35. Changes in v23 (the worn kit, 2026-10-16)
 
 `PROTOCOL_VERSION` 23 (GEAR.md 2 and 4). The worn gear reaches the owning client's sheet:

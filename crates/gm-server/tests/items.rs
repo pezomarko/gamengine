@@ -651,7 +651,6 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         .unwrap();
     let direct = Economy::new(db.pool().clone());
     let best = strings(&[
-        "shard/boss_scale",
         "core/dragonbone",
         "catalyst/ember",
         "frame/whalebone",
@@ -675,13 +674,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         .grant_item(
             smith.character,
             "cuirass",
-            &strings(&[
-                "shard/boss_scale",
-                "core/dragonbone",
-                "frame/whalebone",
-                "gem/opal",
-                "gem/opal",
-            ]),
+            &strings(&["core/dragonbone", "frame/whalebone", "gem/opal", "gem/opal"]),
             None,
         )
         .await
@@ -823,8 +816,9 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         .await;
     smith_hand.shared.lock().unwrap().heard.clear();
     let armed = hit(&buyer_hand).await;
+    // The best sword is 165 of slash since the shard layer went (GEAR.md 6): 2165 / 2000.
     assert!(
-        moved(1.11).contains(&armed) && armed > bare,
+        moved(2165.0 / 2000.0).contains(&armed) && armed > bare,
         "{bare} in nothing, {armed} with the sword"
     );
     smith_hand
@@ -894,8 +888,8 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     let back = hit(&buyer_hand).await;
     assert_eq!(back, both, "the sword came back with its wearer");
 
-    // Taken off, the cuirass alone is left: 2000 / 2132 of a blow (the chest counts 12
-    // of the body's 20, 132 of a 220 edge, EQUIPMENT.md 10.8), and 1.0 / 1.25 of it again
+    // Taken off, the cuirass alone is left: 2000 / 2099 of a blow (the chest counts 12
+    // of the body's 20, 99 of a 165 edge, EQUIPMENT.md 10.8), and 1.0 / 1.25 of it again
     // for the leather the cuirass makes the body, against the cloth it was in bare
     // (GEAR.md 3, MATRIX.md 4.1).
     assert_eq!(
@@ -906,7 +900,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     );
     let warded = hit(&buyer_hand).await;
     assert!(
-        moved(2000.0 / 2132.0 / 1.25).contains(&warded) && warded < bare,
+        moved(2000.0 / 2099.0 / 1.25).contains(&warded) && warded < bare,
         "{bare} in nothing, {warded} against the cuirass"
     );
     println!(
