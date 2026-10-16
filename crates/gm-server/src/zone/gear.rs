@@ -190,6 +190,7 @@ impl Run {
                 own: p.sheet.build.clone(),
                 team: p.team(),
                 props: self.cfg.looks.props.clone(),
+                worn: p.worn.clone(),
             });
             if s.gm {
                 s.send_control(FromZone::Gm(GmNews::Tuning(self.tuning.clone())));
@@ -273,6 +274,25 @@ impl Run {
         }
     }
 
+    /// What a body's worn things bring to its kit (GEAR.md 2), from the hub's six template
+    /// keys: into the body at once (`Zone::set_worn`, which rearms it), and told to its
+    /// client when it changed, so that both compile the one sheet. Asked at the claim,
+    /// after every reading, and after a respawn applied a build (the staff's bolt is the
+    /// build's choice).
+    pub(super) fn refit(&mut self, body: EntityId, templates: &[String]) {
+        let Some(p) = self.zone.player(body) else {
+            return;
+        };
+        let worn =
+            gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
+        if self.zone.set_worn(body, worn.clone()) {
+            info!(body, primary = ?worn.primary, guard = ?worn.guard, "worn");
+            if let Some(s) = self.sessions.get(&body) {
+                s.send_control(FromZone::Worn(worn));
+            }
+        }
+    }
+
     /// `ClientEvent::Worn`.
     pub(super) fn on_worn(
         &mut self,
@@ -314,6 +334,7 @@ impl Run {
                         self.zone.set_gear(body, reading.gear);
                         self.zone
                             .set_stacks(body, &stacks_of(reading), &reading.bar);
+                        self.refit(body, &reading.templates);
                         info!(
                             character,
                             dealt = ?reading.gear.dealt,

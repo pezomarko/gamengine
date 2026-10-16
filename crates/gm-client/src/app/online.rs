@@ -8,6 +8,9 @@ pub(crate) struct Online {
     pub(super) client: Option<ClientState>,
     pub(super) pack: Option<ContentPack>,
     pub(super) team: u8,
+    /// What the own body wears, as its kit reads it (GEAR.md 2 and 4): the sheet is built
+    /// from the build and this, as the zone's was.
+    pub(super) worn: gm_core::build::Worn,
     pub(super) build_name: String,
     pub(super) accumulator: f32,
     pub(super) prev_origin: Vec3,
@@ -128,6 +131,7 @@ pub(super) fn online(
         )?,
         welcome: None,
         client: None,
+        worn: gm_core::build::Worn::NONE,
         pack: None,
         team: 0,
         build_name: String::new(),
@@ -608,9 +612,11 @@ impl App {
                 own,
                 team,
                 props,
-            } => self.on_content(pack, own, team, props),
+                worn,
+            } => self.on_content(pack, own, team, props, worn),
             FromZone::Gm(news) => self.on_gm_news(news),
             FromZone::BuildApplied(build) => self.on_build_applied(build),
+            FromZone::Worn(worn) => self.on_worn(worn),
             FromZone::RespecResult(result) => self.on_respec_result(result),
             FromZone::TravelTicket {
                 zone,
@@ -848,6 +854,7 @@ impl App {
         own: gm_core::build::Build,
         team: u8,
         props: Vec<String>,
+        worn: gm_core::build::Worn,
     ) {
         let Some(o) = self.online.as_mut() else {
             return;
@@ -858,13 +865,14 @@ impl App {
         };
         o.team = team;
         o.props = props;
+        o.worn = worn;
         o.build_name = o.build_name_of(&pack, &own);
         match &mut o.client {
             // Content tuned under the zone (GM.md 3): the same body on the new numbers;
             // the prediction goes on.
             Some(c) => {
                 log::info!("content tuned: {} abilities", pack.abilities.len());
-                c.set_sheet(Sheet::new(own, &pack, team));
+                c.set_sheet(Sheet::wearing(own, o.worn.clone(), &pack, team));
                 o.gm_note = "tuned".into();
             }
             None => {
@@ -877,7 +885,7 @@ impl App {
                 o.client = Some(ClientState::new(
                     entity,
                     o.rate,
-                    Sheet::new(own, &pack, team),
+                    Sheet::wearing(own, o.worn.clone(), &pack, team),
                 ));
             }
         }
@@ -919,13 +927,43 @@ impl App {
         let changed = o.client.as_ref().is_some_and(|c| c.sheet.build != build);
         if changed && let Some(pack) = &o.pack {
             let name = o.build_name_of(pack, &build);
-            let sheet = Sheet::new(build, pack, o.team);
+            let sheet = Sheet::wearing(build, o.worn.clone(), pack, o.team);
             if let Some(c) = &mut o.client {
                 c.set_sheet(sheet);
             }
             o.build_name = name;
             o.respec_note = format!("now {}", o.build_name);
             log::info!("build applied: {}", o.build_name);
+        }
+    }
+
+    /// What the own body wears changed (GEAR.md 2 and 4): the kit its worn things bring.
+    /// The sheet is compiled again from the build and it, as the zone did, and the
+    /// prediction is rearmed as the zone's body was (every cooldown ready). A line says
+    /// what is in the hands now.
+    fn on_worn(&mut self, worn: gm_core::build::Worn) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        if o.worn == worn {
+            return;
+        }
+        o.worn = worn;
+        if let (Some(pack), Some(c)) = (&o.pack, &mut o.client) {
+            let sheet = Sheet::wearing(c.sheet.build.clone(), o.worn.clone(), pack, o.team);
+            c.set_sheet(sheet);
+            c.mover.rearm(&c.sheet);
+            let name = |i: Option<u8>| {
+                i.and_then(|i| c.sheet.kit.abilities.get(i as usize))
+                    .map_or("nothing", |a| a.name.as_str())
+                    .to_string()
+            };
+            let line = match c.sheet.kit.guard {
+                Some(g) => format!("in hand: {}, {}", name(c.sheet.kit.primary), name(Some(g))),
+                None => format!("in hand: {}", name(c.sheet.kit.primary)),
+            };
+            log::info!("worn: {line}");
+            o.say(line, hud::DIM);
         }
     }
 

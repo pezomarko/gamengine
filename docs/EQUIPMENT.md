@@ -94,6 +94,8 @@ Not proposed: binding an item to a class (`PLAN.md 3.4` decided against it, and 
 of ITEMS.md 2 already gives the director what he asked for with no bound item: the same
 sword sells to every build that swings one).
 
+2026-10-16 (GEAR.md 2 and 5): the fit rule became the mode's, a firearm for a gun build's hands and anything else for the rest, and the worn weapon brings its primary; the `hands:` line stays, as the presets whose kits prefer the weapon.
+
 ## 3. The hands: one-handed, two-handed, either
 
 The content knows `held = right | left | either | back` (CONTENT.md 3.1) and says

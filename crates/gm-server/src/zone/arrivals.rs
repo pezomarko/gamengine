@@ -48,11 +48,17 @@ impl Run {
         if let Some(h) = hub {
             self.adopt_reading(id, h);
         }
+        let worn = self
+            .zone
+            .player(id)
+            .map(|p| p.worn.clone())
+            .unwrap_or_default();
         let _ = reply.send(Ok(JoinInfo {
             entity: id,
             server_tick: self.zone.tick,
             build,
             team,
+            worn,
             pack: self.pack.clone(),
         }));
         let session = Session::new(id, name, conn, control);
@@ -192,6 +198,7 @@ impl Run {
         self.zone.set_gear(id, reading.gear);
         self.zone.set_stacks(id, &stacks_of(&reading), &reading.bar);
         self.parties.joined(h.character, h.party);
+        let templates = reading.templates.clone();
         self.hub_slots.insert(
             id,
             HubSlot {
@@ -209,6 +216,8 @@ impl Run {
                 claimed_elsewhere: false,
             },
         );
+        // The kit its worn things bring (GEAR.md 2), before the client is greeted with it.
+        self.refit(id, &templates);
     }
 
     /// The session admitted: a game master's word (GM.md 1, the hub's or the zone's own

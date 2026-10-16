@@ -34,6 +34,10 @@ pub struct ItemTemplate {
     /// `legs`; a trinket's: `accessory`.
     #[serde(default)]
     pub place: Option<String>,
+    /// A shield's guard (GEAR.md 2): the key of the guard ability the thing in the left
+    /// hand brings to whoever wears it (`shield_wall`, `brace`), in place of the build's.
+    #[serde(default)]
+    pub guard: Option<String>,
     /// A stack (MODES.md 11.1): the most of it one holder carries (the strict limit), and
     /// what one of it heals when it is a kit. No layers, no materials.
     #[serde(default)]

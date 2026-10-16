@@ -92,6 +92,7 @@ each the key of a file in 2:
 | | `icon` | absent: baked from `model` (5.3); absent both: a glyph of the template's kind |
 | | `held` | `right` (default), `left`, `either` (the right, or the left beside another: ITEMS.md 2), `two` (both hands, EQUIPMENT.md 3: content v10), `back`: which `prop_*` bone (MODELS.md 2) |
 | | `place` | an armour's place on the body (EQUIPMENT.md 5.2, content v10): `chest` (default), `head`, `hands`, `legs`, `feet`, `back`, `shoulders`; a trinket's (5.4): `neck`, `ring` |
+| | `guard` | a shield's or a focus's guard ability (GEAR.md 2, 2026-10-16): the key of the guard the thing in the left hand brings to whoever wears it (`shield_wall`, `brace`), in place of the build's |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
 | | `look` | an armour: `overlay` (the default) or `patch`, cloth painted into the official avatar's atlas (3.3); a patch covers nothing |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |

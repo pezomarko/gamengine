@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use glam::Vec3;
-use gm_core::build::{Build, ContentPack};
+use gm_core::build::{Build, ContentPack, Worn};
 use gm_core::vocab::EntityId;
 use gm_hub_proto::protocol::{
     CharacterId, GearReading, HiredAvatar, ModelId, ModelRef, PartyNews, PartyReading, PartyReply,
@@ -27,6 +27,9 @@ pub struct JoinInfo {
     pub server_tick: u32,
     pub build: Build,
     pub team: u8,
+    /// What the body wears, as its kit reads it (GEAR.md 2): the client's sheet is built
+    /// from the build and this, as the zone's was.
+    pub worn: Worn,
     /// The zone's content as it stands (a game master may have tuned it, GM.md 3).
     pub pack: Arc<ContentPack>,
 }
@@ -732,6 +735,7 @@ async fn greet(
         own: info.build.clone(),
         team: info.team,
         props: (*cfg.props).clone(),
+        worn: info.worn.clone(),
     };
     control::send(send, &welcome).await?;
     control::send(send, &content).await

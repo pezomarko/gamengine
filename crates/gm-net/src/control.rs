@@ -1,7 +1,7 @@
 //! Reliable control messages (PROTOCOL.md 8): `bitcode` payloads with a big-endian u16 length.
 
 use bitcode::{Decode, Encode};
-use gm_core::build::{Build, ContentPack};
+use gm_core::build::{Build, ContentPack, Worn};
 
 /// How a client asks for a build: a preset by name (the zone resolves it against its content)
 /// or a full allocation (validated by the zone against MATRIX.md 9).
@@ -371,6 +371,9 @@ pub enum FromZone {
         /// v8: the keys of every prop the content names, in the order a `Look` indexes
         /// (LOOK.md 6.2). The client finds the files; the zone never reads one.
         props: Vec<String>,
+        /// v23: what the own body wears, as its kit reads it (GEAR.md 2 and 4): the client
+        /// builds its sheet from `own` and this, as the zone did.
+        worn: Worn,
     },
     /// The requested build was accepted and, under a hub, saved to it (`Ok`: worn now in
     /// the world, at the next respawn in a team zone; MATRIX.md 9.1), or refused with the
@@ -482,6 +485,11 @@ pub enum FromZone {
         at: [f32; 3],
         normal: [f32; 3],
     },
+    /// v23: what the own body wears changed (GEAR.md 4): the kit its worn things bring,
+    /// at once, out of a fight. The client compiles its sheet again from its build and
+    /// this, and rearms its prediction as the zone did (every cooldown ready). (Last,
+    /// so that `Reject` and `Kick` keep their numbers for the handshake.)
+    Worn(Worn),
 }
 
 pub const MAX_MESSAGE_BYTES: usize = u16::MAX as usize;
@@ -767,6 +775,7 @@ mod tests {
                 team: 1,
                 pack: pack.clone(),
                 props: vec!["sword".into()],
+                worn: Worn::NONE,
             },
             FromZone::Killed {
                 victim: 3,

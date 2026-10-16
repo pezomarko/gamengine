@@ -35,6 +35,8 @@ pub struct TemplateLook {
     pub covers: u32,
     /// An armour seen as a patch on the body's atlas (CONTENT.md 3.3), not an overlay.
     pub patch: bool,
+    /// A shield's guard ability (GEAR.md 2), brought to whoever wears it in the left hand.
+    pub guard: Option<String>,
     pub retired: bool,
 }
 
@@ -272,6 +274,7 @@ impl Looks {
                 fit_view: t.fit_view,
                 covers: items::covers_mask(&t.covers),
                 patch: t.is_patch(),
+                guard: t.guard.clone(),
                 retired: t.retired,
             });
         }

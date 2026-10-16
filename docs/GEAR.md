@@ -1,10 +1,12 @@
 # Gear brings the build (v0, PROPOSED 2026-10-16)
 
-Status: **proposed**, after the item catalog of 2026-10-14 (every template and material
-as of 1ecfa41, and its seven findings) and a design talk on 2026-10-16. The director
-took the direction in words: "Everything else I agree with you", with one decision made
-on the spot, the mode (section 5). Nothing here is built; section 9 is the order of work
-and section 10 what the director decides.
+Status: **proposed and taken**, after the item catalog of 2026-10-14 (every template and
+material as of 1ecfa41, and its seven findings) and a design talk on 2026-10-16. The
+director took the direction in words: "Everything else I agree with you", with one
+decision made on the spot, the mode (section 5), and then **decided section 10 as
+recommended, with one change: the shard layer goes** ("remove shards and bleeds
+completely ... bleed is bound to skill not the weapon. Weapon craft is therefore
+simpler"). Section 9 is the order of work, section 11 what is built.
 
 It stands on ITEMS.md (what is worn, the gear term), EQUIPMENT.md (the six places, the
 hands, whose hands a weapon is for), MATRIX.md 4, 9 and 10 (the armour class, the budget,
@@ -263,3 +265,25 @@ plays every one before the next.
    or more damage instead (20–30 on each two-hander).
 7. The shop's asks of 8, or the economy pass later with its own numbers.
 8. The order of 9, or a different one.
+
+## 11. As built
+
+- **2026-10-16, steps 1 and 2 of section 9 in one PR** (the wire alone showed nothing):
+  `gm_core::build::Worn` (the primary and the guard the worn things bring, as pack
+  indices), `Build::kit_slots`, `Kit::from_build(build, worn, pack)`, `Sheet::wearing`
+  (`Sheet::new` is a body in nothing: creatures, companions, tests); `Zone::set_worn`
+  compiles the sheet again and rearms the body (`Mover::rearm`: nothing running, every
+  cooldown ready, the guns filled; the pools and the place stand); the zone derives the
+  `Worn` from the hub's six template keys with its looks (`gm_content::worn::worn_of`: the
+  rules of section 2, with the staff's bolt the build's choice and the mode's hands
+  respected) at the claim, after every reading and after a respawn that applied a build,
+  and tells the owning client (`Content.worn`, `FromZone::Worn`, PROTOCOL.md 35,
+  `PROTOCOL_VERSION` 23); the client and the bots compile their sheet by the same
+  function and rearm their prediction, and the HUD says what is in the hands. The hub's
+  fit rule is the mode's (`economy::fits(content, mode, firearms, ...)`: a firearm for
+  a gun build's hands, anything else for the rest; `hub::firearm_props`); the `hands:`
+  line stays as the presets whose kits prefer the weapon. A shield template names its
+  guard (`guard = "shield_wall"`; the focus `brace`; CONTENT.md 3). Not done in this
+  step: the K page's words for the primary slot (it still says `weapon`), and the look
+  gate's swing of a bought mace (the hub tests wear and the content tests derive).
+
