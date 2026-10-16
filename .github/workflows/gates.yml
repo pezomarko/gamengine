@@ -130,8 +130,8 @@ jobs:
         run: >-
           sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1
           libasound2-dev xvfb libxkbcommon-x11-0 libxcursor1 libx11-xcb1
-      - name: Build release client
-        run: cargo build --release -p gm-client --locked
+      - name: Build the release client, and the zone and the bot the sound gate's fight needs
+        run: cargo build --release -p gm-client -p gm-server -p gm-bot --locked
       - name: Headless render + RAM gate (fps is not gated here)
         run: SKIP_BUILD=1 FRAMES=120 scripts/check-perf.sh --software
       - name: Avatar gate smoke (48 distinct avatars, 16 MiB cache cap)
@@ -188,8 +188,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: System packages (brotli, software Vulkan for Chromium's WebGPU, ALSA's headers, Xvfb)
-        run: sudo apt-get update -q && sudo apt-get install -y -q brotli mesa-vulkan-drivers libvulkan1 libasound2-dev xvfb
+      - name: System packages (brotli, software Vulkan for Chromium's WebGPU, ALSA's headers, Xvfb and the X libraries the native client loads)
+        run: >-
+          sudo apt-get update -q && sudo apt-get install -y -q brotli mesa-vulkan-drivers libvulkan1
+          libasound2-dev xvfb libxkbcommon-x11-0 libxcursor1 libx11-xcb1
       - name: Fetch the browser build's tools (pinned)
         run: scripts/fetch-web-tools.sh
       - name: ${{ matrix.gate.name }}
