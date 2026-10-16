@@ -674,9 +674,9 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         "a sword goes either way"
     );
     assert!(!find(&have, cuirass).off);
-    // Not an armour, not a two-handed staff (held right only), not a pistol (a firearm:
-    // the mode's rule holds in the left hand too); the words say why. A dagger would go:
-    // any one-hander beside the sword (GEAR.md 2).
+    // Not an armour, not a two-handed staff (held right only); the words say why. A pistol
+    // is held right and is a firearm: the mode's rule refuses it in the hand it goes in.
+    // A dagger would go into the left: any one-hander beside the sword (GEAR.md 2).
     assert_eq!(
         wear_in(&town, smith, cuirass, PLACE_OFF).await,
         Err(HubError::Invalid(
@@ -694,7 +694,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         .await
         .unwrap();
     assert_eq!(
-        wear_in(&town, smith, pistol, PLACE_OFF).await,
+        wear(&town, smith, pistol).await,
         Err(HubError::Invalid(
             "a pistol is a firearm: only a gun build holds one".into()
         ))
