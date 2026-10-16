@@ -222,13 +222,16 @@ async function main() {
     }
   }
   // Fingers, as the browser's touch events: a finger down, moved along a line over a
-  // time, lifted.
+  // time, lifted. The browser answers a touch event only once the page has handled it,
+  // which on a software GPU drawing nine frames a second is once a frame: a gesture of
+  // sixty moves took seven seconds there and the swipe never came before the run ended
+  // (2026-10-16). Twelve moves at most, spaced to the gesture's time.
   const finger = async (id, from, to, ms) => {
     const point = (x, y) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 });
     await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point(from[0], from[1])] });
-    const steps = Math.max(1, Math.round(ms / 25));
+    const steps = Math.max(1, Math.min(12, Math.round(ms / 25)));
     for (let i = 1; i <= steps; i++) {
-      await new Promise((r) => setTimeout(r, 25));
+      await new Promise((r) => setTimeout(r, ms / steps));
       const t = i / steps;
       await send("Input.dispatchTouchEvent", {
         type: "touchMove", touchPoints: [point(from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t)],
