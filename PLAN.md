@@ -1720,6 +1720,38 @@ in 512 × 384 instead of 256², `scripts/dev/hero-pipeline.sh`). Measured on the
   cuts were made on it), so `scripts/check-budgets.sh` judges `models/avatars/*.glb` by the
   ingestion, as it judges the armour sources since the same morning (`budget::check_avatar`).
 
+**2026-10-15/16, the ETC2 variant** (the audit of 2026-10-14: "BC1 everywhere does not reach the
+stated mobile target"; the director: "do it now exactly as you recommended"; MODELS.md 5.2, 6.2
+and 8, CONTENT.md 4, WEB.md 4, HUB.md v17): every ingested model has a second file beside it, the
+same model with its atlas encoded as **ETC2 RGB8** by an encoder of our own (`gm_model::etc`:
+ETC1's individual and differential modes with the T and H modes of ETC2, checked word for word
+against Ericsson's reference decoder on 4,096 random blocks; no dependency), under the same id
+with that id in its header; the hub verifies and stores it (`<id>.etc.gmm`), `ModelGet` asks for
+a format and the hub serves the variant or the BC1 file, the bundle names both hashes, and the
+client fetches what its GPU samples (BC1 where it has BC, ETC2 where it has ETC2 alone: nearly
+every phone; BC1 decoded on the CPU where neither; `--texture-format auto|bc1|etc2|rgba` forces a
+path). A cutout model has no variant. Measured on the box (software Vulkan for the shots):
+- **Bytes**: the official avatar's BC1 file 358,385, its ETC2 variant 241,663; the bundle a
+  client fetches 1,641,606 bytes as BC1 or 1,637,749 as ETC2 (counted apart by the look gate),
+  what is worn 738,504 as BC1 or 576,181 as ETC2 with the patches; the browser cache of a phone
+  holds a 1024² atlas as 0.7 MB where it held 5.3 MB (4 MB without the largest level) before.
+- **Quality**: the official avatar's ETC2 chain against its BC1 chain 41.07 dB; the encoder's
+  own tests 43.4 dB on a gradient, 35.0 dB on a textured image (two-cluster T/H where ETC1's
+  error passes a gate).
+- **Time**: both chains of a 1024² atlas 1.4 s at ingestion (the ETC2 level 0 alone 0.67 s;
+  release, one thread); the composite of a body and its patches 44 to 57 ms on each path with
+  ETC1's quick fit for the touched blocks (full ETC2 was 256 ms, too slow for play time).
+- **Sizes**: `gm-client` 10,216,840 (+260,792 over the baseline 9,956,048: the decoder, the
+  encoder and the second path; cap 10 MiB); WebGPU wasm 1,378,441 (+33,642), WebGL2 3,372,585.
+- Draw calls unchanged (5 for the dressed body alone, 34 with the crowd); the three paths render
+  the dressed striker alike (`~/model-src/shots/etc/one_three.png`).
+Gates green: fmt, clippy native/wasm/webgl, cargo-machete, the tests of gm-model (63),
+gm-ingest (24 + 4), gm-content, gm-tools, gm-hub-proto, gm-hub (with the real worker), gm-client
+(115), `content check --built`, budgets (91 assets), sizes, look, avatars (48 uploads through
+the hub, 779,628 GPU bytes a model). Not done: EAC alpha for cutouts (a side channel nobody
+needs yet), ASTC for iPhones older than the A15 on WebGL2 (a third variant; the BC1 decode
+stands in), a second worker thread for the two encodes.
+
 ## 12. Open decisions
 License split (recommend GPLv3 client / AGPLv3 server / CC-BY-SA content). The type matrix and attribute
 set are **proposed** in `docs/MATRIX.md` 12 (implemented and measured; the director confirms or changes
