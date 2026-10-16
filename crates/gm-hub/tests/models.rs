@@ -170,6 +170,7 @@ impl Account {
                 &HubRequest::ModelGet {
                     session: self.session,
                     model,
+                    format: gm_model::format::TEX_BC1_SRGB,
                 },
                 MAX_MODEL_BYTES as usize,
             )

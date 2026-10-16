@@ -475,10 +475,16 @@ async fn handle_stream(
             }
             r.unwrap_or_else(HubResponse::Err)
         }
-        HubRequest::ModelGet { session, model } => {
+        HubRequest::ModelGet {
+            session,
+            model,
+            format,
+        } => {
             let blob = async {
                 let account = hub.session_account(session)?;
-                hub.models.get(session, account, &model).await
+                let format = gm_model::format::TextureFormat::from_byte(format)
+                    .unwrap_or(gm_model::format::TextureFormat::Bc1Srgb);
+                hub.models.get(session, account, &model, format).await
             }
             .await;
             return send_blob(&mut send, blob, player).await;
