@@ -1284,7 +1284,13 @@ impl App {
                     .scene
                     .script_target
                     .map(|(_, at, velocity, _)| (at, velocity));
-                let input = fight_input(c.mover.eye(), target, &mut self.sim, c.tick);
+                let input = fight_input(
+                    c.mover.eye(),
+                    target,
+                    &mut self.sim,
+                    &mut self.scene.script_stuck,
+                    c.tick,
+                );
                 self.view.aim = (input.yaw, input.pitch);
                 input
             } else {

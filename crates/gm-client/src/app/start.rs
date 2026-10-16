@@ -140,6 +140,7 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
             target_view: None,
             party_view: Vec::new(),
             script_target: None,
+            script_stuck: ScriptStuck::default(),
         },
         offline: Offline {
             prop: None,

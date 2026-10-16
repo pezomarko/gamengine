@@ -397,7 +397,7 @@ site whose `config.json` says `"dev": true`** a link may also carry the rest of 
 flags: `connect=https://host:port&cert=<hex>` (a zone directly, without a hub), a login
 (`user`, `password`, `character`, `register`, `zone`), `name`, `build`, `team`, `seconds`, `report`
 (a line of statistics a second), `script=fight` (a scripted player: it walks at the nearest
-enemy and attacks), `travel-to` / `travel-after`, `cache-mb`, `vram-mb`, and `ui-script` (the
+enemy and attacks, side-stepping a wall it stands against), `travel-to` / `travel-after`, `cache-mb`, `vram-mb`, and `ui-script` (the
 text of a script that clicks through the screens, CLIENT.md 9). On a real site a
 link with `connect` would walk a visitor's client into a stranger's zone, one with `script`
 or `travel-to` would play their character for them once they log in, one with `cache-mb`
