@@ -666,8 +666,14 @@ fn the_worker_writes_a_report_and_the_artifacts() {
     assert_eq!(serde_json::from_slice::<Report>(&json).unwrap(), report);
     let gmm = std::fs::read(dir.join(gm_ingest::WORKER_MODEL)).unwrap();
     assert_eq!(gm_model::id_hex(&gm_model::model_id(&gmm)), report.id);
-    // The worker hands back the model and no picture of it: the hub draws its own.
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 3);
+    // The worker hands back the model and its ETC2 variant (MODELS.md 5.2) and no picture of
+    // it: the hub draws its own.
+    let etc = std::fs::read(dir.join(gm_ingest::WORKER_ETC)).unwrap();
+    assert_eq!(
+        Model::decode(&etc).unwrap().base,
+        Some(gm_model::model_id(&gmm))
+    );
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
     // A refused upload leaves a report and nothing else.
     let out = dir.join("refused");
     std::fs::create_dir_all(&out).unwrap();
@@ -676,6 +682,7 @@ fn the_worker_writes_a_report_and_the_artifacts() {
     assert!(!report.ok);
     assert!(out.join(gm_ingest::WORKER_REPORT).exists());
     assert!(!out.join(gm_ingest::WORKER_MODEL).exists());
+    assert!(!out.join(gm_ingest::WORKER_ETC).exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -867,6 +874,8 @@ fn verify_judges_every_container_the_strict_reader_accepts() {
             texture: (0..texture_bytes(tex_w, tex_h))
                 .map(|_| next() as u8)
                 .collect(),
+            texture_format: gm_model::format::TextureFormat::Bc1Srgb,
+            base: None,
         };
         let bytes = model
             .encode()
@@ -1017,4 +1026,62 @@ fn a_portrait_is_the_head_and_shoulders() {
     if let Ok(dir) = std::env::var("GM_ICON_DIR") {
         std::fs::write(format!("{dir}/portrait.png"), png(32, 32, &p)).unwrap();
     }
+}
+
+/// MODELS.md 5.2: the official avatar's two chains against the image they were encoded
+/// from, and what each encoding costs. Printed, not gated: the numbers are the record.
+#[test]
+fn the_etc2_variant_of_the_official_avatar_is_as_faithful_as_the_bc1_chain() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../assets/content/models/avatars/striker_mail.glb");
+    let Ok(glb) = std::fs::read(&path) else {
+        eprintln!("SKIPPED: no {}", path.display());
+        return;
+    };
+    let src = gm_ingest::source::read(&glb).expect("the official avatar reads");
+    let t = std::time::Instant::now();
+    let atlas = gm_ingest::texture::build(&src.texture, src.base_color, src.cutout);
+    let both = t.elapsed();
+    let (w, h) = (atlas.w as usize, atlas.h as usize);
+    let bc1 = gm_model::bc1::decode(&atlas.bc1[..gm_model::format::bc1_level_bytes(w, h)], w, h);
+    let etc = atlas.etc2.as_ref().expect("the avatar is no cutout");
+    let t = std::time::Instant::now();
+    let again = gm_model::etc::encode(&bc1, w, h);
+    let etc_time = t.elapsed();
+    let etc_rgba = gm_model::etc::decode(&etc[..again.len()], w, h);
+    // The resampled source is what both were made from: the BC1 chain's own decode stands
+    // for it within BC1's error; so both are measured against the BC1 decode, and against
+    // each other.
+    let psnr = |a: &[u8], b: &[u8]| {
+        let mut se = 0f64;
+        let mut n = 0f64;
+        for (x, y) in a.chunks_exact(4).zip(b.chunks_exact(4)) {
+            for c in 0..3 {
+                let d = f64::from(x[c]) - f64::from(y[c]);
+                se += d * d;
+                n += 1.0;
+            }
+        }
+        10.0 * (255.0f64 * 255.0 / (se / n).max(1e-9)).log10()
+    };
+    println!(
+        "official avatar {w}x{h}: ETC2 against the BC1 decode {:.2} dB; both chains in {:.0} ms, the ETC2 level 0 alone {:.0} ms; bytes BC1 {} ETC2 {}",
+        psnr(&bc1, &etc_rgba),
+        both.as_secs_f64() * 1000.0,
+        etc_time.as_secs_f64() * 1000.0,
+        atlas.bc1.len(),
+        etc.len()
+    );
+    let (report, ingested) = gm_ingest::ingest(&glb, ArchetypeFrame::Striker);
+    let ing = ingested.expect("accepted");
+    assert!(report.ok);
+    let variant = ing.etc.as_ref().expect("the avatar has a variant");
+    let v = Model::decode(variant).unwrap();
+    assert_eq!(v.base, Some(ing.id));
+    assert_eq!(v.texture_format, gm_model::format::TextureFormat::Etc2Srgb);
+    println!(
+        "official avatar files: BC1 {} bytes, ETC2 variant {} bytes",
+        ing.gmm.len(),
+        variant.len()
+    );
 }
