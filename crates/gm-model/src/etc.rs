@@ -465,14 +465,14 @@ fn encode_etc1_with(px: &[[i32; 3]; 16], quick: bool) -> (u64, i32) {
     for flip in [false, true] {
         let halves: [[[i32; 3]; 8]; 2] =
             std::array::from_fn(|s| std::array::from_fn(|k| px[texel_of(flip, s, k)]));
-        if let Some(f0) = fit_half(&halves[0], 4, [0; 3], [15; 3], best.1) {
-            let f1 = fit_half(&halves[1], 4, [0; 3], [15; 3], best.1 - f0.err);
+        if let Some(f0) = fit_half(&halves[0], 4, [0; 3], [15; 3], best.1, quick) {
+            let f1 = fit_half(&halves[1], 4, [0; 3], [15; 3], best.1 - f0.err, quick);
             consider(&mut best, flip, false, f0, f1);
         }
-        let Some(f0) = fit_half(&halves[0], 5, [0; 3], [31; 3], best.1) else {
+        let Some(f0) = fit_half(&halves[0], 5, [0; 3], [31; 3], best.1, quick) else {
             continue;
         };
-        let Some(f1) = fit_half(&halves[1], 5, [0; 3], [31; 3], best.1 - f0.err) else {
+        let Some(f1) = fit_half(&halves[1], 5, [0; 3], [31; 3], best.1 - f0.err, quick) else {
             continue;
         };
         if (0..3).all(|c| (-4..=3).contains(&(f1.q[c] - f0.q[c]))) {
