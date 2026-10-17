@@ -304,7 +304,9 @@ plays every one before the next.
   (leather), and two new chest pieces, **`mail_shirt`** and **`plate`**, numbers without a
   mesh or a patch (none in the free packs; the director: patches first, meshes later, and
   a patch too wants a cut to bake from): the class shows in the gait and the mannequin's
-  tint, and a striker in the mail shirt wears the official avatar. Content v16. The
+  tint, and a striker in the mail shirt wears the official avatar (2026-10-17: a striker
+  in anything wears it; the look is the frame's, CONTENT.md 3.2, after the blade walked
+  into the town as a leather-tinted mannequin in a robe). Content v16. The
   selector's ribbon says the frame without a class (`colossus  |  ground  |  action
   mode`), the hub's build line likewise (`ironclad: colossus`), and the equipment window
   says the class the body is in. The K page lost the class row. Not done: a stall keeper's

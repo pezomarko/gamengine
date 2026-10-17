@@ -192,8 +192,16 @@ scaled to put its head pivot in the striker's band and thinned 10% front to back
 manifest with its hash. A client loads it from the bundle like a prop, the first time it is
 asked for (natively a read, in a browser a fetch), and every body of that frame and class
 without a model of its own wears it instead of the mannequin: a player's upload still wins, a
-refused or missing one still falls back, and the mannequin remains for every pair without a
-row. The look is untinted (its armour is painted on; the class is in the gait, MODELS.md 9),
+refused or missing one still falls back, and the mannequin remains for every frame without a
+row. **A frame's look is worn in every class** (2026-10-17): the class a body is in is its
+chest piece's (GEAR.md 3), so a client asks for the row of the pair and, without one, the
+frame's row nearest in class (`Manifest::avatar_near`; the lighter of two as near), and only
+a frame with no row at all keeps the mannequin. Before this the blade stood in the selector
+as the striker in mail and entered the town as the mannequin, tinted leather, in a robe cut
+for the man (the director, the LAN test of 2026-10-17): a cuirass was a change of colour. The
+row's class still says which look a frame with several would wear in it, and the patches
+are baked per row (3.3), so the cuirass's patch lands on the body it was cut for whatever
+class names it. The look is untinted (its armour is painted on; the class is in the gait, MODELS.md 9),
 auras and hits tint it as any model. The pair's portrait (5.3) is baked from it, not from the
 mannequin. A rigged pack rarely comes on this rig: `scripts/dev/glb-retarget.py` renames
 nodes, unlinks subtrees and scales a `.glb` per axis with its skin kept consistent (no
