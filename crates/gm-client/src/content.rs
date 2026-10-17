@@ -344,13 +344,24 @@ impl Content {
 
     /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index),
     /// CONTENT.md 3.2, by the same road as a prop: `Some(slot)` when it is on the GPU, the
-    /// first ask starts the load, and `None` for good when the bundle has none.
+    /// first ask starts the load, and `None` for good when the bundle has none. A class
+    /// without a row of its own wears the frame's nearest (`Manifest::avatar_near`): the
+    /// ask is filed under that row's own pair, so the body is loaded once, not once a
+    /// class.
     pub fn avatar(
         &mut self,
         frame: u8,
         armour: u8,
         mut load: impl FnMut(&Model) -> Option<usize>,
     ) -> Option<usize> {
+        if frame >= 4 || armour >= 4 {
+            return None;
+        }
+        let (frame, armour) = self
+            .manifest
+            .as_ref()
+            .and_then(|m| m.avatar_near(frame, armour))
+            .map_or((frame, armour), |e| (e.frame, e.armour));
         let (f, a) = (frame as usize, armour as usize);
         if f >= 4 || a >= 4 {
             return None;
@@ -474,11 +485,12 @@ impl Content {
     }
 
     /// The official avatar's key of a frame in an armour class (CONTENT.md 3.2), when the
-    /// bundle has one: the body a patch must have been baked for.
+    /// bundle has one for the frame (the class's row, else the frame's nearest, as
+    /// `avatar` wears it): the body a patch must have been baked for.
     pub fn official_key(&self, frame: u8, armour: u8) -> Option<String> {
         self.manifest
             .as_ref()?
-            .avatar(frame, armour)
+            .avatar_near(frame, armour)
             .map(|a| a.key.clone())
     }
 

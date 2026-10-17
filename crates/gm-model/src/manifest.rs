@@ -253,11 +253,24 @@ impl Manifest {
         self.props.iter().find(|p| p.key == key)
     }
 
-    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index).
+    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index):
+    /// the row of that pair exactly.
     pub fn avatar(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
         self.avatars
             .iter()
             .find(|a| a.frame == frame && a.armour == armour)
+    }
+
+    /// The official avatar a body of a frame in an armour class wears (CONTENT.md 3.2):
+    /// the row of that pair, else the frame's row nearest in class (the lighter of two as
+    /// near), else none. The class a body is in is its chest piece's (GEAR.md 3), and a
+    /// frame with one official look keeps it whatever it puts on: the armour is drawn over
+    /// the body, not by swapping it for the mannequin.
+    pub fn avatar_near(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
+        self.avatars
+            .iter()
+            .filter(|a| a.frame == frame)
+            .min_by_key(|a| (a.armour.abs_diff(armour), a.armour))
     }
 
     /// The overlay of an armour's model for a frame (`rig::frame_index`).
@@ -361,6 +374,16 @@ mod tests {
             Some("avatars/striker_mail.gmm")
         );
         assert!(m.avatar(1, 3).is_none());
+        // The look a body wears is its frame's nearest in class: the striker in mail is
+        // the striker in anything (CONTENT.md 3.2), and the caster has none.
+        for armour in 0..4u8 {
+            assert_eq!(
+                m.avatar_near(1, armour).map(|a| a.file.as_str()),
+                Some("avatars/striker_mail.gmm"),
+                "class {armour}"
+            );
+        }
+        assert!(m.avatar_near(2, 2).is_none());
         assert_eq!(
             m.overlay("cuirass", 1).map(|o| o.file.as_str()),
             Some("armour/cuirass_striker.gmm")
