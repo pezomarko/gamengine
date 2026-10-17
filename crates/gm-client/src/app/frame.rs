@@ -426,7 +426,6 @@ impl App {
                     || self.input.down(KeyCode::ControlRight)
                     || self.input.down(KeyCode::KeyC)),
             frame: 1,
-            armour: 0,
             aspects: 0,
             status: 0,
             model: None,
@@ -551,22 +550,20 @@ impl App {
             );
         }
         // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
-        // of their frame and armour class: natively a file is read the first time it is
-        // asked for, in a browser it is fetched like a prop and lands through `poll`.
+        // of their frame: natively a file is read the first time it is asked for, in a
+        // browser it is fetched like a prop and lands through `poll`.
         {
             let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
             for frame in 0..4u8 {
-                for armour in 0..4u8 {
-                    let key = self.content.official_key(frame, armour);
-                    let slot = self.content.avatar(frame, armour, |model| {
-                        let slot = characters.add_model(gpu, model);
-                        // Its atlas stays on the CPU: the cloth patches are laid into a
-                        // copy of it when the body wears them (LOOK.md 6.6).
-                        avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
-                        Some(slot)
-                    });
-                    avatars.set_official(frame, armour, slot);
-                }
+                let key = self.content.official_key(frame);
+                let slot = self.content.avatar(frame, |model| {
+                    let slot = characters.add_model(gpu, model);
+                    // Its atlas stays on the CPU: the cloth patches are laid into a copy
+                    // of it when the body wears them (LOOK.md 6.6).
+                    avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+                    Some(slot)
+                });
+                avatars.set_official(frame, slot);
             }
         }
         a.avatars.begin_frame();
@@ -799,7 +796,7 @@ impl App {
             .and_then(|o| o.client.as_ref().map(|c| (&c.sheet, o.pack.as_ref())))
             .map(|(sheet, pack)| {
                 let class = crate::showcase::class_name(pack, &sheet.build);
-                let ribbon = crate::showcase::short_ribbon(&class, &sheet.build, sheet.class);
+                let ribbon = crate::showcase::short_ribbon(&class, &sheet.build);
                 (class, ribbon)
             })
             .unwrap_or_default();
@@ -899,7 +896,6 @@ impl App {
             let view = GmView {
                 pack,
                 own: &c.sheet.build,
-                class: c.sheet.class,
                 tuning: &o.tuning,
                 rate: o.rate,
                 note: &o.gm_note,
@@ -918,7 +914,6 @@ impl App {
             let view = CharacterView {
                 pack,
                 own: &c.sheet.build,
-                class: c.sheet.class,
                 rate: o.rate,
                 at_trainer,
                 note: &o.respec_note,
@@ -1037,8 +1032,7 @@ impl App {
         let place = |i: usize| worn.map(|w| w[i].as_str());
         let prop = template_prop(&mut self.content, Some(a), place(0));
         let off = template_prop(&mut self.content, Some(a), place(1));
-        let (overlay, hide, patches) =
-            template_overlay(&mut self.content, Some(a), worn, frame, build.armour as u8);
+        let (overlay, hide, patches) = template_overlay(&mut self.content, Some(a), worn, frame);
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1047,7 +1041,6 @@ impl App {
             anim: gm_core::sim::anim::IDLE,
             crouched: false,
             frame,
-            armour: build.armour as u8,
             aspects: build.aspects.0,
             status: 0,
             model,
@@ -1078,14 +1071,7 @@ impl App {
         let build = &c.sheet.build;
         let look = o.looks.get(&c.my_id).copied().unwrap_or_default();
         let frame = gm_model::rig::frame_index(build.frame);
-        let worn = worn_overlay(
-            &mut self.content,
-            Some(a),
-            &o.props,
-            look,
-            frame,
-            c.sheet.class as u8,
-        );
+        let worn = worn_overlay(&mut self.content, Some(a), &o.props, look, frame);
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1094,7 +1080,6 @@ impl App {
             anim: gm_core::sim::anim::IDLE,
             crouched: false,
             frame,
-            armour: c.sheet.class as u8,
             aspects: build.aspects.0,
             status: 0,
             model: o.names.get(&c.my_id).and_then(|n| n.2),

@@ -642,7 +642,6 @@ pub fn player_state(p: &Player, own: bool) -> EntityState {
             frame: frame_index(p.frame()),
             team: p.team(),
             aspects: p.sheet.build.aspects.0,
-            armour: p.sheet.class as u8,
         },
         pos: quant::quantize_pos3(p.mover.mv.origin.into()),
         yaw: quant::yaw_to_wire(p.mover.yaw),

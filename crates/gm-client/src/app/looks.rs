@@ -20,8 +20,8 @@ pub(super) type Worn = (
 
 /// What a body wears (LOOK.md 6.6): the overlay of its armour's model for its frame, as a
 /// slot of the character renderer, and the bones the overlay covers; or, for an armour
-/// that is a patch, the patch for the official avatar of its frame and class, as an id of
-/// the avatars' registry; nothing and 0 while it loads, for a body the bundle has nothing
+/// that is a patch, the patch for the official avatar of its frame, as an id of the
+/// avatars' registry; nothing and 0 while it loads, for a body the bundle has nothing
 /// for, or without a renderer.
 pub(super) fn worn_overlay(
     content: &mut Content,
@@ -29,7 +29,6 @@ pub(super) fn worn_overlay(
     props: &[String],
     look: Look,
     frame: u8,
-    armour: u8,
 ) -> Worn {
     let mut worn = [None; BODY_PLACES];
     let mut patches = [None; BODY_PLACES];
@@ -47,7 +46,7 @@ pub(super) fn worn_overlay(
             continue;
         };
         if content.is_patch(key) {
-            patches[i] = content.patch(key, frame, armour, |p| Some(avatars.add_patch(p.clone())));
+            patches[i] = content.patch(key, frame, |p| Some(avatars.add_patch(p.clone())));
         } else if let Some(slot) =
             content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
         {
@@ -107,7 +106,6 @@ pub(super) fn template_overlay(
     active: Option<&mut Active>,
     worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
     frame: u8,
-    armour: u8,
 ) -> Worn {
     let mut out = [None; BODY_PLACES];
     let mut patches = [None; BODY_PLACES];
@@ -125,9 +123,7 @@ pub(super) fn template_overlay(
             continue;
         };
         if content.is_patch(&model) {
-            patches[i] = content.patch(&model, frame, armour, |p| {
-                Some(avatars.add_patch(p.clone()))
-            });
+            patches[i] = content.patch(&model, frame, |p| Some(avatars.add_patch(p.clone())));
         } else if let Some(slot) =
             content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m)))
         {

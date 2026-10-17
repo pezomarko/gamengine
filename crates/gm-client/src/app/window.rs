@@ -200,11 +200,10 @@ impl App {
             let mut patches = Vec::new();
             for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
                 if self.content.is_patch(key) {
-                    // The patch for whichever official striker the bundle has (one class).
-                    let id = (0..4u8).find_map(|armour| {
-                        self.content
-                            .patch(key, 1, armour, |p| Some(avatars.add_patch(p.clone())))
-                    });
+                    // The patch for the official striker.
+                    let id = self
+                        .content
+                        .patch(key, 1, |p| Some(avatars.add_patch(p.clone())));
                     match id {
                         Some(id) => patches.push(id),
                         None => {

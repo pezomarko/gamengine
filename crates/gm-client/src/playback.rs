@@ -222,13 +222,7 @@ impl Playback {
         for e in &entities {
             match e.kind {
                 EntityKind::Player => {
-                    let SpawnInfo::Player {
-                        frame,
-                        aspects,
-                        armour,
-                        ..
-                    } = e.spawn
-                    else {
+                    let SpawnInfo::Player { frame, aspects, .. } = e.spawn else {
                         continue;
                     };
                     let own = e.id == self.follow;
@@ -243,7 +237,6 @@ impl Playback {
                         anim: e.anim,
                         crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
                         frame,
-                        armour,
                         aspects,
                         status: e.status,
                         model: None,

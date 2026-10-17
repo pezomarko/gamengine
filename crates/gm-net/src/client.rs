@@ -876,7 +876,6 @@ mod tests {
                 frame: 1,
                 team: 1,
                 aspects: 1,
-                armour: 0,
             },
             pos: quant::quantize_pos3(pos.into()),
             yaw: 0,

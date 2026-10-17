@@ -1,7 +1,7 @@
 //! Point-buy builds and content packs (MATRIX.md 9 and 10): the budget, the slots, validation,
 //! and the runtime [`Kit`] a build compiles to.
 
-use crate::matrix::{ArmourClass, Aspects, Attributes, Derived, Element};
+use crate::matrix::{Aspects, Attributes, Derived, Element};
 use crate::tick::{Tick, TickRate};
 use crate::vocab::{
     Ability, ArchetypeFrame, DamageType, Guard, Mode, MoveKind, MoveSelf, Riposte, Trigger, Verb,
@@ -106,7 +106,6 @@ pub struct Build {
     pub mode: Mode,
     pub frame: ArchetypeFrame,
     pub attributes: Attributes,
-    pub armour: ArmourClass,
     pub aspects: Aspects,
     pub primary: u16,
     pub secondary: u16,
@@ -129,11 +128,6 @@ pub struct Worn {
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
-    /// The armour class the chest piece gives (GEAR.md 3): the robe cloth, the cuirass
-    /// leather, the mail shirt mail, the plate plate; cloth with nothing on the chest. Under
-    /// a hub it is always said; `None` is a body no hub dresses (a creature, a companion, a
-    /// bot of a zone without a hub, a test), which is in its build's class.
-    pub class: Option<ArmourClass>,
     /// The worn weapon's frame (GEAR.md 6): the stamina of the blows, percent of the cost.
     /// The client predicts stamina, so it rides here, not in the zone's gear alone.
     pub stamina_blows: u8,
@@ -148,7 +142,6 @@ impl Worn {
     pub const NONE: Worn = Worn {
         primary: None,
         guard: None,
-        class: None,
         stamina_blows: 100,
         stamina_block: 100,
         block: None,
@@ -460,7 +453,7 @@ impl Build {
     }
 
     pub fn derived(&self) -> Derived {
-        Derived::compute(self.attributes, self.frame, self.armour)
+        Derived::compute(self.attributes, self.frame)
     }
 }
 
@@ -814,10 +807,6 @@ pub struct Sheet {
     pub build: Build,
     /// What the kit was compiled with (GEAR.md 2): nothing, for a creature or a companion.
     pub worn: Worn,
-    /// The armour class the body is in (GEAR.md 3): the worn chest piece's, else the
-    /// build's. Everything the class does (MATRIX.md 4: speed, regen, the triangle, the
-    /// look) reads this, never `build.armour`.
-    pub class: ArmourClass,
     pub kit: Kit,
     pub derived: Derived,
     /// Build points left after the kit; informational.
@@ -833,11 +822,9 @@ impl Sheet {
     /// A body wearing `worn` (GEAR.md 2): the kit the worn things bring over the build's.
     /// The zone and the owning client both build their sheet here, from the same two.
     pub fn wearing(build: Build, worn: Worn, pack: &ContentPack, team: u8) -> Sheet {
-        let class = worn.class.unwrap_or(build.armour);
         Sheet {
             kit: Kit::from_build(&build, &worn, pack),
-            derived: Derived::compute(build.attributes, build.frame, class),
-            class,
+            derived: Derived::compute(build.attributes, build.frame),
             build,
             worn,
             team,
@@ -985,38 +972,19 @@ mod tests {
     }
 
     #[test]
-    fn the_chest_piece_s_class_is_the_body_s_and_costs_no_points() {
+    fn a_chest_piece_changes_no_stat_of_the_sheet() {
+        // GEAR.md 12 (2026-10-17): an armour guards by its own numbers (`Gear::taken`),
+        // and the body's speed, regen, ward and evasion are the frame's and the
+        // attributes' whatever it wears. A body in nothing and one dressed read alike.
         let pack = test_content::pack(TickRate::COMBAT);
         let blade = pack.build("blade").unwrap().clone();
-        assert_eq!(blade.armour, ArmourClass::Mail);
-        // In nothing a hub dresses: the build's class. Under a hub, the chest's: a blade in
-        // plate is slower and regenerates less, in cloth it is quicker (MATRIX.md 4).
         let bare = Sheet::new(blade.clone(), &pack, 0);
-        assert_eq!(bare.class, ArmourClass::Mail);
-        let dressed = |class| {
-            Sheet::wearing(
-                blade.clone(),
-                Worn {
-                    class: Some(class),
-                    ..Worn::NONE
-                },
-                &pack,
-                0,
-            )
-        };
-        let plate = dressed(ArmourClass::Plate);
-        let cloth = dressed(ArmourClass::Cloth);
+        let dressed = Sheet::wearing(blade.clone(), Worn::NONE, &pack, 0);
+        assert_eq!(bare.derived, dressed.derived);
         assert_eq!(
-            (plate.class, cloth.class),
-            (ArmourClass::Plate, ArmourClass::Cloth)
+            bare.derived,
+            Derived::compute(blade.attributes, blade.frame)
         );
-        assert!(plate.derived.max_speed < bare.derived.max_speed);
-        assert!(cloth.derived.max_speed > bare.derived.max_speed);
-        assert!(plate.derived.stamina_regen < cloth.derived.stamina_regen);
-        // The class is off the kit's bill: a build in plate costs what the same in cloth does.
-        let mut heavy = blade.clone();
-        heavy.armour = ArmourClass::Plate;
-        assert_eq!(heavy.cost(&pack), blade.cost(&pack));
     }
 
     #[test]

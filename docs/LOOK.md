@@ -508,14 +508,15 @@ the official avatar: `gm-client --offline --crowd 10 --crowd-only 9 --worn cuira
 the crowd's recipes frame member 5), `--crowd-turn 180` for its back; a patch is baked
 once from the sources (`scripts/dev/places-pipeline.sh`), not at every build.
 
-**The body under the armour is the frame's** (2026-10-17). Since the chest piece says the
-class (GEAR.md 3), a blade in a cuirass is a striker in leather, and the official look was
-looked up by frame *and* class: the only row is the striker in mail, so he walked out of the
+**The body under the armour is the frame's** (2026-10-17). Since the chest piece said the
+class (GEAR.md 3), a blade in a cuirass was a striker in leather, and the official look was
+looked up by frame *and* class: the only row was the striker in mail, so he walked out of the
 selector (which drew his build's class) as the mannequin, tinted leather, with the robe's
-overlay standing off a body it was not cut for. The lookup is the frame's row nearest in
-class now (CONTENT.md 3.2, `Manifest::avatar_near`), loaded once and worn in every class,
-with the patches of that row laid in; the mannequin is for a frame without a row, and for
-no one with one.
+overlay standing off a body it was not cut for. A morning's fix wore the frame's nearest row
+in every class; the same afternoon the class left the game (GEAR.md 12, MATRIX.md 18): one
+official avatar a frame, worn whatever the body has on, the mannequin one grey
+(`MANNEQUIN_TINT`) for a frame without a row, the gait's weight 0 for everyone, one portrait
+a frame.
 
 **The back** (2026-10-14, EQUIPMENT.md 5.3): the `cape` is the first overlay that is
 ours and not a pack's: a cloth plane hung from the shoulder line down the back to the

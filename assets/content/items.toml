@@ -205,7 +205,6 @@ fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye:
 id = "cuirass"
 kind = "armour"
 guards = "physical"
-class = "leather"                            # the chest piece carries the class (GEAR.md 3)
 layers = ["core", "frame", "gem"]
 model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
 # Cloth inside the body's silhouette is pixels on the body's own atlas (LOOK.md 6.6): one
@@ -269,7 +268,6 @@ covers = ["head"]
 id = "robe"
 kind = "armour"
 guards = "elements"
-class = "cloth"
 layers = ["core", "catalyst", "frame", "gem"]
 model = "robe"                               # the cloth tunic with sleeves, on the striker
 covers = ["spine", "chest"]
@@ -283,14 +281,12 @@ covers = ["spine", "chest"]
 id = "mail_shirt"
 kind = "armour"
 guards = "physical"
-class = "mail"
 layers = ["core", "frame", "gem"]
 
 [[template]]
 id = "plate"
 kind = "armour"
 guards = "physical"
-class = "plate"
 layers = ["core", "frame", "gem"]
 
 # A shield (ITEMS.md 2): worn in the left hand by anyone, guarding like an armour; a

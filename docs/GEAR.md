@@ -74,6 +74,8 @@ of one. The kit's cooldowns are reset at the change as at a respec.
 
 ## 3. The chest brings the armour class
 
+**Superseded 2026-10-17 (section 12): there is no armour class.** As proposed and built:
+
 MATRIX.md 4 kept the class on the build "until gear could carry it"; ITEMS.md 9 lists the
 move as open. The class is the largest single lever a melee fight has (slash 1.25 on
 cloth, 0.50 on plate; speed 1.00 to 0.90; stamina regen 1.00 to 0.75) and it is the one
@@ -395,4 +397,31 @@ plays every one before the next.
   5% (the healer, as a duelist), musketeer 63%, shade 44%, shaman 60%; none of this PR's
   work touched their kits, and the ironclad's 68% and the shade's 44% are the director's
   to weigh. The mender's 100% rows above are the healer's as a duelist too.
+- **2026-10-17, no classes** (12). The director, after the LAN test: "class is wrong name
+  for what armor provides, it's like defense type that's provided, either physical or
+  magical, no? makes no sense to complicate further." Built the same day: MATRIX.md 18.
+  Content v20, protocol v26, hub v19, player v13.
 
+## 12. No classes (decided and built 2026-10-17)
+
+The director: "we can actually completely get rid of the classes, model is independant of
+class, class was just preset build of build stats (sta, str, def etc) but now that we
+allow any weapon to any model + weapon carries skills, we are good. Later we will
+introduce model bound skills, like thin one would have dash, big ones like charge or sth,
+wizardish ones would have something else etc"; and "class is wrong name for what armor
+provides, it's like defense type that's provided, either physical or magical, no? makes
+no sense to complicate further."
+
+So section 3 is undone rather than finished: the chest piece brings nothing to the sheet.
+An armour is what its template says, `guards` physical or elements (ITEMS.md 3) and the
+gear term its layers make (6), and that is all a defence type is. The frame is the body:
+its hitbox, its mobility, its mitigation, its look (CONTENT.md 3.2: one official avatar
+a frame, worn whatever the body has on) and its gait. The build is the frame, the
+attributes, the aspects and the kit the weapon brings (2). What went, and where it is
+written: MATRIX.md 4 and 18.
+
+What is left for the director's word, not built: **frame-bound abilities** ("thin one
+would have dash, big ones like charge"). The shape would be a `frames` list on an ability
+row in `abilities.toml`, read by `Build::validate` as `aspect` is, so a dash is the
+infiltrator's and a charge the colossus's; the presets would be checked against it and the
+K page would grey the rows a frame may not take, as it greys the ones the budget refuses.

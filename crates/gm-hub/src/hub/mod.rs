@@ -1916,7 +1916,6 @@ async fn stall_summaries(
                 owner,
                 owner_name,
                 frame: gm_model::rig::frame_index(build.frame),
-                armour: build.armour as u8,
                 model: model.and_then(|(hash, frame)| {
                     Some(ModelRef {
                         id: hash.try_into().ok()?,

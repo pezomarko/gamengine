@@ -4,7 +4,6 @@
 
 use glam::Vec3;
 use gm_core::build::{ContentPack, Sheet};
-use gm_core::matrix::ArmourClass;
 use gm_core::sim::{Mover, anim};
 use gm_core::tick::Tick;
 use gm_core::trace::{CollisionWorld, Hull};
@@ -21,8 +20,6 @@ pub struct Body {
     pub vel: Vec3,
     pub yaw: f32,
     pub frame: ArchetypeFrame,
-    /// Armour class: with the frame, what a body can take (both are on the wire).
-    pub armour: ArmourClass,
     pub team: u8,
     pub party: u32,
     pub alive: bool,
@@ -74,10 +71,10 @@ impl Body {
         self.status & (1 << s.index()) != 0
     }
 
-    /// A colossus in mail or plate: the body a squad sends in first.
+    /// A colossus: the body a squad sends in first. (In mail or plate until GEAR.md 12,
+    /// 2026-10-17: there is no armour class; the frame says what a body can take.)
     pub fn heavy(&self) -> bool {
         self.frame == ArchetypeFrame::Colossus
-            && matches!(self.armour, ArmourClass::Mail | ArmourClass::Plate)
     }
 
     /// Winding up or swinging: the part of an attack that can be seen coming.

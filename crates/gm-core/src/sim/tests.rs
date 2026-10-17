@@ -4,7 +4,7 @@ use super::*;
 use crate::build::{Build, ContentPack};
 use crate::collide::{Aabb, BoxWorld};
 use crate::geom::Capsule;
-use crate::matrix::{ArmourClass, Aspects, Attributes, Element};
+use crate::matrix::{Aspects, Attributes, Element};
 use crate::sim::test_content::{self, phase2_build};
 use crate::tick::TickRate;
 use crate::trace::Hull;
@@ -165,11 +165,12 @@ fn sword_hits_in_front_and_not_behind() {
         );
         let hp = zone.player(b).unwrap().health;
         if expect_hit {
-            // 60 slash x 1.0 (STR 10) x 1.25 (cloth) x 0.80 (armour) = 60.
-            assert_eq!(hp, 900 - 60, "yaw {attacker_yaw}");
+            // 60 slash x 1.0 (STR 10) x 0.80 (armour) = 48 (no armour class since
+            // GEAR.md 12, 2026-10-17).
+            assert_eq!(hp, 900 - 48, "yaw {attacker_yaw}");
             assert!(zone.events.iter().any(|e| matches!(
                 e,
-                ZoneEvent::Hit { attacker, target, amount: 60, kind: HitKind::Melee, .. } if *attacker == a && *target == b
+                ZoneEvent::Hit { attacker, target, amount: 48, kind: HitKind::Melee, .. } if *attacker == a && *target == b
             )));
         } else {
             assert_eq!(hp, 900, "yaw {attacker_yaw}");
@@ -426,8 +427,8 @@ fn death_and_respawn() {
     let (a, b) = (ids[0], ids[1]);
     let mut swings = 0;
     let mut killed_at = None;
-    // 900 health at 60 a blow is fifteen blows; the sword's cooldown is 39 ticks.
-    for t in 0..1000 {
+    // 900 health at 48 a blow is nineteen blows; the sword's cooldown is 39 ticks.
+    for t in 0..1200 {
         let press = t % 48 == 0;
         if press {
             swings += 1;
@@ -543,13 +544,13 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         );
         let p = zone.player(b).unwrap();
         let taken = p.max_health() - p.health;
-        // Sword 60 x 1.28 (STR 17) x 0.5 (plate) x 0.6 (armour 0.40) = 23.04 -> 23 unblocked,
-        // x 0.2 blocked = 4.608 -> 5.
+        // Sword 60 x 1.28 (STR 17) x 0.6 (armour 0.40) = 46.08 -> 46 unblocked,
+        // x 0.2 blocked = 9.216 -> 9.
         if expect_block {
-            assert_eq!(taken, 5, "facing {facing}");
+            assert_eq!(taken, 9, "facing {facing}");
             assert_eq!(stamina_before - p.mover.stamina, 12.0);
         } else {
-            assert_eq!(taken, 23, "facing {facing}");
+            assert_eq!(taken, 46, "facing {facing}");
         }
     }
     // Guard break: with less stamina than the block costs, the hit lands in full and staggers.
@@ -568,7 +569,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         13,
     );
     let p = zone.player(b).unwrap();
-    assert_eq!(p.max_health() - p.health, 23);
+    assert_eq!(p.max_health() - p.health, 46);
     assert_eq!(p.mover.stamina, 0.0);
     assert!(p.mover.statuses.has(Status::Stagger));
     assert!(
@@ -903,8 +904,8 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         60,
     );
     let pb = zone.player(b).unwrap();
-    // Hammer 90 x 1.2 (STR 15) x 1.25 (blunt vs plate) x 0.6 (armour 0.40) = 81, fortify ignored.
-    assert_eq!(pb.max_health() - pb.health, 81);
+    // Hammer 90 x 1.2 (STR 15) x 0.6 (armour 0.40) = 64.8 -> 65, fortify ignored.
+    assert_eq!(pb.max_health() - pb.health, 65);
     let before = pb.health;
     // c aims at b where the hammer's knockback left it.
     let to = pb.mover.mv.origin - zone.player(c).unwrap().mover.mv.origin;
@@ -977,7 +978,6 @@ fn respec_applies_at_the_next_respawn() {
     let pb = zone.player(b).unwrap();
     assert!(pb.alive);
     assert_eq!(pb.sheet.build.frame, ArchetypeFrame::Caster);
-    assert_eq!(pb.sheet.build.armour, ArmourClass::Cloth);
     assert!(pb.sheet.build.aspects.contains(Element::Water));
     assert_eq!(pb.health, pb.sheet.derived.health);
     assert_eq!(pb.health, 500 + 40 * 5);
@@ -1540,10 +1540,10 @@ fn a_catalyst_burns_a_landing_blow_and_the_wards_move_the_burn_s_length() {
             p.mover.statuses.magnitude(Status::Burn),
         )
     };
-    assert_eq!(swing(Gear::NONE), (60, false, 0.0));
-    assert_eq!(swing(ember(0)), (60, false, 0.0));
+    assert_eq!(swing(Gear::NONE), (48, false, 0.0));
+    assert_eq!(swing(ember(0)), (48, false, 0.0));
     let (dealt, burning, magnitude) = swing(ember(100));
-    assert!(dealt >= 60 && burning, "{dealt} dealt, burning {burning}");
+    assert!(dealt >= 48 && burning, "{dealt} dealt, burning {burning}");
     assert!((magnitude - 3.0).abs() < 1e-6, "{magnitude}");
 
     // The wards (GEAR.md 6): the source's gems lengthen its element's status, the target's
@@ -1630,21 +1630,21 @@ fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
     sword.dealt[slash] = 220;
     let mut cuirass = Gear::NONE;
     cuirass.taken[slash] = 220;
-    // 60 slash x 1.25 (cloth) x 0.80 (armour) = 60 in nothing (the test above); a place
-    // counts for half its item's edge, so 220 per mille is a factor of 1.11.
-    assert_eq!(swing(Gear::NONE, Gear::NONE), 60);
-    assert_eq!(swing(sword, Gear::NONE), 67, "60 x 1.11");
-    assert_eq!(swing(Gear::NONE, cuirass), 54, "60 / 1.11");
-    assert_eq!(swing(sword, cuirass), 60, "a wash");
+    // 60 slash x 0.80 (armour) = 48 in nothing (the test above); a place counts for half
+    // its item's edge, so 220 per mille is a factor of 1.11.
+    assert_eq!(swing(Gear::NONE, Gear::NONE), 48);
+    assert_eq!(swing(sword, Gear::NONE), 53, "48 x 1.11");
+    assert_eq!(swing(Gear::NONE, cuirass), 43, "48 / 1.11");
+    assert_eq!(swing(sword, cuirass), 48, "a wash");
     // An edge on another type is no edge on this one.
     let mut frost = Gear::NONE;
     frost.dealt[DamageType::Water as usize] = 250;
     frost.taken[DamageType::Water as usize] = 250;
-    assert_eq!(swing(frost, frost), 60);
+    assert_eq!(swing(frost, frost), 48);
     // What a zone is told is kept within the cap.
     let mut wild = Gear::NONE;
     wild.dealt[slash] = 60_000;
-    assert_eq!(swing(wild, Gear::NONE), 68, "60 x 1.125, not x 31");
+    assert_eq!(swing(wild, Gear::NONE), 54, "48 x 1.125, not x 31");
 
     // A bolt in flight keeps the edge it was loosed with: the weapon is taken off while it
     // flies, and it lands as it left.
@@ -1810,8 +1810,8 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 12);
         900 - zone.player(b).unwrap().health
     };
-    assert_eq!(swing(sword, Gear::NONE), 67, "taken off in the windup");
-    assert_eq!(swing(Gear::NONE, sword), 60, "put on in the windup");
+    assert_eq!(swing(sword, Gear::NONE), 53, "taken off in the windup");
+    assert_eq!(swing(Gear::NONE, sword), 48, "put on in the windup");
 
     // An area: the caster's edge on the area's kind, the edge of whoever stands in it.
     let stomp = |caster: Gear, target: Gear| {

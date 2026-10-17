@@ -9,7 +9,6 @@ use glam::Vec3;
 use gm_ai::{AreaSight, Body, Mate, NavGrid, Raider, Request, Role, Senses, objectives};
 use gm_bsp::Bsp;
 use gm_core::build::ContentPack;
-use gm_core::matrix::ArmourClass;
 use gm_core::sim::Input;
 use gm_core::vocab::{ArchetypeFrame, EntityId, Verb};
 use gm_net::client::{ClientState, RenderEntity};
@@ -104,12 +103,7 @@ impl Raid {
         self.areas.clear();
         for e in others {
             match e.spawn {
-                SpawnInfo::Player {
-                    frame,
-                    team,
-                    armour,
-                    ..
-                } => {
+                SpawnInfo::Player { frame, team, .. } => {
                     let kind = self.kinds.get(&e.id).copied().unwrap_or_default();
                     let (party, creature, max_health) = match kind {
                         BodyKind::Human => (e.id, None, None),
@@ -133,7 +127,6 @@ impl Raid {
                         vel: e.vel,
                         yaw: e.yaw,
                         frame: frame_of(frame),
-                        armour: ArmourClass::from_index(armour).unwrap_or(ArmourClass::Cloth),
                         team,
                         party,
                         alive: e.alive(),

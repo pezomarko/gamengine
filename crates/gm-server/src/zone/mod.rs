@@ -540,7 +540,6 @@ fn stall_entry(
         yaw: grid.yaw,
         owner: s.owner_name.clone(),
         frame: s.frame,
-        armour: s.armour,
         model: s
             .model
             .filter(|m| m.frame == s.frame && !revoked.iter().any(|(id, _)| *id == m.id))

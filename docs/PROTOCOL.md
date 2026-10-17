@@ -959,6 +959,13 @@ than staying the zone's. The hub's reading grew the same way on its own wire
   fewer a `Look`; the version byte keeps a v21 client out, since it would read the roster
   long.
 
+## 34. Changes in v26 (no armour class, 2026-10-17)
+
+`PROTOCOL_VERSION` 26 (GEAR.md 12, MATRIX.md 18). `SpawnInfo::Player` lost its `armour`
+(two bits after the aspects), and `StallEntry` its keeper's `armour` byte; `Worn` on the
+wire (the hub's `GearReading`, `HUB_VERSION` 19) lost its `class`. Nothing else moved. A
+v25 client would read the spawn two bits short, so the version byte keeps it out.
+
 ## 33. Changes in v21 (the sheathed weapon, 2026-10-14)
 
 `PROTOCOL_VERSION` 21 (EQUIPMENT.md 5.3 and 10 step 6, LOOK.md 6.7). One field is added:

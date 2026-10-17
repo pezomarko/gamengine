@@ -56,37 +56,23 @@ The archetype frame is free: its price is the hitbox and the mobility it fixes
 
 Mass divides knockback taken. Mobility multiplies move speed.
 
-## 4. Armour class
+## 4. Armour class — gone (2026-10-17)
 
-**The worn chest piece's** (GEAR.md 3, built 2026-10-16): the robe is cloth, the cuirass
-leather, the mail shirt mail, the plate plate, and a body with nothing on the chest is in
-cloth. The class costs no build points: a thing that is bought, traded and taken off cannot
-(PLAN.md 3.4: gear is balanced by its penalties, which are the speed and the regen below).
-A body no hub dresses (a creature, a companion, a bot of a zone without a hub, a test) is in
-its **build's** class, `Build.armour`, which is what the presets of `builds.toml` fight in
-on the arena; under a hub that field is ignored. (From Phase 3 to 2026-10-16 the class was a
-build choice at 0 / 4 / 8 / 12 of the kit's points: ITEMS.md 9 kept the move open, GEAR.md
-3 made it.)
+There is no armour class. The director: "class is wrong name for what armor provides, it's
+like defense type that's provided, either physical or magical, no? makes no sense to
+complicate further." What an armour provides is on its template already: `guards`
+(`physical` or `elements`, ITEMS.md 3) and the gear term its layers make (the edge per
+damage type, `Gear::taken`). A body's speed, stamina regen, ward and evasion are its
+frame's and its attributes' (6), whatever it wears; the three physical kinds (slash,
+pierce, blunt) stay damage types the gear's edge reads and multiply nothing else. The
+look is the frame's (CONTENT.md 3.2), the gait the frame's (MODELS.md 9).
 
-| Class | Speed | Stamina regen | Bonus |
-|---|---|---|---|
-| Cloth | 1.00 | 1.00 | ward +0.05 |
-| Leather | 1.00 | 1.00 | evasion +0.05 |
-| Mail | 0.95 | 0.90 | — |
-| Plate | 0.90 | 0.75 | — |
-
-### 4.1 Physical kind × armour class
-
-Physical damage comes in three kinds. The multiplier is applied to every physical packet.
-
-| Kind \ Class | Cloth | Leather | Mail | Plate |
-|---|---|---|---|---|
-| Slash | 1.25 | 1.00 | 0.75 | 0.50 |
-| Pierce | 1.00 | 1.00 | 1.00 | 0.75 |
-| Blunt | 0.75 | 0.75 | 1.00 | 1.25 |
-
-Blades shred cloth and bounce off plate; hammers crush plate and bruise cloth; bolts are the
-honest middle. The table is the "weapon triangle" half of the matrix.
+From Phase 3 to 2026-10-16 the class (cloth, leather, mail, plate) was a build choice at
+0 / 4 / 8 / 12 points with a speed and regen penalty, a ward or evasion bonus and the
+"weapon triangle" of physical kind × class (slash 1.25 on cloth, 0.50 on plate; blunt the
+reverse; pierce the honest middle); on 2026-10-16 it moved onto the worn chest piece
+(GEAR.md 3); on 2026-10-17 it went (GEAR.md 12). The table and the triangle are in the git
+history of this section.
 
 ## 5. Elements and aspects
 
@@ -144,15 +130,15 @@ pools; multipliers stay f32. Bands are deliberately narrow.
 |---|---|---|
 | Health | `500 + 40·CON` | 700 → 1,500 |
 | Stamina | `60 + 3·(CON + AGI)` | 90 → 210 |
-| Stamina regen /s | `(10 + 0.6·AGI) · armour.regen` | 13 → 25 |
+| Stamina regen /s | `10 + 0.6·AGI` | 13 → 25 |
 | Focus | `40 + 5·INT + frame.focus` | 65 → 165 (+20 Caster) |
 | Focus regen /s | `5 + 0.6·SPR` | 8 → 20 |
-| Move speed (u/s) | `(280 + 2·AGI) · frame.mobility · armour.speed` | 290 → 330 before frame/armour |
+| Move speed (u/s) | `(280 + 2·AGI) · frame.mobility` | 290 → 330 before the frame |
 | Physical damage × | `0.60 + 0.04·STR` | 0.80 → 1.60 |
 | Elemental damage × | `0.60 + 0.04·INT` | 0.80 → 1.60 |
 | Armour (physical mitigation) | `min(0.50, 0.015·CON + frame.armour)` | 0.075 → 0.375 |
-| Ward (elemental mitigation) | `min(0.60, 0.02·SPR + frame.ward + armour.ward)` | 0.10 → 0.50 |
-| Evasion | `min(0.50, 0.015·AGI + frame.evasion + armour.evasion)` | 0.075 → 0.375 |
+| Ward (elemental mitigation) | `min(0.60, 0.02·SPR + frame.ward)` | 0.10 → 0.50 |
+| Evasion | `min(0.50, 0.015·AGI + frame.evasion)` | 0.075 → 0.375 |
 | Knockback taken × | `1 / frame.mass` | |
 | Knockback dealt × | `0.60 + 0.04·STR` | |
 | Status duration taken × | `1.30 − 0.03·SPR` | 1.15 → 0.55 |
@@ -262,7 +248,6 @@ duration on reapplication; `Extend` adds the duration (capped at 3× the verb's 
 Build {
   frame:        Colossus | Striker | Caster | Infiltrator       free
   attributes:   STR AGI CON INT SPR, each 5..=25                 Σ(attr − 5) ≤ 30, the character's own
-  armour:       Cloth | Leather | Mail | Plate                   free; the class in nothing a hub dresses (4)
   aspects:      0..=2 of Fire Water Grass Electric Ground Air    0 / 10 (none: neutral)
   kit:          primary, secondary, guard (optional), up to 4 actives   Σ ability cost
 }
@@ -628,3 +613,36 @@ gate of section 11 is unchanged (ironclad : blade 37 : 11 (3.36), frostweaver : 
 Open: the 8 v 8 mirror overstates an area heal (eight casters, one patch always up) as it
 understates a healer (the mender's row is the brain's, section 15); a mixed team is the
 measure of both. Fire still has no build.
+
+## 18. v7 (2026-10-17): no armour class
+
+The director, after the gear job put the class on the chest piece and the blade walked
+into the town as a leather-tinted mannequin: "we can actually completely get rid of the
+classes, model is independant of class, class was just preset build of build stats (sta,
+str, def etc) but now that we allow any weapon to any model + weapon carries skills, we
+are good", and "class is wrong name for what armor provides, it's like defense type that's
+provided, either physical or magical".
+
+- `ArmourClass`, `ArmourMods` and `kind_mult` are gone from `gm-core`; `Derived::compute`
+  takes the attributes and the frame; `DefenderStats` has no class; the physical kinds
+  multiply nothing but the gear's edge (ITEMS.md 3). The derived table (6) lost its
+  armour terms: cloth's +0.05 ward and leather's +0.05 evasion went with mail's and
+  plate's penalties.
+- `Build.armour`, `Worn.class` and `Sheet.class` are gone (`PLAYER_VERSION` 13: a stored
+  build's `armour` is ignored on read); `builds.toml` and `creatures.toml` name none; a
+  template names no `class`.
+- On the wire `SpawnInfo::Player` lost its two bits and a stall its keeper's class
+  (`PROTOCOL_VERSION` 26, `HUB_VERSION` 19).
+- The minds: a squad's "heavy" body is the colossus, not the colossus in mail or plate
+  (`gm-ai`).
+- The look: one official avatar a frame (`avatars.toml`: `frame` and `model`), the
+  mannequin one grey, one portrait a frame, the gait's weight 0 for everyone
+  (CONTENT.md 3.2, MODELS.md 9, LOOK.md 6.6); the K page lost its armour row and the
+  equipment window's ribbon says `Blade | striker`.
+- What stands: the presets as starting builds with their names (EQUIPMENT.md 2), the
+  frames (3), the attributes (2), the aspects (5), and the armour's own numbers. **Next,
+  the director's word**: frame-bound abilities ("thin one would have dash, big ones like
+  charge or sth, wizardish ones would have something else"), a `frames` list on an
+  ability in `abilities.toml` that `validate` reads; not built.
+- The round robin after the change is to be run (11): the arena's presets fought in
+  their classes, and the ironclad's plate is now its frame alone.

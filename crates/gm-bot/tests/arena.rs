@@ -97,7 +97,6 @@ fn play_worn(bsp: &Arc<Bsp>, a: (&str, &Worn), b: (&str, &Worn), seed: u64, secs
                     frame: 0,
                     team: p.team(),
                     aspects: p.sheet.build.aspects.0,
-                    armour: p.sheet.class as u8,
                 },
                 pos: p.mover.mv.origin,
                 yaw: p.mover.yaw,

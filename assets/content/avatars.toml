@@ -1,11 +1,13 @@
-# The official looks (CONTENT.md 3.2): the model worn by every character of a frame in an
-# armour class that has no model of its own (MODELS.md 1: a player's upload replaces it; the
-# mannequin stands in wherever no row is). At most one row per frame and armour class.
-# `model` names models/avatars/<model>.glb, ingested as the hub ingests an upload for that
-# frame: the standard rig, the T-pose, the frame's envelope and the budgets of CONTENT.md 4.
-# The row is the look and nothing else: the frame's hitbox, gait and reach are unchanged.
+# The official looks (CONTENT.md 3.2): the model worn by every character of a frame that
+# has no model of its own, whatever it wears (MODELS.md 1: a player's upload replaces it;
+# the mannequin stands in wherever no row is). At most one row per frame (one per frame and
+# armour class until 2026-10-17, GEAR.md 12: there is no class). `model` names
+# models/avatars/<model>.glb, ingested as the hub ingests an upload for that frame: the
+# standard rig, the T-pose, the frame's envelope and the budgets of CONTENT.md 4. The row
+# is the look and nothing else: the frame's hitbox, gait and reach are unchanged.
 
-# The striker in mail: the blade's body (builds.toml: blade = striker, mail). Quaternius'
+# The striker: the blade's body. (`striker_mail` is the file's name, the hero in trousers
+# the Blender script made; it means no class.) Quaternius'
 # Universal Base Characters hero in the Fantasy outfits' trousers and boots (CC0;
 # LICENSES.md), made by scripts/dev/blender-quaternius-hero.py and gltf-atlas.py: 3,448
 # triangles, a 1024 atlas, all 24 bones (prop_r, prop_l and prop_back added in the palms
@@ -13,5 +15,4 @@
 # CONTENT.md 3.3), not painted on: bare, it is a man in trousers.
 [[avatar]]
 frame = "striker"
-armour = "mail"
 model = "striker_mail"

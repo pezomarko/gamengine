@@ -12,7 +12,6 @@ fn scene(tick: u32, shift: i32) -> Snapshot {
                 frame: 1,
                 team: 1,
                 aspects: 1,
-                armour: 2,
             },
             pos: [i as i32 * 100 + shift, -400 + shift / 2, 96],
             yaw: (1234 + i as u16 * 7) % 3600,

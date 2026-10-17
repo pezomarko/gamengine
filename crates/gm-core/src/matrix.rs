@@ -133,96 +133,6 @@ pub enum Kind {
     Blunt = 2,
 }
 
-/// Armour classes (MATRIX.md 4).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
-#[repr(u8)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ArmourClass {
-    #[default]
-    Cloth = 0,
-    Leather = 1,
-    Mail = 2,
-    Plate = 3,
-}
-
-impl ArmourClass {
-    pub const ALL: [ArmourClass; 4] = [
-        ArmourClass::Cloth,
-        ArmourClass::Leather,
-        ArmourClass::Mail,
-        ArmourClass::Plate,
-    ];
-
-    pub const fn from_index(i: u8) -> Option<ArmourClass> {
-        match i {
-            0 => Some(ArmourClass::Cloth),
-            1 => Some(ArmourClass::Leather),
-            2 => Some(ArmourClass::Mail),
-            3 => Some(ArmourClass::Plate),
-            _ => None,
-        }
-    }
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            ArmourClass::Cloth => "cloth",
-            ArmourClass::Leather => "leather",
-            ArmourClass::Mail => "mail",
-            ArmourClass::Plate => "plate",
-        }
-    }
-
-    /// Build points (MATRIX.md 4).
-    pub const fn mods(self) -> ArmourMods {
-        match self {
-            ArmourClass::Cloth => ArmourMods {
-                speed: 1.0,
-                regen: 1.0,
-                ward: 0.05,
-                evasion: 0.0,
-            },
-            ArmourClass::Leather => ArmourMods {
-                speed: 1.0,
-                regen: 1.0,
-                ward: 0.0,
-                evasion: 0.05,
-            },
-            ArmourClass::Mail => ArmourMods {
-                speed: 0.95,
-                regen: 0.90,
-                ward: 0.0,
-                evasion: 0.0,
-            },
-            ArmourClass::Plate => ArmourMods {
-                speed: 0.90,
-                regen: 0.75,
-                ward: 0.0,
-                evasion: 0.0,
-            },
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ArmourMods {
-    pub speed: f32,
-    pub regen: f32,
-    pub ward: f32,
-    pub evasion: f32,
-}
-
-/// Physical kind × armour class (MATRIX.md 4.1).
-pub fn kind_mult(kind: Kind, class: ArmourClass) -> f32 {
-    const TABLE: [[f32; 4]; 3] = [
-        // Cloth, Leather, Mail, Plate
-        [1.25, 1.00, 0.75, 0.50], // Slash
-        [1.00, 1.00, 1.00, 0.75], // Pierce
-        [0.75, 0.75, 1.00, 1.25], // Blunt
-    ];
-    TABLE[kind as usize][class as usize]
-}
-
 /// Frame modifiers (MATRIX.md 3).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FrameMods {
@@ -383,9 +293,8 @@ pub const CHILL_PER_STACK: f32 = 0.15;
 pub const DOT_PULSES_PER_S: u32 = 4;
 
 impl Derived {
-    pub fn compute(attrs: Attributes, frame: ArchetypeFrame, armour: ArmourClass) -> Derived {
+    pub fn compute(attrs: Attributes, frame: ArchetypeFrame) -> Derived {
         let f = frame.mods();
-        let a = armour.mods();
         let (str_, agi, con, int, spr) = (
             attrs.str_ as f32,
             attrs.agi as f32,
@@ -396,15 +305,15 @@ impl Derived {
         Derived {
             health: 500 + 40 * attrs.con as i32,
             stamina: 60.0 + 3.0 * (con + agi),
-            stamina_regen: (10.0 + 0.6 * agi) * a.regen,
+            stamina_regen: 10.0 + 0.6 * agi,
             focus: 40.0 + 5.0 * int + f.focus as f32,
             focus_regen: 5.0 + 0.6 * spr,
-            max_speed: (280.0 + 2.0 * agi) * f.mobility * a.speed,
+            max_speed: (280.0 + 2.0 * agi) * f.mobility,
             physical_mult: 0.60 + 0.04 * str_,
             elemental_mult: 0.60 + 0.04 * int,
             armour: (0.015 * con + f.armour).min(MAX_ARMOUR),
-            ward: (0.02 * spr + f.ward + a.ward).min(MAX_WARD),
-            evasion: (0.015 * agi + f.evasion + a.evasion).min(MAX_EVASION),
+            ward: (0.02 * spr + f.ward).min(MAX_WARD),
+            evasion: (0.015 * agi + f.evasion).min(MAX_EVASION),
             knockback_taken: 1.0 / f.mass,
             knockback_dealt: 0.60 + 0.04 * str_,
             status_duration: 1.30 - 0.03 * spr,
@@ -535,7 +444,6 @@ impl AttackerStats {
 /// The defender's side of the pipeline at the moment of the hit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DefenderStats {
-    pub armour_class: ArmourClass,
     pub aspects: Aspects,
     pub armour: f32,
     pub ward: f32,
@@ -562,8 +470,11 @@ pub fn resolve_damage(packet: &DamagePacket, a: &AttackerStats, d: &DefenderStat
     };
     let mut x = packet.amount as f32 * (1.0 - a.weaken).max(0.0);
     match packet.dtype.kind() {
-        Some(kind) => {
-            x *= a.physical_mult * kind_mult(kind, d.armour_class);
+        // A physical kind (slash, pierce, blunt) is a damage type the worn gear's edge
+        // reads (`Gear::taken`); it multiplies nothing else since GEAR.md 12 (2026-10-17:
+        // no armour class, no weapon triangle).
+        Some(_) => {
+            x *= a.physical_mult;
             if !bypass.contains(Bypass::ARMOR) {
                 x *= 1.0 - d.armour;
             }
@@ -713,30 +624,20 @@ mod tests {
 
     #[test]
     fn derived_bands_match_the_document() {
-        let lo = Derived::compute(
-            Attributes::flat(5),
-            ArchetypeFrame::Striker,
-            ArmourClass::Cloth,
-        );
-        let hi = Derived::compute(
-            Attributes::flat(25),
-            ArchetypeFrame::Striker,
-            ArmourClass::Cloth,
-        );
+        let lo = Derived::compute(Attributes::flat(5), ArchetypeFrame::Striker);
+        let hi = Derived::compute(Attributes::flat(25), ArchetypeFrame::Striker);
         assert_eq!((lo.health, hi.health), (700, 1500));
         assert_eq!((lo.stamina, hi.stamina), (90.0, 210.0));
         assert!((lo.max_speed - 290.0).abs() < 1e-3 && (hi.max_speed - 330.0).abs() < 1e-3);
         assert!((lo.physical_mult - 0.8).abs() < 1e-6 && (hi.physical_mult - 1.6).abs() < 1e-6);
         assert!((lo.armour - 0.125).abs() < 1e-6 && (hi.armour - 0.425).abs() < 1e-6);
-        assert!((lo.ward - 0.15).abs() < 1e-6 && (hi.ward - 0.55).abs() < 1e-6);
-        let plate = Derived::compute(
-            Attributes::flat(25),
-            ArchetypeFrame::Colossus,
-            ArmourClass::Plate,
-        );
-        assert!((plate.max_speed - 330.0 * 0.92 * 0.90).abs() < 1e-3);
-        assert!((plate.armour - 0.475).abs() < 1e-6);
-        assert!((plate.knockback_taken - 1.0 / 1.5).abs() < 1e-6);
+        assert!((lo.ward - 0.10).abs() < 1e-6 && (hi.ward - 0.50).abs() < 1e-6);
+        // A colossus: slower by its mobility and nothing else (no armour class since
+        // GEAR.md 12, 2026-10-17), armoured by its frame, heavy against knockback.
+        let big = Derived::compute(Attributes::flat(25), ArchetypeFrame::Colossus);
+        assert!((big.max_speed - 330.0 * 0.92).abs() < 1e-3);
+        assert!((big.armour - 0.475).abs() < 1e-6);
+        assert!((big.knockback_taken - 1.0 / 1.5).abs() < 1e-6);
         // Thirty points: all of them, or fewer; never more, never past the cap.
         assert_eq!(Attributes::new(20, 20, 10, 5, 5).cost(), 35);
         assert!(!Attributes::new(20, 20, 10, 5, 5).affordable());
@@ -757,9 +658,8 @@ mod tests {
         }
     }
 
-    fn defender(class: ArmourClass, aspects: Aspects) -> DefenderStats {
+    fn defender(aspects: Aspects) -> DefenderStats {
         DefenderStats {
-            armour_class: class,
             aspects,
             armour: 0.2,
             ward: 0.2,
@@ -774,7 +674,7 @@ mod tests {
 
     #[test]
     fn gear_moves_each_type_by_its_own_edge_and_never_past_an_eighth_a_side() {
-        let d = defender(ArmourClass::Leather, Aspects::one(Element::Electric));
+        let d = defender(Aspects::one(Element::Electric));
         let bare = AttackerStats {
             physical_mult: 1.0,
             elemental_mult: 1.0,
@@ -884,18 +784,19 @@ mod tests {
             on_hit: None,
             status_dealt: [100; 6],
         };
-        // Slash into plate: 100 * 1.1 * 0.5 * (1 - 0.2) = 44.
-        let d = defender(ArmourClass::Plate, Aspects::one(Element::Ground));
+        // Slash: 100 * 1.1 * (1 - 0.2) = 88 (no armour class since GEAR.md 12: the
+        // kind multiplies nothing but the gear's edge).
+        let d = defender(Aspects::one(Element::Ground));
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Slash, Bypass::NONE), &a, &d),
-            44
+            88
         );
-        // Armour bypass skips the mitigation: 55.
+        // Armour bypass skips the mitigation: 110.
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Slash, Bypass::ARMOR), &a, &d),
-            55
+            110
         );
-        // Water into Ground (2x) ignores the armour class and armour, pays the ward:
+        // Water into Ground (2x) ignores the armour, pays the ward:
         // 100 * 1.2 * 2 * 0.8 = 192.
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Water, Bypass::NONE), &a, &d),
@@ -925,7 +826,7 @@ mod tests {
                 &a,
                 &d2
             ),
-            88
+            70
         );
         // Expose grants armour bypass; a block removes its mitigation; never below 1.
         let mut d3 = d;
@@ -933,7 +834,7 @@ mod tests {
         d3.block = Some(0.8);
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Slash, Bypass::NONE), &a, &d3),
-            11
+            22
         );
         assert_eq!(
             resolve_damage(&packet(1, DamageType::Slash, Bypass::NONE), &a, &d3),
@@ -943,7 +844,7 @@ mod tests {
         let weak = AttackerStats { weaken: 0.3, ..a };
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Slash, Bypass::NONE), &weak, &d),
-            31
+            62
         );
     }
 }

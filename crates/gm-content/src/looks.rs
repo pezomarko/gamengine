@@ -37,8 +37,6 @@ pub struct TemplateLook {
     pub patch: bool,
     /// A shield's guard ability (GEAR.md 2), brought to whoever wears it in the left hand.
     pub guard: Option<String>,
-    /// A chest piece's armour class (GEAR.md 3), what the body wearing it is in.
-    pub class: Option<gm_core::matrix::ArmourClass>,
     /// A shield's own block (GEAR.md 7), played in place of the guard ability's.
     pub block: Option<gm_core::vocab::Block>,
     pub retired: bool,
@@ -65,12 +63,11 @@ pub struct BuildLook {
     pub icon: Option<String>,
 }
 
-/// A row of `avatars.toml` (CONTENT.md 3.2): the official look of a frame in an armour
-/// class, worn by every character of that frame and class that has no model of its own.
+/// A row of `avatars.toml` (CONTENT.md 3.2): the official look of a frame, worn by every
+/// character of that frame that has no model of its own.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AvatarLook {
     pub frame: gm_core::vocab::ArchetypeFrame,
-    pub armour: gm_core::matrix::ArmourClass,
     /// `models/avatars/<model>.glb`.
     pub model: String,
 }
@@ -86,7 +83,6 @@ struct AvatarsFile {
 #[serde(deny_unknown_fields)]
 struct AvatarRow {
     frame: String,
-    armour: String,
     model: String,
 }
 
@@ -98,7 +94,7 @@ pub struct Looks {
     pub materials: Vec<MaterialLook>,
     pub creatures: Vec<CreatureLook>,
     pub builds: Vec<BuildLook>,
-    /// The official avatars, at most one per frame and armour class (CONTENT.md 3.2).
+    /// The official avatars, at most one per frame (CONTENT.md 3.2).
     pub avatars: Vec<AvatarLook>,
     /// The keys of every `ability.prop` and `template.model`, in order of first appearance
     /// (LOOK.md 6.2): a `Look.held` on the wire is an index into this list.
@@ -279,11 +275,6 @@ impl Looks {
                 covers: items::covers_mask(&t.covers),
                 patch: t.is_patch(),
                 guard: t.guard.clone(),
-                class: t.class.as_deref().and_then(|c| {
-                    gm_core::matrix::ArmourClass::ALL
-                        .into_iter()
-                        .find(|a| a.name() == c)
-                }),
                 block: t.block.as_ref().map(|b| b.to_block()),
                 retired: t.retired,
             });
@@ -356,34 +347,20 @@ impl Looks {
                     )));
                 }
             };
-            let Some(armour) = gm_core::matrix::ArmourClass::ALL
-                .into_iter()
-                .find(|a| a.name() == v.armour)
-            else {
-                return Err(ContentError::Invalid(format!(
-                    "avatar {}: armour `{}` is not cloth, leather, mail or plate",
-                    v.frame, v.armour
-                )));
-            };
             if !valid_key(&v.model) {
                 return Err(ContentError::Invalid(format!(
-                    "avatar {} {}: model `{}` is not a key",
-                    v.frame, v.armour, v.model
+                    "avatar {}: model `{}` is not a key",
+                    v.frame, v.model
                 )));
             }
-            if looks
-                .avatars
-                .iter()
-                .any(|a| a.frame == frame && a.armour == armour)
-            {
+            if looks.avatars.iter().any(|a| a.frame == frame) {
                 return Err(ContentError::Invalid(format!(
-                    "avatar {} {}: two rows; a frame has one look per armour class",
-                    v.frame, v.armour
+                    "avatar {}: two rows; a frame has one look",
+                    v.frame
                 )));
             }
             looks.avatars.push(AvatarLook {
                 frame,
-                armour,
                 model: v.model.clone(),
             });
         }
@@ -559,13 +536,15 @@ tint = [0.8, 0.8, 0.85]
         assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
         let bad = ITEMS.replace("held = \"back\"", "held = \"back\"\ncovers = [\"chest\"]");
         assert!(Looks::load_str(ABILITIES, "", "", &bad, "").is_err());
-        // An avatar row names a frame, an armour class and a key, once per pair.
-        let one = "[[avatar]]\nframe = \"striker\"\narmour = \"mail\"\nmodel = \"striker_mail\"\n";
+        // An avatar row names a frame and a key, once per frame.
+        let one = "[[avatar]]\nframe = \"striker\"\nmodel = \"striker_mail\"\n";
         let looks = Looks::load_str(ABILITIES, "", "", ITEMS, one).unwrap();
         assert_eq!(looks.avatars.len(), 1);
         assert_eq!(looks.avatars[0].model, "striker_mail");
         assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{one}")).is_err());
-        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &one.replace("mail", "silk")).is_err());
+        assert!(
+            Looks::load_str(ABILITIES, "", "", ITEMS, &one.replace("striker", "ogre")).is_err()
+        );
         assert!(
             Looks::load_str(
                 ABILITIES,

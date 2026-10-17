@@ -1,5 +1,5 @@
 # Creatures (COMPANIONS.md 8.1). A creature is a build without a budget: the same frames,
-# armour classes, aspects and verbs as a player, read by the same rules, with its health set
+# aspects and verbs as a player, read by the same rules, with its health set
 # here. Abilities marked `creature = true` in abilities.toml are theirs alone. A creature may
 # hold a ranged primary in its secondary slot (the range rule of MATRIX.md 10 is for players).
 # `still = true` stands and does nothing (the dummy); `npc = true` cannot be hurt and is spoken
@@ -11,7 +11,6 @@
 key = "sentinel"
 name = "Sentinel"
 frame = "striker"
-armour = "mail"
 aspects = ["water"]
 attributes = { str = 16, agi = 14, con = 16, int = 8, spr = 10 }
 health = 1200
@@ -28,7 +27,6 @@ respawn_s = 600
 key = "warden"
 name = "The Warden"
 frame = "colossus"
-armour = "plate"
 aspects = ["ground"]
 attributes = { str = 20, agi = 8, con = 20, int = 14, spr = 14 }
 health = 15000
@@ -53,7 +51,6 @@ coin = 30
 key = "dummy"
 name = "Training dummy"
 frame = "colossus"
-armour = "leather"
 aspects = ["ground"]
 attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
 health = 5000
@@ -69,7 +66,6 @@ still = true
 key = "trainer"
 name = "Trainer"
 frame = "striker"
-armour = "cloth"
 aspects = ["fire"]
 attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
 health = 1000

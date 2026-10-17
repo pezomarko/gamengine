@@ -22,8 +22,6 @@ pub enum SpawnInfo {
         team: u8,
         /// Bitmask over `gm_core::matrix::Element` indices (5 bits).
         aspects: u8,
-        /// `gm_core::matrix::ArmourClass` index (2 bits).
-        armour: u8,
     },
     Projectile {
         owner: u32,
@@ -500,12 +498,10 @@ fn write_entity(w: &mut BitWriter, e: &EntityState, base: Option<&EntityState>) 
                 frame,
                 team,
                 aspects,
-                armour,
             } => {
                 w.write_bits(frame as u64, 2);
                 w.write_bits(team as u64, 2);
                 w.write_bits(aspects as u64 & 0x3f, 6);
-                w.write_bits(armour as u64, 2);
             }
             SpawnInfo::Projectile {
                 owner,
@@ -570,7 +566,6 @@ fn read_entity(
                 frame: r.read_bits(2)? as u8,
                 team: r.read_bits(2)? as u8,
                 aspects: r.read_bits(6)? as u8,
-                armour: r.read_bits(2)? as u8,
             },
             1 => SpawnInfo::Projectile {
                 owner: r.read_uvar32()?,
@@ -658,7 +653,6 @@ mod tests {
             frame: 1,
             team: 1,
             aspects: 0b00001,
-            armour: 2,
         }
     }
 

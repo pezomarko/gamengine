@@ -145,9 +145,8 @@ pub struct StallEntry {
     /// Yaw the keeper faces.
     pub yaw: f32,
     pub owner: String,
-    /// The keeper's frame, armour class and avatar model, as in `PlayerInfo`.
+    /// The keeper's frame and avatar model, as in `PlayerInfo`.
     pub frame: u8,
-    pub armour: u8,
     pub model: Option<[u8; 32]>,
 }
 
@@ -832,7 +831,6 @@ mod tests {
                     yaw: 180.0,
                     owner: "Ž".repeat(12),
                     frame: 3,
-                    armour: 3,
                     model: Some([i as u8; 32]),
                 })
                 .collect(),

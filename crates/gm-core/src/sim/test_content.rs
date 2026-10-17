@@ -4,7 +4,7 @@
 //! simulation tests mean something, but it is a fixture, not the source of truth.
 
 use crate::build::{AbilityDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Sheet, Slot};
-use crate::matrix::{ArmourClass, Aspects, Attributes, Element};
+use crate::matrix::{Aspects, Attributes, Element};
 use crate::tick::TickRate;
 use crate::trial::{Lens, TrialDef};
 use crate::vocab::{
@@ -2331,7 +2331,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::new(15, 5, 20, 5, 10),
-                armour: ArmourClass::Plate,
                 aspects: Aspects::one(Element::Ground),
                 primary: id(&pack, "greatsword"),
                 secondary: id(&pack, "shield_bash"),
@@ -2345,7 +2344,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(17, 13, 15, 5, 5),
-                armour: ArmourClass::Mail,
                 aspects: Aspects::one(Element::Water),
                 primary: id(&pack, "sword"),
                 secondary: id(&pack, "kick"),
@@ -2359,7 +2357,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Rpg,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(5, 10, 5, 20, 15),
-                armour: ArmourClass::Cloth,
                 aspects: Aspects::two(Element::Water, Element::Air),
                 primary: id(&pack, "ice_shard"),
                 secondary: id(&pack, "kick"),
@@ -2373,7 +2370,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Infiltrator,
                 attributes: Attributes::new(15, 20, 10, 5, 5),
-                armour: ArmourClass::Leather,
                 aspects: Aspects::one(Element::Air),
                 primary: id(&pack, "dagger"),
                 secondary: id(&pack, "throwing_knife"),
@@ -2391,7 +2387,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Rpg,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(5, 5, 10, 15, 20),
-                armour: ArmourClass::Cloth,
                 aspects: Aspects::one(Element::Electric),
                 primary: id(&pack, "staff"),
                 secondary: id(&pack, "mend"),
@@ -2410,7 +2405,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Gun,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(10, 17, 13, 5, 10),
-                armour: ArmourClass::Leather,
                 aspects: Aspects::default(),
                 primary: id(&pack, "musket"),
                 secondary: id(&pack, "pistol"),
@@ -2425,7 +2419,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Rpg,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(13, 8, 14, 15, 5),
-                armour: ArmourClass::Leather,
                 aspects: Aspects::one(Element::Grass),
                 primary: id(&pack, "hammer"),
                 secondary: id(&pack, "slam"),
@@ -2443,7 +2436,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(16, 14, 16, 8, 10),
-                armour: ArmourClass::Mail,
                 aspects: Aspects::one(Element::Water),
                 primary: id(&pack, "sword"),
                 secondary: id(&pack, "crossbow"),
@@ -2468,7 +2460,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::new(20, 8, 20, 14, 14),
-                armour: ArmourClass::Plate,
                 aspects: Aspects::one(Element::Ground),
                 primary: id(&pack, "maul"),
                 secondary: id(&pack, "stone_throw"),
@@ -2507,7 +2498,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::flat(5),
-                armour: ArmourClass::Leather,
                 aspects: Aspects::one(Element::Ground),
                 primary: id(&pack, "staff"),
                 secondary: id(&pack, "kick"),
@@ -2532,7 +2522,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 mode: Mode::Action,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::flat(5),
-                armour: ArmourClass::Cloth,
                 aspects: Aspects::one(Element::Fire),
                 primary: id(&pack, "staff"),
                 secondary: id(&pack, "kick"),
@@ -2624,7 +2613,6 @@ pub fn phase2_build(pack: &ContentPack) -> Build {
         mode: Mode::Action,
         frame: ArchetypeFrame::Striker,
         attributes: Attributes::flat(10),
-        armour: ArmourClass::Cloth,
         aspects: Aspects::one(Element::Water),
         primary: pack.find("sword").expect("sword"),
         secondary: pack.find("crossbow").expect("crossbow"),
