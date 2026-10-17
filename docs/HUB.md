@@ -391,6 +391,11 @@ it does not know goes on to the next: one stream, one notice.
   there (no second finger); migration 0016 takes off what was worn on the places that
   went and makes a worn ring or cape the accessory.
 
+- **No armour class** (GEAR.md 12, MATRIX.md 18; `HUB_VERSION` 19, `PLAYER_VERSION` 13,
+  protocol v26, 2026-10-17): `Build` has no `armour` (a stored build's is ignored on
+  read; serde takes the unknown field), a reading's `Worn` no `class`, a `StallSummary`
+  no keeper's `armour`. No migration: nothing in the tables named a class.
+
 - **Whose hands, and both hands** (EQUIPMENT.md 2 and 3; `HUB_VERSION` 14,
   `PLAYER_VERSION` 10, 2026-10-13): `ItemSummary.hands`, the classes whose preset kits
   hold a weapon's model (`Blade, Ironclad`; `no preset's`; empty for what is not a

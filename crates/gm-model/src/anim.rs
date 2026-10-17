@@ -47,17 +47,14 @@ pub struct AnimInput {
     pub pitch: f32,
     /// Height of the model's hips pivot (to lay a body on the ground).
     pub hips_z: f32,
-    /// Armour weight, 0 (cloth) to 1 (plate): armour class is in the gait (MODELS.md 9).
+    /// Weight, 0 (light) to 1 (heavy): a heavier body takes longer strides and swings
+    /// its arms less. (The armour class until GEAR.md 12, 2026-10-17; every body is light
+    /// since, the knob kept for a frame's own gait.)
     pub weight: f32,
     /// Crouched (MODES.md 3.5): the squat is laid over the stance, the body
     /// `CROUCH_DROP` lower, so a crouch reads from across the arena as it does in the
     /// root, and the body stands where its shortened hitbox is.
     pub crouched: bool,
-}
-
-/// Armour weight of an armour-class index (cloth, leather, mail, plate).
-pub fn armour_weight(class: u8) -> f32 {
-    class.min(3) as f32 / 3.0
 }
 
 /// A heavier body takes longer strides.
@@ -591,12 +588,12 @@ mod tests {
     }
 
     #[test]
-    fn armour_class_is_in_the_gait() {
-        // Plate takes longer strides than cloth over the same ground...
+    fn weight_is_in_the_gait() {
+        // A heavy body takes longer strides than a light one over the same ground...
         let (mut cloth, mut plate) = (Animator::new(anim::RUN), Animator::new(anim::RUN));
         let step = Vec3::new(40.0, 0.0, 0.0);
-        cloth.advance(anim::RUN, 0.125, step, 0.0, 29.0, armour_weight(0));
-        plate.advance(anim::RUN, 0.125, step, 0.0, 29.0, armour_weight(3));
+        cloth.advance(anim::RUN, 0.125, step, 0.0, 29.0, 0.0);
+        plate.advance(anim::RUN, 0.125, step, 0.0, 29.0, 1.0);
         assert!(
             plate.cycle < cloth.cycle * 0.85,
             "{} vs {}",
@@ -628,8 +625,5 @@ mod tests {
             p.rot[UPPER_ARM_L].angle_between(hang.rot[UPPER_ARM_L])
         };
         assert!(swing(1.0) < swing(0.0) * 0.7);
-        assert_eq!(armour_weight(0), 0.0);
-        assert_eq!(armour_weight(3), 1.0);
-        assert_eq!(armour_weight(9), 1.0);
     }
 }

@@ -2,7 +2,6 @@
 //! given by what each verb does, never by an ability's name.
 
 use gm_core::build::{Kit, MAX_ACTIVES, Sheet};
-use gm_core::matrix::ArmourClass;
 use gm_core::sim::buttons;
 use gm_core::tick::Tick;
 use gm_core::vocab::{
@@ -103,8 +102,7 @@ impl Role {
         if plan.mends() {
             return Role::Heal;
         }
-        let heavy = sheet.build.frame == ArchetypeFrame::Colossus
-            && matches!(sheet.class, ArmourClass::Mail | ArmourClass::Plate);
+        let heavy = sheet.build.frame == ArchetypeFrame::Colossus;
         if heavy
             || matches!(
                 plan.guard,

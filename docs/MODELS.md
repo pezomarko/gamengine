@@ -21,7 +21,7 @@ numbers the director has not confirmed and the review log.
 4. **Content-addressed.** A model is named by the SHA-256 of its ingested bytes. The cache key,
    the integrity check and the takedown handle are the same 32 bytes.
 5. **Never wait for art.** An entity is drawn the tick it appears, as its frame's mannequin
-   tinted by armour class. The model swaps in when it is ready; if it never is (refused, taken
+   (one grey; tinted by armour class until 2026-10-17). The model swaps in when it is ready; if it never is (refused, taken
    down, unreachable), the mannequin stays.
 6. **Measured.** Every number here is a budget in `budgets.toml` or a measurement in
    PLAN.md 11.10.
@@ -408,18 +408,20 @@ state (VOCABULARY.md 14: idle, run, air, windup, swing, recover, dash, dead, gua
 stagger) and time to 24 bone rotations, cross-faded over 120 ms on a state change. It is
 placeholder art (PLAN.md 9: animation is human work); the contract is that it is **shared**.
 
-The mannequin is generated from the rig (jointed segments, 784 triangles), tinted by
-armour class: cloth pale, leather brown, mail steel, plate dark iron. Since 2026-10-13 a
-body without a model of its own wears the **official avatar** of its frame and armour class
-when the content bundle has one (CONTENT.md 3.2: `avatars.toml`, the striker in mail first),
-untinted; the mannequin stands for the pairs without one and for whatever is refused. The
+The mannequin is generated from the rig (jointed segments, 784 triangles), one grey
+(`MANNEQUIN_TINT`; tinted by armour class, cloth pale to plate dark iron, until 2026-10-17,
+GEAR.md 12). Since 2026-10-13 a body without a model of its own wears the **official
+avatar** of its frame when the content bundle has one (CONTENT.md 3.2: `avatars.toml`, the
+striker first), untinted, whatever it has on; the mannequin stands for the frames without
+one and for whatever is refused. The
 armour a character **wears** is drawn over the body as an overlay with the body's pose
 (LOOK.md 6.6), and the parts of the body it covers are not drawn (a mask of bones in the
 block's spare number; the shader drops the triangle whole).
 
-What a custom model must not hide is drawn by the client around it: **armour class is in the
-gait** (the heavier the class, the longer and heavier the stride, the smaller the arm swing:
-MATRIX.md 1, "how the body moves"), **aspects are a ring at the feet** in the element colours
+What a custom model must not hide is drawn by the client around it: **aspects are a ring at
+the feet** (the armour class was in the gait, the heavier the longer the stride, until
+2026-10-17: there is none, and every body walks light; the animator's weight knob stays for
+a frame's own gait) in the element colours
 (two halves for a dual aspect), and the side is the colour of the name over the head (a
 pip until the director asked what it was: LOOK.md 13.4).
 

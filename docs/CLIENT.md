@@ -278,7 +278,7 @@ The HUD as before, and:
   **E** the stall the body stands at (ITEMS.md 6): screens like the menu's, with the body
   standing while one is up.
 - **K** opens the character (MATRIX.md 9.1): the thirty attribute points with what each
-  buys, the frame, the armour, the aspects and the kit, edited anywhere; "Wear it" is
+  buys, the frame, the aspects and the kit, edited anywhere; "Wear it" is
   offered beside the trainer (the client knows one by a body nothing hurts), or anywhere
   in a zone with none, where the zone wears it at the next respawn (the arena) or says why
   not (the dungeon). Away from the trainer, with nothing changed, or with a draft the
@@ -293,7 +293,7 @@ The HUD as before, and:
   2026-10-06 (the director: "confusing and can't even read everything"; Gemini's review of
   a capture against Ether Saga's and Tales of Pirates' sheets agreed on every point): a
   panel 820 units wide where the frame allows, two columns under a row of presets. Left,
-  the body: frame, armour (each button with its kit points), aspects, then
+  the body: frame (the armour row went with the class, 2026-10-17), aspects, then
   `attributes   n of 30 points left` in gold over five rows of `STR  - 7 +  blows x0.88`
   (a name, the buttons, the value, what the points buy, in words). Right, the kit: the
   weapons, the secondaries over the guards, and the actives in two lists side by side

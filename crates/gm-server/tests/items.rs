@@ -858,11 +858,12 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
             Err("that cannot be worn".to_string())
         ]
     );
-    // The keeper's cuirass takes it off again, twice over: its edge on the chest (12 of
-    // the body's 20, EQUIPMENT.md 10.8), and the class it makes the body (GEAR.md 3): under
-    // a hub a body in nothing is in cloth, where slash is 1.25, and a cuirass is leather,
-    // where it is 1.0 (MATRIX.md 4.1). So the sword against the cuirass lands for less
-    // than it did against the bare body.
+    // The keeper's cuirass takes some of it off again: its edge on the chest (12 of the
+    // body's 20, EQUIPMENT.md 10.8). That is all an armour does since GEAR.md 12
+    // (2026-10-17): until then it also made the body leather, where slash was 1.0
+    // against cloth's 1.25 (the old MATRIX.md 4.1), and the sword landed for less than
+    // on the bare body; a cuirass's own edge is smaller than a sword's, so now it lands
+    // between the two.
     assert_eq!(
         smith_hand
             .ask_when_calm(FromClient::Wear { item: cuirass })
@@ -871,7 +872,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     );
     let both = hit(&buyer_hand).await;
     assert!(
-        both < armed && both < bare,
+        both < armed && both >= bare,
         "sword against cuirass: {both}, {bare} bare, {armed} armed"
     );
 
@@ -889,9 +890,9 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     assert_eq!(back, both, "the sword came back with its wearer");
 
     // Taken off, the cuirass alone is left: 2000 / 2099 of a blow (the chest counts 12
-    // of the body's 20, 99 of a 165 edge, EQUIPMENT.md 10.8), and 1.0 / 1.25 of it again
-    // for the leather the cuirass makes the body, against the cloth it was in bare
-    // (GEAR.md 3, MATRIX.md 4.1).
+    // of the body's 20, 99 of a 165 edge, EQUIPMENT.md 10.8), and nothing else since
+    // GEAR.md 12 (2026-10-17; until then 1.0 / 1.25 of it again for the leather the
+    // cuirass made the body).
     assert_eq!(
         buyer_hand
             .ask_when_calm(FromClient::TakeOff { item: sword })
@@ -900,7 +901,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     );
     let warded = hit(&buyer_hand).await;
     assert!(
-        moved(2000.0 / 2099.0 / 1.25).contains(&warded) && warded < bare,
+        moved(2000.0 / 2099.0).contains(&warded) && warded < bare,
         "{bare} in nothing, {warded} against the cuirass"
     );
     println!(

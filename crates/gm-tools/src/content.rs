@@ -556,12 +556,12 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         }
     }
 
-    // The official avatars (CONTENT.md 3.2): a frame's look in an armour class, ingested as
-    // the hub ingests an upload for that frame (the envelope, the pose, the budgets).
+    // The official avatars (CONTENT.md 3.2): a frame's look, ingested as the hub ingests
+    // an upload for that frame (the envelope, the pose, the budgets).
     let mut avatars: BTreeMap<String, Model> = BTreeMap::new();
     let mut avatar_entries: Vec<AvatarEntry> = Vec::new();
     for a in &looks.avatars {
-        let name = format!("{}_{}", rig::frame_name(a.frame), a.armour.name());
+        let name = rig::frame_name(a.frame).to_string();
         let file = format!("models/avatars/{}.glb", a.model.replace('/', "_"));
         let path = dir.join(&file);
         if !path.is_file() {
@@ -579,7 +579,6 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                 let etc2 = file_variant(&mut files, &out, ing.etc);
                 avatar_entries.push(AvatarEntry {
                     frame: rig::frame_index(a.frame),
-                    armour: a.armour as u8,
                     key: a.model.clone(),
                     file: out.clone(),
                     sha256: sha(&ing.gmm),
@@ -675,8 +674,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         };
         let mut any = false;
         for a in &looks.avatars {
-            let avatar = format!("{}_{}", rig::frame_name(a.frame), a.armour.name());
-            let Some(body) = avatars.get(&avatar) else {
+            let Some(body) = avatars.get(rig::frame_name(a.frame)) else {
                 continue;
             };
             let name = format!("{}_{}", model.replace('/', "_"), a.model.replace('/', "_"));
@@ -874,38 +872,32 @@ pub fn build(dir: &Path) -> Result<Bundle> {
             });
         }
     }
-    // Portraits of every frame in every armour class (CONTENT.md 5.3): from the official
-    // avatar where there is one, else from the mannequin, unless a file is given.
+    // Portraits of every frame (CONTENT.md 5.3): from the official avatar where there is
+    // one, else from the mannequin, unless a file is given. (One a frame and armour class
+    // until GEAR.md 12, 2026-10-17.)
     for frame in rig::FRAMES {
-        for (ai, tint) in mannequin::ARMOUR_TINTS.iter().enumerate() {
-            let armour =
-                gm_core::matrix::ArmourClass::from_index(ai as u8).map_or("cloth", |a| a.name());
-            let name = format!("{}_{}", rig::frame_name(frame), armour);
-            let key = format!("portrait/{name}");
-            let icon = if icon_file(&key).is_file() {
-                take_icon(
-                    icon_file(&key),
-                    &key,
-                    "a portrait",
-                    &mut icons,
-                    &mut problems,
-                )
+        let name = rig::frame_name(frame).to_string();
+        let key = format!("portrait/{name}");
+        let icon = if icon_file(&key).is_file() {
+            take_icon(
+                icon_file(&key),
+                &key,
+                "a portrait",
+                &mut icons,
+                &mut problems,
+            )
+        } else {
+            let source = if avatars.contains_key(&name) {
+                IconSource::Avatar(name.clone())
             } else {
-                let source = if avatars.contains_key(&name) {
-                    IconSource::Avatar(name.clone())
-                } else {
-                    IconSource::Portrait(frame, *tint)
-                };
-                icons.insert(key.clone(), source);
-                baked.push(key.clone());
-                Some(key.clone())
+                IconSource::Portrait(frame, mannequin::MANNEQUIN_TINT)
             };
-            if let Some(icon) = icon {
-                manifest.portraits.push(IconEntry {
-                    key: format!("{}_{}", rig::frame_name(frame), armour),
-                    icon,
-                });
-            }
+            icons.insert(key.clone(), source);
+            baked.push(key.clone());
+            Some(key.clone())
+        };
+        if let Some(icon) = icon {
+            manifest.portraits.push(IconEntry { key: name, icon });
         }
     }
     manifest.avatars = avatar_entries;
@@ -1884,12 +1876,11 @@ mod tests {
     fn the_official_avatar_is_built_as_a_body_and_sits_for_its_portrait() {
         let bundle = build(&sources()).expect("the content builds");
         let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
-        let mail = gm_core::matrix::ArmourClass::Mail as u8;
         let a = bundle
             .manifest
-            .avatar(striker, mail)
-            .expect("the striker in mail (avatars.toml)");
-        assert_eq!(a.file, "avatars/striker_mail.gmm");
+            .avatar(striker)
+            .expect("the striker (avatars.toml)");
+        assert_eq!(a.file, "avatars/striker.gmm");
         assert_eq!(a.key, "striker_mail");
         let bytes = &bundle.files[&a.file];
         assert_eq!(gm_model::model_id(bytes), a.sha256);
@@ -1899,14 +1890,17 @@ mod tests {
         assert_eq!(model.frame, striker);
         assert_eq!(model.triangles() as u32, a.triangles);
         assert!(model.triangles() <= gm_model::limits::MAX_TRIANGLES);
-        assert!(bundle.avatars.contains_key("striker_mail"));
-        assert!(bundle.baked.contains(&"portrait/striker_mail".to_string()));
+        assert!(bundle.avatars.contains_key("striker"));
+        assert!(bundle.baked.contains(&"portrait/striker".to_string()));
         assert_eq!(
-            bundle.manifest.portrait("striker_mail"),
-            Some("portrait/striker_mail")
+            bundle.manifest.portrait("striker"),
+            Some("portrait/striker")
         );
-        // A frame without a row keeps the mannequin: nothing is in the bundle for it.
-        assert!(bundle.manifest.avatar(striker, 0).is_none());
+        // A frame without a row keeps the mannequin: nothing is in the bundle for it, and
+        // its portrait is the mannequin's.
+        let caster = rig::frame_index(gm_core::vocab::ArchetypeFrame::Caster);
+        assert!(bundle.manifest.avatar(caster).is_none());
+        assert_eq!(bundle.manifest.portrait("caster"), Some("portrait/caster"));
     }
 
     /// CONTENT.md 3.3: an armour's overlay is in the bundle as an overlay of the frame it
@@ -1956,10 +1950,7 @@ mod tests {
     fn a_patch_armour_is_built_per_body_and_is_no_overlay() {
         let bundle = build(&sources()).expect("the content builds");
         let striker = rig::frame_index(gm_core::vocab::ArchetypeFrame::Striker);
-        let avatar = bundle
-            .manifest
-            .avatar(striker, 2)
-            .expect("the striker in mail");
+        let avatar = bundle.manifest.avatar(striker).expect("the striker");
         let body = Model::decode(&bundle.files[&avatar.file]).unwrap();
         for key in ["cuirass", "trousers"] {
             let p = bundle.manifest.patch(key, "striker_mail").expect(key);

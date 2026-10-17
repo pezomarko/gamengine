@@ -121,10 +121,6 @@ pub struct ItemTemplate {
     /// hand brings to whoever wears it (`shield_wall`, `brace`), in place of the build's.
     #[serde(default)]
     pub guard: Option<String>,
-    /// A chest piece's armour class (GEAR.md 3, MATRIX.md 4): `cloth`, `leather`, `mail`
-    /// or `plate`, what the body wearing it is in; a chest piece that names none is cloth.
-    #[serde(default)]
-    pub class: Option<String>,
     /// A shield's own block (GEAR.md 7): the numbers its guard plays with in place of the
     /// guard ability's (the buckler narrow and cheap, the tower shield wide and slow).
     #[serde(default)]
@@ -1046,21 +1042,6 @@ impl ItemContent {
                 _ => {
                     return bad(format!(
                         "template {:?}: an armour or a shield guards against physical or elements, and strikes with nothing",
-                        t.id
-                    ));
-                }
-            }
-            // The armour class is the chest piece's and nobody else's (GEAR.md 3).
-            if let Some(class) = &t.class {
-                if t.kind != "armour" || t.place.as_deref().is_some_and(|p| p != "chest") {
-                    return bad(format!(
-                        "template {:?}: only an armour on the chest carries an armour class",
-                        t.id
-                    ));
-                }
-                if !["cloth", "leather", "mail", "plate"].contains(&class.as_str()) {
-                    return bad(format!(
-                        "template {:?}: the class is cloth, leather, mail or plate, not {class:?}",
                         t.id
                     ));
                 }

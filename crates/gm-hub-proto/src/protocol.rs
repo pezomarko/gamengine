@@ -810,9 +810,8 @@ pub struct StallSummary {
     pub tile_y: i32,
     pub owner: CharacterId,
     pub owner_name: String,
-    /// The keeper's frame and armour class, and its avatar model while that is active.
+    /// The keeper's frame, and its avatar model while that is active.
     pub frame: u8,
-    pub armour: u8,
     pub model: Option<ModelRef>,
 }
 
@@ -1290,7 +1289,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 18;
+pub const HUB_VERSION: u8 = 19;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

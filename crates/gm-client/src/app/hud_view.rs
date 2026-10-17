@@ -668,19 +668,10 @@ fn hud_own(
     }
     let side = 48.0 * s;
     let build = &c.sheet.build;
-    // The portrait of the look the body wears (CONTENT.md 5.3): the official avatar's own,
-    // worn in every class (CONTENT.md 3.2), else the mannequin's of the frame in the class.
+    // The frame's portrait (CONTENT.md 5.3): the official avatar's where the bundle has
+    // one, else the mannequin's.
     let portrait = manifest.and_then(|m| {
-        let frame = gm_model::rig::frame_index(build.frame);
-        m.avatar_near(frame, c.sheet.class as u8)
-            .and_then(|a| m.portrait(&a.key))
-            .or_else(|| {
-                m.portrait(&format!(
-                    "{}_{}",
-                    gm_model::rig::frame_name(build.frame),
-                    c.sheet.class.name()
-                ))
-            })
+        m.portrait(gm_model::rig::frame_name(build.frame))
             .map(str::to_string)
     });
     hud.frame(16.0, y, side, side, "portrait_frame", s, hud::PLAIN);

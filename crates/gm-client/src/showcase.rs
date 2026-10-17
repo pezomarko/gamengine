@@ -118,11 +118,11 @@ pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
     }
 }
 
-/// `Class  |  frame in armour`, the equipment's line under the name (EQUIPMENT.md 4.1):
-/// the ribbon without the aspects and the mode, which the selector says. `armour` is the
-/// class the body is in, the worn chest piece's (GEAR.md 3), not the build's.
-pub fn short_ribbon(class: &str, b: &Build, armour: gm_core::matrix::ArmourClass) -> String {
-    let body = format!("{} in {}", frame_name(b.frame), armour.name());
+/// `Class  |  frame`, the equipment's line under the name (EQUIPMENT.md 4.1): the ribbon
+/// without the aspects and the mode, which the selector says. (`frame in armour` until
+/// GEAR.md 12, 2026-10-17: there is no armour class to say.)
+pub fn short_ribbon(class: &str, b: &Build) -> String {
+    let body = frame_name(b.frame).to_string();
     if class.is_empty() {
         body
     } else {
@@ -485,10 +485,7 @@ mod tests {
             ribbon(&class_name(Some(&pack), ironclad), ironclad),
             "Ironclad  |  colossus  |  ground  |  action mode"
         );
-        assert_eq!(
-            short_ribbon("Ironclad", ironclad, gm_core::matrix::ArmourClass::Cloth),
-            "Ironclad  |  colossus in cloth"
-        );
+        assert_eq!(short_ribbon("Ironclad", ironclad), "Ironclad  |  colossus");
         let mut neutral = ironclad.clone();
         neutral.aspects = gm_core::matrix::Aspects::default();
         assert!(ribbon("", &neutral).contains("|  no aspect  |"));

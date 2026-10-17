@@ -1636,7 +1636,6 @@ impl App {
             frame,
             team,
             aspects,
-            armour,
         } = e.spawn
         else {
             return;
@@ -1725,7 +1724,6 @@ impl App {
             &o.props,
             look,
             frame,
-            armour,
         );
         self.scene.bodies.push(Body {
             key: e.id,
@@ -1735,7 +1733,6 @@ impl App {
             anim: e.anim,
             crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
             frame,
-            armour,
             aspects,
             status: e.status,
             model: o.names.get(&e.id).and_then(|n| n.2),
@@ -2197,7 +2194,6 @@ impl App {
             &o.props,
             o.looks.get(&c.my_id).copied().unwrap_or_default(),
             gm_model::rig::frame_index(build.frame),
-            c.sheet.class as u8,
         );
         self.scene.bodies.push(Body {
             key: OWN,
@@ -2207,7 +2203,6 @@ impl App {
             anim: own_anim,
             crouched: c.mover.crouched,
             frame: gm_model::rig::frame_index(build.frame),
-            armour: c.sheet.class as u8,
             aspects: build.aspects.0,
             status: c.mover.statuses.mask(),
             model: o.names.get(&c.my_id).and_then(|n| n.2),

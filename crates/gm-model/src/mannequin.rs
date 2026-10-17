@@ -562,13 +562,9 @@ pub fn build(frame: ArchetypeFrame, shape: &Shape) -> MeshData {
     b.mesh
 }
 
-/// Armour-class tints of the mannequin (MODELS.md 9): cloth, leather, mail, plate.
-pub const ARMOUR_TINTS: [[f32; 3]; 4] = [
-    [0.84, 0.80, 0.70],
-    [0.55, 0.38, 0.24],
-    [0.62, 0.66, 0.72],
-    [0.30, 0.32, 0.36],
-];
+/// The mannequin's tint (MODELS.md 9): one grey. (Four, one an armour class, until
+/// GEAR.md 12, 2026-10-17: a body's look is its frame's, whatever it wears.)
+pub const MANNEQUIN_TINT: [f32; 3] = [0.62, 0.66, 0.72];
 
 pub const MANNEQUIN_TEXTURE_SIZE: u32 = 64;
 

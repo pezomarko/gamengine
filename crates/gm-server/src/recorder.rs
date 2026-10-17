@@ -639,7 +639,6 @@ mod tests {
                     frame: 1,
                     team,
                     aspects: 0,
-                    armour: 0,
                 },
                 pos: quant::quantize_pos3(pos.into()),
                 yaw: quant::yaw_to_wire(yaw),

@@ -10,9 +10,9 @@ use gm_core::sim::anim;
 use gm_core::trace::{CollisionWorld, Hull};
 use gm_core::vocab::Status;
 use gm_model::Model;
-use gm_model::anim::{Animator, armour_weight};
+use gm_model::anim::Animator;
 use gm_model::format::TextureFormat;
-use gm_model::mannequin::{self, ARMOUR_TINTS, MANNEQUIN_TEXTURE_SIZE, Shape};
+use gm_model::mannequin::{self, MANNEQUIN_TEXTURE_SIZE, MANNEQUIN_TINT, Shape};
 use gm_model::{ModelId, Patch, Pose, patch, rig};
 
 use crate::cache::{CacheStats, ModelCache};
@@ -69,9 +69,8 @@ pub struct Body {
     pub anim: u8,
     /// Crouched (MODES.md 3.5): the squat over the stance, the body `CROUCH_DROP` lower.
     pub crouched: bool,
-    /// Frame, armour class and aspect mask as in the snapshot's spawn info.
+    /// Frame and aspect mask as in the snapshot's spawn info.
     pub frame: u8,
-    pub armour: u8,
     pub aspects: u8,
     /// Status mask (the aura).
     pub status: u32,
@@ -142,7 +141,6 @@ struct CrowdMember {
     origin: Vec3,
     yaw: f32,
     frame: u8,
-    armour: u8,
     model: Option<ModelId>,
 }
 
@@ -172,9 +170,9 @@ pub struct Avatars {
     /// The props that hang flat on the back when sheathed (LOOK.md 6.7): the shields,
     /// marked by whoever puts a prop in a slot (the app, from the manifest's kind).
     pub flat: HashSet<usize>,
-    /// The official avatars of the bundle by frame and armour class (CONTENT.md 3.2), once
-    /// loaded: a body without a model of its own wears one before it is the mannequin.
-    officials: [[Option<usize>; 4]; 4],
+    /// The official avatars of the bundle by frame (CONTENT.md 3.2), once loaded: a body
+    /// without a model of its own wears one before it is the mannequin.
+    officials: [Option<usize>; 4],
     /// Their atlases on the CPU, by slot (`keep_body`): what the composites start from.
     bodies: HashMap<usize, BodyAtlas>,
     /// The cloth patches the content has loaded (`add_patch`), by id.
@@ -309,7 +307,7 @@ impl Avatars {
             crowd_patches: Vec::new(),
             crowd_sheathed: false,
             flat: HashSet::new(),
-            officials: [[None; 4]; 4],
+            officials: [None; 4],
             bodies: HashMap::new(),
             patches: Vec::new(),
             composites: HashMap::new(),
@@ -409,11 +407,9 @@ impl Avatars {
         }
     }
 
-    /// The official avatar of a frame in an armour class, on the GPU (or not there).
-    pub fn set_official(&mut self, frame: u8, armour: u8, slot: Option<usize>) {
-        if let Some(row) = self.officials.get_mut(frame as usize)
-            && let Some(cell) = row.get_mut(armour as usize)
-        {
+    /// The official avatar of a frame, on the GPU (or not there).
+    pub fn set_official(&mut self, frame: u8, slot: Option<usize>) {
+        if let Some(cell) = self.officials.get_mut(frame as usize) {
             *cell = slot;
         }
     }
@@ -447,15 +443,12 @@ impl Avatars {
                 self.with_model += 1;
                 (slot, [1.0; 3])
             }
-            None => {
-                let armour = (body.armour as usize).min(3);
-                match self.officials[frame][armour] {
-                    // The official look is untinted: its armour is painted on (MODELS.md 9:
-                    // the class is in the gait), and so is the cloth it wears (LOOK.md 6.6).
-                    Some(slot) => (self.dressed(slot, &body.patches), [1.0; 3]),
-                    None => (self.mannequins[frame], ARMOUR_TINTS[armour]),
-                }
-            }
+            None => match self.officials[frame] {
+                // The official look is untinted, and so is the cloth it wears (LOOK.md
+                // 6.6); the mannequin is one grey (no armour class since GEAR.md 12).
+                Some(slot) => (self.dressed(slot, &body.patches), [1.0; 3]),
+                None => (self.mannequins[frame], MANNEQUIN_TINT),
+            },
         };
         // Auras: a staggered or rooted body darkens, a hasted one brightens.
         let has = |s: Status| body.status & (1 << s.index()) != 0;
@@ -491,7 +484,7 @@ impl Avatars {
             moved,
             body.pitch,
             hips_z,
-            armour_weight(body.armour),
+            0.0,
         );
         let feet = body.origin + Vec3::Z * Hull::Player.mins().z;
         let world = Mat4::from_translation(feet) * Mat4::from_rotation_z(body.yaw.to_radians());
@@ -672,9 +665,9 @@ impl Avatars {
             anim::SWING,
         ];
         for i in 0..self.crowd.len() {
-            let (origin, yaw, frame, armour, model) = {
+            let (origin, yaw, frame, model) = {
                 let m = &self.crowd[i];
-                (m.origin, m.yaw, m.frame, m.armour, m.model)
+                (m.origin, m.yaw, m.frame, m.model)
             };
             let state = STATES[(i + (time / 3.0) as usize) % STATES.len()];
             let body = Body {
@@ -685,7 +678,6 @@ impl Avatars {
                 anim: state,
                 crouched: false,
                 frame,
-                armour,
                 aspects: 1 << (i % 6),
                 status: 0,
                 model,
@@ -818,7 +810,6 @@ fn place_crowd(
             yaw: (yaw + 180.0 + turn).rem_euclid(360.0),
             // The mannequin's frame; generated models cycle through the four the same way.
             frame: (i % 4) as u8,
-            armour: ((i / 4) % 4) as u8,
             model: (!ids.is_empty()).then(|| ids[i % ids.len()]),
         });
     }
@@ -840,7 +831,6 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         anim: anim::IDLE,
         crouched: false,
         frame: stall.frame,
-        armour: stall.armour,
         aspects: 0,
         status: 0,
         model: stall.model,

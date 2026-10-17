@@ -12,7 +12,7 @@ pub mod worn;
 use std::path::Path;
 
 use gm_core::build::{AbilityDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Slot};
-use gm_core::matrix::{ArmourClass, Aspects, Attributes, Element};
+use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::{Tick, TickRate};
 use gm_core::trial::{Lens, TrialDef};
 use gm_core::vocab::{
@@ -514,7 +514,6 @@ pub(crate) struct BuildToml {
     pub(crate) mode: String,
     frame: String,
     attributes: AttributesToml,
-    armour: String,
     aspects: Vec<String>,
     primary: String,
     secondary: String,
@@ -548,7 +547,6 @@ pub(crate) struct CreatureToml {
     #[serde(default)]
     pub(crate) icon: Option<String>,
     frame: String,
-    armour: String,
     aspects: Vec<String>,
     attributes: AttributesToml,
     health: u16,
@@ -1050,15 +1048,14 @@ fn compile_ability(
     })
 }
 
-/// What a build and a creature share: the frame, the attributes, the armour class, the
-/// aspects and the slotted abilities by key.
+/// What a build and a creature share: the frame, the attributes, the aspects and the
+/// slotted abilities by key.
 struct BodyToml<'a> {
     what: &'a str,
     name: &'a str,
     /// The mode (MODES.md 2); a creature plays none.
     mode: Option<&'a str>,
     frame: &'a str,
-    armour: &'a str,
     aspects: &'a [String],
     attributes: &'a AttributesToml,
     primary: &'a str,
@@ -1080,10 +1077,6 @@ fn compile_body(b: &BodyToml<'_>, pack: &ContentPack) -> Result<Build, ContentEr
         "infiltrator" => ArchetypeFrame::Infiltrator,
         other => return Err(err(format!("unknown frame {other:?}"))),
     };
-    let armour = ArmourClass::ALL
-        .into_iter()
-        .find(|c| c.name() == b.armour)
-        .ok_or_else(|| err(format!("unknown armour class {:?}", b.armour)))?;
     let mut aspects = Aspects::NONE;
     for a in b.aspects {
         let e = Element::ALL
@@ -1106,7 +1099,6 @@ fn compile_body(b: &BodyToml<'_>, pack: &ContentPack) -> Result<Build, ContentEr
             b.attributes.int,
             b.attributes.spr,
         ),
-        armour,
         aspects,
         primary: find(b.primary)?,
         secondary: find(b.secondary)?,
@@ -1128,7 +1120,6 @@ fn compile_build(b: &BuildToml, pack: &ContentPack) -> Result<NamedBuild, Conten
                 name: &b.name,
                 mode: Some(&b.mode),
                 frame: &b.frame,
-                armour: &b.armour,
                 aspects: &b.aspects,
                 attributes: &b.attributes,
                 primary: &b.primary,
@@ -1151,7 +1142,6 @@ fn compile_creature(c: &CreatureToml, pack: &ContentPack) -> Result<CreatureDef,
                 name: &c.key,
                 mode: None,
                 frame: &c.frame,
-                armour: &c.armour,
                 aspects: &c.aspects,
                 attributes: &c.attributes,
                 primary: &c.primary,

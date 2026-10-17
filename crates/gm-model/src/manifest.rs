@@ -31,7 +31,7 @@ pub struct Manifest {
     pub patches: Vec<PatchEntry>,
     /// Icon keys of the statuses, by status name (`burn`, `chill`, ...).
     pub statuses: Vec<IconEntry>,
-    /// Portraits by `<frame>_<armour>` (`striker_mail`).
+    /// Portraits by frame name (`striker`).
     pub portraits: Vec<IconEntry>,
     /// The atlases, one per density (LOOK.md 2.2), thinnest first.
     pub atlases: Vec<AtlasEntry>,
@@ -160,17 +160,15 @@ pub struct Variant {
     pub bytes: u32,
 }
 
-/// An official avatar: the look of a frame in an armour class, worn by every character of
-/// that frame and class without a model of its own (MODELS.md 1, CONTENT.md 3.2).
+/// An official avatar: the look of a frame, worn by every character of that frame without
+/// a model of its own (MODELS.md 1, CONTENT.md 3.2).
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct AvatarEntry {
     /// `rig::frame_index`.
     pub frame: u8,
-    /// `ArmourClass as u8`.
-    pub armour: u8,
     /// The model's key (`models/avatars/<key>.glb` in the sources).
     pub key: String,
-    /// The file under the bundle: `avatars/<frame>_<armour>.gmm`.
+    /// The file under the bundle: `avatars/<frame>.gmm`.
     pub file: String,
     pub sha256: [u8; 32],
     pub bytes: u32,
@@ -253,24 +251,11 @@ impl Manifest {
         self.props.iter().find(|p| p.key == key)
     }
 
-    /// The official avatar of a frame (`rig::frame_index`) in an armour class (its index):
-    /// the row of that pair exactly.
-    pub fn avatar(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
-        self.avatars
-            .iter()
-            .find(|a| a.frame == frame && a.armour == armour)
-    }
-
-    /// The official avatar a body of a frame in an armour class wears (CONTENT.md 3.2):
-    /// the row of that pair, else the frame's row nearest in class (the lighter of two as
-    /// near), else none. The class a body is in is its chest piece's (GEAR.md 3), and a
-    /// frame with one official look keeps it whatever it puts on: the armour is drawn over
-    /// the body, not by swapping it for the mannequin.
-    pub fn avatar_near(&self, frame: u8, armour: u8) -> Option<&AvatarEntry> {
-        self.avatars
-            .iter()
-            .filter(|a| a.frame == frame)
-            .min_by_key(|a| (a.armour.abs_diff(armour), a.armour))
+    /// The official avatar of a frame (`rig::frame_index`), CONTENT.md 3.2: worn by every
+    /// body of the frame without a model of its own, whatever it wears (no armour class
+    /// since GEAR.md 12, 2026-10-17).
+    pub fn avatar(&self, frame: u8) -> Option<&AvatarEntry> {
+        self.avatars.iter().find(|a| a.frame == frame)
     }
 
     /// The overlay of an armour's model for a frame (`rig::frame_index`).
@@ -352,9 +337,8 @@ mod tests {
             }],
             avatars: vec![AvatarEntry {
                 frame: 1,
-                armour: 2,
                 key: "striker_mail".into(),
-                file: "avatars/striker_mail.gmm".into(),
+                file: "avatars/striker.gmm".into(),
                 sha256: [9; 32],
                 bytes: 415_970,
                 triangles: 2946,
@@ -370,20 +354,10 @@ mod tests {
         );
         assert!(m.template("axe").is_none());
         assert_eq!(
-            m.avatar(1, 2).map(|a| a.file.as_str()),
-            Some("avatars/striker_mail.gmm")
+            m.avatar(1).map(|a| a.file.as_str()),
+            Some("avatars/striker.gmm")
         );
-        assert!(m.avatar(1, 3).is_none());
-        // The look a body wears is its frame's nearest in class: the striker in mail is
-        // the striker in anything (CONTENT.md 3.2), and the caster has none.
-        for armour in 0..4u8 {
-            assert_eq!(
-                m.avatar_near(1, armour).map(|a| a.file.as_str()),
-                Some("avatars/striker_mail.gmm"),
-                "class {armour}"
-            );
-        }
-        assert!(m.avatar_near(2, 2).is_none());
+        assert!(m.avatar(2).is_none());
         assert_eq!(
             m.overlay("cuirass", 1).map(|o| o.file.as_str()),
             Some("armour/cuirass_striker.gmm")

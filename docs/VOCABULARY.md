@@ -35,7 +35,7 @@ wins and the code is wrong. Changes to either require changing both in the same 
 - Every simulated entity has origin, velocity, view yaw/pitch, a collision hull and party/guild
   tags. Tags are for **UI only**. Damage never reads them (PLAN.md 4.4).
 - Combatants add attributes (STR, AGI, CON, INT, SPR), resources (health, stamina, focus), an
-  archetype frame, an armour class, one or two aspects, statuses and a kit (abilities and a
+  archetype frame, one or two aspects (no armour class since 2026-10-17, MATRIX.md 4), statuses and a kit (abilities and a
   guard). Derived-stat formulas, the type matrix and the point budget live in `MATRIX.md`.
 - **Hitbox** = a capsule from the archetype frame table. Never from the mesh (PLAN.md 2.9).
   **World collision** uses the same 32 × 32 × 56 hull for every player archetype in year one; the

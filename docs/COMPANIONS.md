@@ -58,7 +58,7 @@ creature's own melee and telegraphs take at least 400 ms to land.
   that party's foe for 10 s wherever it stands (it was felt, not seen). The trace is run lazily: candidates are
   ranked by what the mind wants (nearest, most hurt, highest threat) and tested in that order
   until one is seen, so a decision costs a few traces, not one per body in range.
-- Per body: position, velocity, facing, animation state, frame, armour class, aspects, the
+- Per body: position, velocity, facing, animation state, frame, aspects (the armour class until 2026-10-17), the
   status mask, team and party. The health of its own party and of creatures (what the wire
   shows, section 13); of nobody else.
 - **Areas**: the circles on the floor, each with its radius, its owner and whether it harms

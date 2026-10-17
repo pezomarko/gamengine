@@ -4,7 +4,7 @@
 //! decided here: the zone validates, saves and answers (`FromZone::RespecResult`).
 
 use gm_core::build::{AbilityDef, BUDGET, Build, BuildError, ContentPack, MAX_ACTIVES, Slot};
-use gm_core::matrix::{ArmourClass, Aspects, Attributes, Element};
+use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::TickRate;
 use gm_core::vocab::{ArchetypeFrame, Guard, Mode, MoveKind, Origin, Shape, Trigger, Verb};
 
@@ -84,7 +84,6 @@ pub fn build_editor<C: Canvas>(
     pack: &ContentPack,
     rate: TickRate,
     b: &mut Build,
-    class: ArmourClass,
 ) {
     let s = ui.scale;
     let gap = 5.0 * s;
@@ -148,7 +147,7 @@ pub fn build_editor<C: Canvas>(
         both.w - body.w - 2.0 * gap,
         both.h,
     );
-    body_column(ui, body, b, class);
+    body_column(ui, body, b);
     let (over, why) = kit_columns(ui, kit, pack, b);
     // What the ability under the cursor does, in the lines there are (the last cut if
     // it must be), after why it cannot be taken where it cannot; else what the lines
@@ -188,7 +187,7 @@ pub fn build_editor<C: Canvas>(
 
 /// The frame and the armour, the aspects, and the attributes: a name, `-`, the value,
 /// `+`, and what the points buy, a row each (MATRIX.md 6).
-fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build, class: ArmourClass) {
+fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (fh, line) = (ui.field_height(), ui.line());
@@ -208,15 +207,6 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build, class: 
     ) {
         b.frame = FRAMES[frame];
     }
-    // The armour class is the chest piece's (GEAR.md 3): said, not chosen.
-    let row = col.take(fh);
-    ui.label(
-        row.x,
-        row.y,
-        row.w,
-        ui::FAINT,
-        &format!("armour   {} (what the chest piece makes it)", class.name()),
-    );
     // Aspects: one or two of six (the second costs 10).
     let row = col.take(fh);
     ui.label(
@@ -275,7 +265,7 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build, class: 
     ui.label(head.x, head.y, head.w, ink, &budget);
     const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
     let mut attrs = b.attributes.as_array();
-    let d = gm_core::matrix::Derived::compute(b.attributes, b.frame, class);
+    let d = gm_core::matrix::Derived::compute(b.attributes, b.frame);
     let buys = [
         format!("blows x{:.2}", d.physical_mult),
         format!("speed {:.0} u/s", d.max_speed),
@@ -827,9 +817,6 @@ pub struct CharacterView<'a> {
     pub pack: &'a ContentPack,
     /// The build worn now.
     pub own: &'a Build,
-    /// The armour class the body is in (GEAR.md 3): the worn chest piece's, which the
-    /// page shows and reckons the derived numbers in; not a choice here.
-    pub class: ArmourClass,
     /// The zone's tick rate: the abilities' ticks read in seconds.
     pub rate: TickRate,
     /// Standing by the trainer (within `TRAINER_REACH` of one) in a zone of the world; in a
@@ -890,7 +877,6 @@ impl CharacterPage {
             v.pack,
             v.rate,
             b,
-            v.class,
         );
         // The buttons, and beside them what is wrong with the draft, else the zone's
         // word, else where this may be worn.
@@ -1027,7 +1013,6 @@ mod tests {
         let v = CharacterView {
             pack: &pack,
             own: &own,
-            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1051,7 +1036,6 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
-            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1090,7 +1074,6 @@ mod tests {
         }
         // A kit past its budget is said so, and not worn.
         let b = page.draft.as_mut().unwrap();
-        b.armour = ArmourClass::Plate;
         b.actives = ["overhead", "haste", "war_standard", "dash"]
             .iter()
             .map(|k| pack.find(k).unwrap())
@@ -1110,7 +1093,6 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
-            class: own.armour,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1236,7 +1218,6 @@ mod tests {
         let view = CharacterView {
             pack: &pack,
             own: &blade,
-            class: blade.armour,
             rate: TickRate::TOWN,
             at_trainer: true,
             note: "",

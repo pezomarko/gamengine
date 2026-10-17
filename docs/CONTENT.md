@@ -185,25 +185,23 @@ texture, the frame's envelope. A creature is checked against the envelope of *it
 `gm_ingest::ingest` as the hub runs it.
 
 **Official avatars** (built 2026-10-13, the first of Phase 17's items): `avatars.toml` holds
-`[[avatar]]` rows of `frame`, `armour` and `model`; `build` ingests `models/avatars/<model>.glb`
-for that frame exactly as the hub would an upload (the envelope: a Quaternius warrior had to be
-scaled to put its head pivot in the striker's band and thinned 10% front to back to stay under
-150% of the mannequin's side coverage) and writes `avatars/<frame>_<armour>.gmm`, named in the
-manifest with its hash. A client loads it from the bundle like a prop, the first time it is
-asked for (natively a read, in a browser a fetch), and every body of that frame and class
-without a model of its own wears it instead of the mannequin: a player's upload still wins, a
-refused or missing one still falls back, and the mannequin remains for every frame without a
-row. **A frame's look is worn in every class** (2026-10-17): the class a body is in is its
-chest piece's (GEAR.md 3), so a client asks for the row of the pair and, without one, the
-frame's row nearest in class (`Manifest::avatar_near`; the lighter of two as near), and only
-a frame with no row at all keeps the mannequin. Before this the blade stood in the selector
-as the striker in mail and entered the town as the mannequin, tinted leather, in a robe cut
-for the man (the director, the LAN test of 2026-10-17): a cuirass was a change of colour. The
-row's class still says which look a frame with several would wear in it, and the patches
-are baked per row (3.3), so the cuirass's patch lands on the body it was cut for whatever
-class names it. The look is untinted (its armour is painted on; the class is in the gait, MODELS.md 9),
-auras and hits tint it as any model. The pair's portrait (5.3) is baked from it, not from the
-mannequin. A rigged pack rarely comes on this rig: `scripts/dev/glb-retarget.py` renames
+`[[avatar]]` rows of `frame` and `model` (and `armour` until 2026-10-17, below); `build`
+ingests `models/avatars/<model>.glb` for that frame exactly as the hub would an upload (the
+envelope: a Quaternius warrior had to be scaled to put its head pivot in the striker's band
+and thinned 10% front to back to stay under 150% of the mannequin's side coverage) and
+writes `avatars/<frame>.gmm`, named in the manifest with its hash. A client loads it from the
+bundle like a prop, the first time it is asked for (natively a read, in a browser a fetch),
+and every body of that frame without a model of its own wears it instead of the mannequin,
+whatever it has on: a player's upload still wins, a refused or missing one still falls back,
+and the mannequin remains for every frame without a row. The look is untinted; auras and
+hits tint it as any model. The frame's portrait (5.3) is baked from it, not from the
+mannequin. (Until 2026-10-17 a row was a frame *in an armour class*, and the look was
+looked up by both: with the class on the worn chest piece since GEAR.md 3, the blade stood
+in the selector as the man and entered the town as the mannequin, tinted leather, in a robe
+cut for the man; a morning's fix wore the frame's nearest row in every class, and the
+afternoon took the class out of the game, GEAR.md 12. The one row is the striker's; its
+model key stays `striker_mail`, the file's name, which means the Quaternius hero in
+trousers and not a class.) A rigged pack rarely comes on this rig: `scripts/dev/glb-retarget.py` renames
 nodes, unlinks subtrees and scales a `.glb` per axis with its skin kept consistent (no
 Blender), and `scripts/dev/blender-quaternius-warrior.py` is the Blender pass that made the
 first one (bones renamed, the IK feet and the thighs reparented, the face decimated, the sword
@@ -356,7 +354,9 @@ CI. The rule that makes it so is SOUND.md 2's: IEEE basics only (add, multiply, 
 machines. A test pins the icons' hashes as it pins the patches'. The view is orthographic,
 the model's longest axis from bottom-left to top-right (as every RPG draws a sword), lit
 from the top-left, filling 28 of the 32 dots, on transparent. A creature's or avatar's
-portrait is the head and shoulders from the front, the same way.
+portrait is the head and shoulders from the front, the same way. A frame's portrait
+(`portrait/<frame>`, one a frame since 2026-10-17) is its official avatar's where the bundle
+has one, else its mannequin's.
 
 ### 5.4 What is committed
 

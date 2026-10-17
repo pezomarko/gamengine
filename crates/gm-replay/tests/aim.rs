@@ -38,7 +38,6 @@ fn state(id: u32, team: u8, pos: Vec3, yaw: f32, pitch: f32) -> EntityState {
             frame: 1,
             team,
             aspects: 0,
-            armour: 0,
         },
         pos: quant::quantize_pos3(pos.into()),
         yaw: quant::yaw_to_wire(yaw),
