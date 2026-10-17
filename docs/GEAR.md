@@ -400,7 +400,9 @@ plays every one before the next.
 - **2026-10-17, no classes** (12). The director, after the LAN test: "class is wrong name
   for what armor provides, it's like defense type that's provided, either physical or
   magical, no? makes no sense to complicate further." Built the same day: MATRIX.md 18.
-  Content v20, protocol v26, hub v19, player v13.
+  Content v20, protocol v26, hub v19, player v13. Found by the arena's cycle test: the
+  blade's win over the frostweaver was the triangle's (slash on cloth); the leg is even
+  now (MATRIX.md 18), the director's to re-tune.
 
 ## 12. No classes (decided and built 2026-10-17)
 

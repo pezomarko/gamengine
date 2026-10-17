@@ -210,9 +210,13 @@ fn ironclad_beats_blade_and_frostweaver_beats_ironclad() {
         c_total[1],
         c_total[2]
     );
+    // The blade's edge over the frostweaver was the triangle's (slash 1.25 on cloth,
+    // MATRIX.md 4 until 2026-10-17); without an armour class the leg is near even (CI
+    // 19:18, the reference machine 25:18), so this leg asks for no domination either way
+    // until the director re-tunes it (MATRIX.md 18).
     assert!(
-        c_ratio >= 1.3,
-        "blade does not close the cycle against frostweaver: {}:{}",
+        c_ratio >= 0.8,
+        "frostweaver dominates blade: {}:{}",
         c_total[1],
         c_total[2]
     );

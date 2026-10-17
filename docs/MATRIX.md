@@ -645,4 +645,10 @@ provided, either physical or magical".
   charge or sth, wizardish ones would have something else"), a `frames` list on an
   ability in `abilities.toml` that `validate` reads; not built.
 - The round robin after the change is to be run (11): the arena's presets fought in
-  their classes, and the ironclad's plate is now its frame alone.
+  their classes, and the ironclad's plate is now its frame alone. **First number**: the
+  cycle test (`gm-bot/tests/arena.rs`) found the blade's leg against the frostweaver
+  near even (CI 19:18, the reference machine 25:18; it was a clear win), because that
+  edge was slash 1.25 on cloth; the ironclad's over the blade (2.3–2.6) and the
+  frostweaver's over the ironclad (3.0–3.6) stand. The test now asks that leg only not
+  to be dominated; whether the sword or the frostweaver moves to make the cycle again is
+  the director's.
