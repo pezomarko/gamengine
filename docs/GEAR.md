@@ -362,7 +362,7 @@ plays every one before the next.
   template is gone from `items.toml` and the quartermaster's stock (`play.sh`), and
   migration 0019 retires every arrow a bag or a stall holds. `Ability.ammo` and the
   reserve it draws on stay in the engine, tested on a synthetic pack, for a thrown thing
-  that may want them; nothing in the content names one.
+  that may want them; nothing in the content names one. Content v19.
 - **Step 6 (the shop) is skipped** by the director's word the same evening: "we skip
   step 8 for now, good economy will come at later stage, this is provisional only"
   (section 8's asks). The bots' asks stay the test fixtures they are.
