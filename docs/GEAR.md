@@ -203,7 +203,7 @@ The catalog's findings 4 and 5, in numbers rather than systems:
   that taps a claymore's swing no longer stops it. The 1.5 share of the edge stays.
 - **The bow** gets an arrow stack (`arrow`, cap 60, the quartermaster's at 1 silver,
   as the balls) and 75 damage for 60, so it is a gun-mode alternative in the action
-  mode rather than a free crossbow.
+  mode rather than a free crossbow. (The stack lasted a day: 11, 2026-10-17.)
 - **The three shields** differ on the template, overriding `shield_wall`'s block:
 
   | Shield | arc | mitigation | stamina per hit | move speed | projectiles |
@@ -356,6 +356,13 @@ plays every one before the next.
   (`PROTOCOL_VERSION` 25) and `Kit::from_build` plays in place of the guard's verb. Not
   done: a count of arrows on the action HUD (the bag shows the stack; the gun HUD's
   numbers are the gun mode's), the helmets' difference (section 7 left them as looks).
+- **2026-10-17, the arrows are unlimited.** The director: "arrows we can make unlimited
+  but rate limited by stamina, just like make them use stamina and that's it." The bow
+  names no `ammo`; its 20 stamina a draw is the limit, as a blow's is. The `arrow`
+  template is gone from `items.toml` and the quartermaster's stock (`play.sh`), and
+  migration 0019 retires every arrow a bag or a stall holds. `Ability.ammo` and the
+  reserve it draws on stay in the engine, tested on a synthetic pack, for a thrown thing
+  that may want them; nothing in the content names one.
 - **Step 6 (the shop) is skipped** by the director's word the same evening: "we skip
   step 8 for now, good economy will come at later stage, this is provisional only"
   (section 8's asks). The bots' asks stay the test fixtures they are.

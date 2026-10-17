@@ -371,12 +371,6 @@ layers = []
 cap = 30
 
 [[template]]
-id = "arrow"              # the bow's (GEAR.md 7): one a shot, none carried and it does not loose
-kind = "stack"
-layers = []
-cap = 60
-
-[[template]]
 id = "pistol_round"
 kind = "stack"
 layers = []

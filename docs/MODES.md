@@ -614,10 +614,6 @@ id = "ball"          # the musket's
 kind = "stack"
 cap = 30             # the root's AWP carries 30; the musket drops a body in one or two
 [[template]]
-id = "arrow"         # the bow's (GEAR.md 7, 2026-10-16): one a shot, refused with none; `ammo = "arrow"` on the ability
-kind = "stack"
-cap = 60
-[[template]]
 id = "pistol_round"
 kind = "stack"
 cap = 64

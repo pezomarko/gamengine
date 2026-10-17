@@ -2599,7 +2599,9 @@ pub fn pack(rate: TickRate) -> ContentPack {
             },
         ),
     ];
-    // GEAR.md 7: the two-handers are heavy blows, the bow draws on its arrows.
+    // GEAR.md 7: the two-handers are heavy blows. (The bow drew on an arrow stack for a
+    // day, 2026-10-16; its draw costs stamina and nothing else since GEAR.md 11,
+    // 2026-10-17.)
     for key in [
         "greatsword",
         "claymore",
@@ -2611,9 +2613,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         if let Some(i) = pack.find(key) {
             pack.abilities[i as usize].ability.heavy = true;
         }
-    }
-    if let Some(i) = pack.find("bow") {
-        pack.abilities[i as usize].ability.ammo = "arrow".into();
     }
     pack
 }

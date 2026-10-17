@@ -865,15 +865,15 @@ at_ms = 0
 melee_arc = { reach = 100, arc = 24, half_height = 40, windup_ms = 220, active_ms = 60, recovery_ms = 380, damage = { amount = 65, type = "pierce", knockback = 140, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 20 }
 
 # The bow: a ranged action primary beside the gun mode, an arrow that drops; quicker and
-# lighter than the crossbow's bolt. Both hands. (Arrows as a stack, like the musket's
-# balls, is the firearm's mechanism and a decision for the director: none here.)
+# lighter than the crossbow's bolt. Both hands. Arrows are unlimited (the director,
+# 2026-10-17: "unlimited but rate limited by stamina"): the draw's stamina is the limit,
+# as a blow's is; the arrow stack of 2026-10-16 is retired (GEAR.md 11).
 [[ability]]
 key = "bow"
 name = "Bow"
 slot = "primary"
 cost = 2
 prop = "bow"
-ammo = "arrow"               # GEAR.md 7: one of the stack a shot, refused with none carried
 cooldown_ms = 1100
 stamina = 20                 # GEAR.md 11, step 7: drawing tires; a plate archer without it took 83% of its kills
 move_scale = 0.6
