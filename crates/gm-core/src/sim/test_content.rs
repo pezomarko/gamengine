@@ -3,7 +3,9 @@
 //! mirrors its v1 abilities and the preset builds of MATRIX.md 11 closely enough that
 //! simulation tests mean something, but it is a fixture, not the source of truth.
 
-use crate::build::{AbilityDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Sheet, Slot};
+use crate::build::{
+    AbilityDef, BodyDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Sheet, Slot,
+};
 use crate::matrix::{Aspects, Attributes, Element};
 use crate::tick::TickRate;
 use crate::trial::{Lens, TrialDef};
@@ -793,7 +795,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ),
         def(
             "stomp",
-            Active,
+            Secondary,
             10,
             Some(Element::Ground),
             ability(
@@ -864,7 +866,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ),
         def(
             "frost_nova",
-            Active,
+            Secondary,
             10,
             Some(Element::Water),
             ability(
@@ -943,7 +945,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ),
         def(
             "thunderclap",
-            Active,
+            Secondary,
             10,
             Some(Element::Electric),
             ability(
@@ -999,6 +1001,34 @@ pub fn pack(rate: TickRate) -> ContentPack {
                     Verb::ApplyStatus(status(
                         Status::Stealth,
                         6000,
+                        256.0,
+                        StackRule::Refresh,
+                        1,
+                        StatusTarget::Actor,
+                        r,
+                    )),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "slip",
+            Active,
+            6,
+            None,
+            ability(
+                40,
+                "Slip",
+                10000,
+                20,
+                0,
+                1.0,
+                Interrupt::Never,
+                vec![(
+                    0,
+                    Verb::ApplyStatus(status(
+                        Status::Stealth,
+                        3000,
                         256.0,
                         StackRule::Refresh,
                         1,
@@ -2279,6 +2309,347 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 r,
             ),
         ),
+        // The caster weapon's two moves and the techniques (BODIES.md 3.6 and 3.8,
+        // 2026-10-19). Appended: builds name abilities by position.
+        def(
+            "thorn",
+            Primary,
+            2,
+            Some(Element::Grass),
+            ability(
+                65,
+                "Thorn",
+                1000,
+                0,
+                8,
+                0.7,
+                Interrupt::OnDamage,
+                vec![(
+                    150,
+                    projectile(
+                        r,
+                        1500.0,
+                        0.15,
+                        4.0,
+                        packet(45, Grass, 60.0, 10),
+                        vec![Trigger::Status(status(
+                            Status::Bleed,
+                            2000,
+                            8.0,
+                            StackRule::Refresh,
+                            1,
+                            StatusTarget::Hit,
+                            r,
+                        ))],
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "flame_burst",
+            Secondary,
+            8,
+            Some(Element::Fire),
+            ability(
+                66,
+                "Flame burst",
+                2500,
+                0,
+                15,
+                0.5,
+                Interrupt::OnStagger,
+                vec![(
+                    200,
+                    Verb::AreaEffect(AreaEffect {
+                        shape: Shape::Cone {
+                            length: 220.0,
+                            half_angle_deg: 30.0,
+                        },
+                        origin: Origin::SelfFeet,
+                        delay: 0,
+                        duration: 0,
+                        interval: 0,
+                        damage: Some(packet(60, Fire, 80.0, 15)),
+                        effects: vec![status(
+                            Status::Burn,
+                            2000,
+                            10.0,
+                            StackRule::Refresh,
+                            1,
+                            StatusTarget::Area,
+                            r,
+                        )],
+                        falloff: Falloff::None,
+                        max_targets: 6,
+                        requires_los: true,
+                        exclude_actor: true,
+                    }),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "briar_burst",
+            Secondary,
+            8,
+            Some(Element::Grass),
+            ability(
+                67,
+                "Briar burst",
+                6000,
+                0,
+                25,
+                0.3,
+                Interrupt::OnStagger,
+                vec![(
+                    250,
+                    Verb::AreaEffect(AreaEffect {
+                        shape: Shape::Cylinder {
+                            radius: 128.0,
+                            height: 96.0,
+                        },
+                        origin: Origin::SelfFeet,
+                        delay: 0,
+                        duration: 0,
+                        interval: 0,
+                        damage: Some(packet(40, Grass, 60.0, 20)),
+                        effects: vec![status(
+                            Status::Root,
+                            800,
+                            1.0,
+                            StackRule::Refresh,
+                            1,
+                            StatusTarget::Area,
+                            r,
+                        )],
+                        falloff: Falloff::None,
+                        max_targets: 8,
+                        requires_los: true,
+                        exclude_actor: true,
+                    }),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "gust",
+            Secondary,
+            6,
+            Some(Element::Air),
+            ability(
+                68,
+                "Gust",
+                3000,
+                0,
+                12,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    150,
+                    Verb::AreaEffect(AreaEffect {
+                        shape: Shape::Cone {
+                            length: 200.0,
+                            half_angle_deg: 35.0,
+                        },
+                        origin: Origin::SelfFeet,
+                        delay: 0,
+                        duration: 0,
+                        interval: 0,
+                        damage: Some(packet(30, Air, 300.0, 10)),
+                        effects: vec![],
+                        falloff: Falloff::None,
+                        max_targets: 6,
+                        requires_los: true,
+                        exclude_actor: true,
+                    }),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "staff_sweep",
+            Secondary,
+            2,
+            None,
+            ability(
+                69,
+                "Sweep",
+                2000,
+                0,
+                0,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        72.0,
+                        140.0,
+                        150,
+                        60,
+                        300,
+                        packet(30, Blunt, 150.0, 40),
+                        3,
+                        1.0,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "pommel",
+            Secondary,
+            2,
+            None,
+            ability(
+                70,
+                "Pommel",
+                1500,
+                0,
+                0,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        56.0,
+                        60.0,
+                        100,
+                        50,
+                        250,
+                        packet(25, Blunt, 120.0, 50),
+                        1,
+                        1.0,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "thrust",
+            Primary,
+            2,
+            None,
+            ability(
+                71,
+                "Thrust",
+                700,
+                0,
+                0,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        84.0,
+                        30.0,
+                        200,
+                        60,
+                        350,
+                        packet(70, Pierce, 100.0, 20),
+                        1,
+                        1.0,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "hammer_sweep",
+            Primary,
+            2,
+            None,
+            ability(
+                72,
+                "Hammer sweep",
+                1000,
+                0,
+                0,
+                0.5,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        76.0,
+                        140.0,
+                        300,
+                        80,
+                        450,
+                        packet(55, Blunt, 200.0, 60),
+                        5,
+                        0.8,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "volley",
+            Primary,
+            2,
+            None,
+            ability(
+                73,
+                "Volley",
+                1300,
+                35,
+                0,
+                0.5,
+                Interrupt::OnDamage,
+                vec![(
+                    350,
+                    match projectile(r, 1600.0, 0.4, 2.0, packet(30, Pierce, 50.0, 5), vec![]) {
+                        Verb::Projectile(p) => Verb::Projectile(Projectile {
+                            spread_deg: 2.0,
+                            count: 3,
+                            ..p
+                        }),
+                        v => v,
+                    },
+                )],
+                r,
+            ),
+        ),
+        def(
+            "backstab",
+            Primary,
+            2,
+            None,
+            ability(
+                74,
+                "Backstab",
+                500,
+                0,
+                0,
+                0.7,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    match melee(
+                        r,
+                        56.0,
+                        40.0,
+                        150,
+                        50,
+                        300,
+                        packet(55, Pierce, 60.0, 15),
+                        1,
+                        1.0,
+                    ) {
+                        Verb::MeleeArc(m) => Verb::MeleeArc(MeleeArc {
+                            parryable: false,
+                            ..m
+                        }),
+                        v => v,
+                    },
+                )],
+                r,
+            ),
+        ),
     ];
     let mut pack = ContentPack {
         abilities,
@@ -2329,19 +2700,21 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "ironclad".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::new(15, 5, 20, 5, 10),
                 aspects: Aspects::one(Element::Ground),
                 primary: id(&pack, "greatsword"),
                 secondary: id(&pack, "shield_bash"),
                 guard: Some(id(&pack, "shield_wall")),
-                actives: vec![id(&pack, "stomp"), id(&pack, "bellow")],
+                actives: vec![id(&pack, "bellow"), id(&pack, "fortify")],
             },
         },
         NamedBuild {
             name: "blade".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(17, 13, 15, 5, 5),
                 aspects: Aspects::one(Element::Water),
@@ -2355,19 +2728,21 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "frostweaver".into(),
             build: Build {
                 mode: Mode::Rpg,
+                body: None,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(5, 10, 5, 20, 15),
                 aspects: Aspects::two(Element::Water, Element::Air),
                 primary: id(&pack, "ice_shard"),
-                secondary: id(&pack, "kick"),
+                secondary: id(&pack, "frost_nova"),
                 guard: Some(id(&pack, "brace")),
-                actives: vec![id(&pack, "frost_nova")],
+                actives: vec![id(&pack, "blink")],
             },
         },
         NamedBuild {
             name: "shade".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Infiltrator,
                 attributes: Attributes::new(15, 20, 10, 5, 5),
                 aspects: Aspects::one(Element::Air),
@@ -2385,17 +2760,14 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "mender".into(),
             build: Build {
                 mode: Mode::Rpg,
+                body: None,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(5, 5, 10, 15, 20),
                 aspects: Aspects::one(Element::Electric),
                 primary: id(&pack, "staff"),
                 secondary: id(&pack, "mend"),
                 guard: Some(id(&pack, "brace")),
-                actives: vec![
-                    id(&pack, "sanctuary"),
-                    id(&pack, "haste"),
-                    id(&pack, "thunderclap"),
-                ],
+                actives: vec![id(&pack, "sanctuary"), id(&pack, "haste")],
             },
         },
         // The gun (MODES.md 3): a musket, a pistol, the knife, the legs; the neutral build.
@@ -2403,6 +2775,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "musketeer".into(),
             build: Build {
                 mode: Mode::Gun,
+                body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(10, 17, 13, 5, 10),
                 aspects: Aspects::default(),
@@ -2417,6 +2790,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "shaman".into(),
             build: Build {
                 mode: Mode::Rpg,
+                body: None,
                 frame: ArchetypeFrame::Caster,
                 attributes: Attributes::new(13, 8, 14, 15, 5),
                 aspects: Aspects::one(Element::Grass),
@@ -2434,6 +2808,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "Sentinel".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(16, 14, 16, 8, 10),
                 aspects: Aspects::one(Element::Water),
@@ -2460,6 +2835,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "The Warden".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::new(20, 8, 20, 14, 14),
                 aspects: Aspects::one(Element::Ground),
@@ -2500,6 +2876,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "Training dummy".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Colossus,
                 attributes: Attributes::flat(5),
                 aspects: Aspects::one(Element::Ground),
@@ -2526,6 +2903,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "Trainer".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::flat(5),
                 aspects: Aspects::one(Element::Fire),
@@ -2552,6 +2930,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             name: "Blacksmith".into(),
             build: Build {
                 mode: Mode::Action,
+                body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::flat(5),
                 aspects: Aspects::one(Element::Fire),
@@ -2637,6 +3016,97 @@ pub fn pack(rate: TickRate) -> ContentPack {
             pack.abilities[i as usize].ability.heavy = true;
         }
     }
+    // The eight bodies (BODIES.md 3.1), the floors of the review's table, as bodies.toml
+    // has them.
+    let body = |key: &str,
+                name: &str,
+                frame: ArchetypeFrame,
+                floors: [u8; 5],
+                skill: &str,
+                stamina: u8,
+                blurb: &str| BodyDef {
+        key: key.into(),
+        name: name.into(),
+        frame,
+        floors: Attributes::new(floors[0], floors[1], floors[2], floors[3], floors[4]),
+        skill: id(&pack, skill),
+        stamina,
+        blurb: blurb.into(),
+    };
+    pack.bodies = vec![
+        body(
+            "brute",
+            "Brute",
+            ArchetypeFrame::Colossus,
+            [7, 3, 9, 3, 3],
+            "charge",
+            100,
+            "A big man in his thirties. Takes and gives blows. Slow, and no head for magic.",
+        ),
+        body(
+            "veteran",
+            "Veteran",
+            ArchetypeFrame::Colossus,
+            [7, 3, 5, 3, 7],
+            "bellow",
+            100,
+            "An old soldier around sixty. Steel and a steady head. Slow.",
+        ),
+        body(
+            "soldier",
+            "Soldier",
+            ArchetypeFrame::Striker,
+            [7, 5, 7, 3, 3],
+            "overhead",
+            100,
+            "A plain fighting man. The even fighter. No magic either way.",
+        ),
+        body(
+            "huntress",
+            "Huntress",
+            ArchetypeFrame::Striker,
+            [5, 8, 5, 3, 4],
+            "leap",
+            100,
+            "A lean woman of the woods. Bows and dodging. Not built for plate-weight blows.",
+        ),
+        body(
+            "sorceress",
+            "Sorceress",
+            ArchetypeFrame::Caster,
+            [3, 4, 3, 9, 6],
+            "haste",
+            100,
+            "A tall learned woman. Damage spells. Bad at everything physical.",
+        ),
+        body(
+            "elder",
+            "Elder",
+            ArchetypeFrame::Caster,
+            [3, 3, 4, 6, 9],
+            "sanctuary",
+            100,
+            "A small old woman. Wards, healing, long statuses on others. Slow to move, weak to hit.",
+        ),
+        body(
+            "whelp",
+            "Whelp",
+            ArchetypeFrame::Infiltrator,
+            [3, 9, 5, 4, 4],
+            "dash",
+            115,
+            "A boy of fourteen. Runs all day on a bigger stamina pool. Does not hit hard.",
+        ),
+        body(
+            "thief",
+            "Thief",
+            ArchetypeFrame::Infiltrator,
+            [4, 8, 3, 6, 4],
+            "slip",
+            100,
+            "A small quick young woman. Daggers and tricks. Cannot take a hit.",
+        ),
+    ];
     pack
 }
 
@@ -2645,6 +3115,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
 pub fn phase2_build(pack: &ContentPack) -> Build {
     Build {
         mode: Mode::Action,
+        body: None,
         frame: ArchetypeFrame::Striker,
         attributes: Attributes::flat(10),
         aspects: Aspects::one(Element::Water),

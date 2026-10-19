@@ -68,17 +68,23 @@ impl Element {
 }
 
 /// The element matrix of MATRIX.md 5, attacker by row, defending aspect by column, in
-/// `Element`'s order. Three values: 2 (beats), 1 (nothing), 0.5 (resisted). The chart's
-/// two immunities are 0.5 here (MATRIX.md 1: no immunity).
+/// `Element`'s order. Three values: 1.25 (beats), 1 (nothing), 0.75 (resisted). The chart's
+/// two immunities are 0.75 here (MATRIX.md 1: no immunity). 2 and 0.5 until 2026-10-19
+/// (MATRIX.md 19, v8): a counter tilts a fight now, it does not decide it.
 const MATRIX: [[f32; Element::COUNT]; Element::COUNT] = [
     // into: Fire, Water, Grass, Electric, Ground, Air
-    [0.5, 0.5, 2.0, 1.0, 1.0, 1.0], // Fire
-    [2.0, 0.5, 0.5, 1.0, 2.0, 1.0], // Water
-    [0.5, 2.0, 0.5, 1.0, 2.0, 0.5], // Grass
-    [1.0, 2.0, 0.5, 0.5, 0.5, 2.0], // Electric
-    [2.0, 1.0, 0.5, 2.0, 1.0, 0.5], // Ground
-    [1.0, 1.0, 2.0, 0.5, 1.0, 1.0], // Air
+    [0.75, 0.75, 1.25, 1.00, 1.00, 1.00], // Fire
+    [1.25, 0.75, 0.75, 1.00, 1.25, 1.00], // Water
+    [0.75, 1.25, 0.75, 1.00, 1.25, 0.75], // Grass
+    [1.00, 1.25, 0.75, 0.75, 0.75, 1.25], // Electric
+    [1.25, 1.00, 0.75, 1.25, 1.00, 0.75], // Ground
+    [1.00, 1.00, 1.25, 0.75, 1.00, 1.00], // Air
 ];
+
+/// What an element does into the aspect it beats, and into the one that resists it
+/// (MATRIX.md 5): one step either way, and a dual-aspect hole or wall is the square.
+pub const BEATS: f32 = 1.25;
+pub const RESISTED: f32 = 0.75;
 
 /// Damage multiplier of an `attack` element into one defending `aspect` (MATRIX.md 5).
 pub fn element_mult(attack: Element, aspect: Element) -> f32 {
@@ -196,8 +202,16 @@ pub struct Attributes {
 }
 
 impl Attributes {
-    pub const MIN: u8 = 5;
+    /// The least an attribute may be (MATRIX.md 2): a body's floor may stand here where
+    /// the body is plainly bad at something (BODIES.md 3.2; 5 until 2026-10-19).
+    pub const MIN: u8 = 3;
     pub const MAX: u8 = 25;
+    /// The floor of a build without a body (a preset, a creature, a bot): five each, as
+    /// every character had until the bodies. A body brings its own floors, summing to
+    /// `FLOOR_SUM`.
+    pub const BASE: u8 = 5;
+    /// What a body's five floors sum to (BODIES.md 3.1): five fives, spread the body's way.
+    pub const FLOOR_SUM: u32 = 25;
     /// Points a character has to raise its attributes above the floor (MATRIX.md 2): its
     /// own, apart from the kit's budget. Fewer may be spent; more is refused.
     pub const FREE_POINTS: u32 = 30;
@@ -226,12 +240,34 @@ impl Attributes {
         [self.str_, self.agi, self.con, self.int, self.spr]
     }
 
-    /// Attribute points spent: every point above the floor costs one of `FREE_POINTS`.
+    /// Attribute points spent above the bodiless floor (`BASE`): every point above it
+    /// costs one of `FREE_POINTS`. A build with a body counts above the body's floors
+    /// (`spent`; `Build::points_spent`).
     pub fn cost(self) -> u32 {
+        self.spent(Attributes::flat(Self::BASE))
+    }
+
+    /// Attribute points spent above `floors`: every point above a floor costs one of
+    /// `FREE_POINTS`; a value under its floor counts nothing (and does not validate).
+    pub fn spent(self, floors: Attributes) -> u32 {
         self.as_array()
             .iter()
-            .map(|&v| v.saturating_sub(Self::MIN) as u32)
+            .zip(floors.as_array())
+            .map(|(&v, f)| v.saturating_sub(f) as u32)
             .sum()
+    }
+
+    /// Every attribute at or above its floor.
+    pub fn at_floors(self, floors: Attributes) -> bool {
+        self.as_array()
+            .iter()
+            .zip(floors.as_array())
+            .all(|(&v, f)| v >= f)
+    }
+
+    /// The sum of the five.
+    pub fn sum(self) -> u32 {
+        self.as_array().iter().map(|&v| v as u32).sum()
     }
 
     pub fn in_range(self) -> bool {
@@ -375,10 +411,12 @@ impl Gear {
     };
     /// The most any one of the sixteen may be: the cap on an item's whole edge (PLAN.md 0).
     pub const MAX: u16 = 250;
-    /// What an edge is counted against (ITEMS.md 3.1). A character has two places and one
-    /// edge of at most a quarter, so a place counts for half of what its item's edge says:
-    /// an edge of `e` per mille is a factor of `(SCALE + e) / SCALE`.
-    pub const SCALE: u32 = 2000;
+    /// What an edge is counted against (ITEMS.md 3.1): an edge of `e` per mille is a
+    /// factor of `(SCALE + e) / SCALE`. 2000 until 2026-10-19 (a place counted for half
+    /// of what its item's edge said, a 25% exchange at most, PLAN.md 0); 1100 since
+    /// (MATRIX.md 19): the cap against nothing is `(1350 / 1100)² = 1.51`, an exchange
+    /// of one and a half, and 1.40 against iron and oak.
+    pub const SCALE: u32 = 1100;
 
     /// The same within the cap, whatever it was told.
     pub fn clamped(self) -> Gear {
@@ -391,9 +429,9 @@ impl Gear {
 }
 
 /// MATRIX.md 7's `gear` term: what the attacker's weapon adds to this type over what the
-/// defender's armour takes off it. Between 1/1.125 and 1.125, and exactly 1 for two bodies
-/// in nothing; a body in the best of both against one in nothing has 1.125 each way, an
-/// exchange of 1.27 at the very most.
+/// defender's armour takes off it. Between `SCALE / (SCALE + MAX)` and its inverse
+/// (1/1.227 and 1.227), and exactly 1 for two bodies in nothing; a body in the best of
+/// both against one in nothing has 1.227 each way, an exchange of 1.51 at the very most.
 pub fn gear_factor(dealt: &[u16; 9], taken: &[u16; 9], dtype: DamageType) -> f32 {
     let t = dtype as usize;
     let side = |edge: u16| (Gear::SCALE + edge.min(Gear::MAX) as u32) as f32;
@@ -543,11 +581,11 @@ mod tests {
         for a in Element::ALL {
             let beats = Element::ALL
                 .iter()
-                .filter(|&&d| element_mult(a, d) == 2.0)
+                .filter(|&&d| element_mult(a, d) == BEATS)
                 .count();
             let weak = Element::ALL
                 .iter()
-                .filter(|&&d| element_mult(d, a) == 2.0)
+                .filter(|&&d| element_mult(d, a) == BEATS)
                 .count();
             let walls = Element::ALL
                 .iter()
@@ -562,47 +600,56 @@ mod tests {
             assert!((-1..=1).contains(&net), "{a:?} net {net}");
             // Four resist themselves; Ground and Air do not (the chart's numbers).
             let self_mult = element_mult(a, a);
-            assert!(self_mult == 0.5 || self_mult == 1.0, "{a:?} into itself");
+            assert!(
+                self_mult == RESISTED || self_mult == 1.0,
+                "{a:?} into itself"
+            );
             for d in Element::ALL {
                 assert!(element_mult(a, d) > 0.0, "{a:?} into {d:?}: no immunity");
             }
         }
         // The readings of MATRIX.md 5.
-        assert_eq!(element_mult(Element::Fire, Element::Grass), 2.0);
-        assert_eq!(element_mult(Element::Water, Element::Fire), 2.0);
-        assert_eq!(element_mult(Element::Water, Element::Ground), 2.0);
-        assert_eq!(element_mult(Element::Grass, Element::Water), 2.0);
-        assert_eq!(element_mult(Element::Grass, Element::Ground), 2.0);
-        assert_eq!(element_mult(Element::Electric, Element::Water), 2.0);
-        assert_eq!(element_mult(Element::Electric, Element::Air), 2.0);
-        assert_eq!(element_mult(Element::Ground, Element::Fire), 2.0);
-        assert_eq!(element_mult(Element::Ground, Element::Electric), 2.0);
-        assert_eq!(element_mult(Element::Air, Element::Grass), 2.0);
+        assert_eq!(element_mult(Element::Fire, Element::Grass), BEATS);
+        assert_eq!(element_mult(Element::Water, Element::Fire), BEATS);
+        assert_eq!(element_mult(Element::Water, Element::Ground), BEATS);
+        assert_eq!(element_mult(Element::Grass, Element::Water), BEATS);
+        assert_eq!(element_mult(Element::Grass, Element::Ground), BEATS);
+        assert_eq!(element_mult(Element::Electric, Element::Water), BEATS);
+        assert_eq!(element_mult(Element::Electric, Element::Air), BEATS);
+        assert_eq!(element_mult(Element::Ground, Element::Fire), BEATS);
+        assert_eq!(element_mult(Element::Ground, Element::Electric), BEATS);
+        assert_eq!(element_mult(Element::Air, Element::Grass), BEATS);
         // The chart's immunities are resists here.
-        assert_eq!(element_mult(Element::Electric, Element::Ground), 0.5);
-        assert_eq!(element_mult(Element::Ground, Element::Air), 0.5);
+        assert_eq!(element_mult(Element::Electric, Element::Ground), RESISTED);
+        assert_eq!(element_mult(Element::Ground, Element::Air), RESISTED);
         // Neutral pairs exist now.
         assert_eq!(element_mult(Element::Fire, Element::Ground), 1.0);
         assert_eq!(element_mult(Element::Air, Element::Water), 1.0);
         assert_eq!(element_mult(Element::Ground, Element::Ground), 1.0);
-        assert_eq!(element_mult(Element::Water, Element::Water), 0.5);
+        assert_eq!(element_mult(Element::Water, Element::Water), RESISTED);
     }
 
     #[test]
-    fn dual_aspects_stack_to_four_and_a_quarter() {
-        // MATRIX.md 5: Water + Air has one 4x hole (Electric); Grass + Ground walls
-        // Electric at 0.25.
+    fn dual_aspects_stack_to_a_hole_and_a_wall() {
+        // MATRIX.md 5: Water + Air has one hole (Electric, 1.25² = 1.5625); Grass + Ground
+        // walls Electric at 0.75² = 0.5625.
         let water_air = Aspects::two(Element::Water, Element::Air);
-        assert_eq!(water_air.mult_against(Element::Electric), 4.0);
+        assert_eq!(water_air.mult_against(Element::Electric), BEATS * BEATS);
         let grass_ground = Aspects::two(Element::Grass, Element::Ground);
-        assert_eq!(grass_ground.mult_against(Element::Electric), 0.25);
-        // The pairs with a 4x hole are exactly the document's four.
+        assert_eq!(
+            grass_ground.mult_against(Element::Electric),
+            RESISTED * RESISTED
+        );
+        // The pairs with a hole are exactly the document's four.
         let mut holed = Vec::new();
         for a in Element::ALL {
             for b in Element::ALL {
                 if a < b {
                     let pair = Aspects::two(a, b);
-                    if Element::ALL.iter().any(|&e| pair.mult_against(e) == 4.0) {
+                    if Element::ALL
+                        .iter()
+                        .any(|&e| pair.mult_against(e) == BEATS * BEATS)
+                    {
                         holed.push((a, b));
                     }
                 }
@@ -643,7 +690,15 @@ mod tests {
         assert!(!Attributes::new(20, 20, 10, 5, 5).affordable());
         assert!(Attributes::new(25, 15, 5, 5, 5).affordable());
         assert!(Attributes::new(5, 5, 5, 5, 5).affordable());
-        assert!(!Attributes::new(4, 20, 10, 5, 5).in_range());
+        assert!(!Attributes::new(2, 20, 10, 5, 5).in_range());
+        // A body's floors (BODIES.md 3.2): 3 is in range, and the points count above the
+        // floors, not above five.
+        assert!(Attributes::new(3, 9, 5, 4, 4).in_range());
+        let whelp = Attributes::new(3, 9, 5, 4, 4);
+        assert_eq!(whelp.sum(), Attributes::FLOOR_SUM);
+        assert_eq!(Attributes::new(3, 25, 10, 8, 9).spent(whelp), 30);
+        assert!(Attributes::new(3, 25, 10, 8, 9).at_floors(whelp));
+        assert!(!Attributes::new(3, 8, 10, 8, 9).at_floors(whelp));
         assert!(!Attributes::new(26, 5, 5, 5, 5).affordable());
         assert_eq!(Attributes::default().cost(), Attributes::FREE_POINTS);
     }
@@ -673,7 +728,9 @@ mod tests {
     }
 
     #[test]
-    fn gear_moves_each_type_by_its_own_edge_and_never_past_an_eighth_a_side() {
+    fn gear_moves_each_type_by_its_own_edge_and_never_past_the_cap_a_side() {
+        const SCALE: u32 = Gear::SCALE;
+        const SIDE: f32 = (SCALE + Gear::MAX as u32) as f32 / SCALE as f32;
         let d = defender(Aspects::one(Element::Electric));
         let bare = AttackerStats {
             physical_mult: 1.0,
@@ -702,12 +759,16 @@ mod tests {
             let t = dtype as usize;
             // Each side alone, and both: the plain number times the factor, to the unit.
             for (a, dd, factor) in [
-                (&armed, &d, (2000 + sword[t]) as f32 / 2000.0),
-                (&bare, &clad, 2000.0 / (2000 + cuirass[t]) as f32),
+                (&armed, &d, (SCALE + sword[t] as u32) as f32 / SCALE as f32),
+                (
+                    &bare,
+                    &clad,
+                    SCALE as f32 / (SCALE + cuirass[t] as u32) as f32,
+                ),
                 (
                     &armed,
                     &clad,
-                    (2000 + sword[t]) as f32 / (2000 + cuirass[t]) as f32,
+                    (SCALE + sword[t] as u32) as f32 / (SCALE + cuirass[t] as u32) as f32,
                 ),
             ] {
                 let got = resolve_damage(&p, a, dd) as f32;
@@ -716,11 +777,11 @@ mod tests {
                     "{dtype:?}: {got} against {plain} x {factor}"
                 );
             }
-            // The term itself, whatever a zone was told: never past an eighth a side.
+            // The term itself, whatever a zone was told: never past the cap a side.
             for dealt in [0u16, 1, 40, 220, 250, 251, 9000, u16::MAX] {
                 for taken in [0u16, 1, 40, 220, 250, 251, 9000, u16::MAX] {
                     let f = gear_factor(&[dealt; 9], &[taken; 9], dtype);
-                    assert!((1.0 / 1.125..=1.125).contains(&f), "{dealt} {taken}: {f}");
+                    assert!((1.0 / SIDE..=SIDE).contains(&f), "{dealt} {taken}: {f}");
                 }
             }
         }
@@ -735,30 +796,30 @@ mod tests {
         };
         assert_eq!(wild.clamped().dealt, [250; 9]);
         assert_eq!(wild.clamped().taken, [0, 250, 250, 3, 0, 0, 0, 0, 250]);
-        assert_eq!(gear_factor(&wild.dealt, &[0; 9], DamageType::Air), 1.125);
+        assert_eq!(gear_factor(&wild.dealt, &[0; 9], DamageType::Air), SIDE);
         assert_eq!(
             gear_factor(&[0; 9], &wild.taken, DamageType::Air),
-            1.0 / 1.125
+            1.0 / SIDE
         );
         // What PLAN.md 0 bounds is a character's edge: the best of both places against a
-        // body in nothing wins an exchange of its own kind by 23%, against iron and oak
-        // (an edge of 40) by 18%, and by 27% at the very cap.
+        // body in nothing wins an exchange of its own kind by 44%, against iron and oak
+        // (an edge of 40) by 34%, and by 51% at the very cap (MATRIX.md 19).
         let exchange = |mine: u16, theirs: u16| {
             let (a, b) = ([mine; 9], [theirs; 9]);
             gear_factor(&a, &b, DamageType::Slash) / gear_factor(&b, &a, DamageType::Slash)
         };
         assert!(
-            (exchange(220, 0) - 1.2321).abs() < 1e-3,
+            (exchange(220, 0) - 1.44).abs() < 1e-3,
             "{}",
             exchange(220, 0)
         );
         assert!(
-            (exchange(220, 40) - 1.1843).abs() < 1e-3,
+            (exchange(220, 40) - 1.3407).abs() < 1e-3,
             "{}",
             exchange(220, 40)
         );
         assert!(
-            (exchange(250, 0) - 1.2656).abs() < 1e-3,
+            (exchange(250, 0) - 1.5062).abs() < 1e-3,
             "{}",
             exchange(250, 0)
         );
@@ -796,29 +857,30 @@ mod tests {
             resolve_damage(&packet(100, DamageType::Slash, Bypass::ARMOR), &a, &d),
             110
         );
-        // Water into Ground (2x) ignores the armour, pays the ward:
-        // 100 * 1.2 * 2 * 0.8 = 192.
+        // Water into Ground (1.25x) ignores the armour, pays the ward:
+        // 100 * 1.2 * 1.25 * 0.8 = 120.
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Water, Bypass::NONE), &a, &d),
-            192
+            120
         );
-        // Electric into Ground is 0.5 (the chart's immunity, MATRIX.md 1): 48.
+        // Electric into Ground is 0.75 (the chart's immunity, MATRIX.md 1): 72.
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Electric, Bypass::NONE), &a, &d),
-            48
+            72
         );
         // Fire into Ground is nothing either way: 96.
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Fire, Bypass::NONE), &a, &d),
             96
         );
-        // Fortify and evasion stack multiplicatively, blunt ignores the bubble.
+        // Fortify and evasion stack multiplicatively, blunt ignores the bubble:
+        // 120 * 0.5 * 0.8 = 48.
         let mut d2 = d;
         d2.fortify = 0.5;
         d2.evading = true;
         assert_eq!(
             resolve_damage(&packet(100, DamageType::Water, Bypass::NONE), &a, &d2),
-            77
+            48
         );
         assert_eq!(
             resolve_damage(

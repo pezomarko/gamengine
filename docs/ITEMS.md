@@ -16,8 +16,10 @@ simulation knew of none, and no screen showed one.
 1. **An edge, typed.** Gear moves damage by a little, and each part of an item moves its own
    kinds of damage and no other: an item is right for one build and of no use to another,
    which is what makes it worth selling to "someone with the opposite problem" (PLAN.md 3.4).
-2. **One edge for a character, not one for each thing it wears.** PLAN.md 0 gives top gear
-   15–25% over standard gear. A character wears two things, so each counts for half (3.1).
+2. **One edge for a character, not one for each thing it wears.** PLAN.md 0 bounds top
+   gear's edge over standard gear (50% at the very most since 2026-10-19, MATRIX.md 19;
+   15–25% before). A character wears many things, each counting for its place's share
+   (3.1), and the whole is capped as one.
 3. **Three owners of three things.** What is worn is the hub's (a row beside the item). What
    it does is the zone's (sixteen small numbers per body, read by the damage pipeline). What
    a person sees is the hub's word, numbers and words both: a client works nothing out.
@@ -130,20 +132,22 @@ MATRIX.md 7 ends `damage = max(1, round(base × type × layer × guard × gear))
 `gear`:
 
 ```
-gear = (2000 + A.dealt[t]) / (2000 + D.taken[t])
+gear = (1100 + A.dealt[t]) / (1100 + D.taken[t])
 ```
+
+(`Gear::SCALE`; 2000 until 2026-10-19, MATRIX.md 19.)
 
 `t` is the packet's damage type (Slash, Pierce, Blunt, Fire, Water, Grass, Electric, Ground, Air; nine since MATRIX.md v3);
 `dealt` is the edge of the attacker's worn weapon and `taken` the edge of the defender's worn
 armour on that type, per mille, each at most 250 (an item's whole edge is capped at 250 by
-`gm-content`). **A place counts for half of what its item's edge says** (principle 2): an
-edge of 220 is 11% more dealt, or 9.9% less taken (2000/2220).
+`gm-content`). An edge of 220 is 20% more dealt, or 16.7% less taken (1100/1320).
 
-- `gear` lies between 1/1.125 and 1.125 for one packet. What PLAN.md 0 bounds is the
+- `gear` lies between 1/1.227 and 1.227 for one packet. What PLAN.md 0 bounds is the
   exchange: the best weapon *and* the best armour the content allows, against a body in
-  nothing, win a like-for-like exchange by **23.2%** (1.11²); against iron and oak (an edge
-  of 40 on each side, "standard gear") by **18.4%**; at the very cap (250 and 250 against
-  nothing) by 26.6%.
+  nothing, win a like-for-like exchange by **44%** (1.2²); against iron and oak (an edge
+  of 40 on each side, "standard gear") by **34%**; at the very cap (250 and 250 against
+  nothing) by 51%. (Until 2026-10-19 the scale was 2000, a place counted for half of what
+  its item's edge said, and the three were 23%, 18% and 27%; MATRIX.md 19.)
 - The factor multiplies **before the rounding**: its bounds are on the unrounded number, and
   a result of 1 can become 2.
 - The attacker's `dealt` is taken **when the packet is made**, with the rest of the

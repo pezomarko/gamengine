@@ -506,7 +506,7 @@ async fn the_economy_over_the_wire() {
     // weapon brings its swing; only a firearm is refused outside the gun mode), and the
     // listing says whose kits prefer it.
     assert!(listings[0].item.fits);
-    assert_eq!(listings[0].item.does, ["slash +2.0%"]);
+    assert_eq!(listings[0].item.does, ["slash +3.6%"]);
     assert_eq!(listings[0].item.hands, "Blade");
     // Buying is done standing at the stall (ITEMS.md 5): the zone the buyer plays in asks,
     // and names the stall it saw the buyer at.

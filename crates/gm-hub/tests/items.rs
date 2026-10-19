@@ -396,8 +396,8 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(
         shown.does,
         [
-            "slash +8.3%",
-            "fire +6.8%",
+            "slash +15.0%",
+            "fire +12.3%",
             "burns one blow in five for 2.0 s",
             "its burns last 200% as long",
             "blows cost 75% of their stamina"
@@ -414,7 +414,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
     assert_eq!(shown.what, "an armour, 165 of 250");
     assert_eq!(
         shown.does,
-        ["physical -7.6%", "blocks cost 75% of their stamina"]
+        ["physical -13.0%", "blocks cost 75% of their stamina"]
     );
     assert_eq!(shown.hands, "");
     assert_eq!(find(&have, plain).edge, plain_edge);
@@ -735,7 +735,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
         (PLACE_OFF, PLACE_OFF, false)
     );
     assert_eq!(shown.what, "a shield, 40 of 250");
-    assert_eq!(shown.does, ["physical -2.0%"]);
+    assert_eq!(shown.does, ["physical -3.5%"]);
     assert!(!find(&have, plain).worn, "the shield took the left hand");
 
     // The body's places and the accessory (EQUIPMENT.md 10.8): each counts for its share

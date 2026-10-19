@@ -738,6 +738,7 @@ fn resolve_build(
             .cloned()
             .ok_or_else(|| format!("unknown preset {name:?}")),
         Some(BuildChoice::Custom(b)) => Ok(b.clone()),
+        Some(BuildChoice::Body(choice)) => choice.build(&zone.content),
     }
 }
 

@@ -18,6 +18,10 @@ pub struct AbilityLook {
     pub icon: Option<String>,
     pub prop: Option<String>,
     pub sound: Option<String>,
+    /// A secondary's weapons (BODIES.md 3.6): the props whose weapon brings it as its
+    /// second move (`["staff", "wand"]`), as a primary's `prop` names the weapon that
+    /// swings it.
+    pub secondary_of: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,6 +43,15 @@ pub struct TemplateLook {
     pub guard: Option<String>,
     /// A shield's own block (GEAR.md 7), played in place of the guard ability's.
     pub block: Option<gm_core::vocab::Block>,
+    /// The off hand's second move (BODIES.md 3.4): a shield's bash, the pistol, a focus's
+    /// mend, brought to whoever wears it in the left hand over the weapon's own.
+    pub secondary: Option<String>,
+    /// An armour's base mitigation and weight (BODIES.md 3.7): armour and ward added to
+    /// the body's before the caps, speed and stamina regen as factors (1 for nothing).
+    pub armour: f32,
+    pub ward: f32,
+    pub speed: f32,
+    pub regen: f32,
     pub retired: bool,
 }
 
@@ -198,9 +211,11 @@ impl Looks {
                 key: a.key.clone(),
                 icon: a.icon.clone(),
                 prop: a.prop.clone(),
+                secondary_of: a.secondary_of.clone(),
                 sound: a.sound.clone(),
             });
         }
+        let it_abilities: Vec<String> = af.ability.iter().map(|a| a.key.clone()).collect();
         for t in &it.templates {
             name_prop(&t.model, &format!("template {}", t.id))?;
             let held = t.held().to_string();
@@ -264,6 +279,16 @@ impl Looks {
                     )));
                 }
             }
+            for (what, key) in [("guard", &t.guard), ("secondary", &t.secondary)] {
+                if let Some(key) = key
+                    && !it_abilities.contains(key)
+                {
+                    return Err(ContentError::Invalid(format!(
+                        "template {}: its {what} {key:?} is no ability",
+                        t.id
+                    )));
+                }
+            }
             looks.templates.push(TemplateLook {
                 key: t.id.clone(),
                 kind: t.kind.clone(),
@@ -276,6 +301,11 @@ impl Looks {
                 patch: t.is_patch(),
                 guard: t.guard.clone(),
                 block: t.block.as_ref().map(|b| b.to_block()),
+                secondary: t.secondary.clone(),
+                armour: t.armour,
+                ward: t.ward,
+                speed: t.speed,
+                regen: t.regen,
                 retired: t.retired,
             });
         }

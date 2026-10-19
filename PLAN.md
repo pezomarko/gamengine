@@ -17,7 +17,8 @@ The game is an unforgiving ecosystem, not a theme park. Design authority is a si
 backbone to say no. Locked, not up for softening when players complain:
 
 - **No levels, no gear tiers, no vertical power creep.** Fixed point budget + rock-paper-scissors (RPS)
-  counters. Top gear gives a 15–25% edge over standard gear, never 500%.
+  counters. Top gear gives a bounded edge over standard gear, never 500%: 50% at the very
+  most against nothing since 2026-10-19 (MATRIX.md 19; 15–25% until then).
 - **No soulbound gear.** Everything trades. Anyone can equip anything. "If your build sucks, it's on you."
 - **No pay-to-win, no matchmaking gimmicks, no minimaps, no level-skips, no upgrade casino.**
   Monetization = convenience and social cosmetics only (extra build slots, model storage slots).

@@ -270,10 +270,13 @@ interrupt = "on_stagger"
 [[ability.step]]
 melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms = 60, recovery_ms = 500, damage = { amount = 70, type = "slash", knockback = 200, stagger = 40 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
 
+# The staff's second move of Ground (BODIES.md 3.6, 2026-10-19): a spell bought with
+# points until then; now what a caster weapon does, coloured by the body's element.
 [[ability]]
 key = "stomp"
 name = "Stomp"
-slot = "active"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
 cost = 10
 aspect = "ground"
 cooldown_ms = 8000
@@ -304,10 +307,12 @@ move_scale = 0.8
 [[ability.step]]
 apply_status = { status = "fortify", duration_ms = 5000, magnitude = 0.4, max_stacks = 1, stacking = "refresh", target = "actor" }
 
+# The staff's second move of Water (BODIES.md 3.6).
 [[ability]]
 key = "frost_nova"
 name = "Frost nova"
-slot = "active"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
 cost = 10
 aspect = "water"
 cooldown_ms = 8000
@@ -339,10 +344,13 @@ focus = 20
 [[ability.step]]
 apply_status = { status = "haste", duration_ms = 5000, magnitude = 0.25, max_stacks = 1, stacking = "refresh", target = "actor" }
 
+# The staff's second move of Electric (BODIES.md 3.6): the mender's clap comes with the
+# staff and the element, not with points.
 [[ability]]
 key = "thunderclap"
 name = "Thunderclap"
-slot = "active"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
 cost = 10
 aspect = "electric"
 cooldown_ms = 7000
@@ -371,6 +379,18 @@ cooldown_ms = 14000
 focus = 25
 [[ability.step]]
 apply_status = { status = "stealth", duration_ms = 6000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
+
+# The slip (BODIES.md 3.1): the thief's body skill, a short vanish of no element, paid in
+# stamina. A trick of the body, not a spell: it ignores no gate because it needs none.
+[[ability]]
+key = "slip"
+name = "Slip"
+slot = "active"
+cost = 6
+cooldown_ms = 10000
+stamina = 20
+[[ability.step]]
+apply_status = { status = "stealth", duration_ms = 3000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 [[ability]]
 key = "poison_cloud"
@@ -578,6 +598,7 @@ melee_arc = { reach = 60, arc = 60, half_height = 40, windup_ms = 150, active_ms
 key = "throwing_knife"
 name = "Throwing knife"
 slot = "secondary"
+secondary_of = ["dagger"]
 cost = 3
 cooldown_ms = 2000
 move_scale = 0.8
@@ -760,6 +781,7 @@ apply_status = { status = "fortify", duration_ms = 4000, magnitude = 0.3, max_st
 key = "slam"
 name = "Slam"
 slot = "secondary"
+secondary_of = ["hammer", "warhammer", "mace"]
 cost = 4
 cooldown_ms = 4000
 move_scale = 0.4
@@ -993,3 +1015,192 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 melee_arc = { reach = 85, arc = 150, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 75, type = "slash", knockback = 150, stagger = 25 }, max_targets = 3, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30, assist = 20 }
+
+# ---------- the caster weapon's two moves (BODIES.md 3.6, 2026-10-19) ----------
+# A staff or a wand brings the bolt of the body's element as its blow and a blast of it
+# as its second move; neither costs a point. Appended: builds name abilities by position.
+
+# The thorn: Grass's bolt, a bleeding dart.
+[[ability]]
+key = "thorn"
+name = "Thorn"
+slot = "primary"
+cost = 2
+prop = "staff"
+aspect = "grass"
+cooldown_ms = 1000
+focus = 8
+move_scale = 0.7
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 150
+[ability.step.projectile]
+speed = 1500
+gravity = 0.15
+radius = 4
+lifetime_ms = 3000
+damage = { amount = 45, type = "grass", knockback = 60, stagger = 10 }
+spawn = { weapon = [16, 4, -2] }
+spread = 0.3
+on_hit = [ { status = { status = "bleed", duration_ms = 2000, magnitude = 8, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+
+# The flame burst: Fire's blast, a cone of fire from the staff that burns.
+[[ability]]
+key = "flame_burst"
+name = "Flame burst"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+cost = 8
+aspect = "fire"
+cooldown_ms = 2500
+focus = 15
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 200
+[ability.step.area_effect]
+shape = { cone = { length = 220, half_angle = 30 } }
+origin = "self_feet"
+damage = { amount = 60, type = "fire", knockback = 80, stagger = 15 }
+effects = [ { status = "burn", duration_ms = 2000, magnitude = 10, max_stacks = 1, stacking = "refresh", target = "area" } ]
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true
+
+# The briar burst: Grass's blast, thorns up from the ground around the caster that root.
+[[ability]]
+key = "briar_burst"
+name = "Briar burst"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+cost = 8
+aspect = "grass"
+cooldown_ms = 6000
+focus = 25
+move_scale = 0.3
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 250
+[ability.step.area_effect]
+shape = { cylinder = { radius = 128, height = 96 } }
+origin = "self_feet"
+damage = { amount = 40, type = "grass", knockback = 60, stagger = 20 }
+effects = [ { status = "root", duration_ms = 800, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = true
+
+# The gust: Air's blast, a wind that pushes.
+[[ability]]
+key = "gust"
+name = "Gust"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+cost = 6
+aspect = "air"
+cooldown_ms = 3000
+focus = 12
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+[ability.step.area_effect]
+shape = { cone = { length = 200, half_angle = 35 } }
+origin = "self_feet"
+damage = { amount = 30, type = "air", knockback = 300, stagger = 10 }
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true
+
+# The staff's sweep: the plain stick's second move, for a body of no element.
+[[ability]]
+key = "staff_sweep"
+name = "Sweep"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+cost = 2
+cooldown_ms = 2000
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 72, arc = 140, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 30, type = "blunt", knockback = 150, stagger = 40 }, max_targets = 3, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# The pommel: a sword's, a katana's and an axe's second move, the hilt in the face.
+[[ability]]
+key = "pommel"
+name = "Pommel"
+slot = "secondary"
+secondary_of = ["sword", "katana", "axe"]
+cost = 2
+cooldown_ms = 1500
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 56, arc = 60, half_height = 40, windup_ms = 100, active_ms = 50, recovery_ms = 250, damage = { amount = 25, type = "blunt", knockback = 120, stagger = 50 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# ---------- techniques (BODIES.md 3.8, 2026-10-19) ----------
+# A second primary per common weapon: the K page offers the primaries of the weapon in
+# hand, and the one the build stores is the one that swings (GEAR.md 2).
+
+# The thrust: the sword's point, one target, long, for a shield wall.
+[[ability]]
+key = "thrust"
+name = "Thrust"
+slot = "primary"
+cost = 2
+prop = "sword"
+cooldown_ms = 700
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 84, arc = 30, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 70, type = "pierce", knockback = 100, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# The hammer's sweep: lighter and wider than the crush, for a crowd.
+[[ability]]
+key = "hammer_sweep"
+name = "Hammer sweep"
+slot = "primary"
+cost = 2
+prop = "hammer"
+cooldown_ms = 1000
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 76, arc = 140, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 450, damage = { amount = 55, type = "blunt", knockback = 200, stagger = 60 }, max_targets = 5, cleave_falloff = 0.8, parryable = true, hit_stop_ms = 30 }
+
+# The volley: three arrows for one draw, spread, for a crowd or a miss.
+[[ability]]
+key = "volley"
+name = "Volley"
+slot = "primary"
+cost = 2
+prop = "bow"
+cooldown_ms = 1300
+stamina = 35
+move_scale = 0.5
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 350
+projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 30, type = "pierce", knockback = 50, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 2.0, count = 3 }
+
+# The backstab: the dagger's one heavy stab, no chain. (The review's "x3 from behind" is
+# not in the vocabulary: a blow does not know where it lands from.)
+[[ability]]
+key = "backstab"
+name = "Backstab"
+slot = "primary"
+cost = 2
+prop = "dagger"
+cooldown_ms = 500
+move_scale = 0.7
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 55, type = "pierce", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }

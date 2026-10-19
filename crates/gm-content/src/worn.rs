@@ -9,11 +9,15 @@ use gm_core::vocab::Mode;
 use crate::looks::Looks;
 
 /// The right hand's and the left hand's index in a reading's templates
-/// (`gm_hub_proto::protocol::PLACE_NAMES`: weapon, off, ...).
+/// (`gm_hub_proto::protocol::PLACE_NAMES`: weapon, off, chest, head, legs, accessory).
 const RIGHT: usize = 0;
 const LEFT: usize = 1;
-#[cfg(test)]
 const CHEST: usize = 2;
+const HEAD: usize = 3;
+const LEGS: usize = 4;
+/// What the head's and the legs' base mitigation count for beside the chest's whole
+/// (BODIES.md 3.7).
+const SMALL_PLACE: f32 = 1.0 / 3.0;
 
 /// The `Worn` of `build` in `templates` (the hub's six, by place; empty for nothing).
 ///
@@ -26,8 +30,18 @@ const CHEST: usize = 2;
 /// - **The left hand**: the template's `guard` ability, when it is one and the mode has a
 ///   guard (a gun build has none, MODES.md 2). A second one-hander brings nothing.
 ///   A shield's own `block` (GEAR.md 7) comes with its guard, played in its place.
-/// - **The chest** brings nothing here (GEAR.md 12, 2026-10-17): an armour guards by
-///   its own numbers, the gear term (ITEMS.md 3), which the zone reads apart.
+/// - **The second move** (BODIES.md 3.4 and 3.6): the left hand's own secondary where its
+///   template names one (a shield's bash, the pistol, a focus's mend; the pistol in the
+///   gun mode only, nothing else there); else the right hand's weapon's, among the
+///   secondaries whose `secondary_of` names the weapon's model, picked as the primary is
+///   (the build's own when it is one of them, else the first whose aspect the build
+///   holds, else the first with no aspect); else nothing, and the build's own plays.
+/// - **The techniques** (BODIES.md 3.8): every primary the right hand's weapon holds, for
+///   the K page to offer.
+/// - **The chest, the head and the legs** bring their base mitigation (BODIES.md 3.7),
+///   the chest whole, the other two a third; their weight on the speed and the regen
+///   multiplies. An armour guards by its own numbers besides, the gear term (ITEMS.md 3),
+///   which the zone reads apart.
 pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[String]) -> Worn {
     let template = |place: usize| {
         templates
@@ -36,53 +50,85 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
             .filter(|t| !t.is_empty())
             .and_then(|t| looks.templates.iter().find(|l| l.key == t))
     };
+    let gun = build.mode == Mode::Gun;
+    // The build's own among `holders`, else the first the build's aspect allows, else
+    // the first of no aspect.
+    let pick = |holders: &[u16], own: u16| -> Option<u16> {
+        if holders.contains(&own) {
+            return Some(own);
+        }
+        holders
+            .iter()
+            .copied()
+            .find(|&i| {
+                pack.abilities[i as usize]
+                    .aspect
+                    .is_some_and(|needs| build.aspects.contains(needs))
+            })
+            .or_else(|| {
+                holders
+                    .iter()
+                    .copied()
+                    .find(|&i| pack.abilities[i as usize].aspect.is_none())
+            })
+    };
     let mut worn = Worn::NONE;
     if let Some(t) = template(RIGHT)
         && let Some(model) = &t.model
     {
-        let mut holders: Vec<u16> = Vec::new();
-        for a in looks
-            .abilities
-            .iter()
-            .filter(|a| a.prop.as_deref() == Some(model))
-        {
-            if let Some(i) = pack.find(&a.key)
-                && let Some(def) = pack.abilities.get(i as usize)
-                && def.slot == Slot::Primary
-                && !def.creature
-                && (def.ability.firearm.is_some() == (build.mode == Mode::Gun))
-            {
-                holders.push(i);
+        let holds = |slot: Slot, names: &dyn Fn(&crate::looks::AbilityLook) -> bool| {
+            let mut holders: Vec<u16> = Vec::new();
+            for a in looks.abilities.iter().filter(|a| names(a)) {
+                if let Some(i) = pack.find(&a.key)
+                    && let Some(def) = pack.abilities.get(i as usize)
+                    && def.slot == slot
+                    && !def.creature
+                    && (def.ability.firearm.is_some() == gun)
+                {
+                    holders.push(i);
+                }
             }
-        }
-        worn.primary = if holders.contains(&build.primary) {
-            Some(build.primary)
-        } else {
             holders
-                .iter()
-                .copied()
-                .find(|&i| {
-                    pack.abilities[i as usize]
-                        .aspect
-                        .is_some_and(|needs| build.aspects.contains(needs))
-                })
-                .or_else(|| {
-                    holders
-                        .iter()
-                        .copied()
-                        .find(|&i| pack.abilities[i as usize].aspect.is_none())
-                })
         };
+        let primaries = holds(Slot::Primary, &|a| a.prop.as_deref() == Some(model));
+        worn.primary = pick(&primaries, build.primary);
+        worn.techniques = primaries;
+        let secondaries = holds(Slot::Secondary, &|a| a.secondary_of.contains(model));
+        worn.secondary = pick(&secondaries, build.secondary);
     }
-    if build.mode != Mode::Gun
-        && let Some(t) = template(LEFT)
-        && let Some(key) = &t.guard
-        && let Some(i) = pack.find(key)
-        && pack.abilities[i as usize].slot == Slot::Guard
-    {
-        worn.guard = Some(i);
-        worn.block = t.block.clone();
+    if let Some(t) = template(LEFT) {
+        if !gun
+            && let Some(key) = &t.guard
+            && let Some(i) = pack.find(key)
+            && pack.abilities[i as usize].slot == Slot::Guard
+        {
+            worn.guard = Some(i);
+            worn.block = t.block.clone();
+        }
+        if let Some(key) = &t.secondary
+            && let Some(i) = pack.find(key)
+            && let Some(def) = pack.abilities.get(i as usize)
+            && def.slot == Slot::Secondary
+            && !def.creature
+            && (def.ability.firearm.is_some() == gun)
+            && def.aspect.is_none_or(|needs| build.aspects.contains(needs))
+        {
+            worn.secondary = Some(i);
+        }
     }
+    let (mut armour, mut ward, mut speed, mut regen) = (0.0f32, 0.0f32, 1.0f32, 1.0f32);
+    for (place, share) in [(CHEST, 1.0), (HEAD, SMALL_PLACE), (LEGS, SMALL_PLACE)] {
+        if let Some(t) = template(place) {
+            armour += t.armour * share;
+            ward += t.ward * share;
+            speed *= 1.0 - (1.0 - t.speed) * share;
+            regen *= 1.0 - (1.0 - t.regen) * share;
+        }
+    }
+    worn.armour = armour;
+    worn.ward = ward;
+    worn.speed = (speed * 100.0).round().clamp(1.0, 200.0) as u8;
+    worn.regen = (regen * 100.0).round().clamp(1.0, 200.0) as u8;
     worn
 }
 
@@ -201,16 +247,117 @@ mod tests {
     }
 
     #[test]
-    fn the_chest_piece_brings_nothing_to_the_kit() {
-        // GEAR.md 12 (2026-10-17): no armour class. A chest piece is its gear term and
-        // its look; the sheet's kit and numbers are the same in any of them.
+    fn the_chest_piece_brings_its_base_mitigation_and_nothing_to_the_kit() {
+        // GEAR.md 12 (2026-10-17): no armour class; a chest piece brings no ability. Since
+        // BODIES.md 3.7 (2026-10-19) it brings its base mitigation and its weight: the
+        // chest whole, the head and the legs a third.
         let (looks, pack) = load();
         let blade = pack.build("blade").unwrap().clone();
-        for t in ["", "robe", "cuirass", "mail_shirt", "plate"] {
+        let worn = |chest: &str, head: &str, legs: &str| {
             let mut six = six("", "");
-            six[CHEST] = t.into();
-            assert_eq!(worn_of(&looks, &pack, &blade, &six), Worn::NONE, "{t}");
+            six[CHEST] = chest.into();
+            six[HEAD] = head.into();
+            six[LEGS] = legs.into();
+            worn_of(&looks, &pack, &blade, &six)
+        };
+        assert_eq!(worn("", "", ""), Worn::NONE);
+        for (t, armour, ward, speed, regen) in [
+            ("robe", 0.0, 0.15, 100, 100),
+            ("cuirass", 0.08, 0.0, 100, 100),
+            ("mail_shirt", 0.15, 0.0, 100, 90),
+            ("plate", 0.22, -0.05, 92, 80),
+        ] {
+            let w = worn(t, "", "");
+            assert!((w.armour - armour).abs() < 1e-6, "{t}: {}", w.armour);
+            assert!((w.ward - ward).abs() < 1e-6, "{t}: {}", w.ward);
+            assert_eq!((w.speed, w.regen), (speed, regen), "{t}");
+            assert_eq!(
+                (w.primary, w.secondary, w.guard),
+                (None, None, None),
+                "{t}: no ability"
+            );
         }
+        // A helm and trousers: a third of 0.05 each over the plate's; the hood a third of
+        // its ward.
+        let w = worn("plate", "helm", "trousers");
+        assert!((w.armour - (0.22 + 0.1 / 3.0)).abs() < 1e-6, "{}", w.armour);
+        let w = worn("robe", "hood", "");
+        assert!((w.ward - (0.15 + 0.05 / 3.0)).abs() < 1e-6, "{}", w.ward);
+    }
+
+    #[test]
+    fn the_weapon_brings_its_second_move_and_the_off_hand_its_own() {
+        // BODIES.md 3.4 and 3.6: a staff's second move is the blast of the body's element,
+        // a hammer's the slam, a sword's the pommel, a dagger's the knife; the left hand's
+        // own comes over it (a shield's bash, a focus's mend); the pistol is the gun's.
+        let (looks, pack) = load();
+        let by = |k: &str| pack.find(k).unwrap();
+        let w = |preset: &str, right: &str, left: &str| {
+            worn_of(
+                &looks,
+                &pack,
+                pack.build(preset).unwrap(),
+                &six(right, left),
+            )
+        };
+        assert_eq!(
+            w("frostweaver", "staff", "").secondary,
+            Some(by("frost_nova"))
+        );
+        assert_eq!(w("mender", "staff", "").secondary, Some(by("thunderclap")));
+        assert_eq!(w("ironclad", "staff", "").secondary, Some(by("stomp")));
+        assert_eq!(w("shaman", "staff", "").secondary, Some(by("briar_burst")));
+        assert_eq!(w("shade", "staff", "").secondary, Some(by("gust")));
+        assert_eq!(w("shade", "wand", "").secondary, Some(by("gust")));
+        // The blade is Water: the nova; a body of no element gets the sweep.
+        assert_eq!(w("blade", "staff", "").secondary, Some(by("frost_nova")));
+        let mut neutral = pack.build("blade").unwrap().clone();
+        neutral.aspects = gm_core::matrix::Aspects::NONE;
+        assert_eq!(
+            worn_of(&looks, &pack, &neutral, &six("staff", "")).secondary,
+            Some(by("staff_sweep"))
+        );
+        assert_eq!(w("blade", "sword", "").secondary, Some(by("pommel")));
+        assert_eq!(w("blade", "katana", "").secondary, Some(by("pommel")));
+        assert_eq!(w("shaman", "hammer", "").secondary, Some(by("slam")));
+        assert_eq!(
+            w("shade", "dagger", "").secondary,
+            Some(by("throwing_knife"))
+        );
+        // A bow brings no second move: the build's plays.
+        assert_eq!(w("blade", "bow", "").secondary, None);
+        // The left hand's own over the weapon's.
+        assert_eq!(
+            w("blade", "sword", "shield").secondary,
+            Some(by("shield_bash"))
+        );
+        assert_eq!(
+            w("blade", "sword", "buckler").secondary,
+            Some(by("shield_bash"))
+        );
+        assert_eq!(w("mender", "staff", "focus").secondary, Some(by("mend")));
+        // The pistol in the gun mode, and nowhere else; a gun build's staff brings none.
+        assert_eq!(
+            w("musketeer", "musket", "pistol").secondary,
+            Some(by("pistol"))
+        );
+        assert_eq!(w("blade", "sword", "pistol").secondary, Some(by("pommel")));
+        assert_eq!(w("musketeer", "staff", "").secondary, None);
+        // The techniques (BODIES.md 3.8): what the sword in hand can do, the build's
+        // own stored primary among them picked.
+        let sword = w("blade", "sword", "");
+        assert_eq!(sword.techniques, vec![by("sword"), by("thrust")]);
+        assert_eq!(sword.primary, Some(by("sword")));
+        let mut thruster = pack.build("blade").unwrap().clone();
+        thruster.primary = by("thrust");
+        assert_eq!(
+            worn_of(&looks, &pack, &thruster, &six("sword", "")).primary,
+            Some(by("thrust"))
+        );
+        assert_eq!(
+            w("blade", "bow", "").techniques,
+            vec![by("bow"), by("volley")]
+        );
     }
 
     #[test]

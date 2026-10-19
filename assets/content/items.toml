@@ -194,6 +194,7 @@ kind = "weapon"
 strikes = "pierce"
 layers = ["core", "frame", "gem"]
 model = "pistol"
+secondary = "pistol"
 fit = { turn = [0, 88, 0] }
 fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye: a short thing
 
@@ -204,6 +205,7 @@ fit_view = { move = [0.0, -0.02, -0.3], turn = [0, -88, 0] }   # nearer the eye:
 [[template]]
 id = "cuirass"
 kind = "armour"
+armour = 0.08                        # base mitigation (BODIES.md 3.7)
 guards = "physical"
 layers = ["core", "frame", "gem"]
 model = "cuirass"                            # the leather jerkin and its belts (LICENSES.md), on the striker
@@ -214,6 +216,7 @@ look = "patch"
 [[template]]
 id = "hood"
 kind = "armour"
+ward = 0.05                        # base mitigation (BODIES.md 3.7)
 place = "head"
 guards = "elements"
 layers = ["core", "catalyst", "frame", "gem"]
@@ -223,6 +226,7 @@ covers = []
 [[template]]
 id = "trousers"
 kind = "armour"
+armour = 0.05                        # base mitigation (BODIES.md 3.7)
 place = "legs"
 guards = "physical"
 layers = ["core", "frame", "gem"]
@@ -240,6 +244,7 @@ look = "patch"
 [[template]]
 id = "helm"
 kind = "armour"
+armour = 0.05                        # base mitigation (BODIES.md 3.7)
 place = "head"
 guards = "physical"
 layers = ["core", "frame", "gem"]
@@ -249,6 +254,7 @@ covers = []
 [[template]]
 id = "barbute"
 kind = "armour"
+armour = 0.05                        # base mitigation (BODIES.md 3.7)
 place = "head"
 guards = "physical"
 layers = ["core", "frame", "gem"]
@@ -258,6 +264,7 @@ covers = []
 [[template]]
 id = "great_helm"
 kind = "armour"
+armour = 0.05                        # base mitigation (BODIES.md 3.7)
 place = "head"
 guards = "physical"
 layers = ["core", "frame", "gem"]
@@ -267,6 +274,7 @@ covers = ["head"]
 [[template]]
 id = "robe"
 kind = "armour"
+ward = 0.15                        # base mitigation (BODIES.md 3.7)
 guards = "elements"
 layers = ["core", "catalyst", "frame", "gem"]
 model = "robe"                               # the cloth tunic with sleeves, on the striker
@@ -280,12 +288,18 @@ covers = ["spine", "chest"]
 [[template]]
 id = "mail_shirt"
 kind = "armour"
+armour = 0.15
+regen = 0.9                        # base mitigation (BODIES.md 3.7)
 guards = "physical"
 layers = ["core", "frame", "gem"]
 
 [[template]]
 id = "plate"
 kind = "armour"
+armour = 0.22
+ward = -0.05
+speed = 0.92
+regen = 0.8                        # base mitigation (BODIES.md 3.7)
 guards = "physical"
 layers = ["core", "frame", "gem"]
 
@@ -299,6 +313,7 @@ layers = ["core", "frame", "gem"]
 model = "shield"
 held = "left"
 guard = "shield_wall"
+secondary = "shield_bash"                    # the off hand's second move (BODIES.md 3.4)
 block = { arc = 150, mitigation = 0.8, stamina_per_hit = 12, stops_projectiles = true, move_speed_scale = 0.5 }   # the heater, as the wall itself
 
 # Two more shields (EQUIPMENT.md 10.7): KayKit's round and square shields, flat as
@@ -312,6 +327,7 @@ layers = ["core", "frame", "gem"]
 model = "buckler"
 held = "left"
 guard = "shield_wall"
+secondary = "shield_bash"
 block = { arc = 90, mitigation = 0.7, stamina_per_hit = 8, stops_projectiles = false, move_speed_scale = 0.8 }   # narrow, cheap, quick
 fit = { turn = [-90, 0, 0], scale = 0.7 }
 
@@ -323,6 +339,7 @@ layers = ["core", "frame", "gem"]
 model = "tower_shield"
 held = "left"
 guard = "shield_wall"
+secondary = "shield_bash"
 block = { arc = 180, mitigation = 0.9, stamina_per_hit = 16, stops_projectiles = true, move_speed_scale = 0.35 }   # wide, dear, slow
 fit = { turn = [-90, 0, 0], scale = 0.85 }
 
@@ -335,6 +352,7 @@ kind = "shield"
 guards = "elements"
 layers = ["core", "catalyst", "frame", "gem"]
 model = "focus"
+secondary = "mend"
 held = "left"
 guard = "brace"
 fit = { turn = [90, 0, 0], scale = 0.7 }   # upright, the cover out, as a shield's face

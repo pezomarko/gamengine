@@ -706,6 +706,9 @@ impl Hub {
                 .cloned()
                 .ok_or_else(|| HubError::Invalid(format!("unknown preset {name:?}")))?,
             BuildChoice::Custom(b) => b,
+            BuildChoice::Body(choice) => {
+                choice.build(&self.cfg.content).map_err(HubError::Invalid)?
+            }
         };
         build
             .validate(&self.cfg.content)

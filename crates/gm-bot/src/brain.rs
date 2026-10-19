@@ -628,7 +628,10 @@ pub fn counter_pick(pack: &ContentPack, current: &str, enemy: Aspects) -> Option
         .iter()
         .map(|nb| (nb, score(nb.build.aspects)))
         .reduce(|best, next| if next.1 > best.1 { next } else { best })?;
-    (best.0.name != current && best.1 > current_score * 1.5).then(|| best.0.name.clone())
+    // A margin of one matrix step and a little (MATRIX.md 5: 1.25 since v8; 1.5 against
+    // the 2x matrix): a re-spec that does not beat the current build by a counter's worth
+    // is noise.
+    (best.0.name != current && best.1 > current_score * 1.2).then(|| best.0.name.clone())
 }
 
 /// The aspect mask seen most often among living enemies.
@@ -669,12 +672,12 @@ mod tests {
     fn counter_pick_follows_the_matrix() {
         let pack = test_content::pack(TickRate::COMBAT);
         // Against ironclads (Ground): frostweaver (Water beats Ground; Ground into
-        // Water + Air is 0.5x), from a blade (Water alone: 2x in, 1x taken) as well.
+        // Water + Air is 0.75x), from a blade (Water alone: 1.25x in, 1x taken) as well.
         assert_eq!(
             counter_pick(&pack, "blade", Aspects::one(Element::Ground)).as_deref(),
             Some("frostweaver")
         );
-        // Against a Water + Air team: mender (Electric is 4x into both).
+        // Against a Water + Air team: mender (Electric is 1.5625x into both).
         assert_eq!(
             counter_pick(
                 &pack,
@@ -684,9 +687,9 @@ mod tests {
             .as_deref(),
             Some("mender")
         );
-        // Against blades (Water): the shaman (Grass 2x in, Water 0.5x back; MATRIX.md 17),
-        // over the frostweaver (its Air is 1x in, Water is 0.5x back) and the mender
-        // (Electric 2x in, 1x back), and a frostweaver re-specs to it.
+        // Against blades (Water): the shaman (Grass 1.25x in, Water 0.75x back; MATRIX.md
+        // 17), over the frostweaver (its Air is 1x in, Water is 0.75x back) and the mender
+        // (Electric 1.25x in, 1x back), and a frostweaver re-specs to it.
         assert_eq!(
             counter_pick(&pack, "ironclad", Aspects::one(Element::Water)).as_deref(),
             Some("shaman")
@@ -696,8 +699,8 @@ mod tests {
             Some("shaman")
         );
         // Against a Grass team: nothing in the roster is its predator but the shade's Air
-        // (Fire has no build); the shade scores 2x in, 0.5x back, and a frostweaver (its
-        // Water 0.5x in, Air 1x back) goes to it.
+        // (Fire has no build); the shade scores 1.25x in, 0.75x back, and a frostweaver
+        // (its Air 1.25x in, Grass 0.94x back) goes to it.
         assert_eq!(
             counter_pick(&pack, "frostweaver", Aspects::one(Element::Grass)).as_deref(),
             Some("shade")

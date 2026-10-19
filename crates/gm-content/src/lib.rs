@@ -11,7 +11,9 @@ pub mod worn;
 
 use std::path::Path;
 
-use gm_core::build::{AbilityDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Slot};
+use gm_core::build::{
+    AbilityDef, BodyDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Slot,
+};
 use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::{Tick, TickRate};
 use gm_core::trial::{Lens, TrialDef};
@@ -108,6 +110,32 @@ struct TrialsFile {
     trial: Vec<TrialToml>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BodiesFile {
+    #[serde(default)]
+    body: Vec<BodyToml>,
+}
+
+/// A row of `bodies.toml` (BODIES.md 3.1).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BodyToml {
+    key: String,
+    name: String,
+    frame: String,
+    floors: AttributesToml,
+    skill: String,
+    /// The stamina pool, percent.
+    #[serde(default = "hundred")]
+    stamina: u8,
+    blurb: String,
+}
+
+fn hundred() -> u8 {
+    100
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct AbilityToml {
@@ -124,6 +152,10 @@ pub(crate) struct AbilityToml {
     pub(crate) prop: Option<String>,
     #[serde(default)]
     pub(crate) sound: Option<String>,
+    /// A secondary's weapons (BODIES.md 3.6): the props whose weapon brings it as its
+    /// second move. Read by `looks`, not compiled.
+    #[serde(default)]
+    pub(crate) secondary_of: Vec<String>,
     /// Squad slots the ability adds while slotted (COMPANIONS.md 3.2).
     #[serde(default)]
     squad: u8,
@@ -1066,7 +1098,7 @@ fn compile_ability(
 
 /// What a build and a creature share: the frame, the attributes, the aspects and the
 /// slotted abilities by key.
-struct BodyToml<'a> {
+struct KitToml<'a> {
     what: &'a str,
     name: &'a str,
     /// The mode (MODES.md 2); a creature plays none.
@@ -1080,19 +1112,61 @@ struct BodyToml<'a> {
     actives: &'a [String],
 }
 
-fn compile_body(b: &BodyToml<'_>, pack: &ContentPack) -> Result<Build, ContentError> {
+fn frame_of(name: &str) -> Option<ArchetypeFrame> {
+    match name {
+        "colossus" => Some(ArchetypeFrame::Colossus),
+        "striker" => Some(ArchetypeFrame::Striker),
+        "caster" => Some(ArchetypeFrame::Caster),
+        "infiltrator" => Some(ArchetypeFrame::Infiltrator),
+        _ => None,
+    }
+}
+
+/// A blurb short enough for its screen, and nothing the client's font cannot draw.
+fn checked_blurb(what: &str, name: &str, blurb: &str) -> Result<String, ContentError> {
+    let blurb = blurb.trim();
+    if blurb.is_empty()
+        || blurb.chars().count() > MAX_BLURB_CHARS
+        || !blurb.chars().all(|c| c == ' ' || c.is_ascii_graphic())
+    {
+        return Err(ContentError::Invalid(format!(
+            "{what} {name:?}: its blurb must be 1 to {MAX_BLURB_CHARS} characters of ASCII"
+        )));
+    }
+    Ok(blurb.to_string())
+}
+
+fn compile_body_def(b: &BodyToml, pack: &ContentPack) -> Result<BodyDef, ContentError> {
+    let err = |msg: String| ContentError::Invalid(format!("body {}: {msg}", b.key));
+    if !looks::valid_key(&b.key) {
+        return Err(err("the key is not a key".into()));
+    }
+    Ok(BodyDef {
+        key: b.key.clone(),
+        name: b.name.clone(),
+        frame: frame_of(&b.frame).ok_or_else(|| err(format!("unknown frame {:?}", b.frame)))?,
+        floors: Attributes::new(
+            b.floors.str,
+            b.floors.agi,
+            b.floors.con,
+            b.floors.int,
+            b.floors.spr,
+        ),
+        skill: pack
+            .find(&b.skill)
+            .ok_or_else(|| err(format!("unknown skill {:?}", b.skill)))?,
+        stamina: b.stamina,
+        blurb: checked_blurb("body", &b.key, &b.blurb)?,
+    })
+}
+
+fn compile_body(b: &KitToml<'_>, pack: &ContentPack) -> Result<Build, ContentError> {
     let err = |msg: String| ContentError::Invalid(format!("{} {}: {msg}", b.what, b.name));
     let find = |key: &str| {
         pack.find(key)
             .ok_or_else(|| err(format!("unknown ability {key:?}")))
     };
-    let frame = match b.frame {
-        "colossus" => ArchetypeFrame::Colossus,
-        "striker" => ArchetypeFrame::Striker,
-        "caster" => ArchetypeFrame::Caster,
-        "infiltrator" => ArchetypeFrame::Infiltrator,
-        other => return Err(err(format!("unknown frame {other:?}"))),
-    };
+    let frame = frame_of(b.frame).ok_or_else(|| err(format!("unknown frame {:?}", b.frame)))?;
     let mut aspects = Aspects::NONE;
     for a in b.aspects {
         let e = Element::ALL
@@ -1107,6 +1181,7 @@ fn compile_body(b: &BodyToml<'_>, pack: &ContentPack) -> Result<Build, ContentEr
     };
     Ok(Build {
         mode,
+        body: None,
         frame,
         attributes: Attributes::new(
             b.attributes.str,
@@ -1131,7 +1206,7 @@ fn compile_build(b: &BuildToml, pack: &ContentPack) -> Result<NamedBuild, Conten
     Ok(NamedBuild {
         name: b.name.clone(),
         build: compile_body(
-            &BodyToml {
+            &KitToml {
                 what: "build",
                 name: &b.name,
                 mode: Some(&b.mode),
@@ -1153,7 +1228,7 @@ fn compile_creature(c: &CreatureToml, pack: &ContentPack) -> Result<CreatureDef,
         key: c.key.clone(),
         name: c.name.clone(),
         build: compile_body(
-            &BodyToml {
+            &KitToml {
                 what: "creature",
                 name: &c.key,
                 mode: None,
@@ -1209,21 +1284,23 @@ fn compile_trial(t: &TrialToml) -> TrialDef {
     }
 }
 
-/// Compile abilities and builds into a validated pack (no creatures, no trials).
+/// Compile abilities and builds into a validated pack (no creatures, no trials, no
+/// bodies).
 pub fn load_str(
     abilities: &str,
     builds: &str,
     rate: TickRate,
 ) -> Result<ContentPack, ContentError> {
-    load_all(abilities, builds, "", "", rate)
+    load_all(abilities, builds, "", "", "", rate)
 }
 
-/// Compile the four TOML documents into a validated pack.
+/// Compile the five TOML documents into a validated pack.
 pub fn load_all(
     abilities: &str,
     builds: &str,
     creatures: &str,
     trials: &str,
+    bodies: &str,
     rate: TickRate,
 ) -> Result<ContentPack, ContentError> {
     fn parse<T: serde::de::DeserializeOwned>(text: &str, path: &str) -> Result<T, ContentError> {
@@ -1236,6 +1313,7 @@ pub fn load_all(
     let bf: BuildsFile = parse(builds, "builds.toml")?;
     let cf: CreaturesFile = parse(creatures, "creatures.toml")?;
     let tf: TrialsFile = parse(trials, "trials.toml")?;
+    let yf: BodiesFile = parse(bodies, "bodies.toml")?;
     let mut pack = ContentPack::default();
     let keys: Vec<String> = af.ability.iter().map(|a| a.key.clone()).collect();
     for (i, a) in af.ability.iter().enumerate() {
@@ -1250,13 +1328,17 @@ pub fn load_all(
         pack.creatures.push(def);
     }
     pack.trials = tf.trial.iter().map(compile_trial).collect();
+    for b in &yf.body {
+        let def = compile_body_def(b, &pack)?;
+        pack.bodies.push(def);
+    }
     pack.validate(rate)?;
     Ok(pack)
 }
 
-/// Load `<dir>/abilities.toml`, `builds.toml` and, when they exist, `creatures.toml` and
-/// `trials.toml`. With an `items.toml` beside them, every material a creature drops must be
-/// one it defines (ECONOMY.md 4).
+/// Load `<dir>/abilities.toml`, `builds.toml` and, when they exist, `creatures.toml`,
+/// `trials.toml` and `bodies.toml`. With an `items.toml` beside them, every material a
+/// creature drops must be one it defines (ECONOMY.md 4).
 pub fn load_dir(dir: &Path, rate: TickRate) -> Result<ContentPack, ContentError> {
     let read = |name: &str, optional: bool| {
         let path = dir.join(name);
@@ -1274,6 +1356,7 @@ pub fn load_dir(dir: &Path, rate: TickRate) -> Result<ContentPack, ContentError>
         &read("builds.toml", false)?,
         &read("creatures.toml", true)?,
         &read("trials.toml", true)?,
+        &read("bodies.toml", true)?,
         rate,
     )?;
     if dir.join("items.toml").exists() {
@@ -1337,6 +1420,7 @@ mod tests {
         assert_eq!(pack.builds, fixture.builds);
         assert_eq!(pack.creatures, fixture.creatures);
         assert_eq!(pack.trials, fixture.trials);
+        assert_eq!(pack.bodies, fixture.bodies);
     }
 
     #[test]

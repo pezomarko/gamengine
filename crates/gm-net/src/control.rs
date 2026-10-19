@@ -3,16 +3,50 @@
 use bitcode::{Decode, Encode};
 use gm_core::build::{Build, ContentPack, Worn};
 
-/// How a client asks for a build: a preset by name (the zone resolves it against its content)
-/// or a full allocation (validated by the zone against MATRIX.md 9).
 /// How near the trainer a body must stand to wear a new build in the world (MATRIX.md
 /// 9.1): the zone enforces it, the client offers the button by it.
 pub const TRAINER_REACH: f32 = 160.0;
 
+/// How a client asks for a build: a preset by name (the zone resolves it against its
+/// content; the bots' and the arena's), a full allocation (validated by the zone against
+/// MATRIX.md 9), or a body with what a player chooses on top of it (BODIES.md 3.5: the
+/// thirty points, the elements, the spells; v27).
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub enum BuildChoice {
     Preset(String),
     Custom(Build),
+    Body(BodyChoice),
+}
+
+/// A player's choice at creation and at the trainer (BODIES.md 3.5): the body by key,
+/// the mode, the five attributes (at or above the body's floors, thirty points above
+/// them at most), the aspects and the actives bought with the budget. The frame, the
+/// body skill and the bare hands are the body's and the content's.
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct BodyChoice {
+    pub body: String,
+    pub mode: gm_core::vocab::Mode,
+    pub attributes: gm_core::matrix::Attributes,
+    pub aspects: gm_core::matrix::Aspects,
+    pub actives: Vec<u16>,
+}
+
+impl BodyChoice {
+    /// The build this choice is in `pack` (unvalidated; `Build::validate` says the rest).
+    pub fn build(&self, pack: &ContentPack) -> Result<Build, String> {
+        let body = pack
+            .body(&self.body)
+            .ok_or_else(|| format!("unknown body {:?}", self.body))?;
+        Build::of_body(
+            pack,
+            body,
+            self.mode,
+            self.attributes,
+            self.aspects,
+            self.actives.clone(),
+        )
+        .map_err(|e| e.to_string())
+    }
 }
 
 /// Who drives a body (COMPANIONS.md 2.1), as a zone announces it.

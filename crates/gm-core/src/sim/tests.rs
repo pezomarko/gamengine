@@ -658,20 +658,42 @@ fn parry_negates_staggers_and_ripostes() {
     assert_eq!(zone.player(a).unwrap().mover.guard, GuardState::None);
 }
 
+/// The ironclad with the stomp as its second move (BODIES.md 3.6: the staff's, and a
+/// build may store it as what plays in nothing).
+fn stomping_ironclad(pack: &ContentPack) -> Build {
+    let mut b = pack.build("ironclad").unwrap().clone();
+    b.secondary = pack.find("stomp").unwrap();
+    b.validate(pack).unwrap();
+    b
+}
+
 #[test]
 fn stomp_pulses_once_damages_and_slows_everyone_in_range() {
-    let (world, mut zone, ids) = arena_builds(&[
-        ("ironclad", Vec3::new(0.0, 0.0, REST_Z), 0.0),
-        ("blade", Vec3::new(100.0, 0.0, REST_Z), 180.0),
-        ("blade", Vec3::new(300.0, 0.0, REST_Z), 180.0),
+    let pack = test_content::pack(RATE);
+    let (world, mut zone, ids) = arena_with(vec![
+        (stomping_ironclad(&pack), Vec3::new(0.0, 0.0, REST_Z), 0.0),
+        (
+            pack.build("blade").unwrap().clone(),
+            Vec3::new(100.0, 0.0, REST_Z),
+            180.0,
+        ),
+        (
+            pack.build("blade").unwrap().clone(),
+            Vec3::new(300.0, 0.0, REST_Z),
+            180.0,
+        ),
     ]);
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let idle = input(180.0, 0.0, 0);
-    // Stomp is active slot 1 of the ironclad.
+    // The stomp is the ironclad's second move here.
     tick(
         &mut zone,
         &world,
-        &[(a, active(0.0, 0.0, 1)), (b, idle), (c, idle)],
+        &[
+            (a, input(0.0, 0.0, buttons::SECONDARY)),
+            (b, idle),
+            (c, idle),
+        ],
         0,
     );
     run(
@@ -725,13 +747,20 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
     ]);
     let (a, b) = (ids[0], ids[1]);
     let idle = input(180.0, 0.0, 0);
-    tick(&mut zone, &world, &[(a, active(0.0, 0.0, 1)), (b, idle)], 0);
+    // The nova is the frostweaver's second move (BODIES.md 3.6).
+    tick(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::SECONDARY)), (b, idle)],
+        0,
+    );
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 25);
     let pb = zone.player(b).unwrap();
     assert_eq!(pb.mover.statuses.stacks(Status::Chill), 2);
     assert!((pb.mover.statuses.speed_scale() - 0.7).abs() < 1e-6);
-    // Water into Ground is 2x and ignores plate: 30 * 1.4 (INT 20) * 2 * (1 - 0.2 ward) = 67.2 -> 67.
-    assert_eq!(pb.max_health() - pb.health, 67);
+    // Water into Ground is 1.25x (MATRIX.md 19) and ignores plate: 30 * 1.4 (INT 20) *
+    // 1.25 * (1 - 0.2 ward) = 42.
+    assert_eq!(pb.max_health() - pb.health, 42);
     // The ice shard (the frostweaver's primary) adds the third stack: frozen (rooted),
     // chill cleared, immune after.
     tick(
@@ -927,11 +956,11 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         40,
     );
     let pb = zone.player(b).unwrap();
-    // Ice shard 50 x 1.4 (INT 20) x 2 (water into ground) x 0.8 (ward 0.20) x 0.6 (fortify)
-    // = 67.2 -> 67.
+    // Ice shard 50 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.6
+    // (fortify) = 42.
     assert_eq!(
         before - pb.health,
-        67,
+        42,
         "{}",
         hits(&zone, HitKind::Projectile)
     );
@@ -1630,11 +1659,11 @@ fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
     sword.dealt[slash] = 220;
     let mut cuirass = Gear::NONE;
     cuirass.taken[slash] = 220;
-    // 60 slash x 0.80 (armour) = 48 in nothing (the test above); a place counts for half
-    // its item's edge, so 220 per mille is a factor of 1.11.
+    // 60 slash x 0.80 (armour) = 48 in nothing (the test above); 220 per mille against
+    // `Gear::SCALE` 1100 (MATRIX.md 19) is a factor of 1.2.
     assert_eq!(swing(Gear::NONE, Gear::NONE), 48);
-    assert_eq!(swing(sword, Gear::NONE), 53, "48 x 1.11");
-    assert_eq!(swing(Gear::NONE, cuirass), 43, "48 / 1.11");
+    assert_eq!(swing(sword, Gear::NONE), 58, "48 x 1.2");
+    assert_eq!(swing(Gear::NONE, cuirass), 40, "48 / 1.2");
     assert_eq!(swing(sword, cuirass), 48, "a wash");
     // An edge on another type is no edge on this one.
     let mut frost = Gear::NONE;
@@ -1644,7 +1673,11 @@ fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
     // What a zone is told is kept within the cap.
     let mut wild = Gear::NONE;
     wild.dealt[slash] = 60_000;
-    assert_eq!(swing(wild, Gear::NONE), 54, "48 x 1.125, not x 31");
+    assert_eq!(
+        swing(wild, Gear::NONE),
+        59,
+        "48 x 1.227 (the cap), not x 55"
+    );
 
     // A bolt in flight keeps the edge it was loosed with: the weapon is taken off while it
     // flies, and it lands as it left.
@@ -1810,20 +1843,30 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 12);
         900 - zone.player(b).unwrap().health
     };
-    assert_eq!(swing(sword, Gear::NONE), 53, "taken off in the windup");
+    assert_eq!(swing(sword, Gear::NONE), 58, "taken off in the windup");
     assert_eq!(swing(Gear::NONE, sword), 48, "put on in the windup");
 
     // An area: the caster's edge on the area's kind, the edge of whoever stands in it.
     let stomp = |caster: Gear, target: Gear| {
-        let (world, mut zone, ids) = arena_builds(&[
-            ("ironclad", Vec3::new(0.0, 0.0, REST_Z), 0.0),
-            ("blade", Vec3::new(100.0, 0.0, REST_Z), 180.0),
+        let pack = test_content::pack(RATE);
+        let (world, mut zone, ids) = arena_with(vec![
+            (stomping_ironclad(&pack), Vec3::new(0.0, 0.0, REST_Z), 0.0),
+            (
+                pack.build("blade").unwrap().clone(),
+                Vec3::new(100.0, 0.0, REST_Z),
+                180.0,
+            ),
         ]);
         let (a, b) = (ids[0], ids[1]);
         zone.set_gear(a, caster);
         zone.set_gear(b, target);
         let idle = input(180.0, 0.0, 0);
-        tick(&mut zone, &world, &[(a, active(0.0, 0.0, 1)), (b, idle)], 0);
+        tick(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, buttons::SECONDARY)), (b, idle)],
+            0,
+        );
         run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 20);
         let pb = zone.player(b).unwrap();
         pb.max_health() - pb.health
@@ -1834,8 +1877,8 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
     robe.taken[stone] = 250;
     // 25.2 unrounded (the stomp test above).
     assert_eq!(stomp(Gear::NONE, Gear::NONE), 25);
-    assert_eq!(stomp(hammer, Gear::NONE), 28, "25.2 x 1.125");
-    assert_eq!(stomp(Gear::NONE, robe), 22, "25.2 / 1.125");
+    assert_eq!(stomp(hammer, Gear::NONE), 31, "25.2 x 1.227");
+    assert_eq!(stomp(Gear::NONE, robe), 21, "25.2 / 1.227");
     assert_eq!(
         stomp(sword, Gear::NONE),
         25,
@@ -1895,7 +1938,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
     );
     let armed = riposte(Gear::NONE, sword);
     assert!(
-        armed > plain && armed as f32 <= plain as f32 * 1.11 + 1.0,
+        armed > plain && armed as f32 <= plain as f32 * 1.2 + 1.0,
         "{plain} then {armed}"
     );
 

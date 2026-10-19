@@ -341,15 +341,14 @@ mod tests {
                 ..
             }
         ));
+        // The bellow (MATRIX.md 16): a roar at the feet, used with an enemy in reach; the
+        // fortify a buff. (The stomp was the ironclad's first active until BODIES.md 3.6
+        // made it the staff's second move.)
         assert!(matches!(
             ironclad.actives[0],
             Some((_, Use::Burst { harmful: true, .. }))
         ));
-        // The bellow (MATRIX.md 16): a roar at the feet, used with an enemy in reach.
-        assert!(matches!(
-            ironclad.actives[1],
-            Some((_, Use::Burst { harmful: true, .. }))
-        ));
+        assert!(matches!(ironclad.actives[1], Some((_, Use::Buff))));
         let shade = plan("shade");
         assert!(shade.stealth);
         assert!(matches!(shade.actives[0], Some((_, Use::Blink { .. }))));

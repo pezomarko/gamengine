@@ -943,6 +943,7 @@ impl App {
             let view = CharacterView {
                 pack,
                 own: &c.sheet.build,
+                worn: &o.worn,
                 rate: o.rate,
                 at_trainer,
                 note: &o.respec_note,

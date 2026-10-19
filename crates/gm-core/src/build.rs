@@ -111,13 +111,46 @@ pub struct Build {
     /// read as `Action`, today's play.
     #[cfg_attr(feature = "serde", serde(default))]
     pub mode: Mode,
+    /// The body (BODIES.md 3): an index into the pack's `bodies`, which fixes the frame,
+    /// the attribute floors and the first active (the body skill). `None` for a preset,
+    /// a creature and a bot: a build of the flat floor, as every build was before
+    /// 2026-10-19.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub body: Option<u16>,
+    /// The body's frame when there is a body; the build's own otherwise.
     pub frame: ArchetypeFrame,
     pub attributes: Attributes,
     pub aspects: Aspects,
+    /// What plays in nothing (GEAR.md 2): the worn weapon brings its own in place of it.
+    /// With a body these three cost no points and are the bare hands' (`bare_hands`).
     pub primary: u16,
     pub secondary: u16,
     pub guard: Option<u16>,
+    /// The actives bought with the budget. With a body the body skill stands before
+    /// them, free, so at most `MAX_ACTIVES - 1` here.
     pub actives: Vec<u16>,
+}
+
+/// A body (BODIES.md 3): who the character is. Its frame is the hitbox and the gait, its
+/// floors are where the thirty points start, its skill is the first active, free, and
+/// its stamina is the pool's share (the whelp's youth). A player picks one at creation
+/// and keeps it; everything else is respecced at the trainer.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+pub struct BodyDef {
+    /// Stable content key (`"brute"`), unique within a pack.
+    pub key: String,
+    pub name: String,
+    pub frame: ArchetypeFrame,
+    /// The five floors, each `Attributes::MIN..=MAX`, summing to `Attributes::FLOOR_SUM`.
+    pub floors: Attributes,
+    /// The body skill: an `active` of no aspect and no creature's, the first active of
+    /// every build of this body at no cost.
+    pub skill: u16,
+    /// The stamina pool, percent of the derived one (100 for most; the whelp 115).
+    pub stamina: u8,
+    /// What the body is, in a line or two of plain words (at most 160 ASCII characters).
+    pub blurb: String,
 }
 
 /// What a body wears, as its sheet reads it (GEAR.md 2 and 4): the kit the worn things
@@ -132,9 +165,25 @@ pub struct Worn {
     /// The primary the weapon in the right hand brings (GEAR.md 2), in place of the
     /// build's; `None`: the hand is empty, the build's primary plays.
     pub primary: Option<u16>,
+    /// The secondary the hands bring (BODIES.md 3.4 and 3.6): the left hand's own where
+    /// it has one (a shield's bash, the pistol, a focus's mend), else the right hand's
+    /// weapon's second move (a caster weapon's blast of the body's element, a hammer's
+    /// slam, a sword's pommel); `None`: the build's secondary plays (the kick).
+    pub secondary: Option<u16>,
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
+    /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
+    /// holds its prop and the build may use, the one in `primary` among them; the K page
+    /// offers them, and the build's stored primary picks one when it is one of them.
+    pub techniques: Vec<u16>,
+    /// The armour's base mitigation (BODIES.md 3.7): what the worn pieces add to the
+    /// body's armour and ward before the caps (the chest whole, the head and the legs a
+    /// third), and what they do to its speed and stamina regen (percent; 100 for nothing).
+    pub armour: f32,
+    pub ward: f32,
+    pub speed: u8,
+    pub regen: u8,
     /// The worn weapon's frame (GEAR.md 6): the stamina of the blows, percent of the cost.
     /// The client predicts stamina, so it rides here, not in the zone's gear alone.
     pub stamina_blows: u8,
@@ -148,7 +197,13 @@ pub struct Worn {
 impl Worn {
     pub const NONE: Worn = Worn {
         primary: None,
+        secondary: None,
         guard: None,
+        techniques: Vec::new(),
+        armour: 0.0,
+        ward: 0.0,
+        speed: 100,
+        regen: 100,
         stamina_blows: 100,
         stamina_block: 100,
         block: None,
@@ -172,6 +227,8 @@ pub struct ContentPack {
     pub builds: Vec<NamedBuild>,
     pub creatures: Vec<CreatureDef>,
     pub trials: Vec<crate::trial::TrialDef>,
+    /// The bodies a player chooses from (BODIES.md 3); empty for a pack of presets only.
+    pub bodies: Vec<BodyDef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -205,6 +262,12 @@ pub enum BuildError {
     FirearmNeedsGun(u16),
     /// A gun build with a guard (MODES.md 3.7).
     GunHasNoGuard,
+    /// A body the pack does not have (BODIES.md 3).
+    UnknownBody(u16),
+    /// The frame is not the body's.
+    BodyFrame,
+    /// An attribute under its body's floor.
+    AttributeUnderFloor,
 }
 
 impl core::fmt::Display for BuildError {
@@ -247,6 +310,9 @@ impl core::fmt::Display for BuildError {
                 Attributes::FREE_POINTS
             ),
             BuildError::CreatureOnly(i) => write!(f, "ability {i} is a creature's"),
+            BuildError::UnknownBody(i) => write!(f, "unknown body {i}"),
+            BuildError::BodyFrame => write!(f, "the frame is the body's"),
+            BuildError::AttributeUnderFloor => write!(f, "an attribute is under its body's floor"),
         }
     }
 }
@@ -278,11 +344,14 @@ impl Build {
         } else {
             0
         };
-        aspects
-            + ability(self.primary)
-            + ability(self.secondary)
-            + self.guard.map_or(0, ability)
-            + self.actives.iter().map(|&i| ability(i)).sum::<u32>()
+        // With a body (BODIES.md 3.4) the hands are the gear's and the bare hands' and
+        // cost nothing; the budget buys spells and the second element.
+        let hands = if self.body.is_some() {
+            0
+        } else {
+            ability(self.primary) + ability(self.secondary) + self.guard.map_or(0, ability)
+        };
+        aspects + hands + self.actives.iter().map(|&i| ability(i)).sum::<u32>()
     }
 
     /// Every slotted ability index in kit order: primary, secondary, actives, guard.
@@ -290,14 +359,67 @@ impl Build {
         self.kit_slots(&Worn::NONE)
     }
 
+    /// The body of this build, when the pack has it.
+    pub fn body_def<'p>(&self, pack: &'p ContentPack) -> Option<&'p BodyDef> {
+        pack.bodies.get(self.body? as usize)
+    }
+
+    /// The body skill (BODIES.md 3.4): the first active of a build with a body.
+    pub fn body_skill(&self, pack: &ContentPack) -> Option<u16> {
+        self.body_def(pack).map(|b| b.skill)
+    }
+
+    /// Where the thirty points start: the body's floors, or five each without one.
+    pub fn floors(&self, pack: &ContentPack) -> Attributes {
+        self.body_def(pack)
+            .map_or(Attributes::flat(Attributes::BASE), |b| b.floors)
+    }
+
+    /// The attribute points spent above the floors (MATRIX.md 2).
+    pub fn points_spent(&self, pack: &ContentPack) -> u32 {
+        self.attributes.spent(self.floors(pack))
+    }
+
+    /// The derived stats with the body's say (BODIES.md 3.1: the stamina pool's share).
+    pub fn derived_in(&self, pack: &ContentPack) -> Derived {
+        let mut d = self.derived();
+        if let Some(b) = self.body_def(pack) {
+            d.stamina *= b.stamina as f32 / 100.0;
+        }
+        d
+    }
+
+    /// The derived stats of this build wearing `worn` (BODIES.md 3.7): the armour's base
+    /// mitigation added before the caps, its weight on the speed and the stamina regen.
+    pub fn derived_wearing(&self, worn: &Worn, pack: &ContentPack) -> Derived {
+        let mut d = self.derived_in(pack);
+        d.armour = (d.armour + worn.armour).clamp(0.0, crate::matrix::MAX_ARMOUR);
+        d.ward = (d.ward + worn.ward).clamp(0.0, crate::matrix::MAX_WARD);
+        d.max_speed *= worn.speed.clamp(1, 200) as f32 / 100.0;
+        d.stamina_regen *= worn.regen.clamp(1, 200) as f32 / 100.0;
+        d
+    }
+
     /// The slots as the kit plays them with `worn` (GEAR.md 2): the worn weapon's primary
     /// in place of the build's, the off hand's guard in place of the build's (or added,
-    /// when the build has none). Nothing worn: `slots()`.
+    /// when the build has none). Nothing worn: `slots()`. The body skill, when there is a
+    /// body (`body_skill`, told apart from the pack: `kit_slots_in`), is the first
+    /// active; this reading has no pack and lists the build's own actives.
     pub fn kit_slots(&self, worn: &Worn) -> Vec<(u16, Slot)> {
+        self.kit_slots_with(worn, None)
+    }
+
+    /// `kit_slots` with the body skill first among the actives (BODIES.md 3.4).
+    pub fn kit_slots_in(&self, worn: &Worn, pack: &ContentPack) -> Vec<(u16, Slot)> {
+        self.kit_slots_with(worn, self.body_skill(pack))
+    }
+
+    fn kit_slots_with(&self, worn: &Worn, skill: Option<u16>) -> Vec<(u16, Slot)> {
         let mut out = vec![
             (worn.primary.unwrap_or(self.primary), Slot::Primary),
-            (self.secondary, Slot::Secondary),
+            (worn.secondary.unwrap_or(self.secondary), Slot::Secondary),
         ];
+        out.extend(skill.map(|i| (i, Slot::Active)));
         out.extend(self.actives.iter().map(|&i| (i, Slot::Active)));
         if let Some(g) = worn.guard.or(self.guard) {
             out.push((g, Slot::Guard));
@@ -306,12 +428,28 @@ impl Build {
     }
 
     /// MATRIX.md 9: ranges, the free points, aspects, slots, gating, cooldown groups, the
-    /// kit's budget.
+    /// kit's budget; with a body (BODIES.md 3.2), the body's frame, its floors and the
+    /// points above them.
     pub fn validate(&self, pack: &ContentPack) -> Result<(), BuildError> {
         if !self.attributes.in_range() {
             return Err(BuildError::AttributeOutOfRange);
         }
-        let points = self.attributes.cost();
+        if let Some(i) = self.body {
+            let body = pack
+                .bodies
+                .get(i as usize)
+                .ok_or(BuildError::UnknownBody(i))?;
+            if self.frame != body.frame {
+                return Err(BuildError::BodyFrame);
+            }
+            if !self.attributes.at_floors(body.floors) {
+                return Err(BuildError::AttributeUnderFloor);
+            }
+            if self.actives.len() + 1 > MAX_ACTIVES {
+                return Err(BuildError::TooManyActives);
+            }
+        }
+        let points = self.points_spent(pack);
         if points > Attributes::FREE_POINTS {
             return Err(BuildError::AttributePoints { spent: points });
         }
@@ -323,6 +461,35 @@ impl Build {
         Ok(())
     }
 
+    /// A build of a body (BODIES.md 3.5): the body's frame, its floors lifted to where
+    /// `attributes` puts them, the aspects and the actives asked for, the bare hands for
+    /// what plays in nothing. Validated by the caller.
+    pub fn of_body(
+        pack: &ContentPack,
+        body: u16,
+        mode: Mode,
+        attributes: Attributes,
+        aspects: Aspects,
+        actives: Vec<u16>,
+    ) -> Result<Build, BuildError> {
+        let def = pack
+            .bodies
+            .get(body as usize)
+            .ok_or(BuildError::UnknownBody(body))?;
+        let (primary, secondary, guard) = pack.bare_hands(mode);
+        Ok(Build {
+            mode,
+            body: Some(body),
+            frame: def.frame,
+            attributes,
+            aspects,
+            primary,
+            secondary,
+            guard,
+            actives,
+        })
+    }
+
     /// A stored build the content no longer takes, made into one it does (MATRIX.md 9.1):
     /// attributes clamped to the range and, past the free points, scaled down to them; a
     /// kit the pack refuses replaced by the preset with the same primary, else the first
@@ -332,17 +499,34 @@ impl Build {
             return None;
         }
         let mut out = self.clone();
-        let mut attrs = out
-            .attributes
-            .as_array()
-            .map(|v| v.clamp(Attributes::MIN, Attributes::MAX));
-        let spent: u32 = attrs.iter().map(|&v| (v - Attributes::MIN) as u32).sum();
+        // A body the pack lost is no body: the build reads as a preset's would.
+        if out
+            .body
+            .is_some_and(|i| pack.bodies.get(i as usize).is_none())
+        {
+            out.body = None;
+        }
+        if let Some(body) = out.body_def(pack) {
+            out.frame = body.frame;
+            if out.actives.len() + 1 > MAX_ACTIVES {
+                out.actives.truncate(MAX_ACTIVES - 1);
+            }
+        }
+        // Lifted to the floors (BODIES.md 3.2) and clamped to the range; past the free
+        // points, scaled down to them.
+        let floors = out.floors(pack).as_array();
+        let mut attrs = out.attributes.as_array();
+        for (a, f) in attrs.iter_mut().zip(floors) {
+            *a = (*a).clamp(f, Attributes::MAX);
+        }
+        let spent: u32 = attrs.iter().zip(floors).map(|(&v, f)| (v - f) as u32).sum();
         if spent > Attributes::FREE_POINTS {
             // Each stat keeps its share of the points, rounded down; the remainder goes to
             // the largest ones, one each, so that every point is kept.
             let mut kept: Vec<u32> = attrs
                 .iter()
-                .map(|&v| (v - Attributes::MIN) as u32 * Attributes::FREE_POINTS / spent)
+                .zip(floors)
+                .map(|(&v, f)| (v - f) as u32 * Attributes::FREE_POINTS / spent)
                 .collect();
             let mut left = Attributes::FREE_POINTS - kept.iter().sum::<u32>();
             let mut order: Vec<usize> = (0..5).collect();
@@ -354,14 +538,28 @@ impl Build {
                 kept[i] += 1;
                 left -= 1;
             }
-            for (a, k) in attrs.iter_mut().zip(kept) {
-                *a = Attributes::MIN + k as u8;
+            for ((a, k), f) in attrs.iter_mut().zip(kept).zip(floors) {
+                *a = f + k as u8;
             }
         }
         let [str_, agi, con, int, spr] = attrs;
         out.attributes = Attributes::new(str_, agi, con, int, spr);
         if out.validate(pack).is_ok() {
             return Some(out);
+        }
+        // A kit the pack refuses: with a body, the bare hands and no spells; without
+        // one, the preset with the same primary, else the first preset.
+        if let Some(body) = out.body {
+            let fixed = Build::of_body(
+                pack,
+                body,
+                out.mode,
+                out.attributes,
+                Aspects(out.aspects.0 & Element::MASK),
+                Vec::new(),
+            )
+            .ok()?;
+            return fixed.validate(pack).is_ok().then_some(fixed);
         }
         let preset = pack
             .builds
@@ -385,7 +583,7 @@ impl Build {
     /// abilities add, at most five.
     pub fn squad_capacity(&self, pack: &ContentPack) -> usize {
         let bonus: usize = self
-            .slots()
+            .kit_slots_in(&Worn::NONE, pack)
             .iter()
             .filter_map(|(i, _)| pack.abilities.get(*i as usize))
             .map(|a| a.squad as usize)
@@ -407,7 +605,7 @@ impl Build {
         }
         let mut seen: Vec<u16> = Vec::new();
         let mut groups: Vec<u8> = Vec::new();
-        for (index, expected) in self.slots() {
+        for (index, expected) in self.kit_slots_in(&Worn::NONE, pack) {
             let def = pack
                 .abilities
                 .get(index as usize)
@@ -416,9 +614,11 @@ impl Build {
                 return Err(BuildError::NotSlottable(index));
             }
             // A creature may hold a second primary (a bow beside its blade) where a
-            // player holds a utility: the range rule of MATRIX.md 10 is for players.
+            // player holds a utility, and a second move (the staff's stomp, BODIES.md
+            // 3.6) among its actives: the slot rules of MATRIX.md 10 are for players.
             let allowed = def.slot == expected
-                || (creature && expected == Slot::Secondary && def.slot == Slot::Primary);
+                || (creature && expected == Slot::Secondary && def.slot == Slot::Primary)
+                || (creature && expected == Slot::Active && def.slot == Slot::Secondary);
             if !allowed {
                 return Err(BuildError::WrongSlot { index, expected });
             }
@@ -477,6 +677,44 @@ impl ContentPack {
             .iter()
             .find(|b| b.name == name)
             .map(|b| &b.build)
+    }
+
+    /// A body's index by its key (BODIES.md 3).
+    pub fn body(&self, key: &str) -> Option<u16> {
+        self.bodies
+            .iter()
+            .position(|b| b.key == key)
+            .map(|i| i as u16)
+    }
+
+    /// What a body of `mode` plays in nothing (BODIES.md 3.4): the cheapest plain primary
+    /// the mode holds (a firearm for the gun, anything else otherwise), the kick or the
+    /// cheapest plain secondary, the parry or the cheapest plain guard (none for the
+    /// gun). Ties go to the first listed. The worn things bring their own over these.
+    pub fn bare_hands(&self, mode: Mode) -> (u16, u16, Option<u16>) {
+        let plain = |slot: Slot, want_firearm: Option<bool>| -> Option<u16> {
+            self.abilities
+                .iter()
+                .enumerate()
+                .filter(|(_, d)| d.slot == slot && !d.creature && d.aspect.is_none())
+                .filter(|(_, d)| {
+                    want_firearm.is_none_or(|want| d.ability.firearm.is_some() == want)
+                })
+                .min_by_key(|(_, d)| d.cost)
+                .map(|(i, _)| i as u16)
+        };
+        let gun = mode == Mode::Gun;
+        let primary = plain(Slot::Primary, Some(gun)).unwrap_or(0);
+        let secondary = self
+            .find("kick")
+            .or_else(|| plain(Slot::Secondary, Some(false)))
+            .unwrap_or(0);
+        let guard = if gun {
+            None
+        } else {
+            self.find("parry").or_else(|| plain(Slot::Guard, None))
+        };
+        (primary, secondary, guard)
     }
 
     /// Every ability validates against VOCABULARY.md 11, keys are unique, elemental packets
@@ -550,6 +788,55 @@ impl ContentPack {
                 key: nb.name.clone(),
                 reason: e.to_string(),
             })?;
+        }
+        for (i, b) in self.bodies.iter().enumerate() {
+            let err = |reason: String| ContentError {
+                key: b.key.clone(),
+                reason,
+            };
+            if b.key.is_empty() || self.bodies[..i].iter().any(|o| o.key == b.key) {
+                return Err(err("duplicate or empty body key".into()));
+            }
+            if !b.floors.in_range() {
+                return Err(err(format!(
+                    "floors must be {}..={}",
+                    Attributes::MIN,
+                    Attributes::MAX
+                )));
+            }
+            if b.floors.sum() != Attributes::FLOOR_SUM {
+                return Err(err(format!(
+                    "floors sum to {}, not {}",
+                    b.floors.sum(),
+                    Attributes::FLOOR_SUM
+                )));
+            }
+            let skill = self
+                .abilities
+                .get(b.skill as usize)
+                .ok_or_else(|| err(format!("unknown skill {}", b.skill)))?;
+            if skill.slot != Slot::Active || skill.creature || skill.aspect.is_some() {
+                return Err(err(format!(
+                    "skill {:?} is not a plain active (a body skill has no aspect)",
+                    skill.key
+                )));
+            }
+            if b.stamina == 0 {
+                return Err(err("stamina is a percent of the pool, above zero".into()));
+            }
+            if b.name.is_empty() {
+                return Err(err("a body has a name".into()));
+            }
+            // Every body makes a build of every mode: the bare hands exist and the body
+            // validates with its floors and nothing bought.
+            for mode in [Mode::Action, Mode::Rpg, Mode::Gun] {
+                let build =
+                    Build::of_body(self, i as u16, mode, b.floors, Aspects::NONE, Vec::new())
+                        .map_err(|e| err(e.to_string()))?;
+                build
+                    .validate(self)
+                    .map_err(|e| err(format!("in {} mode: {e}", mode.name())))?;
+            }
         }
         for (i, c) in self.creatures.iter().enumerate() {
             let err = |reason: String| ContentError {
@@ -672,7 +959,7 @@ impl Kit {
         kit.stamina_block = worn.stamina_block.clamp(1, 100);
         // (pack index, kit index) of everything pushed: a chain's stages are shared.
         let mut pushed: Vec<(u16, u8)> = Vec::new();
-        for (index, slot) in build.kit_slots(worn) {
+        for (index, slot) in build.kit_slots_in(worn, pack) {
             // A worn index the pack does not know (a zone and a client on different
             // content: never, by the version check) plays as the build's.
             let Some(def) = pack.abilities.get(index as usize) else {
@@ -831,7 +1118,7 @@ impl Sheet {
     pub fn wearing(build: Build, worn: Worn, pack: &ContentPack, team: u8) -> Sheet {
         Sheet {
             kit: Kit::from_build(&build, &worn, pack),
-            derived: Derived::compute(build.attributes, build.frame),
+            derived: build.derived_wearing(&worn, pack),
             build,
             worn,
             team,

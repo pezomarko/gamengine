@@ -167,7 +167,8 @@ click "Create account"
 wait screen new character
 field name
 type Crafter
-click blade
+click soldier
+click Next
 click Create
 wait screen characters
 expect "Crafter"

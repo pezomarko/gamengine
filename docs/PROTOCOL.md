@@ -959,6 +959,17 @@ than staying the zone's. The hub's reading grew the same way on its own wire
   fewer a `Look`; the version byte keeps a v21 client out, since it would read the roster
   long.
 
+## 38. Changes in v27 (bodies, 2026-10-19)
+
+`PROTOCOL_VERSION` 27 (BODIES.md 3, MATRIX.md 19). `BuildChoice` gained `Body(BodyChoice)`
+(a body by key, the mode, the five attributes, the aspects, the actives bought), what a
+player asks for at creation and at the trainer; `Build` carries `body: Option<u16>` (the
+pack's index) in the content a zone sends and in every build on the wire; the pack
+carries its `bodies`. `Worn` (`FromZone::Worn`, the hub's reading) gained `secondary`
+(the hands' second move, BODIES.md 3.4 and 3.6), `techniques` (the primaries the weapon
+in hand holds, 3.8) and the armour's base mitigation and weight (`armour`, `ward`,
+`speed`, `regen`; 3.7), which the owning client predicts with. Nothing else moved.
+
 ## 34. Changes in v26 (no armour class, 2026-10-17)
 
 `PROTOCOL_VERSION` 26 (GEAR.md 12, MATRIX.md 18). `SpawnInfo::Player` lost its `armour`

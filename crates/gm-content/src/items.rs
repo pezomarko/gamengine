@@ -130,6 +130,22 @@ pub struct ItemTemplate {
     /// guard ability's (the buckler narrow and cheap, the tower shield wide and slow).
     #[serde(default)]
     pub block: Option<TemplateBlock>,
+    /// The off hand's second move (BODIES.md 3.4): the key of the secondary the thing in
+    /// the left hand brings (a shield's `shield_bash`, the `pistol`, a focus's `mend`),
+    /// over the weapon's own.
+    #[serde(default)]
+    pub secondary: Option<String>,
+    /// An armour's base mitigation (BODIES.md 3.7): what the piece adds to its wearer's
+    /// armour or ward before the caps (the chest whole, the head and the legs a third),
+    /// and its weight on the speed and the stamina regen, as factors (1 for nothing).
+    #[serde(default)]
+    pub armour: f32,
+    #[serde(default)]
+    pub ward: f32,
+    #[serde(default = "one")]
+    pub speed: f32,
+    #[serde(default = "one")]
+    pub regen: f32,
     /// A stack (MODES.md 11.1): the most of it one holder carries (the strict limit), and
     /// what one of it heals when it is a kit. No layers, no materials.
     #[serde(default)]
@@ -1087,6 +1103,26 @@ impl ItemContent {
                     t.id
                 ));
             }
+            // The base mitigation (BODIES.md 3.7) is an armour's: a little of the cap,
+            // either way; the weight within reason.
+            if (t.armour != 0.0 || t.ward != 0.0 || t.speed != 1.0 || t.regen != 1.0)
+                && t.kind != "armour"
+            {
+                return bad(format!(
+                    "template {:?}: only an armour has a base armour, ward, speed or regen",
+                    t.id
+                ));
+            }
+            if !(-0.3..=0.3).contains(&t.armour)
+                || !(-0.3..=0.3).contains(&t.ward)
+                || !(0.5..=1.5).contains(&t.speed)
+                || !(0.5..=1.5).contains(&t.regen)
+            {
+                return bad(format!(
+                    "template {:?}: a base armour or ward is within 0.3 of nothing, a speed or regen factor within 0.5 and 1.5",
+                    t.id
+                ));
+            }
             match (t.kind.as_str(), t.strikes.as_deref(), t.guards.as_deref()) {
                 ("weapon", Some(kind), None) if physical(kind).is_some() => {}
                 ("weapon", _, _) => {
@@ -1297,7 +1333,7 @@ mod tests {
         assert_eq!(shield, [165, 165, 165, 0, 0, 0, 0, 0, 0]);
         let view = items.view("shield", [("core", "core/iron"), ("frame", "frame/oak")]);
         assert_eq!(view.what, "a shield, 40 of 250");
-        assert_eq!(view.does, ["physical -2.0%"]);
+        assert_eq!(view.does, ["physical -3.5%"]);
         assert!(!view.off);
         assert!(
             items
@@ -1344,45 +1380,45 @@ mod tests {
             "gem/opal",
             "gem/opal",
         ]);
-        // A place counts for half its item's edge (ITEMS.md 3.1): 165 per mille is 8.3%;
-        // then the layers' jobs (GEAR.md 6), each in a line.
+        // The edge against `Gear::SCALE` (ITEMS.md 3.1, 1100 since 2026-10-19): 165 per
+        // mille is 15.0%; then the layers' jobs (GEAR.md 6), each in a line.
         let sword = items.view("sword", best.clone());
         assert_eq!(sword.what, "a weapon, 195 of 250");
         assert_eq!(
             sword.does,
             [
-                "slash +8.3%",
-                "fire +6.8%",
+                "slash +15.0%",
+                "fire +12.3%",
                 "burns one blow in five for 2.0 s",
                 "its burns last 200% as long",
                 "blows cost 75% of their stamina"
             ]
         );
-        // An armour takes off what 2000 / 2105 leaves: 5.0%; its whalebone prices the blocks.
+        // An armour takes off what 1100 / 1205 leaves: 8.7%; its whalebone prices the blocks.
         let cuirass = items.view("cuirass", parts(&["core/dragonbone", "frame/whalebone"]));
         assert_eq!(cuirass.what, "an armour, 105 of 250");
         assert_eq!(
             cuirass.does,
-            ["physical -5.0%", "blocks cost 75% of their stamina"]
+            ["physical -8.7%", "blocks cost 75% of their stamina"]
         );
         // The robe's ember and two opals ward fire down to the floor.
         let robe = items.view("robe", best.clone());
         assert_eq!(
             robe.does,
             [
-                "fire -8.9%",
-                "other elements -7.6%",
+                "fire -15.1%",
+                "other elements -13.0%",
                 "burns last 25% as long on you",
                 "blocks cost 75% of their stamina"
             ]
         );
         let robe = items.view("robe", parts(&["core/iron", "frame/oak"]));
-        assert_eq!(robe.does, ["elements -2.0%"]);
+        assert_eq!(robe.does, ["elements -3.5%"]);
         // Half a per mille is rounded, not lost: 45 is 2.3%.
         let staff = items.view("staff", parts(&["core/tin", "frame/ash", "gem/quartz"]));
         assert_eq!(
             staff.does,
-            ["blunt +2.3%", "blows cost 90% of their stamina"]
+            ["blunt +4.1%", "blows cost 90% of their stamina"]
         );
         // A part says what it is; what nobody knows says so.
         let part = items.view("component", parts(&["catalyst/ember"]));

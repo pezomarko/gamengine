@@ -391,6 +391,13 @@ it does not know goes on to the next: one stream, one notice.
   there (no second finger); migration 0016 takes off what was worn on the places that
   went and makes a worn ring or cape the accessory.
 
+- **Bodies** (BODIES.md 3; `HUB_VERSION` 21, `PLAYER_VERSION` 15, protocol v27,
+  2026-10-19): `CreateCharacter` and `SetBuild` take `BuildChoice::Body` beside the
+  preset and the custom build; the hub makes the build of the body (`Build::of_body`)
+  and validates it against the floors. A stored build without a `body` reads as before
+  (serde's default) and plays as a preset's would; the director's word was that the
+  characters from before may go, so no screen asks them for a body. No migration.
+
 - **No armour class** (GEAR.md 12, MATRIX.md 18; `HUB_VERSION` 19, `PLAYER_VERSION` 13,
   protocol v26, 2026-10-17): `Build` has no `armour` (a stored build's is ignored on
   read; serde takes the unknown field), a reading's `Worn` no `class`, a `StallSummary`
