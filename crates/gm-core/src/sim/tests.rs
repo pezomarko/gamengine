@@ -3331,9 +3331,12 @@ fn a_target_action_turns_the_body_and_leads_the_bolt_within_range_and_sight() {
 }
 
 #[test]
-fn a_target_out_of_range_or_out_of_sight_is_not_aimed_at() {
+fn a_target_out_of_range_is_still_aimed_at_and_one_out_of_sight_is_not() {
     let pack = test_content::pack(RATE);
-    // Out of range: 900 u for a crossbow of 600.
+    // Out of range: 900 u for a crossbow of 600. The client judges the range before it
+    // presses, and its picture lags the zone's by a stride: a press let go at the edge
+    // still turns the body and flies at the target, never the camera's way (the
+    // director 2026-10-19).
     let mut world = BoxWorld::floor();
     let mut zone = zone_with(vec![
         (Vec3::new(0.0, 0.0, REST_Z), 180.0),
@@ -3365,12 +3368,25 @@ fn a_target_out_of_range_or_out_of_sight_is_not_aimed_at() {
         &mut zone,
         &world,
         &[(shooter, input(180.0, 0.0, 0)), (far, input(180.0, 0.0, 0))],
-        12,
+        2,
     );
     let p = zone.player(shooter).unwrap();
-    assert!(p.mover.lock_yaw.is_none());
+    assert!(
+        p.mover.yaw.abs() < 1.0,
+        "turned to the far target: {}",
+        p.mover.yaw
+    );
+    run(
+        &mut zone,
+        &world,
+        &[(shooter, input(180.0, 0.0, 0)), (far, input(180.0, 0.0, 0))],
+        10,
+    );
     let dir = zone.projectiles().last().expect("a bolt").vel.normalize();
-    assert!(dir.x < -0.9, "flies where the body looks: {dir:?}");
+    assert!(
+        dir.x > 0.9,
+        "flies at the far target, not where the view looked: {dir:?}"
+    );
     // Out of sight: a wall between, at 300 u.
     world.push(
         Vec3::new(140.0, -256.0, 0.0),

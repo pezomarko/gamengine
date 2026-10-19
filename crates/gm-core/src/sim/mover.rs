@@ -1127,11 +1127,14 @@ fn try_activate<W: CollisionWorld + ?Sized>(
         _ => None,
     };
     // A target-action (MODES.md 5.3): the body turns to its target for the script, when
-    // the target is within the ability's range and in sight.
+    // the target is in sight. Range is the client's to judge before it presses (it walks
+    // until the target is within it); the zone does not re-judge it here, as its live
+    // picture and the client's interpolated one differ by a stride at the edge, and a
+    // press let go at the edge then swung the camera's way, beside the target (the
+    // director 2026-10-19).
     if input.target != 0
         && ab.range > 0.0
         && let Some(b) = company.find(input.target)
-        && (b.centre - m.mv.origin).truncate().length() <= ab.range
         && sees(world, m.eye(), b.centre)
     {
         let yaw = yaw_toward(m.mv.origin, b.centre);
