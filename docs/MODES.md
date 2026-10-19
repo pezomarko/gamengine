@@ -303,6 +303,14 @@ movement key lets a placed one go but not the aim of one already pressed. The di
 is selected, or is deselected, then using skill changes cursor to skill cast cursor and it
 should attack where mouse clicks".
 
+The range is the client's to judge, before it presses (it walks until the target is within
+95% of it). The zone does not judge it again on the press: its live picture and the
+client's interpolated one differ by a stride at the edge, and until 2026-10-19 a press let
+go there found the target "out of range", skipped the turn and swung the camera's way,
+beside a target to the left or right (the director's bug). Now a target in sight is turned
+to and led at, at any distance; only an aimed area still asks for its own range to be put
+under the target, else it goes where the body faces.
+
 ### 5.4 On the wire
 
 `InputFrame` grows for every mode (bits are cheap in the ledger, PROTOCOL.md 4): `target:
