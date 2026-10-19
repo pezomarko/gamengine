@@ -1204,3 +1204,48 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 55, type = "pierce", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
+
+# ---------- the bare hands (BODIES.md 6.7, 2026-10-19) ----------
+# Appended (stored builds name abilities by position). What a body fights with before it
+# wears a weapon. Fists: a weak blow at arm's reach, two in a chain, no prop (the fist is
+# the grip). `knife_hands`: the gun mode's bare hands, the knife of 3.7 held as the weapon
+# (MODES.md 2: a gun build's primary is a firearm, or this one melee blade, `gun_melee`).
+# Both cost nothing and are nobody's choice: `bare_hands` finds them by key.
+[[ability]]
+key = "fists"
+name = "Fists"
+slot = "primary"
+cost = 0
+cooldown_ms = 450
+move_scale = 0.9
+interrupt = "on_stagger"
+chain = { next = "fists_2", window_ms = 300 }
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 90, active_ms = 40, recovery_ms = 220, damage = { amount = 18, type = "blunt", knockback = 80, stagger = 8 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+[[ability]]
+key = "fists_2"
+name = "Fists"
+slot = "extra"
+cost = 0
+cooldown_ms = 450
+move_scale = 0.9
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 80, active_ms = 40, recovery_ms = 260, damage = { amount = 22, type = "blunt", knockback = 120, stagger = 12 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+[[ability]]
+key = "knife_hands"
+name = "Knife"
+slot = "primary"
+cost = 0
+prop = "dagger"
+gun_melee = true
+cooldown_ms = 400
+move_scale = 1.0
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 40, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }

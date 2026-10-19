@@ -162,6 +162,9 @@ pub(crate) struct AbilityToml {
     /// Only creatures may slot it (COMPANIONS.md 8.1).
     #[serde(default)]
     creature: bool,
+    /// A melee primary a gun build may hold (MODES.md 2): the knife.
+    #[serde(default)]
+    gun_melee: bool,
     #[serde(default)]
     cooldown_ms: u32,
     cooldown_group: Option<u8>,
@@ -1093,6 +1096,7 @@ fn compile_ability(
         aspect,
         squad: a.squad,
         creature: a.creature,
+        gun_melee: a.gun_melee,
     })
 }
 
@@ -1406,6 +1410,7 @@ mod tests {
             assert_eq!(a.aspect, b.aspect, "{}", a.key);
             assert_eq!(a.squad, b.squad, "{}", a.key);
             assert_eq!(a.creature, b.creature, "{}", a.key);
+            assert_eq!(a.gun_melee, b.gun_melee, "{}", a.key);
             assert_eq!(a.ability.steps, b.ability.steps, "{}", a.key);
             assert_eq!(a.ability.cost, b.ability.cost, "{}", a.key);
             assert_eq!(a.ability.cooldown, b.ability.cooldown, "{}", a.key);

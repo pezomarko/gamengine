@@ -1504,6 +1504,106 @@ impl<'a, C: Canvas> Ui<'a, C> {
     }
 
     /// A box to tick, with its label to the right. Returns whether it changed.
+    /// A picture to pick (the elements of the creation screen, BODIES.md 6.7): a well
+    /// with an icon by key in it (the label's first letter where the atlas lacks it)
+    /// and the label under it; lit when `picked`; off for a reason (`Some(why)`), it
+    /// takes no click and says why beside the pointer; the lines of `tip` are said
+    /// beside the pointer once it rests there. Returns whether it was clicked. Seen as
+    /// a check, `label: on|off`, so a script clicks it by its word.
+    pub fn picture_box(
+        &mut self,
+        r: Rect,
+        icon: &str,
+        label: &str,
+        picked: bool,
+        off: Option<&str>,
+        tip: &dyn Fn() -> TipLines,
+    ) -> bool {
+        let s = self.scale;
+        let line = self.line();
+        let id = format!("picture:{label}");
+        let hot = r.contains(self.input.cursor);
+        let (_, down, click) = self.clicked(&id, r);
+        // The box over the label: a square as wide as the rect allows, the word under it.
+        let side = r.w.min(r.h - line).max(0.0);
+        let b = Rect::new((r.x + (r.w - side) * 0.5).round(), r.y, side, side);
+        self.canvas.layer(LAYER_PLATES);
+        let fill = match (picked, down, hot && off.is_none()) {
+            (true, ..) => PICKED,
+            (false, true, _) => BUTTON_DOWN,
+            (false, false, true) => BUTTON_HOT,
+            _ => WELL,
+        };
+        self.canvas.rect(b.x, b.y, b.w, b.h, fill);
+        self.canvas.layer(LAYER_INK);
+        let pad = 2.0 * s;
+        let tint = if off.is_some() {
+            [0.45, 0.45, 0.45, 1.0]
+        } else {
+            [1.0; 4]
+        };
+        if self
+            .canvas
+            .icon(b.x + pad, b.y + pad, side - 2.0 * pad, icon, tint)
+        {
+            self.note(SeenKind::Image, icon, b);
+        } else {
+            let initial: String = label.chars().take(1).flat_map(char::to_uppercase).collect();
+            let tw = self.text_width(&initial);
+            self.canvas.text_in(
+                self.face,
+                b.x + (b.w - tw) * 0.5,
+                b.y + (b.h - line) * 0.5,
+                s,
+                FAINT,
+                &initial,
+            );
+        }
+        self.outline(b, EDGE);
+        if picked {
+            self.mark(b);
+        }
+        let tw = self.text_width(label);
+        let ink = match (picked, off.is_some()) {
+            (true, _) => FOCUS,
+            (false, true) => FAINT,
+            _ => TEXT,
+        };
+        self.canvas.text_in(
+            self.face,
+            (b.x + (b.w - tw) * 0.5).round(),
+            b.y + b.h + s,
+            s,
+            ink,
+            label,
+        );
+        self.note(
+            SeenKind::Check,
+            &format!("{label}: {}", if picked { "on" } else { "off" }),
+            r,
+        );
+        if hot {
+            let time = self.input.time;
+            let since = match &self.state.hover {
+                Some((k, t)) if *k == id => *t,
+                _ => time,
+            };
+            self.hovered = Some(id.clone());
+            self.state.hover = Some((id, since));
+            if time - since >= 0.15 && self.tooltip.is_none() {
+                let mut lines = tip();
+                if let Some(why) = off.filter(|why| !why.is_empty()) {
+                    lines.insert(0, (why.to_string(), WARN));
+                }
+                if !lines.is_empty() {
+                    let at = self.input.cursor;
+                    self.tooltip = Some((Rect::new(at.0, at.1, 0.0, 0.0), lines));
+                }
+            }
+        }
+        click && off.is_none()
+    }
+
     pub fn checkbox(&mut self, r: Rect, label: &str, value: &mut bool) -> bool {
         let s = self.scale;
         let id = format!("check:{label}");

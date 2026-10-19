@@ -749,6 +749,15 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         None
     }
 
+    // The elements' pictures (BODIES.md 6.7): `icons/elem_<element>.png`, no row of their
+    // own; the creation screen draws them by key, and a pack without them draws the word.
+    for e in gm_core::matrix::Element::ALL {
+        let key = format!("elem_{}", e.name());
+        let path = icon_file(&key);
+        if path.is_file() {
+            take_icon(path, &key, "the elements", &mut icons, &mut problems);
+        }
+    }
     let mut manifest = Manifest {
         format: MANIFEST_VERSION,
         content_version,

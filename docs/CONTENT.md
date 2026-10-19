@@ -87,6 +87,7 @@ each the key of a file in 2:
 | Table | Field | Means |
 |---|---|---|
 | `[[ability]]` | `icon` | `icons/<icon>.png`; absent: a glyph from the verbs (LOOK.md 3.4) |
+| | `gun_melee` | `true` on a melee primary a gun build may hold (the knife held as the weapon, MODES.md 2) |
 | | `prop` | the prop drawn in the hand while this ability is the primary and nothing is worn (a sword build with no sword still swings one) |
 | | `sound` | the patch (SOUND.md 2) its cues use; absent: the patch of its verb kind as today |
 | `[[template]]` (items) | `model` | `models/props/<model>.glb`, drawn in the hand of whoever wears an item of this template; for an armour, `models/armour/<model>_<frame>.glb`, its overlay (3.3) |
@@ -288,6 +289,9 @@ The `.gmm` header's `frame` byte is **255 for a prop** and a flag bit (`FLAG_PRO
 says so; `bone_mask` is 1 and the pivots are zero. The strict reader (MODELS.md 5) accepts a
 prop only with that combination, and a zone or hub asked to treat a prop as an avatar refuses
 it (the hub's `verify` requires an avatar frame).
+
+The elements' pictures, `icons/elem_<element>.png` (BODIES.md 6.7), are icons of no row:
+the build takes them when the files are there and the creation screen draws them by key.
 
 Pictures: an icon is **32 × 32** dots, RGBA, straight alpha, and is in each atlas at that
 atlas's density (LOOK.md 2.2): 32 to 128 texels, baked from its model at that size, or
