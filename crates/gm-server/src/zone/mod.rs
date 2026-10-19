@@ -8,6 +8,7 @@ mod market;
 mod minds;
 mod outcomes;
 mod run;
+mod smithy;
 mod snapshot;
 mod social;
 mod step;
@@ -320,6 +321,7 @@ fn look_of(
     hub_slots: &std::collections::BTreeMap<u32, HubSlot>,
     sheaths: &HashMap<EntityId, bool>,
     body: u32,
+    wears: Option<&[String; 3]>,
 ) -> Look {
     let player = zone.player(body);
     if let Some(p) = player
@@ -333,6 +335,26 @@ fn look_of(
         return Look {
             held: looks.held(None, in_hand),
             worn: [Look::NONE; gm_net::control::BODY_PLACES],
+            off: Look::NONE,
+            sheathed: false,
+        };
+    }
+    // Somebody of the town nothing hurts (the smith, the trainer: ITEMS.md 6.6) wears
+    // nothing of the hub's and holds the prop of its primary, so the smith has his hammer.
+    if let Some(p) = player
+        && p.unhurt
+        && !hub_slots.contains_key(&body)
+    {
+        let primary = p
+            .sheet
+            .kit
+            .abilities
+            .first()
+            .map(|a| a.id.0.saturating_sub(1) as usize);
+        let wear = |i: usize| wears.map(|w| w[i].as_str()).filter(|t| !t.is_empty());
+        return Look {
+            held: looks.held(None, primary),
+            worn: std::array::from_fn(|i| looks.worn(wear(i))),
             off: Look::NONE,
             sheathed: false,
         };
@@ -472,6 +494,15 @@ const HUB_SILENT: &str = "the hub did not answer: try again";
 use gm_net::control::TRAINER_REACH;
 
 /// A line of the zone itself to one client (a refusal, a notice): it is not lost.
+/// What a body of the director's wears for its look (ITEMS.md 6.6): a creature's
+/// `wears`; nothing for anybody else.
+fn npc_wears(pack: &ContentPack, kind: gm_ai::BodyKind) -> Option<&[String; 3]> {
+    match kind {
+        gm_ai::BodyKind::Creature { def } => pack.creatures.get(def as usize).map(|d| &d.wears),
+        _ => None,
+    }
+}
+
 fn zone_line(session: &Session, text: impl Into<String>) {
     session.send_control(FromZone::ChatFrom {
         from: 0,

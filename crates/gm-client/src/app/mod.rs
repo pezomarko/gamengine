@@ -53,6 +53,7 @@ use crate::people::{Here, People, PeopleAction, Social};
 use crate::render::{EntityDraw, Gpu, Renderer, view_proj};
 use crate::script::UiScript;
 use crate::settings::Settings;
+use crate::smithy::{Forge, ForgeAction, Smithy, SmithyAction};
 use crate::stats::FrameStats;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::stats::{print_bench, print_bench_avatars};
@@ -234,6 +235,9 @@ struct Screens {
     chat: Chat,
     /// The inventory or a stall, when one is open (ITEMS.md 6).
     bag: Option<Bag>,
+    /// The smith's shop and the forge (ITEMS.md 6.6), when one is open.
+    smithy: Option<Smithy>,
+    forge: Option<Forge>,
     /// The page of people, a trade or the tavern (PARTY.md 8).
     people: Option<People>,
     gm_page: Option<GmPage>,
@@ -349,6 +353,8 @@ struct App {
     /// The window, from its creation: the renderer on it (`active`) may come later.
     window: Option<Arc<Window>>,
     bsp: Bsp,
+    /// The map's forges (ITEMS.md 6.6), read from the map whenever it changes.
+    forges: Vec<gm_bsp::ForgePost>,
     active: Option<Active>,
     sim: Sim,
     online: Option<Online>,

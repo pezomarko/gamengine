@@ -78,7 +78,7 @@ pub struct Texture {
 
 /// The textures every map can rely on. Names are at most 15 characters (WAD limit).
 /// `skip`, `clip` and `trigger` are tool textures qbsp looks up by name.
-pub const BASE_TEXTURES: [&str; 19] = [
+pub const BASE_TEXTURES: [&str; 21] = [
     "floor_stone",
     "wall_brick",
     "ceil_plaster",
@@ -100,6 +100,9 @@ pub const BASE_TEXTURES: [&str; 19] = [
     "dungeon_wall",
     "dungeon_floor",
     "rune_stone",
+    // The smithy (ITEMS.md 6.6): the hearth's coals and its sooted stone.
+    "coals",
+    "soot_stone",
 ];
 
 fn hash(x: i32, y: i32, seed: u32) -> f32 {
@@ -426,6 +429,38 @@ fn generate_rgb(name: &str, x: i32, y: i32) -> [f32; 3] {
                 mix(stone, glow, 0.55)
             } else {
                 stone
+            }
+        }
+        "coals" => {
+            // Black clinker with orange glowing between the lumps: the hearth's bed.
+            let lump = smooth_noise(x, y, p, 8, 171);
+            let glow = [1.0, 0.45, 0.08];
+            let ember = [1.0, 0.78, 0.30];
+            let black = scale(
+                [0.09, 0.07, 0.06],
+                0.8 + 0.4 * smooth_noise(x, y, p, 4, 172),
+            );
+            if lump < 0.30 {
+                mix(glow, ember, ((0.30 - lump) / 0.30).clamp(0.0, 1.0))
+            } else if lump < 0.42 {
+                mix(black, glow, (0.42 - lump) / 0.12)
+            } else {
+                black
+            }
+        }
+        "soot_stone" => {
+            // The hearth's stone, dark with soot towards the top of each block.
+            let (xx, yy) = (x.rem_euclid(32), y.rem_euclid(16));
+            let joint = xx < 1 || yy < 1;
+            let soot = 0.55 + 0.45 * (1.0 - (yy as f32 / 16.0)) * smooth_noise(x, y, p, 8, 173);
+            let stone = scale(
+                [0.30, 0.28, 0.27],
+                0.85 + 0.3 * smooth_noise(x, y, p, 8, 174),
+            );
+            if joint {
+                scale(stone, 0.5)
+            } else {
+                scale(stone, 1.0 - 0.45 * soot)
             }
         }
         // Flat on purpose: any pattern in a tiled sky shows as a grid overhead.

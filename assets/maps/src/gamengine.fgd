@@ -66,6 +66,10 @@
     angle(integer) : "Facing yaw" : 0
 ]
 
+@PointClass size(-48 -8 0, 48 8 88) color(255 120 40) = gm_forge : "Forge (ITEMS.md 6.6): the mouth of a hearth. A body within FORGE_REACH (120) of it crafts here (E); the client draws the fire at it. The anvil and the hearth are brushes." [
+    angle(integer) : "The way the hearth opens" : 90
+]
+
 @SolidClass base(Targetname) = gm_zone : "Zone volume (Phase 3+): rules inside it" [
     kind(choices) : "Kind" : 1 =
     [

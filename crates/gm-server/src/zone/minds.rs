@@ -54,6 +54,7 @@ impl Run {
             &self.hub_slots,
             &self.sheaths,
             id,
+            npc_wears(&self.pack, kind),
         );
         for s in self.sessions.values() {
             s.send_control(FromZone::PlayerInfo {

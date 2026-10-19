@@ -104,6 +104,7 @@ each the key of a file in 2:
 | | `look` | an armour: `overlay` (the default) or `patch`, cloth painted into the official avatar's atlas (3.3); a patch covers nothing |
 | `[[material]]` | `icon` | for the crafting screens of a later phase; absent: a glyph by layer |
 | | `tint` | `[r, g, b]`, multiplies the worn item's texture when this material is its core: a dragonbone sword is pale (LOOK.md 6) |
+| | `price` | silver, what the smith sells one of it for (ITEMS.md 6.6); absent: not for sale there |
 | `[[creature]]` | `model` | `models/creatures/<model>.glb`; absent: the frame's mannequin |
 | | `icon` | its portrait; absent: baked from the model |
 | `[[build]]` | `icon` | the archetype's picture on the new-character screen; absent: baked from the frame's avatar or mannequin |

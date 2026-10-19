@@ -283,6 +283,8 @@ sight, leash                             # units (a `still` one needs none)
 boss = true|false
 still = true|false                       # stands and does nothing: no mind (the training dummy)
 npc = true|false                         # nothing hurts it; `E` speaks to it (the trainer, MATRIX.md 9.1)
+role = "trainer" | "smith" | ""          # what an npc is for (ITEMS.md 6.6): the trainer, the smith
+wears = { chest, head, legs }            # an npc's look alone (ITEMS.md 6.6): a template a body place
 respawn_s                                # 0 = never while the zone runs
 [creature.loot]                          # bosses only
 components, standard = [materials], top = [materials], coin

@@ -241,6 +241,7 @@ impl Run {
             &self.hub_slots,
             &self.sheaths,
             id,
+            None,
         );
         for s in self.sessions.values() {
             s.send_control(FromZone::PlayerInfo {
@@ -315,6 +316,7 @@ impl Run {
                     &self.hub_slots,
                     &self.sheaths,
                     s.id,
+                    None,
                 ),
             })
             .collect();
@@ -334,6 +336,7 @@ impl Run {
                         &self.hub_slots,
                         &self.sheaths,
                         body,
+                        npc_wears(&self.pack, kind),
                     ),
                 }),
         );

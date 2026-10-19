@@ -164,6 +164,28 @@ pub enum ClientEvent {
         listing: i64,
         result: Result<(), String>,
     },
+    /// The client buys a material from the smith it says it stands by, and makes a
+    /// craft at the forge it says it stands at (ITEMS.md 6.6); and the hub's answers.
+    SmithBuy {
+        id: EntityId,
+        material: String,
+        price: i64,
+    },
+    SmithBought {
+        id: EntityId,
+        material: String,
+        result: Result<(), String>,
+    },
+    Forge {
+        id: EntityId,
+        template: String,
+        components: Vec<i64>,
+        fee: i64,
+    },
+    Forged {
+        id: EntityId,
+        result: Result<i64, String>,
+    },
     /// The client puts an item on (`on`) or takes it off (ITEMS.md 2), and the hub's
     /// answer: what the character's worn items do from now on.
     Wear {
@@ -805,6 +827,8 @@ impl Client {
             | FromClient::PartyRemove { .. }
             | FromClient::TradeAsk { .. }
             | FromClient::StallBuy { .. }
+            | FromClient::SmithBuy { .. }
+            | FromClient::Forge { .. }
             | FromClient::Wear { .. }
             | FromClient::WearIn { .. }
             | FromClient::TakeOff { .. } => {
@@ -914,6 +938,21 @@ fn asked(id: EntityId, msg: FromClient) -> ClientEvent {
             stall,
             listing,
             price,
+        },
+        FromClient::SmithBuy { material, price } => ClientEvent::SmithBuy {
+            id,
+            material,
+            price,
+        },
+        FromClient::Forge {
+            template,
+            components,
+            fee,
+        } => ClientEvent::Forge {
+            id,
+            template,
+            components,
+            fee,
         },
         FromClient::Wear { item } => ClientEvent::Wear {
             id,

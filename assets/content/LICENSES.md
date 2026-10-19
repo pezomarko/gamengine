@@ -58,4 +58,6 @@ The pack's files were packed into single `.glb`s by `gm-tools content import pro
 
 Drawn for this project (`scripts/dev/skin-gen.py` writes the skin, each piece once per
 density: `name.png`, `name@2x.png`, `name@3x.png`, `name@4x.png`), CC-BY-SA 4.0 unless a
-row above says otherwise.
+row above says otherwise. The materials' icons (`icons/mat_*.png`, 2026-10-19: an ingot
+a core, a stave a frame, a crystal a catalyst, a cut stone a gem, in the material's
+colour) were drawn by a script of this project the same way (ITEMS.md 6.6).

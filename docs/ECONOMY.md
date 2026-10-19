@@ -234,7 +234,10 @@ with `gm_core::loot::split` and asks the hub to create the items (source → cha
 - **Craft**: a template plus component items for its layers (core and frame mandatory, the rest
   optional, up to 2 gems; nothing of a layer the template has no room for: a cuirass takes no
   catalyst). One transaction: the component items are deleted, the new item is created with
-  their rows. No fee, no failure chance.
+  their rows. No failure chance. No fee by the operator's or a test's hand (`EconOp::Craft`);
+  **at the forge** (ITEMS.md 6.6, 2026-10-19: the only way a player crafts) the content's
+  fee is burned in the same transaction (`craft_fee` to the sink, `ZoneEconOp::Forge`), and
+  the smith's sale of a part burns its price (`smith`), a part made from the source.
 - **Decompose**: an item with k component rows returns **⌊k / 2⌋** of them as component items;
   the rest are destroyed. Which ones is decided by a hash of the item id and the component's
   index (`salvage_indices`): fixed for the item, visible before decomposing, and not steerable

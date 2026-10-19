@@ -53,6 +53,8 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
             menu: None,
             chat: Chat::default(),
             bag: None,
+            smithy: None,
+            forge: None,
             people: None,
             gm_page: None,
             character_page: None,
@@ -96,6 +98,7 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
         },
         opts,
         window: None,
+        forges: bsp.forge_posts(),
         bsp,
         active: None,
         view: View {

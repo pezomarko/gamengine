@@ -223,6 +223,11 @@ The catalog's findings 4 and 5, in numbers rather than systems:
 
 ## 8. The shop
 
+**Built on 2026-10-19 as the smith** (ITEMS.md 6.6): every material has a `price` in
+`items.toml` on the ladder below (dragonbone and whalebone at 5 gold, so the test shop
+has them too), the smith on the square sells them with the coin burned, and the forge
+beside him makes a craft of them for a fee of one silver per two per mille of its edge.
+
 Finding 7: two makes exist, plain and fine, both at 120 silver, no loose component for
 sale, so nobody crafts from a purchase. Proposed for the economy pass, last in order:
 

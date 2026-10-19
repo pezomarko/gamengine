@@ -91,7 +91,7 @@ impl Online {
         };
         self.kinds.values().any(|k| {
             matches!(k, BodyKind::Creature { def }
-                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc))
+                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc && d.role == "trainer"))
         })
     }
 
@@ -674,6 +674,8 @@ impl App {
             }
             FromZone::StallResult(result) => self.on_stall_result(result),
             FromZone::BuyResult { listing, result } => self.on_buy_result(listing, result),
+            FromZone::SmithResult { material, result } => self.on_smith_result(material, result),
+            FromZone::ForgeResult(result) => self.on_forge_result(result),
             FromZone::WearResult { item, result } => self.on_wear_result(item, result),
             FromZone::PlayerLeft(id) => {
                 if let Some(o) = self.online.as_mut() {
@@ -1030,6 +1032,43 @@ impl App {
             _ => Some(match result {
                 Ok(()) => "bought: it is in the inventory".to_string(),
                 Err(e) => format!("not bought: {e}"),
+            }),
+        };
+        if let Some(text) = elsewhere {
+            o.say(text, if good { hud::DIM } else { hud::ORANGE });
+        }
+    }
+
+    /// The smith's and the forge's answers (ITEMS.md 6.6), as `on_buy_result`.
+    fn on_smith_result(&mut self, material: String, result: Result<(), String>) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        log::info!("buy of {material} from the smith: {result:?}");
+        let good = result.is_ok();
+        let elsewhere = match (&mut self.screens.smithy, &self.session.hub) {
+            (Some(smithy), Some(hub)) => smithy.bought(hub, &material, result),
+            _ => Some(match result {
+                Ok(()) => "bought: it is in the inventory".to_string(),
+                Err(e) => format!("not bought: {e}"),
+            }),
+        };
+        if let Some(text) = elsewhere {
+            o.say(text, if good { hud::DIM } else { hud::ORANGE });
+        }
+    }
+
+    fn on_forge_result(&mut self, result: Result<i64, String>) {
+        let Some(o) = self.online.as_mut() else {
+            return;
+        };
+        log::info!("forge: {result:?}");
+        let good = result.is_ok();
+        let elsewhere = match (&mut self.screens.forge, &self.session.hub) {
+            (Some(forge), Some(hub)) => forge.forged(hub, result),
+            _ => Some(match result {
+                Ok(_) => "forged: it is in the inventory".to_string(),
+                Err(e) => format!("not forged: {e}"),
             }),
         };
         if let Some(text) = elsewhere {
@@ -1641,6 +1680,7 @@ impl App {
             return;
         };
         let bsp = &self.bsp;
+        let clock_now = self.clock.started.elapsed().as_secs_f32();
         let Some(o) = self.online.as_mut() else {
             return;
         };
@@ -1725,12 +1765,13 @@ impl App {
             look,
             frame,
         );
+        let anim = Self::npc_anim(o, clock_now, e.id, e.anim);
         self.scene.bodies.push(Body {
             key: e.id,
             origin: e.pos,
             yaw,
             pitch: e.pitch,
-            anim: e.anim,
+            anim,
             crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
             frame,
             aspects,
@@ -2026,6 +2067,81 @@ impl App {
         }
     }
 
+    /// The fire in every forge of the map (ITEMS.md 6.6): the coals' glow over the hearth's
+    /// bed, flickering, and embers rising out of the mouth and dying as they go; drawn
+    /// every frame like the rest of the effects (LOOK.md 13.1: nothing is kept).
+    fn forge_fire(&mut self, eye: Vec3) {
+        let t = self.clock.started.elapsed().as_secs_f32();
+        for (n, forge) in self.forges.iter().enumerate() {
+            let yaw = forge.yaw.to_radians();
+            let facing = Vec3::new(yaw.cos(), yaw.sin(), 0.0);
+            let across = Vec3::new(-yaw.sin(), yaw.cos(), 0.0);
+            // The bed of coals lies behind the mouth, a hand above the hearth's floor.
+            let bed = forge.origin - facing * 40.0 + Vec3::Z * 20.0;
+            if (bed - eye).length() > 1600.0 {
+                continue;
+            }
+            let seed = n as f32 * 7.3;
+            for k in 0..7 {
+                let kf = k as f32;
+                let flicker = 0.6 + 0.4 * (t * (5.0 + kf * 0.7) + kf * 1.9 + seed).sin();
+                let at =
+                    bed + across * ((kf - 3.0) * 9.0) + facing * (((kf * 2.1 + seed).sin()) * 12.0);
+                self.scene.fx.glint(
+                    at,
+                    7.0 + 5.0 * flicker,
+                    eye,
+                    [1.0, 0.55 + 0.25 * flicker, 0.12, 0.55 * flicker],
+                );
+            }
+            // Embers: each on its own loop up out of the mouth, drifting as it rises.
+            for k in 0..6 {
+                let kf = k as f32;
+                let phase = (t * 0.55 + kf * 0.17 + seed * 0.1).fract();
+                let rise = 70.0 * phase;
+                let sway = 6.0 * (t * 2.3 + kf * 2.7 + seed).sin();
+                let at = bed
+                    + across * ((kf - 2.5) * 7.0 + sway)
+                    + facing * (8.0 + 14.0 * phase)
+                    + Vec3::Z * (6.0 + rise);
+                let life = (1.0 - phase).powi(2);
+                self.scene.fx.streak(
+                    at - Vec3::Z * 4.0,
+                    at,
+                    1.0 + life,
+                    eye,
+                    [1.0, 0.5, 0.1, 0.0],
+                    [1.0, 0.85, 0.4, 0.9 * life],
+                );
+            }
+        }
+    }
+
+    /// The stance of somebody of the town at work (ITEMS.md 6.6): the smith, standing
+    /// still as the zone says, hammers at his anvil on the client's clock, a blow every
+    /// two seconds. Everyone else stands as the zone says.
+    fn npc_anim(o: &Online, now: f32, id: u32, said: u8) -> u8 {
+        use gm_core::sim::anim;
+        if said != anim::IDLE {
+            return said;
+        }
+        let smith = matches!(o.kinds.get(&id), Some(BodyKind::Creature { def })
+            if o.pack.as_ref().and_then(|p| p.creatures.get(*def as usize)).is_some_and(|d| d.role == "smith"));
+        if !smith {
+            return said;
+        }
+        let t = (now + id as f32 * 0.37) % 2.0;
+        if t < 0.55 {
+            anim::WINDUP
+        } else if t < 0.7 {
+            anim::SWING
+        } else if t < 1.1 {
+            anim::RECOVER
+        } else {
+            anim::IDLE
+        }
+    }
+
     /// The frame's effects drawn, the RPG mode's marks (MODES.md 5.5: where the body is
     /// going, and a ring under its target), the numbers over the bodies, and the facings
     /// of the bodies no longer in sight forgotten.
@@ -2035,6 +2151,7 @@ impl App {
             o.heals.clear();
         }
         self.scene.effects.draw(seen.camera, &mut self.scene.fx);
+        self.forge_fire(seen.camera);
         if predicted.rpg {
             if let Some(goal) = self.rpg.walk {
                 let feet = goal + Vec3::Z * Hull::Player.mins().z;

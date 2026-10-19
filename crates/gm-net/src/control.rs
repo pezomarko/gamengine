@@ -155,6 +155,8 @@ pub struct StallEntry {
 /// counter is about 80 from its middle; the next stall's middle is 160 away), its feet no
 /// further above or below the tile than `STALL_REACH_UP`.
 pub const STALL_REACH: f32 = 120.0;
+/// How near the hearth a body stands to work the forge (ITEMS.md 6.6): the stall's rule.
+pub const FORGE_REACH: f32 = STALL_REACH;
 pub const STALL_REACH_UP: f32 = 96.0;
 
 /// How near two bodies must stand for one to ask the other for a trade (PARTY.md 6):
@@ -281,6 +283,20 @@ pub enum FromClient {
     WearIn {
         item: i64,
         place: u8,
+    },
+    // v27 (ITEMS.md 6.6).
+    /// Buy one of a material from the smith the player stands by, at the price it was
+    /// shown; answered by `SmithResult`, always.
+    SmithBuy {
+        material: String,
+        price: i64,
+    },
+    /// Make `template` of these component items of the inventory at the forge the player
+    /// stands at, paying `fee` (the fee it was shown); answered by `ForgeResult`, always.
+    Forge {
+        template: String,
+        components: Vec<i64>,
+        fee: i64,
     },
 }
 
@@ -489,6 +505,14 @@ pub enum FromZone {
     /// this, and rearms its prediction as the zone did (every cooldown ready). (Last,
     /// so that `Reject` and `Kick` keep their numbers for the handshake.)
     Worn(Worn),
+    // v27 (ITEMS.md 6.6).
+    /// The answer to `SmithBuy`, naming the material it was about.
+    SmithResult {
+        material: String,
+        result: Result<(), String>,
+    },
+    /// The answer to `Forge`: the new item's id, or why not, in words for the crafter.
+    ForgeResult(Result<i64, String>),
 }
 
 pub const MAX_MESSAGE_BYTES: usize = u16::MAX as usize;

@@ -1419,3 +1419,77 @@ async fn a_storm_of_mixed_movements_never_deadlocks() {
     let s = econ.supply().await.unwrap();
     assert_eq!(s.created, s.circulating + s.burned);
 }
+
+/// ITEMS.md 6.6: the smith sells a part for the content's price, burned; the forge makes a
+/// craft for the content's fee, burned, and refuses a fee the crafter did not see; and a
+/// preview checks the parts as the craft does and moves nothing.
+#[tokio::test]
+async fn the_smith_sells_and_the_forge_charges() {
+    let Some(econ) = setup().await else { return };
+    let items = gm_content::items::load_items(std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/content"
+    )))
+    .expect("items");
+    let p = player(&econ, 1000).await;
+    let iron = econ.smith_buy(p, "core/iron", 15).await.unwrap();
+    let oak = econ.smith_buy(p, "frame/oak", 5).await.unwrap();
+    assert_eq!(coin(&econ, p).await, 980);
+    assert!(has(&econ, p, iron).await && has(&econ, p, oak).await);
+    assert!(matches!(
+        econ.smith_buy(p, "nothing", 5).await,
+        Err(EconError::Invalid(_))
+    ));
+    // Without the coin nothing is made.
+    let poor = player(&econ, 3).await;
+    assert_eq!(
+        econ.smith_buy(poor, "core/iron", 15).await,
+        Err(EconError::Insufficient)
+    );
+    assert!(econ.inventory(poor).await.unwrap().1.is_empty());
+
+    // The preview: the parts as the craft would read them, nothing moved.
+    let parts = econ
+        .craft_parts(p, "sword", &[iron, oak], items.layers("sword"))
+        .await
+        .unwrap();
+    assert_eq!(parts.len(), 2);
+    assert!(has(&econ, p, iron).await);
+    assert_eq!(
+        econ.craft_parts(p, "cuirass", &[iron], items.layers("cuirass"))
+            .await,
+        Err(EconError::Invalid(
+            "a craft needs exactly one core and one frame".into()
+        ))
+    );
+    // The fee is the content's: 40 of edge, 20 silver; one not seen is refused.
+    let fee = items
+        .craft_fee("sword", ["core/iron", "frame/oak"])
+        .unwrap();
+    assert_eq!(fee, 20);
+    assert!(matches!(
+        econ.forge(p, "sword", &[iron, oak], &items, fee + 1).await,
+        Err(EconError::State(_))
+    ));
+    assert!(
+        has(&econ, p, iron).await,
+        "a refused forge consumes nothing"
+    );
+    let sword = econ
+        .forge(p, "sword", &[iron, oak], &items, fee)
+        .await
+        .unwrap();
+    assert!(has(&econ, p, sword).await);
+    assert!(!has(&econ, p, iron).await);
+    assert_eq!(coin(&econ, p).await, 960);
+    // Without the coin for the fee the parts stay parts.
+    let c = component(&econ, poor, "core/iron").await;
+    let f = component(&econ, poor, "frame/oak").await;
+    assert_eq!(
+        econ.forge(poor, "sword", &[c, f], &items, fee).await,
+        Err(EconError::Insufficient)
+    );
+    assert!(has(&econ, poor, c).await && has(&econ, poor, f).await);
+    assert_eq!(coin(&econ, poor).await, 3);
+    assert_eq!(econ.audit().await.unwrap(), 0, "the ledger balances");
+}

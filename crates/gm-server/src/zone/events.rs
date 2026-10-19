@@ -54,6 +54,23 @@ impl Run {
                 listing,
                 result,
             } => self.on_stall_bought(id, listing, result),
+            ClientEvent::SmithBuy {
+                id,
+                material,
+                price,
+            } => self.on_smith_buy(id, material, price),
+            ClientEvent::SmithBought {
+                id,
+                material,
+                result,
+            } => self.on_smith_bought(id, material, result),
+            ClientEvent::Forge {
+                id,
+                template,
+                components,
+                fee,
+            } => self.on_forge(id, template, components, fee),
+            ClientEvent::Forged { id, result } => self.on_forged(id, result),
             ClientEvent::Wear {
                 id,
                 item,

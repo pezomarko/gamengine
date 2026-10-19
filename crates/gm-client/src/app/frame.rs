@@ -25,6 +25,8 @@ struct Actions {
     menu: MenuAction,
     said: Option<Said>,
     bag: BagAction,
+    smithy: SmithyAction,
+    forge: ForgeAction,
     people: PeopleAction,
     gm: GmAction,
     character: CharacterAction,
@@ -37,6 +39,8 @@ impl Default for Actions {
             menu: MenuAction::None,
             said: None,
             bag: BagAction::None,
+            smithy: SmithyAction::None,
+            forge: ForgeAction::None,
             people: PeopleAction::None,
             gm: GmAction::None,
             character: CharacterAction::None,
@@ -737,6 +741,12 @@ impl App {
             (Some(front), _, _) if self.screens.front_up => front.screen.name(),
             (_, Some(menu), _) => menu.page.name(),
             (_, _, Some(bag)) => bag.name(),
+            _ if self.screens.smithy.is_some() => {
+                self.screens.smithy.as_ref().map_or("", |s| s.name())
+            }
+            _ if self.screens.forge.is_some() => {
+                self.screens.forge.as_ref().map_or("", |f| f.name())
+            }
             _ if self.screens.people.is_some() => {
                 self.screens.people.as_ref().map_or("", |p| p.page.name())
             }
@@ -773,11 +783,14 @@ impl App {
         // stopped playing (a travel, the zone gone) has neither.
         if !playing {
             self.screens.bag = None;
+            self.screens.smithy = None;
+            self.screens.forge = None;
             self.screens.people = None;
             self.screens.gm_page = None;
         }
         let me = self.opts.name.clone();
         self.bag_screen(ui, actions, &me);
+        self.smithy_screen(ui, actions);
         self.people_screen(ui, actions, &me);
         self.pages_screen(ui, actions, at_trainer);
         self.menu_screen(ui, actions, playing, returns);
@@ -812,6 +825,22 @@ impl App {
                 class: &class,
             };
             actions.bag = bag.frame_with(ui, hub, keeps_stall, Instant::now(), looks, wearer);
+        }
+    }
+
+    /// The smith's shop or the forge (ITEMS.md 6.6), when one is open and nothing is over it.
+    fn smithy_screen<C: ui::Canvas>(&mut self, ui: &mut Ui<'_, C>, actions: &mut Actions) {
+        if self.screens.menu.is_some() || self.screens.bag.is_some() {
+            return;
+        }
+        let looks = crate::bag::ItemLooks {
+            manifest: self.content.manifest.as_ref(),
+        };
+        let now = Instant::now();
+        if let (Some(smithy), Some(hub)) = (&mut self.screens.smithy, &self.session.hub) {
+            actions.smithy = smithy.frame(ui, hub, looks, now);
+        } else if let (Some(forge), Some(hub)) = (&mut self.screens.forge, &self.session.hub) {
+            actions.forge = forge.frame(ui, hub, looks, now);
         }
     }
 
@@ -960,6 +989,8 @@ impl App {
                 actions.menu = menu.frame(ui, hub, offers, here, &mut self.settings);
             }
             None if self.screens.bag.is_some()
+                || self.screens.smithy.is_some()
+                || self.screens.forge.is_some()
                 || self.screens.people.is_some()
                 || self.screens.gm_page.is_some()
                 || self.screens.character_page.is_some() => {}
@@ -972,11 +1003,7 @@ impl App {
                 };
                 let (w, h) = ui.size();
                 ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
-                let near = Self::stall_in_reach(self.online.as_ref())
-                    .filter(|_| self.session.hub.is_some())
-                    .map(|s| s.owner.clone());
-                if let Some(owner) = &near {
-                    let look = format!("{owner}'s stall  E look");
+                if let Some(look) = self.use_hint() {
                     ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, &look);
                 }
             }
@@ -1260,6 +1287,8 @@ impl App {
     fn take_actions(&mut self, actions: Actions, event_loop: &ActiveEventLoop) {
         let [answered, clicked] = actions.front;
         self.bag_act(actions.bag);
+        self.smithy_act(actions.smithy);
+        self.forge_act(actions.forge);
         self.people_act(actions.people);
         self.gm_act(actions.gm);
         self.character_act(actions.character);

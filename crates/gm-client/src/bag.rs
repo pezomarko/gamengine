@@ -202,27 +202,27 @@ struct Stall {
 /// A request the zone has yet to answer: what it was about, and when the last of its kind
 /// was made.
 #[derive(Default)]
-struct Asked {
+pub(crate) struct Asked {
     waiting: Option<i64>,
     at: Option<Instant>,
 }
 
 impl Asked {
     /// The zone would take another now.
-    fn free(&self, now: Instant) -> bool {
+    pub(crate) fn free(&self, now: Instant) -> bool {
         self.waiting.is_none()
             && self
                 .at
                 .is_none_or(|at| now.saturating_duration_since(at) > ZONE_GAP)
     }
 
-    fn begin(&mut self, about: i64, now: Instant) {
+    pub(crate) fn begin(&mut self, about: i64, now: Instant) {
         self.waiting = Some(about);
         self.at = Some(now);
     }
 
     /// The zone never answered: `true` once, when the waiting is given up.
-    fn gave_up(&mut self, now: Instant) -> bool {
+    pub(crate) fn gave_up(&mut self, now: Instant) -> bool {
         let late = self.waiting.is_some()
             && self
                 .at
@@ -234,7 +234,11 @@ impl Asked {
     }
 
     /// An answer about `about` came: `true` when it is the one waited for.
-    fn answered(&mut self, about: i64) -> bool {
+    pub(crate) fn waiting(&self) -> bool {
+        self.waiting.is_some()
+    }
+
+    pub(crate) fn answered(&mut self, about: i64) -> bool {
         let mine = self.waiting == Some(about);
         if mine {
             self.waiting = None;
@@ -364,7 +368,7 @@ pub(crate) fn coin_fields<C: Canvas>(
 }
 
 /// A material without its layer, as a word: `shard/boss_scale` is `boss scale`.
-fn material(id: &str) -> String {
+pub(crate) fn material(id: &str) -> String {
     id.rsplit('/').next().unwrap_or(id).replace('_', " ")
 }
 
@@ -388,7 +392,7 @@ pub(crate) fn headline(item: &ItemSummary) -> &str {
     item.does.first().unwrap_or(&item.what)
 }
 
-fn made_of(item: &ItemSummary) -> String {
+pub(crate) fn made_of(item: &ItemSummary) -> String {
     let parts: Vec<String> = item.components.iter().map(|(_, m)| material(m)).collect();
     format!("of {}", parts.join(", "))
 }
@@ -730,7 +734,7 @@ impl Bag {
     }
 
     /// A refusal in a person's words.
-    fn words(e: &RpcError) -> String {
+    pub(crate) fn words(e: &RpcError) -> String {
         match e {
             RpcError::Refused(HubError::Invalid(why)) => why.clone(),
             RpcError::Refused(HubError::Full) => "there is no room for it".to_string(),
@@ -835,7 +839,7 @@ impl Bag {
     }
 
     /// `label`, then an amount of coin in its colours (nothing while it is not known).
-    fn purse<C: Canvas>(ui: &mut Ui<'_, C>, r: Rect, label: &str, coin: Option<i64>) {
+    pub(crate) fn purse<C: Canvas>(ui: &mut Ui<'_, C>, r: Rect, label: &str, coin: Option<i64>) {
         ui.label(r.x, r.y, 0.0, ui::FAINT, label);
         if let Some(coin) = coin {
             let x = r.x + ui.text_width(label) + 2.0 * ADVANCE * ui.scale;
@@ -846,7 +850,7 @@ impl Bag {
     /// What is picked, in full (five lines): what it is, what it does, what is worn in
     /// its place now, and what it is made of. `worn` is the inventory, when the hub has
     /// said it.
-    fn detail<C: Canvas>(
+    pub(crate) fn detail<C: Canvas>(
         ui: &mut Ui<'_, C>,
         r: Rect,
         item: Option<&ItemSummary>,

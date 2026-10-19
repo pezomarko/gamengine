@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 pub mod entity;
+mod forges;
 pub mod format;
 mod lightmap;
 mod posts;
@@ -22,6 +23,7 @@ use std::path::Path;
 use glam::Vec3;
 
 pub use entity::Entity;
+pub use forges::{ForgePost, MAX_FORGE_POSTS};
 pub use format::{
     BspError, Header, LUMP_CLIPNODES, LUMP_EDGES, LUMP_ENTITIES, LUMP_FACES, LUMP_LEAVES,
     LUMP_LIGHTING, LUMP_MARKSURFACES, LUMP_MODELS, LUMP_NODES, LUMP_PLANES, LUMP_SURFEDGES,

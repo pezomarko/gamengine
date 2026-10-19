@@ -7,6 +7,8 @@ impl App {
         self.screens.front_up
             || self.screens.menu.is_some()
             || self.screens.bag.is_some()
+            || self.screens.smithy.is_some()
+            || self.screens.forge.is_some()
             || self.screens.people.is_some()
             || self.screens.gm_page.is_some()
             || self.screens.character_page.is_some()
@@ -45,6 +47,116 @@ impl App {
             .iter()
             .filter(|s| gm_net::control::stall_in_reach(s.pos, feet.into()))
             .min_by(|a, b| far(a).total_cmp(&far(b)))
+    }
+
+    /// Somebody of `role` nothing hurts (the smith, the trainer: ITEMS.md 6.6) stands within
+    /// `reach` of the own body, alive: the rule the zone decides with.
+    pub(super) fn npc_in_reach(online: Option<&Online>, role: &str, reach: f32) -> bool {
+        let Some(o) = online else { return false };
+        let (Some(c), Some(pack)) = (&o.client, &o.pack) else {
+            return false;
+        };
+        let of_role = |id: &u32| {
+            matches!(o.kinds.get(id), Some(BodyKind::Creature { def })
+                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc && d.role == role))
+        };
+        let me = c.mover.mv.origin;
+        c.others_at(c.render_tick(0.0))
+            .iter()
+            .any(|e| e.alive() && of_role(&e.id) && (e.pos - me).length() <= reach)
+    }
+
+    /// A forge of the map (ITEMS.md 6.6) is in the own body's reach, by the stall's rule.
+    pub(super) fn forge_in_reach(&self) -> bool {
+        let Some(c) = self.online.as_ref().and_then(|o| o.client.as_ref()) else {
+            return false;
+        };
+        let feet = c.mover.mv.origin + Vec3::Z * Hull::Player.mins().z;
+        self.forges
+            .iter()
+            .any(|f| gm_net::control::stall_in_reach(f.origin.into(), feet.into()))
+    }
+
+    /// What `E` would open where the body stands, and the corner's words for it: the
+    /// forge first, then the smith, then a stall (ITEMS.md 6.6).
+    pub(super) fn use_hint(&self) -> Option<String> {
+        self.session.hub.as_ref()?;
+        if self.forge_in_reach() {
+            return Some("Forge  E craft".to_string());
+        }
+        if Self::npc_in_reach(self.online.as_ref(), "smith", TRAINER_REACH) {
+            return Some("Blacksmith  E talk".to_string());
+        }
+        Self::stall_in_reach(self.online.as_ref()).map(|s| format!("{}'s stall  E look", s.owner))
+    }
+
+    /// `E`: the forge, the smith or the stall the body stands at.
+    pub(super) fn open_use(&mut self) {
+        if self.forge_in_reach() {
+            self.open_forge();
+        } else if Self::npc_in_reach(self.online.as_ref(), "smith", TRAINER_REACH) {
+            self.open_smithy();
+        } else {
+            self.open_stall();
+        }
+    }
+
+    /// The smith's wares (ITEMS.md 6.6).
+    pub(super) fn open_smithy(&mut self) {
+        match self.owner() {
+            Some((hub, session, character)) => {
+                self.screens.smithy = Some(Smithy::open(hub, session, character, Instant::now()));
+                self.screens.menu = None;
+                self.release_keys();
+            }
+            None => self.note("there is nothing to buy without a hub"),
+        }
+    }
+
+    /// The forge (ITEMS.md 6.6).
+    pub(super) fn open_forge(&mut self) {
+        match self.owner() {
+            Some((hub, session, character)) => {
+                self.screens.forge = Some(Forge::open(hub, session, character, Instant::now()));
+                self.screens.menu = None;
+                self.release_keys();
+            }
+            None => self.note("there is nothing to forge without a hub"),
+        }
+    }
+
+    /// What the smith's shop asked for: a buy is said to the zone (ITEMS.md 6.6).
+    pub(super) fn smithy_act(&mut self, action: SmithyAction) {
+        match action {
+            SmithyAction::None => {}
+            SmithyAction::Close => self.screens.smithy = None,
+            SmithyAction::Buy { material, price } => {
+                if let Some(o) = &mut self.online {
+                    o.net.send_control(FromClient::SmithBuy { material, price });
+                }
+            }
+        }
+    }
+
+    /// What the forge asked for: a craft is said to the zone (ITEMS.md 6.6).
+    pub(super) fn forge_act(&mut self, action: ForgeAction) {
+        match action {
+            ForgeAction::None => {}
+            ForgeAction::Close => self.screens.forge = None,
+            ForgeAction::Forge {
+                template,
+                components,
+                fee,
+            } => {
+                if let Some(o) = &mut self.online {
+                    o.net.send_control(FromClient::Forge {
+                        template,
+                        components,
+                        fee,
+                    });
+                }
+            }
+        }
     }
 
     /// `I`: the inventory of the character being played; with it up already, the bag's
@@ -146,14 +258,8 @@ impl App {
         if !o.has_trainer() {
             return true;
         }
-        let npc = |id: &u32| {
-            matches!(o.kinds.get(id), Some(BodyKind::Creature { def })
-                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc))
-        };
-        let me = c.mover.mv.origin;
-        c.others_at(c.render_tick(0.0))
-            .iter()
-            .any(|e| e.alive() && npc(&e.id) && (e.pos - me).length() <= TRAINER_REACH)
+        let _ = (c, pack);
+        Self::npc_in_reach(self.online.as_ref(), "trainer", TRAINER_REACH)
     }
 
     /// `G`: the game master's page (GM.md 4), for a character the zone granted it to.
@@ -287,7 +393,7 @@ impl App {
             Key::Inventory => self.open_inventory(),
             Key::Equipment => self.open_equipment(),
             Key::People => self.open_people(),
-            Key::Use => self.open_stall(),
+            Key::Use => self.open_use(),
             Key::Gm => self.open_gm(),
             Key::Character => self.open_character(),
             // A script's `F` (CLIENT.md 9): the first item cell, the kit's, as a person's
