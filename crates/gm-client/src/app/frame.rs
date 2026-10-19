@@ -463,7 +463,14 @@ impl App {
                 let size = self.active.as_ref().map_or((1.0, 1.0), |a| {
                     (a.config.width.max(1) as f32, a.config.height.max(1) as f32)
                 });
-                touch_controls(size, self.ui_scale(), self.online.as_ref(), self.rpg_mode())
+                let use_in_reach = self.use_hint().is_some();
+                touch_controls(
+                    size,
+                    self.ui_scale(),
+                    self.online.as_ref(),
+                    self.rpg_mode(),
+                    use_in_reach,
+                )
             } else {
                 Vec::new()
             };

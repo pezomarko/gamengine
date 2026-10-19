@@ -271,12 +271,14 @@ pub(crate) fn hotbar_rects(size: (f32, f32), s: f32, n: usize, items: usize) -> 
 
 /// The controls a finger may land on (MODES.md 5.6): the menu top right; in the action
 /// and gun modes the jump and the secondary bottom right, over the hotbar's line; and
-/// the hotbar's cells while a kit is played. Nothing without a finger seen.
+/// the hotbar's cells while a kit is played; and `E` above them while something is in
+/// reach to use (`use_in_reach`). Nothing without a finger seen.
 pub(crate) fn touch_controls(
     size: (f32, f32),
     s: f32,
     online: Option<&Online>,
     rpg: bool,
+    use_in_reach: bool,
 ) -> Vec<(TouchButton, ui::Rect)> {
     let (w, h) = size;
     let mut out = Vec::new();
@@ -301,6 +303,12 @@ pub(crate) fn touch_controls(
         out.push((
             TouchButton::Secondary,
             ui::Rect::new(w - 16.0 - side - gap - side, y, side, side),
+        ));
+    }
+    if use_in_reach {
+        out.push((
+            TouchButton::Use,
+            ui::Rect::new(w - 16.0 - side, y - gap - side, side, side),
         ));
     }
     if let Some(o) = online {
@@ -408,6 +416,7 @@ fn hud_touch(hud: &mut Hud, touch: &TouchHud<'_>, s: f32, cap: f32) {
             TouchButton::Menu => "menu",
             TouchButton::Jump => "jump",
             TouchButton::Secondary => "2",
+            TouchButton::Use => "E",
             TouchButton::Hot(_) => continue,
         };
         let held = touch.held.contains(button);
