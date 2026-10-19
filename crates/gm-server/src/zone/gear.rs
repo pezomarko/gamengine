@@ -9,6 +9,13 @@ impl Run {
         // build is worn at the next respawn, as always; in the world it is
         // worn at once, at the trainer, by a living body out of any fight.
         let result = resolve_build(&self.cfg, &self.zone, Some(&build)).and_then(|b| {
+            // A body is for keeps (BODIES.md 3.5): the trainer respecs everything but it.
+            if let Some(worn) = self.zone.player(id).map(|p| &p.sheet.build)
+                && worn.body.is_some()
+                && b.body != worn.body
+            {
+                return Err("a body is a new character: the trainer respecs the rest".into());
+            }
             if !self.cfg.wild {
                 return self.zone.request_respec(id, b).map_err(|e| e.to_string());
             }

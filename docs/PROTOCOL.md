@@ -1,6 +1,6 @@
 # Wire Protocol
 
-Status: v27 (the smith and the forge, ITEMS.md 6.6: `SmithBuy`, `Forge`, `SmithResult`, `ForgeResult`; v23–v26 as GEAR.md 12 says; v22 three body places, section 34; v21 the sheathed weapon, section 33; v20 an overlay a body place, section 32; v19 a thing worn into a named hand, section 31; v18 the item bar, section 30; v17 the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
+Status: v28 (bodies, BODIES.md 3, section 38; v27 the smith and the forge, ITEMS.md 6.6: `SmithBuy`, `Forge`, `SmithResult`, `ForgeResult`; v23–v26 as GEAR.md 12 says; v22 three body places, section 34; v21 the sheathed weapon, section 33; v20 an overlay a body place, section 32; v19 a thing worn into a named hand, section 31; v18 the item bar, section 30; v17 the off hand and the Taunt's source, section 29; v16 the six elements, section 28; v15 the RPG body's facing, section 27; v14 the crouch seen, section 26; v13 and before as the sections say; v9 after Phase 14: the ability a stance belongs to, section 21; v8 of Phase 14: what a body holds, `Look`, and the pack's prop keys, section 20; v7 of Phase 12: two types for the control stream's two directions, parties, lines through the hub and a trade asked for, section 19; v6 of Phase 11: buying at a stall and wearing, section 18; v5 of Phase 9: reports, section 16; v4 of Phase 8: WebTransport as a second carrier, section 15; v3 of Phase 7: companions
 and command, section 14; v2 of Phase 3 with the reliable messages of Phases 4 and 6, sections
 12 and 13). `gm-net` implements exactly this document; the test vectors in section 2
 are unit tests. Decisions from PLAN.md 2.1, 2.3 and 11.3 are binding here. When the code and this
@@ -958,6 +958,17 @@ than staying the zone's. The hub's reading grew the same way on its own wire
   and the shoulders are no longer places, so nothing is worn there to draw. Eight bytes
   fewer a `Look`; the version byte keeps a v21 client out, since it would read the roster
   long.
+
+## 38. Changes in v28 (bodies, 2026-10-19)
+
+`PROTOCOL_VERSION` 28 (BODIES.md 3, MATRIX.md 19; v27 was the smithy's). `BuildChoice` gained `Body(BodyChoice)`
+(a body by key, the mode, the five attributes, the aspects, the actives bought), what a
+player asks for at creation and at the trainer; `Build` carries `body: Option<u16>` (the
+pack's index) in the content a zone sends and in every build on the wire; the pack
+carries its `bodies`. `Worn` (`FromZone::Worn`, the hub's reading) gained `secondary`
+(the hands' second move, BODIES.md 3.4 and 3.6), `techniques` (the primaries the weapon
+in hand holds, 3.8) and the armour's base mitigation and weight (`armour`, `ward`,
+`speed`, `regen`; 3.7), which the owning client predicts with. Nothing else moved.
 
 ## 34. Changes in v26 (no armour class, 2026-10-17)
 

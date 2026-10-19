@@ -91,13 +91,17 @@ pub fn capitalised(name: &str) -> String {
     }
 }
 
-/// What class a build is (EQUIPMENT.md 2): the preset it is, by its class name; `Custom`
-/// otherwise, and `Custom (a Blade)` when every ability of a preset's kit is in it. The
-/// content names the presets; without it nothing is said.
+/// What a build is called (EQUIPMENT.md 2, BODIES.md 3.3): its body's name when it has a
+/// body (`Brute`); else the preset it is, by its class name; `Custom` otherwise, and
+/// `Custom (a Blade)` when every ability of a preset's kit is in it. The content names
+/// the bodies and the presets; without it nothing is said.
 pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
     let Some(pack) = pack else {
         return String::new();
     };
+    if let Some(body) = b.body_def(pack) {
+        return body.name.clone();
+    }
     if let Some(p) = pack.builds.iter().find(|p| &p.build == b) {
         return capitalised(&p.name);
     }
@@ -294,13 +298,24 @@ pub fn selector<C: Canvas>(
     let left_h = ui
         .panel_height(5.0 * row_h + gap + 4.0 * row_h, true)
         .min(middle.h);
-    let kit_rows = shown.map_or(1, |sh| sh.build.slots().len().max(1));
+    let kit_rows = shown.map_or(1, |sh| {
+        sh.pack
+            .map_or_else(
+                || sh.build.slots().len(),
+                |p| sh.build.kit_slots_in(&gm_core::build::Worn::NONE, p).len(),
+            )
+            .max(1)
+    });
     // The words of the ability picked, in as many lines as they wrap to at this width
     // (three at least), so that nothing of them is cut where there is room.
     let picked_words = shown
         .and_then(|sh| {
             let pack = sh.pack?;
-            let (i, _) = sh.build.slots().get(*ability_at).copied()?;
+            let (i, _) = sh
+                .build
+                .kit_slots_in(&gm_core::build::Worn::NONE, pack)
+                .get(*ability_at)
+                .copied()?;
             pack.abilities.get(i as usize).map(|d| words_of(d, sh.rate))
         })
         .unwrap_or_default();
@@ -363,7 +378,7 @@ pub fn selector<C: Canvas>(
     }
     // Left: the five attributes with what each buys, then what else they come to.
     let inner = ui.panel(left, "attributes");
-    let d = b.derived();
+    let d = sh.pack.map_or_else(|| b.derived(), |p| b.derived_in(p));
     let attrs = b.attributes.as_array();
     const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
     let buys = [
@@ -425,14 +440,19 @@ pub fn selector<C: Canvas>(
         return picked;
     };
     let rows: Vec<Vec<String>> = b
-        .slots()
+        .kit_slots_in(&gm_core::build::Worn::NONE, pack)
         .iter()
         .map(|(i, slot)| {
             let name = pack
                 .abilities
                 .get(*i as usize)
                 .map_or_else(|| "?".to_string(), |a| a.ability.name.clone());
-            vec![name, slot_word(*slot).to_string()]
+            let word = if *slot == Slot::Active && b.body_skill(pack) == Some(*i) {
+                "body skill"
+            } else {
+                slot_word(*slot)
+            };
+            vec![name, word.to_string()]
         })
         .collect();
     let about_h = about_lines * line;

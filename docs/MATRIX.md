@@ -1,22 +1,26 @@
 # Character Matrix
 
-Status: v6, 2026-10-09 (v5 the same day, section 16; v4 section 15; v3 the six elements of section 5, section 14; v2 2026-10-06, v1 Phase 3; the shaman, the seventh preset and the first of Grass, is v6, section 17). This document is the contract for point-buy
+Status: v8, 2026-10-19 (the softer matrix and the wider gear term, section 19; v7 2026-10-17, section 18; v6 2026-10-09, section 17; v5 the same day, section 16; v4 section 15; v3 the six elements of section 5, section 14; v2 2026-10-06, v1 Phase 3; the shaman, the seventh preset and the first of Grass, is v6, section 17). This document is the contract for point-buy
 characters, the type matrix and the damage pipeline. v2 (section 13): the character's own
 thirty attribute points apart from the kit's budget, wider bands and seven times the health,
 the range as the weapon's, the trainer and the dummy. `gm-core::matrix` and `gm-core::build` mirror it; when they disagree,
 the document wins and the code is wrong. Changes to either go in one commit.
 
 PLAN.md 3.1, 3.2 and 0 are binding: no levels, no gear tiers, a fixed budget, rock-paper-scissors
-counters with stacking multipliers and a dual-type 4×, compressed stat bands, top gear a 15–25%
-edge (the `gear` term of section 7, built in Phase 11: ITEMS.md 3). PLAN.md 12 listed "full type matrix and attribute set" as open; this document is
+counters with stacking multipliers and a dual-type hole, compressed stat bands, top gear a
+bounded edge (the `gear` term of section 7, built in Phase 11: ITEMS.md 3; 15–25% until
+2026-10-19, 50% since, section 19). PLAN.md 12 listed "full type matrix and attribute set" as open; this document is
 the proposal that Phase 3 implements. The director's calls are recorded in section 12.
 
 ## 1. Principles
 
-1. **Counters move damage more than stats do.** A derived stat spans at most 2× between
-   the worst and the best attribute spread (health 700 → 1,500, damage ×0.8 → ×1.6); the
-   matrix then moves damage by 4× either way. Builds are won by picking the right counter
-   and landing it; the thirty points say what kind of fighter lands it. (v1 compressed the
+1. **Stats and gear move damage as much as counters do; a counter tilts a fight, it does
+   not decide it** (v8, 2026-10-19, section 19). A derived stat spans at most 2× between
+   the worst and the best attribute spread (health 620 → 1,500, damage ×0.72 → ×1.6); the
+   matrix moves damage by 1.25 or 0.75 a step (a 1.67× exchange, 2.78× for a dual-aspect
+   hole), and the best gear against nothing by 1.5×. The attribute band is the largest
+   lever; the body, the element and the gear are each a tilt. (Until v8 the matrix was 2
+   and 0.5, a 4× exchange, and "counters move damage more than stats do"; v1 compressed the
    bands to 1.5× and 95–140 health: a fight was over in a second and a point bought nothing;
    section 13.)
 2. **Readable in three seconds.** Frame = silhouette, armour class = how the body moves,
@@ -24,13 +28,17 @@ the proposal that Phase 3 implements. The director's calls are recorded in secti
 3. **Two budgets, reallocatable.** A character has thirty attribute points of its own and a
    kit worth at most 40. Both are redone, free, at the trainer in the town (section 9.1); in
    the arena at the next respawn.
-4. **No immunity.** Every multiplier is 0.25–4. Everything can be killed by anything, slower.
+4. **No immunity.** Every multiplier is 0.5625–1.5625 (0.25–4 until v8). Everything can be
+   killed by anything, slower.
 5. **No RNG in damage.** Spread on projectiles is the only randomness in combat.
 
 ## 2. Attributes
 
-Five attributes, each **5..=25**, integer. The floor is 5; a character has **thirty points**
-to put above it, however it likes (all in one, or spread; fewer may be spent, more is
+Five attributes, each **3..=25**, integer. The floor is the **body's** (BODIES.md 3:
+five floors summing to 25, a 3 where the body is plainly bad at something; v8,
+2026-10-19) and a flat **5** for a build without a body (a preset, a creature, a bot: as
+every character was before the bodies); a character has **thirty points** to put above
+its floors, however it likes (all in one, or spread; fewer may be spent, more is
 refused). They are not the kit's budget (section 9): a build does not trade a stat for an
 ability. The presets spend all thirty.
 
@@ -91,17 +99,19 @@ beaten − resisted, over the other five). Attacker by row, defending aspect by 
 
 | Attack \ Aspect | Fire | Water | Grass | Electric | Ground | Air |
 |---|---|---|---|---|---|---|
-| Fire | 0.5 | 0.5 | **2** | 1 | 1 | 1 |
-| Water | **2** | 0.5 | 0.5 | 1 | **2** | 1 |
-| Grass | 0.5 | **2** | 0.5 | 1 | **2** | 0.5 |
-| Electric | 1 | **2** | 0.5 | 0.5 | 0.5 | **2** |
-| Ground | **2** | 1 | 0.5 | **2** | 1 | 0.5 |
-| Air | 1 | 1 | **2** | 0.5 | 1 | 1 |
+| Fire | 0.75 | 0.75 | **1.25** | 1 | 1 | 1 |
+| Water | **1.25** | 0.75 | 0.75 | 1 | **1.25** | 1 |
+| Grass | 0.75 | **1.25** | 0.75 | 1 | **1.25** | 0.75 |
+| Electric | 1 | **1.25** | 0.75 | 0.75 | 0.75 | **1.25** |
+| Ground | **1.25** | 1 | 0.75 | **1.25** | 1 | 0.75 |
+| Air | 1 | 1 | **1.25** | 0.75 | 1 | 1 |
 
 Readings: fire burns grass; water drowns fire and washes the ground away; grass drinks the
 water and splits the ground; lightning strikes the water and whatever flies; the ground
 smothers fire and takes the lightning; the wind tears the grass. The chart's immunities
-(lightning into the ground, the ground into what flies) are 0.5 here.
+(lightning into the ground, the ground into what flies) are 0.75 here. The steps are
+**1.25 and 0.75** since v8 (2026-10-19, section 19; 2 and 0.5 from v3 to v7): one step is
+a 1.67× exchange, a tilt the thirty points or the gear can answer.
 
 | | beats | beaten by | resists | resisted by | net |
 |---|---|---|---|---|---|
@@ -113,10 +123,10 @@ smothers fire and takes the lightning; the wind tears the grass. The chart's imm
 | Air | 1 | 1 | 2 | 1 | +1 |
 
 **Stacking.** Against a dual-aspect defender the two multipliers multiply. Four of the
-fifteen pairs have a **4× hole** (a predator of both): Fire + Electric (Ground), Fire +
-Ground (Water), Water + Ground (Grass), Water + Air (Electric). Every pair but Water +
-Electric, Electric + Air and Ground + Air has at least one **0.25× wall**; Grass + Air walls
-two (Grass and Ground). Spiky or safe is the build choice; both cost 10 points, both still
+fifteen pairs have a **1.5625× hole** (a predator of both; 4× until v8): Fire + Electric
+(Ground), Fire + Ground (Water), Water + Ground (Grass), Water + Air (Electric). Every pair
+but Water + Electric, Electric + Air and Ground + Air has at least one **0.5625× wall**
+(0.25× until v8); Grass + Air walls two (Grass and Ground). Spiky or safe is the build choice; both cost 10 points, both still
 eat the physical table. Neutral is the third choice: no hole, no wall, and no element to cast.
 
 Physical packets ignore this table; elemental packets ignore the armour-class table.
@@ -246,13 +256,16 @@ duration on reapplication; `Extend` adds the duration (capped at 3× the verb's 
 
 ```
 Build {
-  frame:        Colossus | Striker | Caster | Infiltrator       free
-  attributes:   STR AGI CON INT SPR, each 5..=25                 Σ(attr − 5) ≤ 30, the character's own
+  body:         one of bodies.toml, or none (BODIES.md 3)        free; fixes the frame, the floors, the first active
+  frame:        Colossus | Striker | Caster | Infiltrator       free (the body's, with a body)
+  attributes:   STR AGI CON INT SPR, each 3..=25                 Σ(attr − floor) ≤ 30, the character's own
   aspects:      0..=2 of Fire Water Grass Electric Ground Air    0 / 10 (none: neutral)
   kit:          primary, secondary, guard (optional), up to 4 actives   Σ ability cost
+                (with a body: the hands cost nothing, the body skill is active 1, up to 3 bought)
 }
 aspects + kit ≤ 34 (the kit's budget; 40 with the armour in it until 2026-10-16, GEAR.md 3); unspent is allowed.
 Under a hub the worn weapon fills the primary and the worn off hand the guard (GEAR.md 2).
+A player's character has a body (2026-10-19); the presets are the bots', the creatures' and the arena's.
 ```
 
 Rules enforced by `gm-core::build::validate`:
@@ -652,3 +665,30 @@ provided, either physical or magical".
   frostweaver's over the ironclad (3.0–3.6) stand. The test now asks that leg only not
   to be dominated; whether the sword or the frostweaver moves to make the cycle again is
   the director's.
+
+## 19. v8 (2026-10-19): the softer matrix and the wider gear term
+
+The first step of BODIES.md (the bodies, the gear skills and the caster's blast follow
+it). The director's numbers, from the review "Gear and Body Redesign": the element matrix
+**0.75 / 1.25** instead of 0.5 / 2, and the gear term widened so that the best gear wins
+**1.5×** against nothing instead of 1.23×.
+
+- `gm_core::matrix::MATRIX`: every 2 is 1.25, every 0.5 is 0.75 (`BEATS`, `RESISTED`).
+  The table's shape stands (5): every element beats one, is beaten by one, none further
+  than one step from even. One step is a 1.67× exchange; a dual-aspect hole 1.5625×, a
+  wall 0.5625×.
+- `Gear::SCALE` 2000 → **1100**, `Gear::MAX` 250 standing: one side is at most 1.227,
+  the exchange at the very cap (1350/1100)² = **1.51**, the best craft (220) against
+  nothing **1.44**, against iron and oak (40) **1.34**. ITEMS.md 3.1 and the item words
+  (`gm-content::items::per_cent`) read `SCALE`; PLAN.md 0's "15–25%" is 50%.
+- Principle 1 is rewritten: stats and gear move damage as much as counters do; a counter
+  tilts a fight, it does not decide it. The attribute band (2×) is the largest lever.
+- The arena's cycle test (`gm-bot/tests/arena.rs`) asked for legs of 1.3 and more; the
+  legs narrow with the matrix. It asks now that every leg of the cycle still points the
+  same way (ironclad over blade, frostweaver over ironclad, blade not dominated) and that
+  the mirror is even. Measured on this change (three seeds × 60 s, 8 v 8, offline):
+  ironclad : blade **49 : 19** (2.58; 2.3–2.6 before); frostweaver : ironclad **31 : 19**
+  (1.63; 3.0–3.6 before); blade : frostweaver **23 : 25** (0.92; near even, as since v7);
+  mirror 40 : 33. The cycle stands, the counter leg at half its old width: a Water
+  caster still beats the Ground colossus, by play and by kiting now, not by the chart.
+  The gate asks 1.2 on the two decided legs (1.3 before) and no domination on the third.

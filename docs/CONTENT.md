@@ -49,6 +49,7 @@ assets/content/
   README.md                   the tables, as now
   VERSION                     the content's version: a number, bumped by whoever changes a table
   abilities.toml  builds.toml  creatures.toml  trials.toml  items.toml   (rows; see 3)
+  bodies.toml                 the eight bodies a player picks from (BODIES.md 3.1, 2026-10-19)
   avatars.toml                the official looks: one row per frame and armour class (3.2)
   LICENSES.md                 every file that is not ours: where from, which licence
   models/
@@ -98,6 +99,10 @@ each the key of a file in 2:
 | | `stamina` | a frame's job: the stamina of the blows (a weapon) or of the blocks and the guard (a shield, an armour), percent of the cost, 25–100 |
 | | `ward` | a gem's job: an element by name, or `catalyst` for the item's own catalyst's; on an armour, a shield or a cape that element's status lasts half as long on the wearer, on a weapon half again as long on whoever the blow lands on |
 | `[[template]]` | `block` | a shield's own block (GEAR.md 7, 2026-10-16): `{ arc, mitigation, stamina_per_hit, stops_projectiles, move_speed_scale }`, the numbers the guard it brings plays in place of the guard ability's; a shield's alone |
+| `[[ability]]` | `secondary_of` | a secondary's weapons (BODIES.md 3.6, 2026-10-19): the props whose weapon brings it as its second move (`["staff", "wand"]`), as a primary's `prop` names the weapon that swings it; of several (the staff's six blasts) the build's own when it is one, else the first whose aspect the build holds, else the plain one |
+| `[[template]]` | `secondary` | the off hand's second move (BODIES.md 3.4, 2026-10-19): the key of the secondary the thing in the left hand brings over the weapon's own (`shield_bash` on the three shields, `pistol` on the pistol, `mend` on the focus) |
+| | `armour`, `ward`, `speed`, `regen` | an armour's base mitigation and weight (BODIES.md 3.7, 2026-10-19): armour and ward added to the wearer's before the caps (the chest whole, the head and the legs a third; within 0.3 of nothing), speed and stamina regen as factors (0.5–1.5; 1 for nothing) |
+| `[[body]]` (bodies.toml) | `key`, `name`, `frame`, `floors`, `skill`, `stamina`, `blurb` | a body (BODIES.md 3.1, 2026-10-19): the frame, five floors summing to 25 (each 3..=25), the body skill (an `active` of no aspect, free, active 1), the stamina pool's percent (default 100), the words. No look fields yet: the avatar is the frame's (3.2) until a body has a model of its own |
 | `[[ability]]` | `heavy` | a heavy blow (GEAR.md 7, 2026-10-16; the two-handers): blocked, it costs the blocker twice the guard's stamina, and once its windup has passed a stagger does not stop it |
 | | `ammo` | the stack a shot draws one of (GEAR.md 7: the bow's `arrow`), by the stack template's key; refused with none carried; a firearm's is `firearm.ammo` |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |

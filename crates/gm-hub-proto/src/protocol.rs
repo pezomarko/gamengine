@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use bitcode::{Decode, Encode};
 use gm_core::build::Build;
 use gm_core::matrix::Gear;
-pub use gm_net::control::BuildChoice;
+pub use gm_net::control::{BodyChoice, BuildChoice};
 
 pub type AccountId = i64;
 pub type CharacterId = i64;
@@ -1346,7 +1346,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 20;
+pub const HUB_VERSION: u8 = 21;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

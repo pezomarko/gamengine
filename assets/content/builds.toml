@@ -19,7 +19,7 @@ aspects = ["ground"]
 primary = "greatsword"                                               # 2  (MATRIX.md 16; the hammer until 2026-10-09)
 secondary = "shield_bash"                                            # 2
 guard = "shield_wall"                                                # 6  (the shield in the off hand)
-actives = ["stomp", "bellow"]                                        # 10 + 8  = 40
+actives = ["bellow", "fortify"]                                      # 8 + 8  = 26  (the stomp is the staff's since BODIES.md 3.6)
 
 [[build]]
 name = "blade"
@@ -41,9 +41,9 @@ frame = "caster"
 attributes = { str = 5, agi = 10, con = 5, int = 20, spr = 15 }    # 30
 aspects = ["water", "air"]                                           # 10: Ground is 0.5x in
 primary = "ice_shard"                                                # 2
-secondary = "kick"                                                   # 2
+secondary = "frost_nova"                                             # 10  (the staff's second move since BODIES.md 3.6: what plays in nothing)
 guard = "brace"                                                      # 2
-actives = ["frost_nova"]                                             # 10  = 26
+actives = ["blink"]                                                  # 10  = 34
 
 [[build]]
 name = "shade"
@@ -69,7 +69,7 @@ aspects = ["electric"]
 primary = "staff"                                                    # 0
 secondary = "mend"                                                   # 4
 guard = "brace"                                                      # 2
-actives = ["sanctuary", "haste", "thunderclap"]                      # 10 + 8 + 10  = 34
+actives = ["sanctuary", "haste"]                                     # 10 + 8  = 24  (the thunderclap is the staff's since BODIES.md 3.6)
 
 
 

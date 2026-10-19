@@ -549,7 +549,7 @@ mod tests {
         page.tab = Tab::Build;
         frame(&mut page, &mut st, &UiInput::default(), &v);
         assert!(st.shows("0 of 30 points left"), "{:?}", st.seen);
-        assert!(st.shows("kit 28/34"), "{:?}", st.seen);
+        assert!(st.shows("kit 26/34"), "{:?}", st.seen);
         // Worn already: nothing to wear.
         assert!(st.find("Wear it now").is_none());
         let b = page.build.as_mut().unwrap();

@@ -238,7 +238,9 @@ pub async fn run_bot_on_link(
     Ok(run.finish().await)
 }
 
-/// What woke the loop.
+/// What woke the loop. (`FromZone::Worn` carries the weapon's techniques since BODIES.md
+/// 3.8: a few hundred bytes on a message a bot sees once a wear; not worth a box.)
+#[allow(clippy::large_enum_variant)]
 enum Wake {
     Stop,
     Tick,

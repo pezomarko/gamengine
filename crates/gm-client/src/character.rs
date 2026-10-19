@@ -3,7 +3,7 @@
 //! the game master's page (GM.md 4), which wears any build at once, anywhere. Nothing is
 //! decided here: the zone validates, saves and answers (`FromZone::RespecResult`).
 
-use gm_core::build::{AbilityDef, BUDGET, Build, BuildError, ContentPack, MAX_ACTIVES, Slot};
+use gm_core::build::{AbilityDef, BUDGET, Build, BuildError, ContentPack, MAX_ACTIVES, Slot, Worn};
 use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::TickRate;
 use gm_core::vocab::{ArchetypeFrame, Guard, Mode, MoveKind, Origin, Shape, Trigger, Verb};
@@ -85,42 +85,85 @@ pub fn build_editor<C: Canvas>(
     rate: TickRate,
     b: &mut Build,
 ) {
+    build_editor_wearing(ui, area, pack, rate, b, &Worn::NONE)
+}
+
+/// `build_editor` with what the hands bring (BODIES.md 3.8): a body's editor offers the
+/// weapon's techniques where it holds more than one.
+pub fn build_editor_wearing<C: Canvas>(
+    ui: &mut Ui<'_, C>,
+    area: Rect,
+    pack: &ContentPack,
+    rate: TickRate,
+    b: &mut Build,
+    worn: &Worn,
+) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (h, line) = (ui.button_height(), ui.line());
     let mut col = Column::new(area, gap);
-    // A preset to start from: a row of them, the one the draft is lit, "custom" when
-    // it is none; a word before them where the row is wide.
-    let names: Vec<&str> = pack.builds.iter().map(|nb| nb.name.as_str()).collect();
-    let preset = pack
-        .builds
-        .iter()
-        .position(|nb| &nb.build == b)
-        .unwrap_or(names.len());
-    let mut options = names.clone();
-    options.push("custom");
-    let row = col.take(h);
-    let buttons = if area.w >= PRESET_LABEL_AT * s {
-        let label_w = ui.text_width("start from") + 2.0 * gap;
+    if let Some(body) = b.body_def(pack) {
+        // A body is for keeps (BODIES.md 3.5): the row says it, with its frame and its
+        // skill, and offers the mode the character plays (MODES.md 2).
+        let row = col.take(h);
+        let skill = name_of(pack, body.skill);
+        let said = format!(
+            "{}  |  {}  |  body skill: {skill}",
+            body.name,
+            crate::front::frame_name(body.frame)
+        );
+        let label_w = (ui.text_width(&said) + 2.0 * gap).min(row.w * 0.6);
         ui.label(
             row.x,
             row.y + (row.h - line) * 0.5,
             label_w,
-            ui::FAINT,
-            "start from",
+            ui::TEXT,
+            &said,
         );
-        Rect::new(row.x + label_w, row.y, row.w - label_w, row.h)
-    } else {
-        row
-    };
-    for (i, r) in ui.buttons(buttons, &options).into_iter().enumerate() {
-        if ui.button(r, options[i])
-            && let Some(nb) = pack.builds.get(i)
-        {
-            *b = nb.build.clone();
+        const MODES: [Mode; 3] = [Mode::Action, Mode::Rpg, Mode::Gun];
+        let mut mode = MODES.iter().position(|m| *m == b.mode).unwrap_or(0);
+        let modes = Rect::new(row.x + label_w, row.y, row.w - label_w, row.h);
+        if ui.choice(modes, "mode", &["action", "rpg", "gun"], &mut mode) {
+            let (primary, secondary, guard) = pack.bare_hands(MODES[mode]);
+            b.mode = MODES[mode];
+            b.primary = primary;
+            b.secondary = secondary;
+            b.guard = guard;
         }
-        if i == preset {
-            ui.mark(r);
+    } else {
+        // A preset to start from: a row of them, the one the draft is lit, "custom" when
+        // it is none; a word before them where the row is wide.
+        let names: Vec<&str> = pack.builds.iter().map(|nb| nb.name.as_str()).collect();
+        let preset = pack
+            .builds
+            .iter()
+            .position(|nb| &nb.build == b)
+            .unwrap_or(names.len());
+        let mut options = names.clone();
+        options.push("custom");
+        let row = col.take(h);
+        let buttons = if area.w >= PRESET_LABEL_AT * s {
+            let label_w = ui.text_width("start from") + 2.0 * gap;
+            ui.label(
+                row.x,
+                row.y + (row.h - line) * 0.5,
+                label_w,
+                ui::FAINT,
+                "start from",
+            );
+            Rect::new(row.x + label_w, row.y, row.w - label_w, row.h)
+        } else {
+            row
+        };
+        for (i, r) in ui.buttons(buttons, &options).into_iter().enumerate() {
+            if ui.button(r, options[i])
+                && let Some(nb) = pack.builds.get(i)
+            {
+                *b = nb.build.clone();
+            }
+            if i == preset {
+                ui.mark(r);
+            }
         }
     }
     // The two columns, and under them what room is left (a line or two) to read an
@@ -147,8 +190,8 @@ pub fn build_editor<C: Canvas>(
         both.w - body.w - 2.0 * gap,
         both.h,
     );
-    body_column(ui, body, b);
-    let (over, why) = kit_columns(ui, kit, pack, b);
+    body_column(ui, body, pack, b);
+    let (over, why) = kit_columns(ui, kit, pack, b, worn);
     // What the ability under the cursor does, in the lines there are (the last cut if
     // it must be), after why it cannot be taken where it cannot; else what the lines
     // are for.
@@ -187,7 +230,7 @@ pub fn build_editor<C: Canvas>(
 
 /// The frame and the armour, the aspects, and the attributes: a name, `-`, the value,
 /// `+`, and what the points buy, a row each (MATRIX.md 6).
-fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
+fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b: &mut Build) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (fh, line) = (ui.field_height(), ui.line());
@@ -198,14 +241,27 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
         ArchetypeFrame::Caster,
         ArchetypeFrame::Infiltrator,
     ];
-    let mut frame = FRAMES.iter().position(|f| *f == b.frame).unwrap_or(0);
-    if ui.choice(
-        col.take(fh),
-        "frame",
-        &["colossus", "striker", "caster", "infiltrator"],
-        &mut frame,
-    ) {
-        b.frame = FRAMES[frame];
+    let floors = b.floors(pack).as_array();
+    if b.body.is_some() {
+        // The frame is the body's (BODIES.md 3.2): said, not chosen.
+        let row = col.take(fh);
+        ui.label(
+            row.x,
+            row.y + (row.h - line) * 0.5,
+            row.w,
+            ui::FAINT,
+            &format!("frame  {}  (the body's)", crate::front::frame_name(b.frame)),
+        );
+    } else {
+        let mut frame = FRAMES.iter().position(|f| *f == b.frame).unwrap_or(0);
+        if ui.choice(
+            col.take(fh),
+            "frame",
+            &["colossus", "striker", "caster", "infiltrator"],
+            &mut frame,
+        ) {
+            b.frame = FRAMES[frame];
+        }
     }
     // Aspects: one or two of six (the second costs 10).
     let row = col.take(fh);
@@ -245,8 +301,9 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
             });
         }
     }
-    // The attributes (5..25, thirty points to spend above 5) under their budget.
-    let spent = b.attributes.cost();
+    // The attributes (up to 25, thirty points to spend above the floors: the body's,
+    // or five each) under their budget.
+    let spent = b.points_spent(pack);
     let head = col.take(line);
     // (A draft from elsewhere may be over the points: said so, in the warning's colour.)
     let (budget, ink) = match Attributes::FREE_POINTS.checked_sub(spent) {
@@ -265,7 +322,7 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
     ui.label(head.x, head.y, head.w, ink, &budget);
     const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
     let mut attrs = b.attributes.as_array();
-    let d = gm_core::matrix::Derived::compute(b.attributes, b.frame);
+    let d = b.derived_in(pack);
     let buys = [
         format!("blows x{:.2}", d.physical_mult),
         format!("speed {:.0} u/s", d.max_speed),
@@ -290,7 +347,7 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
         ui.label(row.x, text_y, name_w, ui::TEXT, NAMES[i]);
         let minus = Rect::new(row.x + name_w, row.y, button_w, row.h);
         let plus = Rect::new(minus.x + button_w + value_w, row.y, button_w, row.h);
-        if ui.button_if(minus, "-", attrs[i] > Attributes::MIN) {
+        if ui.button_if(minus, "-", attrs[i] > floors[i]) {
             attrs[i] -= 1;
         }
         if ui.button_if(
@@ -310,13 +367,13 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, b: &mut Build) {
             &value,
         );
         let words_x = plus.x + button_w + 2.0 * gap;
-        ui.label(
-            words_x,
-            text_y,
-            row.x + row.w - words_x,
-            ui::FAINT,
-            &buys[i],
-        );
+        // What the points buy; with a body, the floor first where the row has room.
+        let words = if b.body.is_some() && row.w >= 260.0 * s {
+            format!("floor {}   {}", floors[i], buys[i])
+        } else {
+            buys[i].clone()
+        };
+        ui.label(words_x, text_y, row.x + row.w - words_x, ui::FAINT, &words);
     }
     let [str_, agi, con, int, spr] = attrs;
     b.attributes = Attributes {
@@ -352,6 +409,9 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     if there {
         return None;
     }
+    if slot == Slot::Active && b.body_skill(pack) == Some(i) {
+        return Some("the body's own: it is in the kit already".into());
+    }
     let firearm = def.ability.firearm.is_some();
     match (b.mode, slot) {
         (Mode::Gun, Slot::Primary) if !firearm => {
@@ -370,7 +430,7 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     }
     // The rest of the kit: everything slotted but what this one would replace.
     let others: Vec<u16> = b
-        .slots()
+        .kit_slots_in(&gm_core::build::Worn::NONE, pack)
         .into_iter()
         .filter(|(_, in_slot)| slot == Slot::Active || *in_slot != slot)
         .map(|(j, _)| j)
@@ -388,8 +448,13 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     {
         return Some(format!("shares a cooldown with {}", name_of(pack, *other)));
     }
-    if slot == Slot::Active && b.actives.len() >= MAX_ACTIVES {
-        return Some(format!("{MAX_ACTIVES} actives already: take one out"));
+    let most = if b.body.is_some() {
+        MAX_ACTIVES - 1
+    } else {
+        MAX_ACTIVES
+    };
+    if slot == Slot::Active && b.actives.len() >= most {
+        return Some(format!("{most} spells already: take one out"));
     }
     let mut draft = b.clone();
     match slot {
@@ -410,6 +475,9 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
 fn said(pack: &ContentPack, e: &BuildError) -> String {
     match e {
         BuildError::UnknownAbility(i) => format!("the pack has no ability {i}"),
+        BuildError::UnknownBody(i) => format!("the pack has no body {i}"),
+        BuildError::BodyFrame => "the frame is the body's".to_string(),
+        BuildError::AttributeUnderFloor => "an attribute is under its body's floor".to_string(),
         BuildError::WrongSlot { index, expected } => {
             let slot = match expected {
                 Slot::Primary => "weapon",
@@ -461,6 +529,7 @@ fn kit_columns<C: Canvas>(
     area: Rect,
     pack: &ContentPack,
     b: &mut Build,
+    worn: &Worn,
 ) -> (Option<u16>, Option<String>) {
     let s = ui.scale;
     let gap = 5.0 * s;
@@ -480,22 +549,33 @@ fn kit_columns<C: Canvas>(
         of(Slot::Guard),
         of(Slot::Active),
     );
-    let cols = columns(area, if split { 4 } else { 3 }, gap);
+    // With a body (BODIES.md 3.4) the hands are the gear's: one column says so and
+    // names the body skill, the actives take the rest; without one, the weapon, the
+    // secondary and the guard are lists of their own.
+    let bodied = b.body.is_some();
+    let first_active = if bodied { 1 } else { 2 };
+    let most = if bodied { MAX_ACTIVES - 1 } else { MAX_ACTIVES };
+    let cols = columns(area, first_active + if split { 2 } else { 1 }, gap);
     // The labels, and the budget over the actives.
     let head_y = area.y;
-    ui.label(cols[0].x, head_y, cols[0].w, ui::FAINT, "weapon");
-    ui.label(cols[1].x, head_y, cols[1].w, ui::FAINT, "secondary");
+    if bodied {
+        ui.label(cols[0].x, head_y, cols[0].w, ui::FAINT, "hands and body");
+    } else {
+        ui.label(cols[0].x, head_y, cols[0].w, ui::FAINT, "weapon");
+        ui.label(cols[1].x, head_y, cols[1].w, ui::FAINT, "secondary");
+    }
     // The budget over the actives, which are the kit's choice; short where narrow.
+    let what = if bodied { "spells" } else { "actives" };
     let budget = if split {
         format!(
-            "actives, up to {MAX_ACTIVES}   kit {}/{BUDGET} points",
+            "{what}, up to {most}   kit {}/{BUDGET} points",
             b.cost(pack)
         )
     } else {
         format!("kit {}/{BUDGET}", b.cost(pack))
     };
-    let budget_w = area.x + area.w - cols[2].x;
-    ui.label(cols[2].x, head_y, budget_w, ui::FOCUS, &budget);
+    let budget_w = area.x + area.w - cols[first_active].x;
+    ui.label(cols[first_active].x, head_y, budget_w, ui::FOCUS, &budget);
     // The lists: as many rows as the column has room for, the column's own count at most.
     let lists_y = area.y + line + gap;
     let room = area.y + area.h - lists_y;
@@ -559,45 +639,93 @@ fn kit_columns<C: Canvas>(
             ListEvent::None => None,
         }
     };
-    if let Some(Some(i)) = pick(
-        ui,
-        list_rect(cols[0], primaries.len()),
-        "primary",
-        Slot::Primary,
-        &primaries,
-        Some(b.primary),
-        false,
-        b,
-    ) {
-        b.primary = i;
-    }
-    // The middle column: the secondaries, then the guards under their own label.
-    let sec = list_rect(cols[1], secondaries.len());
-    if let Some(Some(i)) = pick(
-        ui,
-        sec,
-        "secondary",
-        Slot::Secondary,
-        &secondaries,
-        Some(b.secondary),
-        false,
-        b,
-    ) {
-        b.secondary = i;
-    }
-    let guard_label_y = sec.y + sec.h + gap;
-    ui.label(cols[1].x, guard_label_y, cols[1].w, ui::FAINT, "guard");
-    let guard_rows = guards.len() + 1;
-    let guard_room = area.y + area.h - (guard_label_y + line + gap);
-    let guard_fits = ((guard_room - 2.0 * s) / row_h).floor().max(1.0) as usize;
-    let guard = Rect::new(
-        cols[1].x,
-        guard_label_y + line + gap,
-        cols[1].w,
-        row_height(guard_rows.min(guard_fits)),
-    );
-    if let Some(g) = pick(ui, guard, "guard", Slot::Guard, &guards, b.guard, true, b) {
-        b.guard = g;
+    if let Some(skill) = b.body_skill(pack) {
+        // What the hands bring (GEAR.md 2) and what the body does, in words; under them
+        // the weapon's techniques (BODIES.md 3.8) where it has more than one.
+        let text = format!(
+            "The weapon in your right hand is your blow and your second move; the thing in \
+             your left is your guard. Empty-handed: {}, {}{}.\n\nBody skill: {}, always \
+             the first active, at no cost.",
+            name_of(pack, b.primary),
+            name_of(pack, b.secondary),
+            b.guard
+                .map(|g| format!(" and {}", name_of(pack, g)))
+                .unwrap_or_default(),
+            name_of(pack, skill)
+        );
+        let r = Rect::new(cols[0].x, lists_y, cols[0].w, room);
+        let used = ui.paragraph(r, ui::TEXT, &text);
+        if worn.techniques.len() > 1 {
+            let label_y = lists_y + used + gap;
+            ui.label(cols[0].x, label_y, cols[0].w, ui::FAINT, "technique");
+            let techniques: Vec<(u16, String, String)> = worn
+                .techniques
+                .iter()
+                .map(|&i| (i, name_of(pack, i), String::new()))
+                .collect();
+            let t_room = area.y + area.h - (label_y + line + gap);
+            let t_fits = ((t_room - 2.0 * s) / row_h).floor().max(1.0) as usize;
+            let list = Rect::new(
+                cols[0].x,
+                label_y + line + gap,
+                cols[0].w,
+                row_height(techniques.len().min(t_fits)),
+            );
+            let current = worn.primary.filter(|p| worn.techniques.contains(p));
+            if let Some(Some(i)) = pick(
+                ui,
+                list,
+                "technique",
+                Slot::Primary,
+                &techniques,
+                current.or(Some(b.primary)),
+                false,
+                b,
+            ) {
+                b.primary = i;
+            }
+        }
+    } else {
+        if let Some(Some(i)) = pick(
+            ui,
+            list_rect(cols[0], primaries.len()),
+            "primary",
+            Slot::Primary,
+            &primaries,
+            Some(b.primary),
+            false,
+            b,
+        ) {
+            b.primary = i;
+        }
+        // The middle column: the secondaries, then the guards under their own label.
+        let sec = list_rect(cols[1], secondaries.len());
+        if let Some(Some(i)) = pick(
+            ui,
+            sec,
+            "secondary",
+            Slot::Secondary,
+            &secondaries,
+            Some(b.secondary),
+            false,
+            b,
+        ) {
+            b.secondary = i;
+        }
+        let guard_label_y = sec.y + sec.h + gap;
+        ui.label(cols[1].x, guard_label_y, cols[1].w, ui::FAINT, "guard");
+        let guard_rows = guards.len() + 1;
+        let guard_room = area.y + area.h - (guard_label_y + line + gap);
+        let guard_fits = ((guard_room - 2.0 * s) / row_h).floor().max(1.0) as usize;
+        let guard = Rect::new(
+            cols[1].x,
+            guard_label_y + line + gap,
+            cols[1].w,
+            row_height(guard_rows.min(guard_fits)),
+        );
+        if let Some(g) = pick(ui, guard, "guard", Slot::Guard, &guards, b.guard, true, b) {
+            b.guard = g;
+        }
     }
     // Actives: the ones in the build are lit; a click toggles the row and the list goes
     // back to nothing selected, so the next click on the same row toggles it again.
@@ -631,13 +759,13 @@ fn kit_columns<C: Canvas>(
             .collect();
         let name = if n == 0 { "actives" } else { "actives b" };
         let mut at = ui::NONE;
-        let r = list_rect(cols[2 + n], part.len());
+        let r = list_rect(cols[first_active + n], part.len());
         if ui.list_marked(r, name, &COLS, &rows, &marks, &mut at) != ListEvent::None
             && let Some((i, ..)) = part.get(at)
         {
             if b.actives.contains(i) {
                 b.actives.retain(|a| a != i);
-            } else if b.actives.len() < MAX_ACTIVES {
+            } else if b.actives.len() < most && b.body_skill(pack) != Some(*i) {
                 b.actives.push(*i);
             }
         }
@@ -789,7 +917,7 @@ pub fn words_of(def: &AbilityDef, rate: TickRate) -> String {
 
 /// The pack's word on a draft: the points, the kit's cost, and what is wrong if anything.
 pub fn verdict(pack: &ContentPack, b: &Build) -> (bool, String) {
-    let points = b.attributes.cost();
+    let points = b.points_spent(pack);
     let spent = b.cost(pack);
     match b.validate(pack) {
         Ok(()) => (
@@ -817,6 +945,9 @@ pub struct CharacterView<'a> {
     pub pack: &'a ContentPack,
     /// The build worn now.
     pub own: &'a Build,
+    /// What the hands bring now (GEAR.md 2, BODIES.md 3.8): the weapon's techniques are
+    /// offered as the build's primary when it holds more than one.
+    pub worn: &'a Worn,
     /// The zone's tick rate: the abilities' ticks read in seconds.
     pub rate: TickRate,
     /// Standing by the trainer (within `TRAINER_REACH` of one) in a zone of the world; in a
@@ -871,12 +1002,13 @@ impl CharacterPage {
             return CharacterAction::None;
         };
         let rest = col.rest();
-        build_editor(
+        build_editor_wearing(
             ui,
             Rect::new(rest.x, rest.y, rest.w, rest.h - gap - h),
             v.pack,
             v.rate,
             b,
+            v.worn,
         );
         // The buttons, and beside them what is wrong with the draft, else the zone's
         // word, else where this may be worn.
@@ -1013,6 +1145,7 @@ mod tests {
         let v = CharacterView {
             pack: &pack,
             own: &own,
+            worn: &Worn::NONE,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1036,6 +1169,7 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
+            worn: &Worn::NONE,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1093,6 +1227,7 @@ mod tests {
         let away = CharacterView {
             pack: &pack,
             own: &own,
+            worn: &Worn::NONE,
             rate: TickRate::TOWN,
             at_trainer: false,
             note: "",
@@ -1191,24 +1326,25 @@ mod tests {
             why_not(&pack, &musketeer, Slot::Guard, by("parry")).as_deref(),
             Some("a gun build has no guard")
         );
-        // An aspect the build lacks; what is in the kit already is fine.
+        // An aspect the build lacks; what is in the kit already is fine. (The nova and
+        // the stomp are the staff's second moves since BODIES.md 3.6: secondaries.)
         assert_eq!(
-            why_not(&pack, &ironclad, Slot::Active, by("frost_nova")).as_deref(),
+            why_not(&pack, &ironclad, Slot::Secondary, by("frost_nova")).as_deref(),
             Some("needs the water aspect")
         );
-        assert_eq!(why_not(&pack, &ironclad, Slot::Active, by("stomp")), None);
+        assert_eq!(why_not(&pack, &ironclad, Slot::Active, by("fortify")), None);
         assert_eq!(
             why_not(&pack, &ironclad, Slot::Primary, ironclad.primary),
             None
         );
-        // The budget: the ironclad spends 28 of 34 (its plate is its chest piece's since
-        // GEAR.md 3, not the kit's), so an active of eight or more without an aspect would
+        // The budget: the ironclad spends 26 of 34 (its plate is its chest piece's since
+        // GEAR.md 3, not the kit's), so an active of nine or more without an aspect would
         // take it over.
         let plain = pack
             .abilities
             .iter()
             .position(|a| {
-                a.slot == Slot::Active && a.aspect.is_none() && !a.creature && a.cost >= 8
+                a.slot == Slot::Active && a.aspect.is_none() && !a.creature && a.cost >= 9
             })
             .expect("an active with no aspect") as u16;
         let why = why_not(&pack, &ironclad, Slot::Active, plain).expect("over the budget");
@@ -1218,6 +1354,7 @@ mod tests {
         let view = CharacterView {
             pack: &pack,
             own: &blade,
+            worn: &Worn::NONE,
             rate: TickRate::TOWN,
             at_trainer: true,
             note: "",

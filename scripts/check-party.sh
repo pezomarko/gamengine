@@ -379,11 +379,12 @@ click "Create account"
 wait screen new character
 field name
 type Cvita
-click blade
+click soldier
+click Next
 click Create
 wait screen characters
 expect "Cvita"
-expect "blade  |  not yet in the world"
+expect "Soldier  |  not yet in the world"
 quit
 EOS
   if (cd "$tmp/elsewhere" && "${on[@]}" timeout 120 "${client[@]}" --ui-script "$tmp/new.ui") > "$tmp/new.log" 2>&1; then
@@ -446,8 +447,8 @@ browser() {
   for build in webgpu webgl; do
     name="Cvita$build"
     extra=""; [[ "$build" == webgl ]] && extra="&gl=1"
-    script="$(printf '%s\n' 'wait screen new character' 'field name' "type $name" 'click blade' 'click Create' \
-      'wait screen characters' "expect \"blade  |  not yet in the world\"" 'quit')"
+    script="$(printf '%s\n' 'wait screen new character' 'field name' "type $name" 'click soldier' 'click Next' 'click Create' \
+      'wait screen characters' "expect \"Soldier  |  not yet in the world\"" 'quit')"
     if page "$tmp/browser-$build-new.log" "$script" --register; then
       ok "$build: a new account by the page's form and a character called $name"
     else

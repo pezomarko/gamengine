@@ -15,9 +15,13 @@ use gm_hub_proto::protocol::{
 use gm_model::ModelId;
 use web_time::{Duration, Instant};
 
+use crate::character::{build_editor, editor_height, panel_width, verdict};
 use crate::hub::{Account, Answer, HubApi, Pending, RpcError};
 use crate::showcase::{self, Shown};
 use crate::ui::{self, Canvas, Column, Field, Key, Rect, Ui};
+use gm_core::matrix::Attributes;
+use gm_core::vocab::Mode;
+use gm_hub_proto::protocol::BodyChoice;
 
 /// A zone takes a moment to put a character away after it left (its last save): an entry
 /// the hub refuses as `Busy`, and a list that still shows the character in its zone, are
@@ -48,6 +52,8 @@ pub enum Screen {
     Login,
     Characters,
     NewCharacter,
+    /// The new character's points, elements and spells (BODIES.md 3.5), after its body.
+    NewBuild,
     Entering,
 }
 
@@ -58,6 +64,7 @@ impl Screen {
             Screen::Login => "login",
             Screen::Characters => "characters",
             Screen::NewCharacter => "new character",
+            Screen::NewBuild => "new build",
             Screen::Entering => "entering",
         }
     }
@@ -121,9 +128,11 @@ pub struct Front {
     blurbs: Vec<String>,
     /// When the content was last asked for: it is asked again while it is missing.
     content_asked: Option<Instant>,
-    // The new character's form.
+    // The new character's form: its name, the body picked (an index into the
+    // content's bodies) and the build drafted on it (BODIES.md 3.5).
     name: String,
     archetype: usize,
+    draft: Option<Build>,
     /// The kit's row picked in the selector, whose words are read (CLIENT.md 4.2).
     ability_at: usize,
     /// The zone being entered, for the screen that says so.
@@ -194,7 +203,15 @@ pub fn frame_name(frame: ArchetypeFrame) -> &'static str {
 pub type Doll<'a> = (&'a Build, Option<ModelId>, Option<&'a [String; PLACES]>);
 
 pub fn build_name(pack: Option<&ContentPack>, build: &Build) -> String {
-    pack.and_then(|p| p.builds.iter().find(|b| &b.build == build))
+    let Some(pack) = pack else {
+        return "custom".to_string();
+    };
+    if let Some(body) = build.body_def(pack) {
+        return body.name.clone();
+    }
+    pack.builds
+        .iter()
+        .find(|b| &b.build == build)
         .map_or_else(|| "custom".to_string(), |b| b.name.clone())
 }
 
@@ -242,6 +259,7 @@ impl Front {
             content_asked: None,
             name: String::new(),
             archetype: 0,
+            draft: None,
             ability_at: 0,
             entering: String::new(),
         };
@@ -366,7 +384,7 @@ impl Front {
         }
     }
 
-    fn create(&mut self, name: String, preset: String) {
+    fn create(&mut self, name: String, build: BuildChoice) {
         self.ask("asking the hub");
         let session = self.session();
         self.send(
@@ -374,9 +392,38 @@ impl Front {
             PlayerRequest::CreateCharacter {
                 session,
                 name,
-                build: BuildChoice::Preset(preset),
+                build,
             },
         );
+    }
+
+    /// The draft of body `i` (BODIES.md 3.5): the body's floors with the thirty points
+    /// spread evenly over them, no element, no spell; the action mode. Kept while the
+    /// body stays the one picked, so what is edited is not lost to a redraw.
+    fn draft_of(&mut self, i: usize) -> Option<&Build> {
+        let pack = self.content.as_ref()?;
+        let body = pack.bodies.get(i)?;
+        if self.draft.as_ref().is_none_or(|d| d.body != Some(i as u16)) {
+            let spread = (Attributes::FREE_POINTS / 5) as u8;
+            let f = body.floors.as_array();
+            let attributes = Attributes::new(
+                f[0] + spread,
+                f[1] + spread,
+                f[2] + spread,
+                f[3] + spread,
+                f[4] + spread,
+            );
+            self.draft = Build::of_body(
+                pack,
+                i as u16,
+                Mode::Action,
+                attributes,
+                Default::default(),
+                Vec::new(),
+            )
+            .ok();
+        }
+        self.draft.as_ref()
     }
 
     /// The zone would not have the character, or the connection to it ended: back to the
@@ -506,7 +553,9 @@ impl Front {
                         match found {
                             Some(id) => self.enter(id, auto.zone),
                             None => match auto.preset {
-                                Some(preset) => self.create(auto.character, preset),
+                                Some(preset) => {
+                                    self.create(auto.character, BuildChoice::Preset(preset))
+                                }
                                 None => {
                                     return Action::Failed(
                                         "no such character; name a build to create it".into(),
@@ -587,6 +636,7 @@ impl Front {
             Screen::Login => self.login(ui),
             Screen::Characters => self.characters(ui),
             Screen::NewCharacter => self.new_character(ui),
+            Screen::NewBuild => self.new_build(ui),
             Screen::Entering => self.entering(ui),
         };
         [answered, clicked]
@@ -600,12 +650,7 @@ impl Front {
                 .characters
                 .get(self.picked)
                 .map(|c| (&c.build, c.model, Some(&c.worn))),
-            Screen::NewCharacter => self
-                .content
-                .as_ref()?
-                .builds
-                .get(self.archetype)
-                .map(|b| (&b.build, None, None)),
+            Screen::NewCharacter | Screen::NewBuild => self.draft.as_ref().map(|b| (b, None, None)),
             _ => None,
         }
     }
@@ -869,25 +914,35 @@ impl Front {
         // The strip at the bottom: the name's field with the buttons beside it, and a
         // line under them for the notice.
         let strip_inner = ui.field_height() + gap + line;
-        let presets = self.content.as_ref().map_or(&[][..], |p| &p.builds[..]);
-        let names: Vec<String> = presets.iter().map(|b| b.name.clone()).collect();
-        let blurb = self.blurbs.get(self.archetype).map_or("", String::as_str);
-        let shown = match (self.content.as_ref(), presets.get(self.archetype)) {
-            (Some(pack), Some(b)) => Some(Shown {
-                name: &b.name,
-                build: &b.build,
+        let count = self.content.as_ref().map_or(0, |p| p.bodies.len());
+        if count > 0 && self.archetype >= count {
+            self.archetype = 0;
+        }
+        let at = self.archetype;
+        let _ = self.draft_of(at);
+        let names: Vec<String> = self
+            .content
+            .as_ref()
+            .map_or(&[][..], |p| &p.bodies[..])
+            .iter()
+            .map(|b| b.key.clone())
+            .collect();
+        let shown = match (self.content.as_ref(), self.draft.as_ref()) {
+            (Some(pack), Some(b)) => pack.bodies.get(at).map(|body| Shown {
+                name: &body.name,
+                build: b,
                 pack: Some(pack),
                 rate: TickRate::COMBAT,
-                words: blurb,
-                index: self.archetype,
-                count: presets.len(),
+                words: &body.blurb,
+                index: at,
+                count,
             }),
             _ => None,
         };
         let picked = showcase::selector(
             ui,
             shown.as_ref(),
-            "asking the hub for the archetypes",
+            "asking the hub for the bodies",
             Some(&names),
             &mut self.ability_at,
             strip_inner,
@@ -913,9 +968,9 @@ impl Front {
         let empty = self.characters.is_empty();
         let back = if empty { "Log out" } else { "Back" };
         let labels: &[&str] = if web {
-            &["Create", back]
+            &["Next", back]
         } else {
-            &["Create", back, "Quit"]
+            &["Next", back, "Quit"]
         };
         let bh = ui.button_height();
         let buttons = Rect::new(
@@ -926,8 +981,8 @@ impl Front {
         );
         let brow = showcase::lead_buttons(ui, buttons, labels);
         let free = !self.waiting();
-        let ready = free && presets.get(self.archetype).is_some();
-        let mut create = ui.button_if(brow[0], "Create", ready);
+        let ready = free && self.draft.is_some();
+        let mut next = ui.button_if(brow[0], "Next", ready);
         if ui.button_if(brow[1], back, free) || (!empty && ui.key(Key::Escape)) {
             if empty {
                 return self.log_out();
@@ -940,9 +995,9 @@ impl Front {
             return Action::Quit;
         }
         let notice = col.take(line);
-        // Enter that no button took is the screen's own: Create. The arrows and the keys
-        // the name's field left (it has them while it is typed in) cycle the archetypes.
-        create |= ready && ui.key(Key::Enter);
+        // Enter that no button took is the screen's own: Next. The arrows and the keys
+        // the name's field left (it has them while it is typed in) cycle the bodies.
+        next |= ready && ui.key(Key::Enter);
         let mut step = picked.step;
         if ui.key(Key::Left) || ui.key(Key::Up) {
             step -= 1;
@@ -954,21 +1009,111 @@ impl Front {
         if let Some(i) = picked.tab {
             self.archetype = i;
         } else if step != 0 {
-            self.archetype = stepped(self.archetype, step, presets.len());
+            self.archetype = stepped(self.archetype, step, count);
         }
         if self.archetype != was {
             self.ability_at = 0;
         }
-        let preset = presets.get(self.archetype).map(|p| p.name.clone());
         self.ask_content();
-        if create && let Some(preset) = preset {
-            // The hub's own rule, said before it is asked.
+        if next {
+            // The hub's own rule on the name, said before anything else is asked.
             match gm_hub_proto::names::character_name(&self.name) {
-                Ok(name) => self.create(name, preset),
+                Ok(_) => {
+                    self.screen = Screen::NewBuild;
+                    self.notice.clear();
+                }
                 Err(why) => self.notice = why.to_string(),
             }
         }
         self.notice_line(ui, notice);
+        Action::None
+    }
+
+    /// The new character's points, elements and spells (BODIES.md 3.5): the character
+    /// page's editor on the draft of the body picked, then Create.
+    fn new_build<C: Canvas>(&mut self, ui: &mut Ui<'_, C>) -> Action {
+        let s = ui.scale;
+        let gap = 5.0 * s;
+        let h = ui.button_height();
+        let Some(pack) = self.content.as_ref() else {
+            self.screen = Screen::NewCharacter;
+            return Action::None;
+        };
+        let Some(body) = pack.bodies.get(self.archetype) else {
+            self.screen = Screen::NewCharacter;
+            return Action::None;
+        };
+        let Some(mut b) = self.draft.take() else {
+            self.screen = Screen::NewCharacter;
+            return Action::None;
+        };
+        let w = panel_width(ui);
+        let want = editor_height(ui, pack, w - 16.0 * s) + gap + h;
+        let most = ui::PANEL_HIGH * s - ui.panel_height(0.0, true);
+        let inner = want.min(most);
+        let panel = Rect::centred(ui.size(), w, ui.panel_height(inner, true));
+        let title = format!("{}, {}", self.name.trim(), body.name);
+        let inner = ui.panel(panel, &title);
+        let rest = inner;
+        build_editor(
+            ui,
+            Rect::new(rest.x, rest.y, rest.w, rest.h - gap - h),
+            pack,
+            TickRate::COMBAT,
+            &mut b,
+        );
+        let row = Rect::new(rest.x, rest.y + rest.h - h, rest.w, h);
+        let (valid, words) = verdict(pack, &b);
+        let note = if !valid {
+            words.clone()
+        } else if !self.notice.is_empty() {
+            self.notice.clone()
+        } else {
+            words.clone()
+        };
+        ui.label(
+            row.x + row.w * 0.42,
+            row.y + (row.h - ui.line()) * 0.5,
+            row.w * 0.58,
+            if valid && self.notice.is_empty() {
+                ui::FAINT
+            } else {
+                ui::WARN
+            },
+            &note,
+        );
+        let buttons = ui.buttons(
+            Rect::new(row.x, row.y, row.w * 0.4, row.h),
+            &["Create", "Back"],
+        );
+        let free = !self.waiting();
+        let off = if !valid {
+            Some(words.as_str())
+        } else if !free {
+            Some(self.busy)
+        } else {
+            None
+        };
+        let create =
+            ui.button_or(buttons[0], "Create", off) || (valid && free && ui.key(Key::Enter));
+        if ui.button_if(buttons[1], "Back", free) || ui.key(Key::Escape) {
+            self.screen = Screen::NewCharacter;
+            self.notice.clear();
+        }
+        if create {
+            let choice = BodyChoice {
+                body: body.key.clone(),
+                mode: b.mode,
+                attributes: b.attributes,
+                aspects: b.aspects,
+                actives: b.actives.clone(),
+            };
+            match gm_hub_proto::names::character_name(&self.name) {
+                Ok(name) => self.create(name, BuildChoice::Body(choice)),
+                Err(why) => self.notice = why.to_string(),
+            }
+        }
+        self.draft = Some(b);
         Action::None
     }
 
@@ -1377,22 +1522,24 @@ mod tests {
         run.click("Log in");
         run.settle();
         assert_eq!(run.front.screen, Screen::NewCharacter);
-        // The archetypes with the content's words, and no way back to an empty list.
-        assert!(run.says("ironclad"), "{:?}", run.said());
-        assert!(run.says("colossus  |  ground  |  action mode"));
-        assert!(run.says("A wall of plate behind a shield."));
-        assert!(run.says("Greatsword  weapon"));
-        assert!(run.says("Bellow  active"));
-        assert!(run.says("ironclad"));
+        // The bodies with the content's words (BODIES.md 3.5), and no way back to an
+        // empty list.
+        assert!(run.says("brute"), "{:?}", run.said());
+        assert!(run.says("Brute  |  colossus  |  no aspect  |  action mode"));
+        assert!(run.says(
+            "A big man in his thirties. Takes and gives blows. Slow, and no head for magic."
+        ));
+        assert!(run.says("Charge  body skill"));
+        assert!(run.says("Staff  weapon"));
         assert!(
             run.state
                 .find("Back")
                 .is_none_or(|s| s.kind != ui::SeenKind::Button)
         );
-        run.click("Create");
+        run.click("Next");
         assert!(run.says("a name is two letters or more"));
         run.field("name", "Zone");
-        run.click("Create");
+        run.click("Next");
         assert!(run.says("that name is the game's own"));
         // The name is taken out again, by hand: End, then four times Backspace.
         run.click("name");
@@ -1406,22 +1553,45 @@ mod tests {
                 ..Default::default()
             });
         }
-        run.click("frostweaver");
-        assert!(run.says("Ice from a distance."));
+        run.click("elder");
+        assert!(run.says(
+            "A small old woman. Wards, healing, long statuses on others. Slow to move, weak to hit."
+        ));
+        assert!(run.says("Sanctuary  body skill"));
         run.field("name", "Aldric");
+        run.click("Next");
+        // The points, the elements and the spells on the Elder's draft: the floors
+        // plus six each, the `-` of a floor attribute off, a spell bought.
+        assert_eq!(run.front.screen, Screen::NewBuild);
+        assert!(
+            run.says("Elder  |  caster  |  body skill: Sanctuary"),
+            "{:?}",
+            run.said()
+        );
+        assert!(run.says("floor 9   ward 40%"), "{:?}", run.said());
+        assert!(
+            run.says("attributes   0 of 30 points left"),
+            "{:?}",
+            run.said()
+        );
+        run.click("Haste  8");
+        assert!(run.says("kit 8/34"), "{:?}", run.said());
         run.click("Create");
         run.settle();
-        assert_eq!(run.front.screen, Screen::NewCharacter);
+        assert_eq!(run.front.screen, Screen::NewBuild);
         assert!(run.says("that name is taken"));
         run.click("Create");
         run.settle();
         assert_eq!(run.front.screen, Screen::Characters);
         assert_eq!(run.front.picked_name(), Some("Aldric"));
         let asked = run.hub.asked();
+        let pack = test_content::pack(TickRate::COMBAT);
         assert!(matches!(
             asked.last(),
-            Some(PlayerRequest::CreateCharacter { session: S, name, build: BuildChoice::Preset(p) })
-                if name == "Aldric" && p == "frostweaver"
+            Some(PlayerRequest::CreateCharacter { session: S, name, build: BuildChoice::Body(c) })
+                if name == "Aldric" && c.body == "elder" && c.mode == Mode::Action
+                    && c.attributes == Attributes::new(9, 9, 10, 12, 15)
+                    && c.actives == vec![pack.find("haste").unwrap()]
         ));
     }
 
@@ -1746,20 +1916,20 @@ mod tests {
         assert!(run.says("the hub does not answer"), "{:?}", run.said());
         for _ in 0..500 {
             run.frame(&UiInput::default());
-            if run.says("ironclad") {
+            if run.says("brute") {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         assert!(
-            run.says("colossus  |  ground  |  action mode"),
+            run.says("Brute  |  colossus  |  no aspect  |  action mode"),
             "{:?}",
             run.said()
         );
         // Nothing of ours is cut short on this screen, the longest refusal of a name
         // that the field lets through included.
         run.field("name", "Aldric!");
-        run.click("Create");
+        run.click("Next");
         assert!(
             run.says("a name is made of letters, digits, spaces, hyphens and apostrophes"),
             "{:?}",
@@ -1914,13 +2084,19 @@ mod tests {
             run.settle();
             assert_eq!(run.front.screen, Screen::Characters);
             run.tidy();
-            // The new character's screen, with the list at its fullest.
+            // The new character's screen, with the list at its fullest; then the
+            // new build's, whole at every size too.
             run.front.screen = Screen::NewCharacter;
             run.frame(&UiInput::default());
-            run.click("Create");
+            run.click("Next");
             assert!(run.says("a name is two letters or more"));
             run.field("name", &wide);
             run.tidy();
+            run.click("Next");
+            assert_eq!(run.front.screen, Screen::NewBuild, "{:?}", run.said());
+            run.tidy();
+            run.click("Back");
+            assert_eq!(run.front.screen, Screen::NewCharacter);
             run.front.screen = Screen::Characters;
             run.frame(&UiInput::default());
             run.click("Play");

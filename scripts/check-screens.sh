@@ -199,11 +199,12 @@ click "Create account"
 wait screen new character
 field name
 type Aldric
-click frostweaver
-expect "Ice from a distance"
+click elder
+expect "A small old woman"
+click Next
 click Create
 wait screen characters
-expect "frostweaver  |  not yet in the world"
+expect "Elder  |  not yet in the world"
 click Play
 wait screen game
 say in the town
@@ -409,8 +410,8 @@ browser() {
     # The form is the page's (filled below by the browser's own input events); what
     # follows it is drawn on the canvas.
     script="$(printf '%s\n' \
-      'wait screen new character' 'field name' "type $name" 'click blade' 'click Create' \
-      'wait screen characters' "expect \"blade  |  not yet in the world\"" 'click Play' 'wait screen game' \
+      'wait screen new character' 'field name' "type $name" 'click soldier' 'click Next' 'click Create' \
+      'wait screen characters' "expect \"Soldier  |  not yet in the world\"" 'click Play' 'wait screen game' \
       "expect \"Crier$build: hello from a bot\"" 'key Enter' 'wait screen chat' "type hello from $build" 'key Enter' \
       'wait screen game' 'key Escape' 'wait screen menu' 'click Travel' 'wait screen travel' \
       'click "arena  arena"' 'click Go' 'wait screen game' 'expect "arena  Esc menu"' 'key Escape' 'wait screen menu' \
