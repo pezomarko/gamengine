@@ -228,6 +228,7 @@ fn def(key: &str, slot: Slot, cost: u8, aspect: Option<Element>, ability: Abilit
         aspect,
         squad: 0,
         creature: false,
+        gun_melee: false,
     }
 }
 
@@ -2650,6 +2651,101 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 r,
             ),
         ),
+        // The bare hands (BODIES.md 6.7): the fists, a body's weapon before it wears one.
+        def(
+            "fists",
+            Primary,
+            0,
+            None,
+            ability(
+                0,
+                "Fists",
+                450,
+                0,
+                0,
+                0.9,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        48.0,
+                        60.0,
+                        90,
+                        40,
+                        220,
+                        packet(18, Blunt, 80.0, 8),
+                        1,
+                        1.0,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "fists_2",
+            Extra,
+            0,
+            None,
+            ability(
+                0,
+                "Fists",
+                450,
+                0,
+                0,
+                0.9,
+                Interrupt::OnStagger,
+                vec![(
+                    0,
+                    melee(
+                        r,
+                        48.0,
+                        60.0,
+                        80,
+                        40,
+                        260,
+                        packet(22, Blunt, 120.0, 12),
+                        1,
+                        1.0,
+                    ),
+                )],
+                r,
+            ),
+        ),
+        // The knife held as the gun mode's weapon (MODES.md 2): the knife's blow.
+        AbilityDef {
+            gun_melee: true,
+            ..def(
+                "knife_hands",
+                Primary,
+                0,
+                None,
+                ability(
+                    0,
+                    "Knife",
+                    400,
+                    0,
+                    0,
+                    1.0,
+                    Interrupt::OnStagger,
+                    vec![(
+                        0,
+                        melee(
+                            r,
+                            56.0,
+                            70.0,
+                            100,
+                            40,
+                            200,
+                            packet(40, Slash, 60.0, 10),
+                            1,
+                            1.0,
+                        ),
+                    )],
+                    r,
+                ),
+            )
+        },
     ];
     let mut pack = ContentPack {
         abilities,
@@ -2662,6 +2758,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ("sword_2", "sword_3", 400),
         ("dagger", "dagger_2", 350),
         ("dagger_2", "dagger_3", 350),
+        ("fists", "fists_2", 300),
     ] {
         let next = id(&pack, to);
         let i = id(&pack, from) as usize;

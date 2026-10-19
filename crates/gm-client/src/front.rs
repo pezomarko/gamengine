@@ -15,7 +15,7 @@ use gm_hub_proto::protocol::{
 use gm_model::ModelId;
 use web_time::{Duration, Instant};
 
-use crate::character::{build_editor, editor_height, panel_width, verdict};
+use crate::character::{creation_editor, editor_height, panel_width, verdict};
 use crate::hub::{Account, Answer, HubApi, Pending, RpcError};
 use crate::showcase::{self, Shown};
 use crate::ui::{self, Canvas, Column, Field, Key, Rect, Ui};
@@ -197,23 +197,9 @@ pub fn frame_name(frame: ArchetypeFrame) -> &'static str {
     }
 }
 
-/// The preset a build is, by the content's name for it.
 /// What the selector draws (CLIENT.md 4.2): the build, the model worn and the templates
 /// worn in the three places (`None` for an archetype: nothing yet).
 pub type Doll<'a> = (&'a Build, Option<ModelId>, Option<&'a [String; PLACES]>);
-
-pub fn build_name(pack: Option<&ContentPack>, build: &Build) -> String {
-    let Some(pack) = pack else {
-        return "custom".to_string();
-    };
-    if let Some(body) = build.body_def(pack) {
-        return body.name.clone();
-    }
-    pack.builds
-        .iter()
-        .find(|b| &b.build == build)
-        .map_or_else(|| "custom".to_string(), |b| b.name.clone())
-}
 
 /// Which of the characters and the archetypes a step of the arrows lands on: round
 /// the ends.
@@ -404,20 +390,13 @@ impl Front {
         let pack = self.content.as_ref()?;
         let body = pack.bodies.get(i)?;
         if self.draft.as_ref().is_none_or(|d| d.body != Some(i as u16)) {
-            let spread = (Attributes::FREE_POINTS / 5) as u8;
-            let f = body.floors.as_array();
-            let attributes = Attributes::new(
-                f[0] + spread,
-                f[1] + spread,
-                f[2] + spread,
-                f[3] + spread,
-                f[4] + spread,
-            );
+            // At the floors, the thirty points in hand (BODIES.md 6.7): the player
+            // places them on the next screen.
             self.draft = Build::of_body(
                 pack,
                 i as u16,
                 Mode::Action,
-                attributes,
+                body.floors,
                 Default::default(),
                 Vec::new(),
             )
@@ -810,12 +789,10 @@ impl Front {
         let strip_inner = ui.button_height() + gap + ui.line();
         let pack = self.content.as_ref();
         let c = self.characters.get(self.picked);
-        let words = c.map(|c| {
-            let kind = build_name(pack, &c.build);
-            match &c.last_zone {
-                Some(zone) => format!("{kind}  |  in {zone}  |  played {}", played(c.play_seconds)),
-                None => format!("{kind}  |  not yet in the world"),
-            }
+        // (The ribbon over it names the body: here is where it is.)
+        let words = c.map(|c| match &c.last_zone {
+            Some(zone) => format!("in {zone}  |  played {}", played(c.play_seconds)),
+            None => "not yet in the world".to_string(),
         });
         let shown = match (c, &words) {
             (Some(c), Some(words)) => Some(Shown {
@@ -1055,7 +1032,7 @@ impl Front {
         let title = format!("{}, {}", self.name.trim(), body.name);
         let inner = ui.panel(panel, &title);
         let rest = inner;
-        build_editor(
+        creation_editor(
             ui,
             Rect::new(rest.x, rest.y, rest.w, rest.h - gap - h),
             pack,
@@ -1064,12 +1041,17 @@ impl Front {
         );
         let row = Rect::new(rest.x, rest.y + rest.h - h, rest.w, h);
         let (valid, words) = verdict(pack, &b);
+        // The verdict's count is the K page's; here the points still in hand are what
+        // a player wants to know before Create.
+        let left = Attributes::FREE_POINTS.saturating_sub(b.points_spent(pack));
         let note = if !valid {
             words.clone()
         } else if !self.notice.is_empty() {
             self.notice.clone()
+        } else if left > 0 {
+            format!("{left} points still to place (the trainer in town places them too)")
         } else {
-            words.clone()
+            String::new()
         };
         ui.label(
             row.x + row.w * 0.42,
@@ -1143,6 +1125,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::rc::Rc;
 
+    use gm_core::matrix::{Aspects, Element};
     use gm_core::sim::test_content;
     use gm_core::tick::TickRate;
     use gm_hub_proto::protocol::{LocationSummary, SessionToken, TokenPayload};
@@ -1396,13 +1379,13 @@ mod tests {
         // The selector says who the one shown is, what, where and for how long; the
         // arrows go to the next.
         assert!(run.says("Aldric"), "{:?}", run.said());
-        assert!(run.says("blade  |  in arena  |  played 1 h 6 m"));
+        assert!(run.says("in arena  |  played 1 h 6 m"));
         assert!(run.says("1 of 2"));
         // (What an arrow changed is on the screen a frame later.)
         run.click(">");
         run.frame(&UiInput::default());
         assert!(run.says("Brena"), "{:?}", run.said());
-        assert!(run.says("blade  |  not yet in the world"));
+        assert!(run.says("not yet in the world"));
         assert!(run.says("2 of 2"));
         // Round the end and back, by the keys too.
         run.click(">");
@@ -1530,7 +1513,7 @@ mod tests {
             "A big man in his thirties. Takes and gives blows. Slow, and no head for magic."
         ));
         assert!(run.says("Charge  body skill"));
-        assert!(run.says("Staff  weapon"));
+        assert!(run.says("Fists  weapon"));
         assert!(
             run.state
                 .find("Back")
@@ -1560,22 +1543,42 @@ mod tests {
         assert!(run.says("Sanctuary  body skill"));
         run.field("name", "Aldric");
         run.click("Next");
-        // The points, the elements and the spells on the Elder's draft: the floors
-        // plus six each, the `-` of a floor attribute off, a spell bought.
+        // The points and the elements on the Elder's draft (BODIES.md 6.7): at the
+        // floors with the thirty in hand, no spells to buy, a point placed on STR, an
+        // element taken off the wheel.
         assert_eq!(run.front.screen, Screen::NewBuild);
         assert!(
             run.says("Elder  |  caster  |  body skill: Sanctuary"),
             "{:?}",
             run.said()
         );
-        assert!(run.says("floor 9   ward 40%"), "{:?}", run.said());
+        assert!(run.says("floor 9   ward"), "{:?}", run.said());
         assert!(
-            run.says("attributes   0 of 30 points left"),
+            run.says("attributes   30 of 30 points to place"),
             "{:?}",
             run.said()
         );
-        run.click("Haste  8");
-        assert!(run.says("kit 8/34"), "{:?}", run.said());
+        assert!(!run.says("Haste  8"), "{:?}", run.said());
+        assert!(
+            run.says("Empty-handed: Fists, Kick and Parry"),
+            "{:?}",
+            run.said()
+        );
+        run.click("+");
+        assert!(
+            run.says("attributes   29 of 30 points to place"),
+            "{:?}",
+            run.said()
+        );
+        assert!(run.says("Fire: off"), "{:?}", run.said());
+        run.click("Fire: off");
+        assert!(run.says("Fire: on"), "{:?}", run.said());
+        run.click("Water: off");
+        assert!(run.says("Water: on"), "{:?}", run.said());
+        assert!(run.says("Fire + Water"), "{:?}", run.said());
+        // A third is refused: the box takes no click.
+        run.click("Air: off");
+        assert!(run.says("Air: off"), "{:?}", run.said());
         run.click("Create");
         run.settle();
         assert_eq!(run.front.screen, Screen::NewBuild);
@@ -1590,9 +1593,11 @@ mod tests {
             asked.last(),
             Some(PlayerRequest::CreateCharacter { session: S, name, build: BuildChoice::Body(c) })
                 if name == "Aldric" && c.body == "elder" && c.mode == Mode::Action
-                    && c.attributes == Attributes::new(9, 9, 10, 12, 15)
-                    && c.actives == vec![pack.find("haste").unwrap()]
+                    && c.attributes == Attributes::new(4, 3, 4, 6, 9)
+                    && c.aspects == Aspects::two(Element::Fire, Element::Water)
+                    && c.actives.is_empty()
         ));
+        let _ = pack;
     }
 
     #[test]
@@ -1656,10 +1661,7 @@ mod tests {
         run.settle();
         assert_eq!(run.front.screen, Screen::Characters);
         assert!(run.says("kicked: zone stopped"));
-        assert!(
-            run.says("blade  |  in town"),
-            "the list was asked for again"
-        );
+        assert!(run.says("in town"), "the list was asked for again");
     }
 
     #[test]
@@ -1742,10 +1744,10 @@ mod tests {
         run.settle();
         run.front.back_to_characters("");
         run.settle();
-        assert!(run.says("blade  |  in town"));
+        assert!(run.says("in town"));
         std::thread::sleep(std::time::Duration::from_millis(20));
         run.settle();
-        assert!(run.says("blade  |  in arena"), "{:?}", run.said());
+        assert!(run.says("in arena"), "{:?}", run.said());
     }
 
     #[test]

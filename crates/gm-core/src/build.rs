@@ -52,6 +52,9 @@ pub struct AbilityDef {
     pub squad: u8,
     /// Only a creature may slot it (COMPANIONS.md 8.1).
     pub creature: bool,
+    /// A melee primary a gun build may hold (MODES.md 2, BODIES.md 6.7): the knife, the
+    /// gun mode's bare hands. Everything else a gun build swings is a firearm.
+    pub gun_melee: bool,
 }
 
 /// What a boss drops (COMPANIONS.md 10): `components` items per kill, drawn in order from
@@ -630,7 +633,7 @@ impl Build {
             if !creature {
                 let firearm = def.ability.firearm.is_some();
                 match (self.mode, expected) {
-                    (Mode::Gun, Slot::Primary) if !firearm => {
+                    (Mode::Gun, Slot::Primary) if !firearm && !def.gun_melee => {
                         return Err(BuildError::GunNeedsFirearm);
                     }
                     (Mode::Gun, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
@@ -704,7 +707,13 @@ impl ContentPack {
                 .map(|(i, _)| i as u16)
         };
         let gun = mode == Mode::Gun;
-        let primary = plain(Slot::Primary, Some(gun)).unwrap_or(0);
+        // The fists, or the knife held as the gun mode's weapon (BODIES.md 6.7); a pack without them (a
+        // fixture) falls back to its cheapest plain weapon of the mode.
+        let hands = if gun { "knife_hands" } else { "fists" };
+        let primary = self
+            .find(hands)
+            .or_else(|| plain(Slot::Primary, Some(gun)))
+            .unwrap_or(0);
         let secondary = self
             .find("kick")
             .or_else(|| plain(Slot::Secondary, Some(false)))

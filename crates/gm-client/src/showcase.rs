@@ -406,6 +406,23 @@ pub fn selector<C: Canvas>(
         ui.label(wx, ry, inner.x + inner.w - wx, ui::FAINT, &buys[i]);
         ry += row_h;
     }
+    // A body at its floors has its thirty points in hand (BODIES.md 6.7): said, so the
+    // numbers above read as the floor they are.
+    if let Some(p) = sh.pack
+        && b.body.is_some()
+    {
+        let left = gm_core::matrix::Attributes::FREE_POINTS.saturating_sub(b.points_spent(p));
+        if left > 0 {
+            ui.label(
+                inner.x,
+                ry,
+                inner.w,
+                ui::FOCUS,
+                &format!("+ {left} points to place"),
+            );
+            ry += row_h;
+        }
+    }
     ry += gap;
     // What else the body comes to (health, speed and ward are said above), name on the
     // left, number on the right; as many as there is room for.

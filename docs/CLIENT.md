@@ -294,7 +294,7 @@ The HUD as before, and:
   a capture against Ether Saga's and Tales of Pirates' sheets agreed on every point): a
   panel 820 units wide where the frame allows, two columns under a row of presets. Left,
   the body: frame (the armour row went with the class, 2026-10-17), aspects, then
-  `attributes   n of 30 points left` in gold over five rows of `STR  - 7 +  blows x0.88`
+  `attributes   n of 30 points to place` in gold over five rows of `STR  - 7 +  blows x0.88`
   (a name, the buttons, the value, what the points buy, in words). Right, the kit: the
   weapons, the secondaries over the guards, and the actives in two lists side by side
   (one that scrolls where the panel is narrow), every row in sight at 1080p; the kit's

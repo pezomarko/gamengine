@@ -303,3 +303,52 @@ Four rows: `thrust` (the sword's point, 70 pierce, reach 84, one target), `hamme
 behind is not in the vocabulary, so it is a stab). `Worn.techniques` lists what the weapon
 in hand can do; the K page offers them as the weapon's technique and the build's stored
 primary is the one that swings (GEAR.md 2 already took it).
+
+### 6.7 The creation screen, second pass (2026-10-19, evening)
+
+The director played 6.2's screens and said: "Instead of having base attribute points
+that we should add to freehand after model (base char) selection, we are capped. And
+skills are totaly weird and broken, shouldn't really offer any skills to select at char
+selection, and primary skill staff weapon wth, it's broken totally." Found behind it: the
+draft spread the thirty points six each before the editor opened (so it opened at "0 of
+30 left" with every `+` off), `bare_hands` took the cheapest plain primary of the mode,
+which is the staff at cost 0, the spells list was every active (the white rows other
+bodies' free skills), and the mode's chooser was drawn in a row a button tall where it
+needs a label's line over its buttons. His decisions: a weak empty-handed punch and a
+knife for the gun mode; neutral stays; the elements as pictures on a wheel, one or two
+picked, what each does and is weak to on the pointer; the points start at the floors
+("brute can't go below 7 con"). Built:
+
+- **The bare hands**: `fists` (a two-blow chain, 18 and 22 blunt at 48 u, no prop: the
+  fist is the grip) and `knife_hands` (the knife of MODES.md 3.7 held as the weapon,
+  `gun_melee = true`: MODES.md 2's rule is now *a firearm, or a `gun_melee` blade*).
+  Appended to abilities.toml (stored builds name abilities by position); `bare_hands`
+  finds them by key and falls back to the old rule in a pack without them. Content v23.
+  The fixture pack mirrors both.
+- **The points**: the draft is `Build::of_body` at the floors, thirty in hand; the
+  selector says `+ 30 points to place` under the floors; the editor's head reads `30 of
+  30 points to place`; `-` stops at the floor and says so, `+` at the cap or when all are
+  placed. Two buttons under the rows: **Suggested spread** (the thirty laid along the
+  floors, the remainder to the highest) and **Back to the floors**. Create takes a draft
+  with points in hand (the trainer places them too) and says how many are left.
+- **The wheel** (`character::element_wheel`, `Ui::picture_box`): six pictures on a ring,
+  Fire at the top and clockwise in `Element::ALL`'s order; a click takes an element or
+  lets it go, a third is off ("two at most: let one go first"); the middle says the picks
+  and the cost; the pointer on one reads its line, what the pack lets it cast, what it
+  hits harder and weaker, what it resists and takes more from (from the matrix). The
+  pictures are `icons/elem_<element>.png` at the four densities, made with the Gemini
+  image model (`gemini-3.1-flash-image`) from one prompt each and packed as icons of no
+  row (`gm-tools content build` takes them when the files are there; a pack without them
+  draws the element's initial).
+- **The creation editor** (`character::creation_editor`): the body's row with the mode
+  (a field's height: the label over the three buttons), the attributes on the left, the
+  wheel and a paragraph on the right (what the empty hands are, what the hands bring,
+  the body skill, "spells are bought at the trainer in town"). No spells, no lists of
+  the hands. The K page and the game master's page keep the full editor with the
+  aspects as check boxes (the wheel needs more height than the body column has there).
+- The characters list says where a character is without naming its body again (the
+  ribbon over it does).
+
+Not decided: whether a body's skill is the body's alone (today every aspectless active
+is on the trainer's list for every body).
+

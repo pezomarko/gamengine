@@ -8,6 +8,7 @@ use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::TickRate;
 use gm_core::vocab::{ArchetypeFrame, Guard, Mode, MoveKind, Origin, Shape, Trigger, Verb};
 
+use crate::showcase;
 use crate::ui::{self, Canvas, Column, Key, ListEvent, Rect, RowMark, Ui};
 
 /// `n` columns across `r` with `gap` between them.
@@ -70,7 +71,8 @@ pub fn editor_height<C: Canvas>(ui: &Ui<'_, C>, pack: &ContentPack, w: f32) -> f
     let (h, line) = (ui.button_height(), ui.line());
     let split = w - BODY_WIDE * s - 2.0 * gap >= SPLIT_ACTIVES_AT * s;
     let kit = (line + gap) + ui.list_height(kit_rows(pack, split));
-    (h + gap) + body_height(ui).max(kit) + gap + 2.0 * line
+    let _ = h;
+    (ui.field_height() + gap) + body_height(ui).max(kit) + gap + 2.0 * line
 }
 
 /// The build editor across `area`: a preset to start from over both columns; the body
@@ -85,11 +87,25 @@ pub fn build_editor<C: Canvas>(
     rate: TickRate,
     b: &mut Build,
 ) {
-    build_editor_wearing(ui, area, pack, rate, b, &Worn::NONE)
+    build_editor_wearing(ui, area, pack, rate, b, &Worn::NONE, true)
+}
+
+/// The creation screen's editor (BODIES.md 6.7): the body's attributes with the thirty
+/// points to place, the element wheel and the mode; no spells (the trainer's) and no
+/// lists of the hands (the gear's).
+pub fn creation_editor<C: Canvas>(
+    ui: &mut Ui<'_, C>,
+    area: Rect,
+    pack: &ContentPack,
+    rate: TickRate,
+    b: &mut Build,
+) {
+    build_editor_wearing(ui, area, pack, rate, b, &Worn::NONE, false)
 }
 
 /// `build_editor` with what the hands bring (BODIES.md 3.8): a body's editor offers the
-/// weapon's techniques where it holds more than one.
+/// weapon's techniques where it holds more than one. Without `spells` it is the creation
+/// screen's (BODIES.md 6.7): the element wheel in place of the kit.
 pub fn build_editor_wearing<C: Canvas>(
     ui: &mut Ui<'_, C>,
     area: Rect,
@@ -97,15 +113,18 @@ pub fn build_editor_wearing<C: Canvas>(
     rate: TickRate,
     b: &mut Build,
     worn: &Worn,
+    spells: bool,
 ) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (h, line) = (ui.button_height(), ui.line());
+    let fh = ui.field_height();
     let mut col = Column::new(area, gap);
     if let Some(body) = b.body_def(pack) {
         // A body is for keeps (BODIES.md 3.5): the row says it, with its frame and its
-        // skill, and offers the mode the character plays (MODES.md 2).
-        let row = col.take(h);
+        // skill, and offers the mode the character plays (MODES.md 2). The row is a
+        // field's height: the mode's label over its three buttons.
+        let row = col.take(fh);
         let skill = name_of(pack, body.skill);
         let said = format!(
             "{}  |  {}  |  body skill: {skill}",
@@ -115,7 +134,7 @@ pub fn build_editor_wearing<C: Canvas>(
         let label_w = (ui.text_width(&said) + 2.0 * gap).min(row.w * 0.6);
         ui.label(
             row.x,
-            row.y + (row.h - line) * 0.5,
+            row.y + line + (h - line) * 0.5,
             label_w,
             ui::TEXT,
             &said,
@@ -190,8 +209,13 @@ pub fn build_editor_wearing<C: Canvas>(
         both.w - body.w - 2.0 * gap,
         both.h,
     );
-    body_column(ui, body, pack, b);
-    let (over, why) = kit_columns(ui, kit, pack, b, worn);
+    body_column(ui, body, pack, b, !spells);
+    let (over, why) = if spells {
+        kit_columns(ui, kit, pack, b, worn)
+    } else {
+        creation_column(ui, kit, pack, b);
+        (None, None)
+    };
     // What the ability under the cursor does, in the lines there are (the last cut if
     // it must be), after why it cannot be taken where it cannot; else what the lines
     // are for.
@@ -223,14 +247,24 @@ pub fn build_editor_wearing<C: Canvas>(
             read.y,
             read.w,
             ui::FAINT,
-            "point at an ability to read what it does",
+            if spells {
+                "point at an ability to read what it does"
+            } else {
+                "point at an element to read what it does, what it allows and what it is weak to"
+            },
         ),
     }
 }
 
 /// The frame and the armour, the aspects, and the attributes: a name, `-`, the value,
 /// `+`, and what the points buy, a row each (MATRIX.md 6).
-fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b: &mut Build) {
+fn body_column<C: Canvas>(
+    ui: &mut Ui<'_, C>,
+    area: Rect,
+    pack: &ContentPack,
+    b: &mut Build,
+    creation: bool,
+) {
     let s = ui.scale;
     let gap = 5.0 * s;
     let (fh, line) = (ui.field_height(), ui.line());
@@ -263,8 +297,150 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b:
             b.frame = FRAMES[frame];
         }
     }
-    // Aspects: one or two of six (the second costs 10).
-    let row = col.take(fh);
+    // Aspects: one or two of six (the second costs 10); on the creation screen they
+    // are the wheel's (`creation_column`).
+    if !creation {
+        aspect_boxes(ui, col.take(fh), b);
+    }
+    // The attributes (up to 25, thirty points to spend above the floors: the body's,
+    // or five each) under their budget.
+    let spent = b.points_spent(pack);
+    let head = col.take(line);
+    // (A draft from elsewhere may be over the points: said so, in the warning's colour.)
+    let (budget, ink) = match Attributes::FREE_POINTS.checked_sub(spent) {
+        Some(left) => (
+            format!(
+                "attributes   {left} of {} points to place",
+                Attributes::FREE_POINTS
+            ),
+            ui::FOCUS,
+        ),
+        None => (
+            format!("attributes   {spent} of {} points", Attributes::FREE_POINTS),
+            ui::WARN,
+        ),
+    };
+    ui.label(head.x, head.y, head.w, ink, &budget);
+    const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
+    let mut attrs = b.attributes.as_array();
+    let d = b.derived_in(pack);
+    let buys = [
+        format!("blows x{:.2}", d.physical_mult),
+        format!("speed {:.0} u/s", d.max_speed),
+        format!("health {}", d.health),
+        format!("spells x{:.2}", d.elemental_mult),
+        format!("ward {:.0}%", d.ward * 100.0),
+    ];
+    // A row a line and a little, less the little where the column is short (the game
+    // master's page has a row of tabs over the editor). On the creation screen a row
+    // of two buttons under them: a suggested spread, and back to the floors.
+    let buttons_h = if creation { fh + gap } else { 0.0 };
+    let short = col.rest().h - buttons_h - 4.0 * ATTR_GAP * s;
+    let row_h = (line + ATTR_ROW_EXTRA * s).min(short / 5.0).max(line);
+    let (name_w, button_w, value_w) = (34.0 * s, 20.0 * s, 26.0 * s);
+    let rows = col.take(5.0 * row_h + 4.0 * ATTR_GAP * s);
+    for i in 0..5 {
+        let row = Rect::new(
+            rows.x,
+            rows.y + i as f32 * (row_h + ATTR_GAP * s),
+            rows.w,
+            row_h,
+        );
+        let text_y = row.y + (row.h - line) * 0.5;
+        ui.label(row.x, text_y, name_w, ui::TEXT, NAMES[i]);
+        let minus = Rect::new(row.x + name_w, row.y, button_w, row.h);
+        let plus = Rect::new(minus.x + button_w + value_w, row.y, button_w, row.h);
+        if ui.button_or(
+            minus,
+            "-",
+            (attrs[i] <= floors[i]).then_some("the body's floor"),
+        ) {
+            attrs[i] -= 1;
+        }
+        let no_plus = if attrs[i] >= Attributes::MAX {
+            Some("25 is the most")
+        } else if spent >= Attributes::FREE_POINTS {
+            Some("every point is placed: take one off another first")
+        } else {
+            None
+        };
+        if ui.button_or(plus, "+", no_plus) {
+            attrs[i] += 1;
+        }
+        let value = attrs[i].to_string();
+        let vw = ui.text_width(&value);
+        ui.label(
+            minus.x + button_w + (value_w - vw) * 0.5,
+            text_y,
+            value_w,
+            ui::TEXT,
+            &value,
+        );
+        let words_x = plus.x + button_w + 2.0 * gap;
+        // What the points buy; with a body, the floor first where the row has room.
+        let words = if b.body.is_some() && row.w >= 260.0 * s {
+            format!("floor {}   {}", floors[i], buys[i])
+        } else {
+            buys[i].clone()
+        };
+        ui.label(words_x, text_y, row.x + row.w - words_x, ui::FAINT, &words);
+    }
+    if creation {
+        let row = col.take(fh);
+        let under = Rect::new(row.x, row.y + line, row.w, row.h - line);
+        ui.label(row.x, row.y, row.w, ui::FAINT, "or take");
+        let buttons = ui.buttons(under, &["Suggested spread", "Back to the floors"]);
+        if ui.button(buttons[0], "Suggested spread") {
+            attrs = suggested_spread(floors);
+        }
+        if ui.button_if(buttons[1], "Back to the floors", spent > 0) {
+            attrs = floors;
+        }
+    }
+    let [str_, agi, con, int, spr] = attrs;
+    b.attributes = Attributes {
+        str_,
+        agi,
+        con,
+        int,
+        spr,
+    };
+}
+
+/// Thirty points laid along the body's floors (BODIES.md 6.7): each attribute gets its
+/// share of the floors' sum, the remainder to the highest floors, nothing past the cap.
+fn suggested_spread(floors: [u8; 5]) -> [u8; 5] {
+    let total: u32 = floors.iter().map(|&f| f as u32).sum::<u32>().max(1);
+    let mut out = floors;
+    let mut given = 0;
+    for (o, &f) in out.iter_mut().zip(&floors) {
+        let add = ((Attributes::FREE_POINTS * f as u32 / total) as u8).min(Attributes::MAX - f);
+        *o = f + add;
+        given += add as u32;
+    }
+    let mut order: Vec<usize> = (0..5).collect();
+    order.sort_by_key(|&i| std::cmp::Reverse(floors[i]));
+    let mut left = Attributes::FREE_POINTS.saturating_sub(given);
+    while left > 0 {
+        let before = left;
+        for &i in &order {
+            if left > 0 && out[i] < Attributes::MAX {
+                out[i] += 1;
+                left -= 1;
+            }
+        }
+        if left == before {
+            break;
+        }
+    }
+    out
+}
+
+/// The six aspects as check boxes in a row (the K page and the game master's): one or
+/// two of six, the second at a cost.
+fn aspect_boxes<C: Canvas>(ui: &mut Ui<'_, C>, row: Rect, b: &mut Build) {
+    let s = ui.scale;
+    let line = ui.line();
     ui.label(
         row.x,
         row.y,
@@ -301,88 +477,188 @@ fn body_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b:
             });
         }
     }
-    // The attributes (up to 25, thirty points to spend above the floors: the body's,
-    // or five each) under their budget.
-    let spent = b.points_spent(pack);
-    let head = col.take(line);
-    // (A draft from elsewhere may be over the points: said so, in the warning's colour.)
-    let (budget, ink) = match Attributes::FREE_POINTS.checked_sub(spent) {
-        Some(left) => (
-            format!(
-                "attributes   {left} of {} points left",
-                Attributes::FREE_POINTS
-            ),
-            ui::FOCUS,
+}
+
+/// The creation screen's right column (BODIES.md 6.7): the element wheel, and beside
+/// it what the hands bring and where the spells are.
+fn creation_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b: &mut Build) {
+    let s = ui.scale;
+    let gap = 6.0 * s;
+    let line = ui.line();
+    // The wheel takes a square as tall as the column, on the left, a little under the
+    // mode's row; the words the rest.
+    let side = (area.h - gap).min(area.w * 0.62).max(0.0);
+    let wheel = Rect::new(area.x, area.y + gap, side.round(), side.round());
+    element_wheel(ui, wheel, pack, b);
+    let words = Rect::new(
+        wheel.x + wheel.w + 2.0 * gap,
+        area.y,
+        (area.w - wheel.w - 2.0 * gap).max(0.0),
+        area.h,
+    );
+    ui.label(words.x, words.y, words.w, ui::FAINT, "hands and body");
+    let hands = match b.guard {
+        Some(g) => format!(
+            "{}, {} and {}",
+            name_of(pack, b.primary),
+            name_of(pack, b.secondary),
+            name_of(pack, g)
         ),
-        None => (
-            format!("attributes   {spent} of {} points", Attributes::FREE_POINTS),
+        None => format!(
+            "{} and {}",
+            name_of(pack, b.primary),
+            name_of(pack, b.secondary)
+        ),
+    };
+    let skill = b
+        .body_skill(pack)
+        .map(|i| name_of(pack, i))
+        .unwrap_or_default();
+    let text = format!(
+        "Empty-handed: {hands}. A weapon in the right hand brings its blow and its second \
+         move; a shield or a focus in the left brings the guard.\n\nBody skill: {skill}, \
+         free, always on the first key.\n\nSpells are bought at the trainer in town, with \
+         the element picked here."
+    );
+    let r = Rect::new(
+        words.x,
+        words.y + line + gap,
+        words.w,
+        (words.h - line - gap).max(0.0),
+    );
+    ui.paragraph(r, ui::TEXT, &text);
+}
+
+/// The six elements on a wheel (BODIES.md 6.7): a picture each, the one or two picked
+/// lit, what the picks come to in the middle; the pointer on one reads what it does,
+/// what it allows and what it is strong and weak against. A click takes an element or
+/// lets it go; a third is refused in words. None is neutral.
+fn element_wheel<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b: &mut Build) {
+    let s = ui.scale;
+    let line = ui.line();
+    // A cell is a picture and its word; the ring's radius leaves the cells inside the
+    // square with a little air.
+    let cell = (area.w.min(area.h) * 0.23).max(24.0 * s).round();
+    let cell_h = cell + line;
+    let radius = ((area.w.min(area.h) - cell_h) * 0.5 - 2.0 * s).max(0.0);
+    let (cx, cy) = (
+        area.x + area.w * 0.5,
+        area.y + (area.h - line) * 0.5 + line * 0.5,
+    );
+    let picked = b.aspects;
+    let full = picked.count() >= 2;
+    for (i, e) in Element::ALL.iter().enumerate() {
+        let angle = -std::f32::consts::FRAC_PI_2 + i as f32 * std::f32::consts::FRAC_PI_3;
+        let x = (cx + radius * angle.cos() - cell * 0.5).round();
+        let y = (cy + radius * angle.sin() - cell_h * 0.5).round();
+        let r = Rect::new(x, y, cell, cell_h);
+        let on = picked.contains(*e);
+        let off = (!on && full).then_some("two at most: let one go first");
+        let name = showcase::capitalised(e.name());
+        let icon = format!("elem_{}", e.name());
+        let tip = || element_words(pack, *e);
+        if ui.picture_box(r, &icon, &name, on, off, &tip) {
+            let bit = Aspects::one(*e).0;
+            b.aspects = Aspects(if on {
+                b.aspects.0 & !bit
+            } else {
+                b.aspects.0 | bit
+            });
+        }
+    }
+    // The middle: what is picked, and what it costs.
+    let mut names: Vec<String> = b
+        .aspects
+        .iter()
+        .map(|e| showcase::capitalised(e.name()))
+        .collect();
+    // (Short words: the middle is a cell and a half wide.)
+    let (head, under, ink) = match names.len() {
+        0 => ("neutral".to_string(), "none picked", ui::FAINT),
+        1 => (names.remove(0), "free", ui::FOCUS),
+        _ => (names.join(" + "), "+10 points", ui::FOCUS),
+    };
+    let room = (2.0 * radius - cell).max(cell);
+    let head = ui.fit_text(room, &head);
+    let hw = ui.text_width(&head);
+    ui.label((cx - hw * 0.5).round(), cy - line, hw + s, ink, &head);
+    let under = ui.fit_text(room, under);
+    let uw = ui.text_width(&under);
+    ui.label(
+        (cx - uw * 0.5).round(),
+        cy + 2.0 * s,
+        uw + s,
+        ui::FAINT,
+        &under,
+    );
+}
+
+/// What an element is to a player (MATRIX.md 5), for the pointer on its picture: a
+/// line of what it does, what the pack lets it cast, and the matrix as strengths and
+/// weaknesses, attacking and defending.
+fn element_words(pack: &ContentPack, e: Element) -> ui::TipLines {
+    use gm_core::matrix::{BEATS, RESISTED, element_mult};
+    let name = showcase::capitalised(e.name());
+    let flavour = match e {
+        Element::Fire => "burning bolts and bursts: damage that keeps burning",
+        Element::Water => "frost: bolts that slow, a nova that freezes",
+        Element::Grass => "poison and thorns: briars that hold, clouds that sicken",
+        Element::Electric => "sparks and thunder: quick bolts, a clap that staggers",
+        Element::Ground => "stone and weight: a thrown rock, a stomp, a fortified stand",
+        Element::Air => "shadow and wind: darts, a gust, a blink, a vanishing",
+    };
+    let list = |which: &dyn Fn(Element) -> bool| -> String {
+        let names: Vec<String> = Element::ALL
+            .iter()
+            .filter(|o| which(**o))
+            .map(|o| o.name().to_string())
+            .collect();
+        if names.is_empty() {
+            "nothing".to_string()
+        } else {
+            names.join(", ")
+        }
+    };
+    let mut spells: Vec<String> = pack
+        .abilities
+        .iter()
+        .filter(|d| d.aspect == Some(e) && !d.creature && d.slot != Slot::Extra)
+        .map(|d| d.ability.name.clone())
+        .collect();
+    spells.dedup();
+    let spells = if spells.is_empty() {
+        "nothing in this pack".to_string()
+    } else {
+        spells.join(", ")
+    };
+    vec![
+        (name, ui::FOCUS),
+        (flavour.to_string(), ui::TEXT),
+        (format!("casts: {spells}"), ui::TEXT),
+        (
+            format!(
+                "your {} spells hit harder on {}",
+                e.name(),
+                list(&|o| element_mult(e, o) >= BEATS)
+            ),
+            ui::TEXT,
+        ),
+        (
+            format!("weaker on {}", list(&|o| element_mult(e, o) <= RESISTED)),
+            ui::FAINT,
+        ),
+        (
+            format!("you resist {}", list(&|o| element_mult(o, e) <= RESISTED)),
+            ui::TEXT,
+        ),
+        (
+            format!(
+                "you take more from {}",
+                list(&|o| element_mult(o, e) >= BEATS)
+            ),
             ui::WARN,
         ),
-    };
-    ui.label(head.x, head.y, head.w, ink, &budget);
-    const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
-    let mut attrs = b.attributes.as_array();
-    let d = b.derived_in(pack);
-    let buys = [
-        format!("blows x{:.2}", d.physical_mult),
-        format!("speed {:.0} u/s", d.max_speed),
-        format!("health {}", d.health),
-        format!("spells x{:.2}", d.elemental_mult),
-        format!("ward {:.0}%", d.ward * 100.0),
-    ];
-    // A row a line and a little, less the little where the column is short (the game
-    // master's page has a row of tabs over the editor).
-    let short = col.rest().h - 4.0 * ATTR_GAP * s;
-    let row_h = (line + ATTR_ROW_EXTRA * s).min(short / 5.0).max(line);
-    let (name_w, button_w, value_w) = (34.0 * s, 20.0 * s, 26.0 * s);
-    let rows = col.take(5.0 * row_h + 4.0 * ATTR_GAP * s);
-    for i in 0..5 {
-        let row = Rect::new(
-            rows.x,
-            rows.y + i as f32 * (row_h + ATTR_GAP * s),
-            rows.w,
-            row_h,
-        );
-        let text_y = row.y + (row.h - line) * 0.5;
-        ui.label(row.x, text_y, name_w, ui::TEXT, NAMES[i]);
-        let minus = Rect::new(row.x + name_w, row.y, button_w, row.h);
-        let plus = Rect::new(minus.x + button_w + value_w, row.y, button_w, row.h);
-        if ui.button_if(minus, "-", attrs[i] > floors[i]) {
-            attrs[i] -= 1;
-        }
-        if ui.button_if(
-            plus,
-            "+",
-            attrs[i] < Attributes::MAX && spent < Attributes::FREE_POINTS,
-        ) {
-            attrs[i] += 1;
-        }
-        let value = attrs[i].to_string();
-        let vw = ui.text_width(&value);
-        ui.label(
-            minus.x + button_w + (value_w - vw) * 0.5,
-            text_y,
-            value_w,
-            ui::TEXT,
-            &value,
-        );
-        let words_x = plus.x + button_w + 2.0 * gap;
-        // What the points buy; with a body, the floor first where the row has room.
-        let words = if b.body.is_some() && row.w >= 260.0 * s {
-            format!("floor {}   {}", floors[i], buys[i])
-        } else {
-            buys[i].clone()
-        };
-        ui.label(words_x, text_y, row.x + row.w - words_x, ui::FAINT, &words);
-    }
-    let [str_, agi, con, int, spr] = attrs;
-    b.attributes = Attributes {
-        str_,
-        agi,
-        con,
-        int,
-        spr,
-    };
+    ]
 }
 
 /// The name of an ability, for what is said about a draft.
@@ -1009,6 +1285,7 @@ impl CharacterPage {
             v.rate,
             b,
             v.worn,
+            true,
         );
         // The buttons, and beside them what is wrong with the draft, else the zone's
         // word, else where this may be worn.
@@ -1176,7 +1453,7 @@ mod tests {
         };
         let (mut page, mut st) = (CharacterPage::default(), UiState::default());
         frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("0 of 30 points left"), "{:?}", st.seen);
+        assert!(st.shows("0 of 30 points to place"), "{:?}", st.seen);
         assert!(st.shows("kit 22/34"), "{:?}", st.seen);
         // All thirty spent: no `+` is offered; a point taken off STR, and `+` is.
         assert!(st.find("+").is_none(), "{:?}", st.seen);
@@ -1185,13 +1462,13 @@ mod tests {
             CharacterAction::None
         );
         frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("1 of 30 points left"), "{:?}", st.seen);
+        assert!(st.shows("1 of 30 points to place"), "{:?}", st.seen);
         assert_eq!(
             click_attr(&mut page, &mut st, "CON", "+", &away),
             CharacterAction::None
         );
         frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("0 of 30 points left"), "{:?}", st.seen);
+        assert!(st.shows("0 of 30 points to place"), "{:?}", st.seen);
         // Away from the trainer the build is not worn; beside it, it is.
         assert!(st.find("Wear it").is_none(), "{:?}", st.seen);
         assert!(st.shows("stand by the trainer"));

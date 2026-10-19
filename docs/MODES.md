@@ -43,7 +43,8 @@ mode = "gun" | "action" | "rpg"
 ```
 
 Validated with the build (`BuildError`): `gun` needs a primary with a `firearm` block
-(3.2); `action` and `rpg` may not hold one. The client reads the mode from the build it is
+(3.2) or one marked `gun_melee` (the knife held as the weapon, `knife_hands`: the gun
+mode's bare hands, BODIES.md 6.7); `action` and `rpg` may not hold a firearm. The client reads the mode from the build it is
 given at `Content` and at every `Respawned` and sets its camera, its controls and its HUD
 from it; the zone reads it from the same build for the rules of sections 3 and 5.
 
