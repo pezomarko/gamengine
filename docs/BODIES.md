@@ -235,7 +235,7 @@ margin is 1.2 (one matrix step and a little) where it was 1.5.
   plays in nothing until something is worn. `Build::repaired` lifts to the floors first.
   `derived_in(pack)` scales the stamina pool by the body's percent; `Sheet` uses it.
 - **Wire**: `BuildChoice::Body(BodyChoice { body, mode, attributes, aspects, actives })`
-  (protocol v27, `HUB_VERSION` 21, `PLAYER_VERSION` 15). The hub's `CreateCharacter` and
+  (protocol v28, `HUB_VERSION` 21, `PLAYER_VERSION` 15). The hub's `CreateCharacter` and
   `SetBuild` and the zone's `Hello` and `Respec` take it; `Preset` stays for the bots,
   the arena's F-keys and the scripts. The trainer respecs everything but the body: a
   respec that would change a bodied character's body is refused in words.
