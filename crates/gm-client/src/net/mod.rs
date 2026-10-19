@@ -11,6 +11,9 @@ pub use crate::web::net::NetClient;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::NetClient;
 
+/// (`FromZone::Worn` carries the weapon's techniques since BODIES.md 3.8: a few hundred
+/// bytes on an event seen once a wear; not worth a box.)
+#[allow(clippy::large_enum_variant)]
 pub enum NetEvent {
     Welcome {
         entity: u32,
