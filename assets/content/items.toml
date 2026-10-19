@@ -385,32 +385,45 @@ layers = []
 cap = 5
 heals = 300              # a third of a body of 1,000 (MATRIX.md: 500 + 40 × con)
 
+# Every material carries `price`, what the smith sells it for in silver (ITEMS.md 6.6; the
+# ladder of GEAR.md 8: by edge, the bosses' two dear so the test shop has them too).
+
 # Cores: weight and physical bias.
 [[material]]
 id = "core/tin"
+icon = "mat_tin"
+price = 5
 edge = 10
 note = "light, soft"
 tint = [0.80, 0.82, 0.78]
 
 [[material]]
 id = "core/iron"
+icon = "mat_iron"
+price = 15
 edge = 30
 note = "the standard"
 
 [[material]]
 id = "core/bronze"
+icon = "mat_bronze"
+price = 10
 edge = 20
 note = "warm, soft"
 tint = [0.80, 0.56, 0.32]
 
 [[material]]
 id = "core/steel"
+icon = "mat_steel"
+price = 150
 edge = 45
 note = "hard"
 tint = [0.74, 0.78, 0.84]
 
 [[material]]
 id = "core/dragonbone"
+icon = "mat_dragonbone"
+price = 500
 edge = 60
 note = "light and hard; boss core"
 tint = [0.92, 0.88, 0.76]
@@ -419,30 +432,40 @@ tint = [0.92, 0.88, 0.76]
 # in percent of the cost (GEAR.md 6): oak 100, yew 95, ash 90, ironwood 100, whalebone 75.
 [[material]]
 id = "frame/oak"
+icon = "mat_oak"
+price = 5
 edge = 10
 note = "steady"
 stamina = 100
 
 [[material]]
 id = "frame/ash"
+icon = "mat_ash"
+price = 60
 edge = 25
 note = "quick"
 stamina = 90
 
 [[material]]
 id = "frame/yew"
+icon = "mat_yew"
+price = 30
 edge = 18
 note = "springy"
 stamina = 95
 
 [[material]]
 id = "frame/ironwood"
+icon = "mat_ironwood"
+price = 150
 edge = 35
 note = "heavy, hard"
 stamina = 100
 
 [[material]]
 id = "frame/whalebone"
+icon = "mat_whalebone"
+price = 500
 edge = 45
 note = "stamina; boss frame"
 stamina = 75
@@ -452,6 +475,8 @@ stamina = 75
 # shield or a cape, that status lasts 60% as long on the wearer.
 [[material]]
 id = "catalyst/ember"
+icon = "mat_ember"
+price = 100
 edge = 30
 element = "fire"
 status = "burn"
@@ -461,6 +486,8 @@ magnitude = 3.0
 
 [[material]]
 id = "catalyst/rime"
+icon = "mat_rime"
+price = 100
 edge = 30
 element = "water"
 status = "chill"
@@ -470,6 +497,8 @@ magnitude = 1.0
 
 [[material]]
 id = "catalyst/thunderstone"
+icon = "mat_thunderstone"
+price = 100
 edge = 30
 element = "electric"
 status = "shock"
@@ -479,6 +508,8 @@ magnitude = 1.0
 
 [[material]]
 id = "catalyst/umbra"
+icon = "mat_umbra"
+price = 100
 edge = 30
 element = "grass"
 status = "weaken"
@@ -488,6 +519,8 @@ magnitude = 0.10
 
 [[material]]
 id = "catalyst/basalt"
+icon = "mat_basalt"
+price = 100
 edge = 30
 element = "ground"
 status = "slow"
@@ -497,6 +530,8 @@ magnitude = 0.20
 
 [[material]]
 id = "catalyst/zephyr"
+icon = "mat_zephyr"
+price = 100
 edge = 30
 element = "air"
 status = "expose"
@@ -514,17 +549,23 @@ magnitude = 1.0
 # the item's own catalyst's element.
 [[material]]
 id = "gem/quartz"
+icon = "mat_quartz"
+price = 20
 edge = 10
 note = "plain"
 
 [[material]]
 id = "gem/garnet"
+icon = "mat_garnet"
+price = 150
 edge = 20
 ward = "fire"
 note = "wards fire"
 
 [[material]]
 id = "gem/opal"
+icon = "mat_opal"
+price = 300
 edge = 30
 note = "resists one element"
 ward = "catalyst"

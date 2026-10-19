@@ -257,6 +257,7 @@ impl Run {
                     &self.hub_slots,
                     &self.sheaths,
                     s.id,
+                    None,
                 );
                 for other in self.sessions.values() {
                     other.send_control(FromZone::Look { id: s.id, look });
@@ -290,6 +291,7 @@ impl Run {
                     &self.hub_slots,
                     &self.sheaths,
                     s.id,
+                    None,
                 );
                 if look.held == Look::NONE {
                     continue;

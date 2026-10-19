@@ -31,12 +31,12 @@ use tracing::{debug, info, warn};
 use crate::db::Db;
 use gm_hub_proto::protocol::{
     AccountId, BuildChoice, CHANNEL_PARTY, CHANNEL_WHISPER, CLOCK_SKEW_SECS, CharacterId,
-    ContractOutcome, EconOp, EconReply, GearReading, HASH_PERMITS, HUB_PREAMBLE, HUB_VERSION,
-    HiredAvatar, HubError, HubNotice, HubRequest, HubResponse, ItemSummary, ListingSummary,
-    LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef, PLACE_NONE,
-    PartyNews, PartyReply, SESSION_LIFETIMES, SayTo, SessionId, StackReading, StallSummary,
-    TOKEN_VALID_SECS, TavernEntry, TradeOffer, ZoneEconOp, ZoneId, ZonePartyOp, ZoneSummary,
-    ZoneTicket, now_secs, place_code, place_index,
+    ContractOutcome, CraftTemplate, EconOp, EconReply, GearReading, HASH_PERMITS, HUB_PREAMBLE,
+    HUB_VERSION, HiredAvatar, HubError, HubNotice, HubRequest, HubResponse, ItemSummary,
+    ListingSummary, LocationSummary, MAX_REPLAY_BYTES, MAX_SESSIONS_PER_ACCOUNT, ModOp, ModelRef,
+    PLACE_NONE, PartyNews, PartyReply, SESSION_LIFETIMES, SayTo, SessionId, StackReading,
+    StallSummary, TOKEN_VALID_SECS, TavernEntry, TradeOffer, Ware, ZoneEconOp, ZoneId, ZonePartyOp,
+    ZoneSummary, ZoneTicket, now_secs, place_code, place_index,
 };
 
 use crate::conduct::Conduct;
@@ -1458,6 +1458,75 @@ async fn econ_op(
             .await
             .map(EconReply::Ids)
             .map_err(econ_err),
+        // The smithy is the content's (ITEMS.md 6.6): every priced material as the part it
+        // makes, and every template a forge has room to make (no stack, nothing retired).
+        EconOp::Smithy => {
+            let part = |material: &str| crate::economy::Item {
+                id: 0,
+                template: "component".to_string(),
+                components: vec![crate::economy::Component {
+                    layer: crate::economy::material_layer(material)
+                        .unwrap_or("")
+                        .to_string(),
+                    material: material.to_string(),
+                }],
+                worn: false,
+                worn_in: None,
+                quantity: 1,
+            };
+            let wares = items
+                .wares()
+                .map(|(material, price)| {
+                    let mut item = item_summary(items, &hub.cfg.content, &hands, part(material));
+                    item.does = items.material_words(material);
+                    Ware {
+                        material: material.to_string(),
+                        price,
+                        item,
+                    }
+                })
+                .collect();
+            let templates = items
+                .templates
+                .iter()
+                .filter(|t| !t.layers.is_empty() && !t.retired)
+                .map(|t| CraftTemplate {
+                    template: t.id.clone(),
+                    kind: t.kind.clone(),
+                    layers: t.layers.clone(),
+                })
+                .collect();
+            Ok(EconReply::Smithy { wares, templates })
+        }
+        EconOp::CraftView {
+            template,
+            components,
+        } => {
+            let layers = items.layers(&template);
+            if layers.is_none() && !items.templates.is_empty() {
+                return Err(HubError::Invalid(format!("unknown template {template:?}")));
+            }
+            let parts = e
+                .craft_parts(me, &template, &components, layers)
+                .await
+                .map_err(econ_err)?;
+            let fee = items
+                .craft_fee(&template, parts.iter().map(|c| c.material.as_str()))
+                .ok_or_else(|| HubError::Invalid("that is not made at a forge".into()))?;
+            let hands = hands_of(hub, me).await?;
+            let would = crate::economy::Item {
+                id: 0,
+                template,
+                components: parts,
+                worn: false,
+                worn_in: None,
+                quantity: 1,
+            };
+            Ok(EconReply::CraftView {
+                item: item_summary(items, &hub.cfg.content, &hands, would),
+                fee,
+            })
+        }
         EconOp::TradeOfferItem { trade, item } => done(e.trade_offer_item(trade, me, item).await),
         EconOp::TradeRetractItem { trade, item } => {
             done(e.trade_retract_item(trade, me, item).await)
@@ -1779,6 +1848,48 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
             Ok(EconReply::Done)
         }
         ZoneEconOp::Stalls => Ok(EconReply::Stalls(stall_summaries(hub, zone, None).await?)),
+        // The smith and the forge (ITEMS.md 6.6): the zone saw the body standing there;
+        // the price and the fee are the content's, and what the buyer saw must be them.
+        ZoneEconOp::SmithBuy {
+            character,
+            material,
+            price,
+        } => {
+            if hub.db.zone_of(character).await?.as_ref() != Some(zone) {
+                return Err(HubError::Unauthorized);
+            }
+            let asks = hub
+                .cfg
+                .items
+                .wares()
+                .find(|(m, _)| *m == material)
+                .map(|(_, p)| p)
+                .ok_or_else(|| HubError::Invalid("the smith does not sell that".into()))?;
+            if asks != price {
+                return Err(HubError::Invalid("the price changed: look again".into()));
+            }
+            e.smith_buy(character, &material, price)
+                .await
+                .map(EconReply::Id)
+                .map_err(econ_err)
+        }
+        ZoneEconOp::Forge {
+            character,
+            template,
+            components,
+            fee,
+        } => {
+            if hub.db.zone_of(character).await?.as_ref() != Some(zone) {
+                return Err(HubError::Unauthorized);
+            }
+            if hub.cfg.items.layers(&template).is_none() {
+                return Err(HubError::Invalid(format!("unknown template {template:?}")));
+            }
+            e.forge(character, &template, &components, &hub.cfg.items, fee)
+                .await
+                .map(EconReply::Id)
+                .map_err(econ_err)
+        }
         ZoneEconOp::StallBuy {
             character,
             stall,

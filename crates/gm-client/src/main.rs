@@ -31,6 +31,7 @@ mod rpg;
 mod script;
 mod settings;
 mod showcase;
+mod smithy;
 mod sound;
 mod stats;
 mod touch;

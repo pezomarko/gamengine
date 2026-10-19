@@ -24,12 +24,9 @@ impl Run {
             if p.fought_within(self.zone.tick, fight) {
                 return Err("not in a fight: wait a moment".into());
             }
+            // The trainer by its role (ITEMS.md 6.6: the smith is somebody nothing hurts too).
             let at = p.mover.mv.origin;
-            let near_trainer = self
-                .zone
-                .players()
-                .any(|t| t.alive && t.unhurt && (t.mover.mv.origin - at).length() <= TRAINER_REACH);
-            if !near_trainer {
+            if !self.npc_near(at, "trainer", TRAINER_REACH) {
                 return Err("stand by the trainer in the town".into());
             }
             self.zone.respec_now(id, b).map_err(|e| e.to_string())
@@ -328,6 +325,7 @@ impl Run {
                             &self.hub_slots,
                             &self.sheaths,
                             body,
+                            None,
                         );
                         if let Some(slot) = self.hub_slots.get_mut(&body) {
                             slot.gear_seq = reading.seq;
@@ -352,6 +350,7 @@ impl Run {
                             &self.hub_slots,
                             &self.sheaths,
                             body,
+                            None,
                         );
                         if look != before {
                             info!(character, body, held = look.held, "look");

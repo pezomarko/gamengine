@@ -473,10 +473,73 @@ stall the button is **Take back**.
 
 ### 6.5 What is not a screen yet
 
-Crafting and decomposing, dropping and picking up, buy orders, the town board (a search
-over every stall), the tavern, a trade between two players, guild chests: the hub has every
-one of them as a request (ECONOMY.md) and none has a screen. Trade and the tavern come with
-parties of people (Phase 12).
+Decomposing, dropping and picking up, buy orders, the town board (a search over every
+stall), guild chests: the hub has every one of them as a request (ECONOMY.md) and none has
+a screen. Trade and the tavern came with parties of people (Phase 12); crafting with the
+smithy (6.6, 2026-10-19).
+
+### 6.6 The smithy: the smith and the forge (2026-10-19)
+
+The director: "some blacksmith guy NPC ... who has some anvil, hammer and furnace. Put him
+near the training dummies. He gives shop for all materials for now, just so we can test
+everything out. Furnace+anvil is also interactive and gives dialog for crafting. Also
+crafting fee." Built (`smithy.rs`, two screens named `smithy` and `forge`):
+
+- **The smith** is a creature of the town (`creatures.toml`: `smith`, `still`, `npc`,
+  `role = "smith"`, a striker with the hammer as his primary), standing on the square at
+  the mouth of the dummies' street, north-east of his anvil, with the hammer in his hand
+  (an npc holds its primary's prop, LOOK.md 6.1) and hammering on the client's clock (a
+  blow every two seconds; the zone says he stands still). `role` names what an npc is
+  for: the trainer's is `trainer`, and a build is worn beside the trainer alone, not
+  beside any body nothing hurts (MATRIX.md 9.1; the zone and the client read the word).
+- **The forge** is brushes of the town map (`town.rs`: a sooted stone hearth with a bed
+  of coals and a chimney, its mouth opening north with a baked orange light inside; the
+  anvil on its oak stump before it; the quench trough at its side) and one `gm_forge`
+  entity at the hearth's mouth (`Bsp::forge_posts`), within `FORGE_REACH` (the stall's
+  120 u) of which the forge is used. The client draws the fire there every frame (the
+  coals' flickering glow and embers rising out of the mouth, `fx`, LOOK.md 13.1).
+- **`E`** opens, in this order, the forge in reach, the smith in reach (`TRAINER_REACH`,
+  160 u), the stall in reach; the corner says which (`Forge  E craft`, `Blacksmith  E
+  talk`, `Keeper's stall  E look`). The smith stands out of the forge's reach so that
+  each has its spot.
+- **The shop**: the purse and the picked part's price on one line; a shelf a layer
+  (cores, frames, catalysts, gems), every priced material of `items.toml` as a cell with
+  its price under it (`price`, in silver: GEAR.md 8's ladder by edge, the bosses' two at
+  5 gold so the test shop has them); the picked one in words (what it is, its edge and
+  its layer's job; the tooltip says all of it, GEAR.md 6); **Buy**, off with the reason
+  when the purse is short. A buy is said to the zone (`FromClient::SmithBuy`, the price
+  shown), which vouches that the body stands by the smith and asks the hub
+  (`ZoneEconOp::SmithBuy`): the price must be the content's, the coin is **burned**
+  (`smith` in the ledger), the part is made (`smith` from the source). Answered
+  `SmithResult`, always; the screen asks for the purse again.
+- **The forge**: two panels. Left, the templates the content has room to make (every
+  template with layers, none retired; a list with the kind beside), the picked one's
+  layers as slots (`core`, `catalyst`, `frame`, `gem 1`, `gem 2`, as the template has
+  them), what the slots would make in the hub's words, the **fee** beside the purse,
+  **Forge**, **Clear**, **Close**. Right, the parts: the loose components of the
+  inventory as a grid, the picked one in words. A part clicked goes into the first free
+  slot of its layer (refused in words when the template has no room for it); dragged, it
+  goes into the slot it is dropped on (its layer's only); dragged back onto the grid it
+  is a part again. Whenever the slots change the hub is asked what they make
+  (`PlayerEcon::CraftView`: the craft's own checks, nothing moved; answered the item's
+  words and the fee, or refused in the craft's words, shown in the warning's colour),
+  so the fee and the item are known before anything is paid. **Forge** is said to the
+  zone (`FromClient::Forge`, the fee shown), which vouches that the body stands at a
+  forge and asks the hub (`ZoneEconOp::Forge`): the craft as ECONOMY.md 10, and the
+  content's fee **burned** in the same transaction (`craft_fee`, referenced to the new
+  item); a fee that is not the content's fee now is refused ("the fee changed: look
+  again"), as a stall's price is. Answered `ForgeResult`, always; the slots empty, the
+  inventory is asked for again.
+- **The fee** (`gm-content`: `craft_fee`): one silver per two per mille of the craft's
+  whole edge, five at least: a plain iron sword on oak (40) costs 20 silver to forge, the
+  best craft (195) 98. Proposed; tuned with the prices.
+- The wire: protocol v27 (`SmithBuy`, `Forge`, `SmithResult`, `ForgeResult`), hub v20
+  (`Smithy`, `CraftView`, `Ware`, `CraftTemplate`, the two zone ops), player v14, content
+  v21 (`role`, `price`). Gates: `smithy::` tests (the shop buys the picked ware, the
+  forge fills slots by click and asks what they make, both screens whole at every
+  size); `tests/economy.rs` (the smith sells and the forge charges, the ledger balances);
+  `scripts/check-smithy.sh --desktop` (a buyer by the smith buys iron and oak, then at
+  the forge makes a sword of them for the fee, with 1080p captures).
 
 ## 7. Budgets and acceptance (PLAN.md 11.8 Phase 11)
 

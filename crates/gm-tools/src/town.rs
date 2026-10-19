@@ -1,6 +1,6 @@
 //! Generator for the town map (PLAN.md 11.8 Phase 6): a cobbled square under an open sky,
 //! half-timbered houses around it, four gated streets, a well, a town board and the market:
-//! a grid of stall tiles (ECONOMY.md 7). One open space on purpose: everyone in the square
+//! a grid of stall tiles (ECONOMY.md 7), and the smithy (ITEMS.md 6.6). One open space on purpose: everyone in the square
 //! sees everyone else, which is the worst case the avatar budget is measured in.
 
 use crate::mapgen::{Map, fix_worldspawn_closure};
@@ -22,6 +22,8 @@ pub const ROWS: u32 = 5;
 pub const TILE: f32 = 128.0;
 pub const PITCH: f32 = 160.0;
 const MARKET: [f32; 2] = [48.0, -384.0];
+/// The smithy (ITEMS.md 6.6): the middle of the hearth's back, against the south houses.
+const SMITHY: [f32; 2] = [268.0, -764.0];
 
 /// A house: a half-timbered box with a tiled roof leaning towards the square.
 /// `side` 0 north, 1 south, 2 east, 3 west; `a..b` along the wall.
@@ -122,6 +124,76 @@ fn row(m: &mut Map, side: u8, from: f32, to: f32, seed: usize) {
         }
         i += 1;
     }
+}
+
+/// The smithy's hearth, anvil and trough, the hearth's back against `y` and its mouth
+/// opening towards +Y, centred on `x`.
+fn smithy(m: &mut Map, x: f32, y: f32) {
+    let stone = |m: &mut Map, mins: [f32; 3], maxs: [f32; 3]| {
+        m.boxb(mins, maxs, "soot_stone", "floor_stone", "floor_stone");
+    };
+    // The hearth's floor, its bed of coals, two cheeks, the back, the lintel, the chimney.
+    stone(m, [x - 48.0, y, 0.0], [x + 48.0, y + 64.0, 16.0]);
+    m.boxb(
+        [x - 32.0, y + 12.0, 16.0],
+        [x + 32.0, y + 52.0, 20.0],
+        "coals",
+        "coals",
+        "coals",
+    );
+    stone(m, [x - 48.0, y, 16.0], [x - 32.0, y + 64.0, 72.0]);
+    stone(m, [x + 32.0, y, 16.0], [x + 48.0, y + 64.0, 72.0]);
+    stone(m, [x - 32.0, y, 16.0], [x + 32.0, y + 12.0, 72.0]);
+    stone(m, [x - 48.0, y, 72.0], [x + 48.0, y + 64.0, 88.0]);
+    m.boxb(
+        [x - 20.0, y, 88.0],
+        [x + 20.0, y + 40.0, 168.0],
+        "wall_brick",
+        "trim_dark",
+        "wall_brick",
+    );
+    // The anvil: an iron block with its horn, on an oak stump, before the hearth.
+    let (ax, ay) = (x - 8.0, y + 124.0);
+    m.boxb(
+        [ax - 14.0, ay - 14.0, 0.0],
+        [ax + 14.0, ay + 14.0, 16.0],
+        "trim_dark",
+        "ramp_wood",
+        "trim_dark",
+    );
+    m.boxb(
+        [ax - 30.0, ay - 10.0, 16.0],
+        [ax + 22.0, ay + 10.0, 30.0],
+        "metal_panel",
+        "metal_panel",
+        "metal_panel",
+    );
+    m.boxb(
+        [ax + 22.0, ay - 6.0, 20.0],
+        [ax + 42.0, ay + 6.0, 28.0],
+        "metal_panel",
+        "metal_panel",
+        "metal_panel",
+    );
+    // The quench trough at the hearth's west cheek.
+    m.boxb(
+        [x - 84.0, y + 16.0, 0.0],
+        [x - 52.0, y + 56.0, 22.0],
+        "trim_dark",
+        "metal_panel",
+        "trim_dark",
+    );
+}
+
+/// The smithy's entities (after the brushes: the world is one block): the fire's light
+/// inside the mouth, and the `gm_forge` at it.
+fn smithy_entities(m: &mut Map, x: f32, y: f32) {
+    m.light(x, y + 32.0, 44.0, 110, [255, 130, 40]);
+    m.entity(&[
+        ("classname", "gm_forge".into()),
+        ("origin", format!("{x} {} 0", y + 72.0)),
+        ("angle", "90".into()),
+    ]);
 }
 
 /// The town as `.map` text.
@@ -273,6 +345,13 @@ pub fn generate() -> String {
         "ramp_wood",
     );
 
+    // The smithy (ITEMS.md 6.6, 2026-10-19): on the square by the mouth of the dummies'
+    // street, against the south houses, so a body that has counted its damage walks out
+    // of the street into it. The hearth: a stone block whose mouth opens north, with a
+    // bed of coals and a chimney; the anvil on its stump before it; a quench trough at
+    // its side. The `gm_forge` marks the mouth: a craft is made within FORGE_REACH of it.
+    smithy(&mut m, SMITHY[0], SMITHY[1]);
+
     // The market: one marked flagstone per stall tile.
     for row in 0..ROWS {
         for col in 0..COLS {
@@ -300,6 +379,7 @@ pub fn generate() -> String {
         m.light(x, y, 150.0, 200, [255, 190, 120]);
     }
     m.light(wx, wy, 100.0, 120, [255, 220, 170]);
+    smithy_entities(&mut m, SMITHY[0], SMITHY[1]);
 
     m.entity(&[
         ("classname", "gm_stall_grid".into()),
@@ -331,11 +411,14 @@ pub fn generate() -> String {
     // street behind it, a triangle with its point towards the square, facing whoever
     // walks in from it, to count one's damage on (the director, 2026-10-06: the one dummy
     // on the green north of the market was out of the way).
+    // The smith stands north-east of his anvil, facing it, out of the forge's reach so
+    // that E by him is his shop and E at the hearth the forge (ITEMS.md 6.6).
     for (creature, x, y, yaw) in [
         ("trainer", -200.0f32, -560.0f32, 90),
         ("dummy", 0.0, -830.0, 90),
         ("dummy", -90.0, -940.0, 90),
         ("dummy", 90.0, -940.0, 90),
+        ("smith", 376.0, -616.0, 205),
     ] {
         m.entity(&[
             ("classname", "gm_creature".into()),
@@ -369,7 +452,9 @@ mod tests {
         assert_eq!(text.matches("\"gm_stall_grid\"").count(), 1);
         assert!(text.matches("\"gm_spawn\"").count() >= 120);
         assert_eq!(text.matches("\"info_player_start\"").count(), 1);
-        assert_eq!(text.matches("\"gm_creature\"").count(), 4);
+        assert_eq!(text.matches("\"gm_creature\"").count(), 5);
+        assert_eq!(text.matches("\"gm_forge\"").count(), 1);
+        assert!(text.contains("\"creature\" \"smith\""));
         assert!(text.contains("\"_sunlight\" \"230\""));
         // Exactly one worldspawn block, closed before the first entity.
         let ws = text.find("\"classname\" \"worldspawn\"").unwrap();

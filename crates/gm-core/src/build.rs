@@ -90,6 +90,13 @@ pub struct CreatureDef {
     pub still: bool,
     /// Somebody of the town (the trainer): cannot be hurt, is spoken to with `E`.
     pub npc: bool,
+    /// What an `npc` is for, by name (`trainer`: a build is worn beside it, MATRIX.md 9.1;
+    /// `smith`: sells the materials and keeps the forge, ITEMS.md 6.6); empty for nobody in
+    /// particular. The zone and the client read the same word.
+    pub role: String,
+    /// What an npc wears for its look alone (ITEMS.md 6.6: the smith's cuirass): a
+    /// template a body place in the wire's order, chest, head, legs; empty for nothing.
+    pub wears: [String; 3],
     /// What its blows and spells are multiplied by beyond its attributes (1 = a player's
     /// numbers): a creature's health is set apart from the bands, and so is its damage.
     pub might: f32,

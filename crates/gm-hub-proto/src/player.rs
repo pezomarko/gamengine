@@ -14,14 +14,14 @@ use bitcode::{Decode, Encode};
 use gm_core::build::ContentPack;
 
 use crate::protocol::{
-    BuildChoice, CharacterId, CharacterSummary, EconOp, EconReply, HubError, HubRequest,
-    HubResponse, ItemId, ItemSummary, ListingSummary, ModelId, SessionId, TradeOffer, ZoneId,
-    ZoneSummary, ZoneTicket,
+    BuildChoice, CharacterId, CharacterSummary, CraftTemplate, EconOp, EconReply, HubError,
+    HubRequest, HubResponse, ItemId, ItemSummary, ListingSummary, ModelId, SessionId, TradeOffer,
+    Ware, ZoneId, ZoneSummary, ZoneTicket,
 };
 
 /// The version of the players' messages; any change to them, or to a type they carry, is
 /// a new one.
-pub const PLAYER_VERSION: u8 = 13;
+pub const PLAYER_VERSION: u8 = 14;
 
 /// What a stream that speaks the players' messages begins with: the empty frame, then
 /// the version in a frame of its own.
@@ -157,6 +157,14 @@ pub enum PlayerEcon {
         price: i64,
     },
     HireUnlist,
+    /// The smithy (ITEMS.md 6.6): the smith's wares and what the forge makes; and what a
+    /// craft of these parts would be, with the fee. Buying and forging are said to the
+    /// zone. v14.
+    Smithy,
+    CraftView {
+        template: String,
+        components: Vec<ItemId>,
+    },
 }
 
 /// Somebody for hire, as the tavern page shows it: in the hub's words.
@@ -214,6 +222,15 @@ pub enum PlayerEconReply {
     },
     Tavern(Vec<TavernRow>),
     Hires(Vec<HireRow>),
+    /// As `EconReply::Smithy` and `EconReply::CraftView`. v14.
+    Smithy {
+        wares: Vec<Ware>,
+        templates: Vec<CraftTemplate>,
+    },
+    CraftView {
+        item: ItemSummary,
+        fee: i64,
+    },
 }
 
 impl From<PlayerEcon> for EconOp {
@@ -241,6 +258,14 @@ impl From<PlayerEcon> for EconOp {
             PlayerEcon::Dismiss { hire } => EconOp::Dismiss { hire },
             PlayerEcon::HireList { price } => EconOp::HireList { price },
             PlayerEcon::HireUnlist => EconOp::HireUnlist,
+            PlayerEcon::Smithy => EconOp::Smithy,
+            PlayerEcon::CraftView {
+                template,
+                components,
+            } => EconOp::CraftView {
+                template,
+                components,
+            },
         }
     }
 }
@@ -306,6 +331,8 @@ impl TryFrom<EconReply> for PlayerEconReply {
                     })
                     .collect(),
             ),
+            EconReply::Smithy { wares, templates } => PlayerEconReply::Smithy { wares, templates },
+            EconReply::CraftView { item, fee } => PlayerEconReply::CraftView { item, fee },
             _ => return Err(()),
         })
     }

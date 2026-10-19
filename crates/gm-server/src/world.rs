@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use gm_bsp::{Bsp, CreaturePost, StallGrid};
+use gm_bsp::{Bsp, CreaturePost, ForgePost, StallGrid};
 use gm_core::sim::Spawn;
 use gm_net::transport::fnv1a64;
 
@@ -18,6 +18,8 @@ pub struct ZoneWorld {
     pub stall_grids: Vec<StallGrid>,
     /// Where the map stands its creatures (COMPANIONS.md 8.1).
     pub creature_posts: Vec<CreaturePost>,
+    /// The forges (ITEMS.md 6.6): where a craft is made.
+    pub forges: Vec<ForgePost>,
 }
 
 impl ZoneWorld {
@@ -49,6 +51,7 @@ impl ZoneWorld {
         ZoneWorld {
             stall_grids: bsp.stall_grids(),
             creature_posts: bsp.creature_posts(),
+            forges: bsp.forge_posts(),
             bsp,
             name: name.to_string(),
             hash,

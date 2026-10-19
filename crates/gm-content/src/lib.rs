@@ -568,8 +568,24 @@ pub(crate) struct CreatureToml {
     still: bool,
     #[serde(default)]
     npc: bool,
+    #[serde(default)]
+    role: String,
+    #[serde(default)]
+    wears: WearsToml,
     #[serde(default = "one")]
     might: f32,
+}
+
+/// What an npc wears for its look (ITEMS.md 6.6), a template a body place.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WearsToml {
+    #[serde(default)]
+    chest: String,
+    #[serde(default)]
+    head: String,
+    #[serde(default)]
+    legs: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1159,6 +1175,12 @@ fn compile_creature(c: &CreatureToml, pack: &ContentPack) -> Result<CreatureDef,
         respawn_s: c.respawn_s,
         still: c.still,
         npc: c.npc,
+        role: c.role.clone(),
+        wears: [
+            c.wears.chest.clone(),
+            c.wears.head.clone(),
+            c.wears.legs.clone(),
+        ],
         might: c.might,
         loot: c.loot.as_ref().map(|l| Loot {
             components: l.components,

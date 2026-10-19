@@ -302,6 +302,7 @@ impl App {
             self.world.mesh = Some(mesh);
         }
         self.sim = Sim::new(&bsp);
+        self.forges = bsp.forge_posts();
         self.bsp = bsp;
         log::info!(
             "switched map ({} faces, {} leaves)",

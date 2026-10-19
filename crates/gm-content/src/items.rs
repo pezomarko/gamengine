@@ -27,6 +27,11 @@ pub const GEM_EDGE: u8 = 150;
 pub const WARD_FLOOR: u8 = 25;
 /// The ceiling of what a weapon's gems stack to, percent.
 pub const EDGE_CEILING: u8 = 200;
+/// The forge's fee (ITEMS.md 6.6, ECONOMY.md 10): silver per two per mille of the craft's
+/// whole edge (a plain iron sword on oak, 40, costs 20 silver to forge; the best craft,
+/// 195, 98), and never under `CRAFT_FEE_FLOOR`. The fee is burned.
+pub const CRAFT_FEE_EDGE_PER_SILVER: u32 = 2;
+pub const CRAFT_FEE_FLOOR: i64 = 5;
 
 /// What a craft's layers do besides its edge (GEAR.md 6; `ItemContent::jobs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -530,6 +535,9 @@ pub struct Material {
     pub icon: Option<String>,
     #[serde(default)]
     pub tint: Option<[f32; 3]>,
+    /// What the smith sells it for, in silver (ITEMS.md 6.6); absent: not for sale there.
+    #[serde(default)]
+    pub price: Option<i64>,
 }
 
 impl Eq for Material {}
@@ -862,6 +870,65 @@ impl ItemContent {
                 },
             },
         }
+    }
+
+    /// What the forge charges to make `template` of `materials` (ITEMS.md 6.6): by the
+    /// craft's whole edge, `CRAFT_FEE_EDGE_PER_SILVER`; `None` for a template that is no
+    /// craft.
+    pub fn craft_fee<'a>(
+        &self,
+        template: &str,
+        materials: impl IntoIterator<Item = &'a str>,
+    ) -> Option<i64> {
+        let (_, _, whole) = self.edges(template, materials)?;
+        let per = CRAFT_FEE_EDGE_PER_SILVER as i64;
+        Some(((whole as i64 + per - 1) / per).max(CRAFT_FEE_FLOOR))
+    }
+
+    /// What a material does in a craft, in words (ITEMS.md 6.6: the smith's wares say it
+    /// before anything is bought): its edge, its note, and its layer's job (GEAR.md 6).
+    pub fn material_words(&self, material: &str) -> Vec<String> {
+        let Some(m) = self.materials.iter().find(|m| m.id == material) else {
+            return Vec::new();
+        };
+        let mut words = vec![format!("edge {} of {MAX_EDGE_PER_MILLE}", m.edge)];
+        if !m.note.is_empty() {
+            words.push(m.note.clone());
+        }
+        match m.layer() {
+            "catalyst" => {
+                if let (Some(element), Some(status)) = (&m.element, &m.status) {
+                    words.push(format!(
+                        "{element}: a landing blow {status}s {}% of the time for {:.1} s; worn, that lasts {CATALYST_WARD}% as long on you",
+                        m.chance.unwrap_or(0),
+                        m.duration_ms.unwrap_or(0) as f32 / 1000.0
+                    ));
+                }
+            }
+            "frame" => words.push(format!(
+                "blows and blocks cost {}% of their stamina",
+                m.stamina.unwrap_or(100)
+            )),
+            "gem" => match m.ward.as_deref() {
+                Some("catalyst") => words.push(
+                    "wards the item's own element: its status lasts half as long on you, half again as long on whom you strike".to_string(),
+                ),
+                Some(e) => words.push(format!(
+                    "wards {e}: its status lasts half as long on you, half again as long on whom you strike"
+                )),
+                None => {}
+            },
+            _ => {}
+        }
+        words
+    }
+
+    /// The smith's wares (ITEMS.md 6.6): every material with a price, in the content's
+    /// order, `(material, price)`.
+    pub fn wares(&self) -> impl Iterator<Item = (&str, i64)> {
+        self.materials
+            .iter()
+            .filter_map(|m| Some((m.id.as_str(), m.price?)))
     }
 
     /// The layers a craft of this template may fill; `None`: the content does not know it.

@@ -75,3 +75,24 @@ sight = 0
 leash = 0
 still = true
 npc = true
+role = "trainer"
+
+# The blacksmith (ITEMS.md 6.6, 2026-10-19): stands at the forge by the mouth of the
+# dummies' street, sells every material, and the forge beside him makes a craft of them
+# for a fee. A hammer in his hand: an npc holds its primary's prop (LOOK.md 6.1).
+
+[[creature]]
+key = "smith"
+name = "Blacksmith"
+frame = "striker"
+aspects = ["fire"]
+attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
+health = 1000
+primary = "hammer"
+secondary = "kick"
+sight = 0
+leash = 0
+still = true
+npc = true
+role = "smith"
+wears = { chest = "cuirass", legs = "trousers" }

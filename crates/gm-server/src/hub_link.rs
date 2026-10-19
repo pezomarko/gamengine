@@ -285,6 +285,58 @@ impl HubLink {
         }
     }
 
+    /// Buy one of a material from the smith for a character the zone saw standing by
+    /// him, at the price it was shown (ITEMS.md 6.6); the new part's id.
+    pub async fn smith_buy(
+        &self,
+        character: CharacterId,
+        material: &str,
+        price: i64,
+    ) -> Result<i64, String> {
+        let op = ZoneEconOp::SmithBuy {
+            character,
+            material: material.to_string(),
+            price,
+        };
+        match self.client.request(&HubRequest::ZoneEcon(op)).await {
+            Ok(HubResponse::Econ(EconReply::Id(id))) => Ok(id),
+            Err(HubClientError::Refused(e)) => Err(match e {
+                HubError::Insufficient => "not enough coin".to_string(),
+                HubError::Full => "the inventory is full".to_string(),
+                HubError::Invalid(why) => why,
+                other => Self::words(&other, "buy"),
+            }),
+            other => Err(Self::trouble("buy", &format!("{other:?}"))),
+        }
+    }
+
+    /// Make a craft at the forge for a character the zone saw standing at one, for the
+    /// fee it was shown (ITEMS.md 6.6); the new item's id.
+    pub async fn forge(
+        &self,
+        character: CharacterId,
+        template: &str,
+        components: &[i64],
+        fee: i64,
+    ) -> Result<i64, String> {
+        let op = ZoneEconOp::Forge {
+            character,
+            template: template.to_string(),
+            components: components.to_vec(),
+            fee,
+        };
+        match self.client.request(&HubRequest::ZoneEcon(op)).await {
+            Ok(HubResponse::Econ(EconReply::Id(id))) => Ok(id),
+            Err(HubClientError::Refused(e)) => Err(match e {
+                HubError::NotFound => "a part is no longer in the inventory".to_string(),
+                HubError::Insufficient => "not enough coin for the fee".to_string(),
+                HubError::Invalid(why) => why,
+                other => Self::words(&other, "craft"),
+            }),
+            other => Err(Self::trouble("craft", &format!("{other:?}"))),
+        }
+    }
+
     /// What a player is told when the hub refused for a reason that is not about the
     /// thing asked for; the reason itself goes to the zone's log, not to the player.
     fn words(e: &HubError, what: &str) -> String {

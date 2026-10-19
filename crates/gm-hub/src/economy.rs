@@ -1899,6 +1899,40 @@ impl Economy {
         components: &[i64],
         layers: Option<&[String]>,
     ) -> Result<i64, EconError> {
+        self.craft_for(character, template, components, layers, None)
+            .await
+    }
+
+    /// `craft` at the forge (ITEMS.md 6.6): the content's fee for the craft is burned in
+    /// the same transaction (`craft_fee` moves to the sink). `fee` is `(asked, content)`:
+    /// the fee the crafter was shown, refused when it is not the content's fee now, so
+    /// that nobody pays a fee they did not see.
+    pub async fn forge(
+        &self,
+        character: i64,
+        template: &str,
+        components: &[i64],
+        content: &gm_content::items::ItemContent,
+        asked: i64,
+    ) -> Result<i64, EconError> {
+        self.craft_for(
+            character,
+            template,
+            components,
+            content.layers(template),
+            Some((asked, content)),
+        )
+        .await
+    }
+
+    async fn craft_for(
+        &self,
+        character: i64,
+        template: &str,
+        components: &[i64],
+        layers: Option<&[String]>,
+        fee: Option<(i64, &gm_content::items::ItemContent)>,
+    ) -> Result<i64, EconError> {
         if template.is_empty() || template == "component" || template.len() > 48 {
             return Err(EconError::Invalid("template".into()));
         }
@@ -1942,6 +1976,18 @@ impl Economy {
         }
         check_parts(&parts, template, layers)?;
         let new_id = create_item(&mut tx, inv, template, &parts).await?;
+        if let Some((asked, content)) = fee {
+            let due = content
+                .craft_fee(template, parts.iter().map(|c| c.material.as_str()))
+                .ok_or_else(|| EconError::Invalid("that is not made at a forge".into()))?;
+            if due != asked {
+                return Err(EconError::State("the fee changed: look again".into()));
+            }
+            if due > 0 {
+                let sink = singleton(&mut tx, "sink").await?;
+                move_coin(&mut tx, inv, sink, due, "craft_fee", new_id).await?;
+            }
+        }
         for &id in &ids {
             sqlx::query("insert into item_moves (item_id, from_holder, to_holder, reason, ref) values ($1, $2, null, 'craft', $3)")
                 .bind(id)
@@ -1964,6 +2010,90 @@ impl Economy {
             .map_err(internal)?;
         tx.commit().await.map_err(internal)?;
         Ok(new_id)
+    }
+
+    /// What a craft of these component items would be made of (ITEMS.md 6.6), checked as
+    /// the craft checks it (the parts are the character's, loose components, of layers
+    /// the template has room for, one core and one frame, two gems at most) and nothing
+    /// moved: the parts, in the hub's order, for the words and the fee of a preview.
+    pub async fn craft_parts(
+        &self,
+        character: i64,
+        template: &str,
+        components: &[i64],
+        layers: Option<&[String]>,
+    ) -> Result<Vec<Component>, EconError> {
+        if template.is_empty() || template == "component" || template.len() > 48 {
+            return Err(EconError::Invalid("template".into()));
+        }
+        if components.len() > MAX_PARTS {
+            return Err(EconError::Invalid("too many components".into()));
+        }
+        let mut ids = components.to_vec();
+        ids.sort_unstable();
+        ids.dedup();
+        if ids.len() != components.len() || ids.is_empty() {
+            return Err(EconError::Invalid("components".into()));
+        }
+        let mut tx = self.begin().await?;
+        let inv = character_holder(&mut tx, character).await?;
+        let mut parts: Vec<Component> = Vec::new();
+        for &id in &ids {
+            let r = sqlx::query("select holder_id, template from items where id = $1")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(internal)?
+                .ok_or(EconError::NotFound)?;
+            let holder: i64 = r.try_get("holder_id").map_err(internal)?;
+            let tpl: String = r.try_get("template").map_err(internal)?;
+            if holder != inv {
+                return Err(EconError::Forbidden);
+            }
+            if tpl != "component" {
+                return Err(EconError::Invalid(
+                    "only components can be crafted with".into(),
+                ));
+            }
+            parts.extend(components_of(&mut tx, id).await?);
+        }
+        check_parts(&parts, template, layers)?;
+        Ok(parts)
+    }
+
+    /// The smith sells one of `material` (ITEMS.md 6.6): the price (the content's, checked
+    /// by the caller against what the buyer saw) is burned, and the part is made in the
+    /// inventory. Refused `Full` without room, `Insufficient` without the coin.
+    pub async fn smith_buy(
+        &self,
+        character: i64,
+        material: &str,
+        price: i64,
+    ) -> Result<i64, EconError> {
+        if !(0..=MAX_PRICE).contains(&price) {
+            return Err(EconError::Invalid("price".into()));
+        }
+        material_layer(material)?;
+        let mut tx = self.begin().await?;
+        let (source, sink) = singletons(&mut tx).await?;
+        let inv = character_holder(&mut tx, character).await?;
+        lock_holders(&mut tx, &[inv]).await?;
+        if !has_room(&mut tx, inv, 1).await? {
+            return Err(EconError::Full);
+        }
+        let id = create_component(&mut tx, inv, material).await?;
+        if price > 0 {
+            move_coin(&mut tx, inv, sink, price, "smith", id).await?;
+        }
+        sqlx::query("insert into item_moves (item_id, from_holder, to_holder, reason, ref) values ($1, $2, $3, 'smith', 0)")
+            .bind(id)
+            .bind(source)
+            .bind(inv)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal)?;
+        tx.commit().await.map_err(internal)?;
+        Ok(id)
     }
 
     /// Decompose an item (ECONOMY.md 10): ⌊k / 2⌋ components come back, chosen by

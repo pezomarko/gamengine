@@ -709,6 +709,17 @@ pub enum EconOp {
     StallView {
         stall: i64,
     },
+    /// The smith's wares and what a forge may make (ITEMS.md 6.6), from anywhere; buying
+    /// and forging are done standing there, through the zone. v20.
+    Smithy,
+    /// What `template` made of these component items of the inventory would be, and the
+    /// forge's fee for it (ITEMS.md 6.6): the craft's checks without the craft, so a screen
+    /// can say what it would make before anything is paid. Answered `CraftView`; refused
+    /// in words as the craft would be. v20.
+    CraftView {
+        template: String,
+        components: Vec<ItemId>,
+    },
 }
 
 /// What a zone reports (ECONOMY.md 8, 9): only a registered zone connection may send these.
@@ -800,6 +811,42 @@ pub enum ZoneEconOp {
         item: ItemId,
         place: u8,
     },
+    /// A character standing by the smith of this zone buys one of `material` (ITEMS.md
+    /// 7): the zone vouches for the place, the hub for the price (the content's; `price`
+    /// is what the buyer was shown), the coin and the room. The coin is burned; the
+    /// part is made. Answered `Id`. v20.
+    SmithBuy {
+        character: CharacterId,
+        material: String,
+        price: i64,
+    },
+    /// A character standing at a forge of this zone makes `template` of these component
+    /// items of its inventory for the content's fee (`fee` is what it was shown; refused
+    /// when that is not the fee now). The fee is burned. Answered `Id`. v20.
+    Forge {
+        character: CharacterId,
+        template: String,
+        components: Vec<ItemId>,
+        fee: i64,
+    },
+}
+
+/// What the smith sells (ITEMS.md 6.6): one material, its price, and the part as a person
+/// is shown it (no id: it is made when bought).
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct Ware {
+    pub material: String,
+    pub price: i64,
+    pub item: ItemSummary,
+}
+
+/// What a forge may make (ITEMS.md 6.6): a template, what kind of thing it is, and the
+/// layers it has room for, in the content's order.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct CraftTemplate {
+    pub template: String,
+    pub kind: String,
+    pub layers: Vec<String>,
 }
 
 /// An open stall as its zone shows it: where it is and who keeps it.
@@ -1089,6 +1136,16 @@ pub enum EconReply {
     /// What a character's worn items do to damage, read after the change (the answer to
     /// a zone's `Wear` and `TakeOff`).
     Gear(GearReading),
+    /// The smith's wares and the forge's templates (ITEMS.md 6.6). v20.
+    Smithy {
+        wares: Vec<Ware>,
+        templates: Vec<CraftTemplate>,
+    },
+    /// What a craft would make, and the forge's fee for it. v20.
+    CraftView {
+        item: ItemSummary,
+        fee: i64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -1289,7 +1346,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 19;
+pub const HUB_VERSION: u8 = 20;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.
