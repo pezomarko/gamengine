@@ -290,7 +290,7 @@ respawn_s                                # 0 = never while the zone runs
 components, standard = [materials], top = [materials], coin
 ```
 
-A creature's sheet is a build without a budget: attributes may leave 5..=25, nothing is
+A creature's sheet is a build without a budget: attributes may leave the floors and the points, nothing is
 priced, and it may slot abilities marked `creature = true`, which no player build can.
 (2026-10-06: players have seven times v1's health; the sentinel has 1,200 at a player's
 blows, the Warden 15,000 at twice them, and the heals scaled with the health (Mend 100/s,

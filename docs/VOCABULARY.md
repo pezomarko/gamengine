@@ -335,7 +335,7 @@ is lost; projectile chains were never allowed by the validator.
   In it the frame is read as view angles only: no movement, no jump, no action, no guard.
   It is stepped in `step_mover` on both sides of the wire, like the guard; the snapshot's
   own-entity flag `commanding` settles a disagreement. Animation state 12, `command`.
-- **Creatures** are builds without a budget (`CreatureDef`): attributes may leave 5..=25,
+- **Creatures** are builds without a budget (`CreatureDef`): attributes may leave the floors and the points,
   health is set by content (up to 60,000), and they may slot abilities marked `creature`,
   which no player build can. Everything else is the build rules.
 - Animation states: idle, run, air, windup, swing, recover, dash, dead, guard, parry, cast,

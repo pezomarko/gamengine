@@ -453,10 +453,12 @@ impl App {
 
     /// The cursor the pointer shows (MODES.md 5.5): in the RPG mode with the pointer
     /// free, a crosshair over the target (a click attacks), a hand over another body (a
-    /// click targets), the arrow elsewhere; the arrow everywhere else.
+    /// click targets), the cast's cell while a key waits for its click (MODES.md 5.3),
+    /// the arrow elsewhere; the arrow everywhere else.
     pub(super) fn show_cursor(&mut self) {
         let want = if self.rpg_mode() && !self.pointer.grabbed && !self.screen_up() {
             match self.rpg.hover(self.rpg_under(self.pointer.cursor)) {
+                crate::rpg::Hover::Cast => CursorIcon::Cell,
                 crate::rpg::Hover::Attack => CursorIcon::Crosshair,
                 crate::rpg::Hover::Body => CursorIcon::Pointer,
                 crate::rpg::Hover::Ground => CursorIcon::Default,

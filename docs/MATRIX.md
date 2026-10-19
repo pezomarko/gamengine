@@ -34,7 +34,9 @@ the proposal that Phase 3 implements. The director's calls are recorded in secti
 
 ## 2. Attributes
 
-Five attributes, each **3..=25**, integer. The floor is the **body's** (BODIES.md 3:
+Five attributes, integer, each from **3** up to what the points reach (the cap of 25 went
+on 2026-10-19: a player may put every point on one; `Attributes::MAX` is only the
+highest floor plus thirty, 43). The floor is the **body's** (BODIES.md 3:
 five floors summing to 25, a 3 where the body is plainly bad at something; v8,
 2026-10-19) and a flat **5** for a build without a body (a preset, a creature, a bot: as
 every character was before the bodies); a character has **thirty points** to put above
@@ -133,8 +135,9 @@ Physical packets ignore this table; elemental packets ignore the armour-class ta
 
 ## 6. Derived stats
 
-`attr` is the attribute value (5..=20). All results are rounded to integers where they are
-pools; multipliers stay f32. Bands are deliberately narrow.
+`attr` is the attribute value (3 to 43, section 2; the bands below are for the common
+5..=20). All results are rounded to integers where they are pools; multipliers stay f32.
+Bands are deliberately narrow.
 
 | Stat | Formula | Range (5 → 25) |
 |---|---|---|
@@ -432,7 +435,7 @@ second of contact; the firebolt needed five; the presets spent 56–68 of 100 po
 attributes, so every build was near 20 on four stats and a point moved health by 3 of 140.
 
 Done, as proposed and accepted ("do it all as you proposed"):
-- attributes 5..=25 with thirty points of the character's own (section 2), the kit's budget
+- attributes 5..=25 (uncapped since 2026-10-19) with thirty points of the character's own (section 2), the kit's budget
   40 apart from them (section 9); `Attributes::default()` is 11 across;
 - the bands of section 6 widened (health ×7, damage ×0.8–1.6), armour cap 0.50, ward 0.60;
 - the swings slowed and made heavier (sword 60 slash, 150/60/300 ms, 600 ms cooldown; the

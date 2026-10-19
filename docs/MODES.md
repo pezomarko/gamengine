@@ -287,8 +287,21 @@ An action pressed with a target:
   cooldown on the target until 2026-10-08; the director plays the spam himself.
 
 Range is the ability's: a melee arc's `reach`, a bolt's `range` (new, content: the musket
-600, the crossbow 900, a knife 300), an area's `origin: Aim` radius. Without a target an
-action fires where the body faces, as in the action mode without the magnet.
+600, the crossbow 900, a knife 300), an area's `origin: Aim` radius.
+
+**Without a target** (2026-10-19; until then an action fired where the body faced, as in
+the action mode without the magnet) a key is a **cast waiting for a click**: the cursor
+becomes the cast's (`Hover::Cast`, the cell cursor) and the next left click says where.
+On a body, the body is targeted and the action asked at it as above. On the ground, the
+cast is **placed** there (`Rpg::placed`): the body walks toward the point until it is
+within the ability's range, then presses once, and the frame's yaw and pitch are the line
+from the eye to the point while the cast waits and while its script runs (`Rpg::aim_from`),
+so an aimed area lands on the point and a bolt or a blow goes that way; the body turns
+there with the zone's yaw. `Esc`, a movement key or another key lets a waiting cast go; a
+movement key lets a placed one go but not the aim of one already pressed. The director,
+2026-10-19: "sanctuary should be placed with mouse, as many attacking skills ... if nothing
+is selected, or is deselected, then using skill changes cursor to skill cast cursor and it
+should attack where mouse clicks".
 
 ### 5.4 On the wire
 
@@ -302,8 +315,8 @@ the sight the zone's trace.
 
 Left button: target or move, and on the target the primary at it (the first click picks,
 the next attacks, as in Tales of Pirates and Ether Saga: the cursor is a crosshair over the
-target, a hand over another body); right drag: the camera, a right tap on the target the
-secondary at it; wheel: 120–400 u; `Tab`, `Esc`; the hotbar on `1`–`8` (the primary and secondary join it: the root's bar is one bar); `Shift`
+target, a hand over another body, the cell while a key waits for its click, 5.3); right
+drag: the camera, a right tap on the target the secondary at it; wheel: 120–400 u; `Tab`, `Esc`; the hotbar on `1`–`8` (the primary and secondary join it: the root's bar is one bar); `Shift`
 guards; `Space` jumps. A ground marker where the body is going; the target frame top
 centre; a ring under the target (LOOK.md 13).
 

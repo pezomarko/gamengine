@@ -1321,17 +1321,19 @@ impl App {
         } else {
             Vec::new()
         };
-        let (mut rpg_pressed, mut rpg_ability) = if rpg {
-            Self::rpg_keys(&mut self.rpg, &mut self.input, &rpg_bodies)
-        } else {
-            (0, 0)
-        };
+        if rpg {
+            Self::rpg_keys(&mut self.rpg, &mut self.input, &rpg_bodies);
+        }
         while o.accumulator >= dt && steps < MAX_STEPS_PER_FRAME {
             let (yaw, pitch) = match viewport {
                 Viewport::First => (self.sim.yaw, self.sim.pitch),
-                // The RPG body faces where it goes or its target; its bolts without a
-                // target fly level (MODES.md 5.3).
-                Viewport::Third if rpg => (self.sim.yaw, 0.0),
+                // The RPG body faces where it goes or its target, or the point a cast was
+                // placed at while the cast runs; its bolts without a target fly level
+                // (MODES.md 5.3).
+                Viewport::Third if rpg => self
+                    .rpg
+                    .aim_from(c.mover.eye())
+                    .unwrap_or((self.sim.yaw, 0.0)),
                 Viewport::Third => {
                     let eye = c.mover.eye();
                     let camera = third_person_camera(bsp, eye, self.sim.yaw, self.sim.pitch);
@@ -1340,7 +1342,7 @@ impl App {
             };
             self.view.aim = (yaw, pitch);
             let rpg_frame = rpg.then(|| {
-                let mut f = self.rpg.frame(
+                self.rpg.frame(
                     bsp,
                     &c.sheet.kit,
                     &c.mover,
@@ -1349,12 +1351,7 @@ impl App {
                     yaw,
                     c.tick,
                     o.rate.hz(),
-                );
-                f.buttons |= std::mem::take(&mut rpg_pressed);
-                if f.ability == 0 {
-                    f.ability = std::mem::take(&mut rpg_ability);
-                }
-                f
+                )
             });
             let input = if scripted {
                 let target = self
@@ -1420,18 +1417,12 @@ impl App {
     }
 
     /// The RPG mode's keys (MODES.md 5.3): with a target they ask for a target-action;
-    /// without one they press as the action mode does. Returns the buttons and the
-    /// active pressed without a target.
-    fn rpg_keys(
-        rpg: &mut crate::rpg::Rpg,
-        input: &mut Input,
-        rpg_bodies: &[crate::rpg::Body],
-    ) -> (u16, u8) {
+    /// without one they wait for a click to say where (they pressed where the body faced
+    /// until 2026-10-19).
+    fn rpg_keys(rpg: &mut crate::rpg::Rpg, input: &mut Input, rpg_bodies: &[crate::rpg::Body]) {
         use crate::rpg::Act;
         let present = |id: u32| rpg_bodies.iter().any(|b| b.id == id);
         rpg.lost(present);
-        let mut pressed = 0u16;
-        let mut ability = 0u8;
         let asks = [
             (KeyCode::Digit1, Act::Primary),
             (KeyCode::Digit2, Act::Secondary),
@@ -1447,14 +1438,9 @@ impl App {
             if rpg.target.is_some() {
                 rpg.ask(act);
             } else {
-                match act {
-                    Act::Primary => pressed |= buttons::PRIMARY,
-                    Act::Secondary => pressed |= buttons::SECONDARY,
-                    Act::Active(n) => ability = n,
-                }
+                rpg.wait_for_click(act);
             }
         }
-        (pressed, ability)
     }
 
     /// Where the frame is seen from: the own hull's drawn origin and the eye over it

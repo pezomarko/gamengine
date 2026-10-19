@@ -21,6 +21,9 @@ pub enum Hover {
     Body,
     /// The target: a click is the primary at it, a right tap the secondary.
     Attack,
+    /// A key waits for a click (`Rpg::cast`): a click casts it at the body or the ground
+    /// under the pointer.
+    Cast,
 }
 
 /// What a key asks for with a target (MODES.md 5.3).
@@ -81,6 +84,16 @@ pub struct Rpg {
     pub walk: Option<Vec3>,
     /// The action waiting for the body to be in range of its target.
     pub act: Option<(Act, u32)>,
+    /// A key pressed with no target (MODES.md 5.3): the cursor is the cast's, and the
+    /// next click says where (the director, 2026-10-19: "it should attack where mouse
+    /// clicks").
+    pub cast: Option<Act>,
+    /// A cast placed on the ground: pressed once the body is within its range of the
+    /// point and free; until then the body walks there.
+    pub placed: Option<(Act, Vec3)>,
+    /// The point a placed cast was pressed at: the aim is held toward it while the
+    /// cast's script runs, so an aimed area lands there and a bolt flies at it.
+    aim: Option<Vec3>,
     /// The bodies Tab has been through since it last came round.
     cycled: Vec<u32>,
     nav: Option<NavGrid>,
@@ -118,11 +131,35 @@ impl Rpg {
         self.act = None;
     }
 
-    /// Movement keys: the walk and the waiting action end, the target stays.
+    /// Escape (MODES.md 5.2): a waiting cast is let go first, then the target. Whether
+    /// either was.
+    pub fn escape(&mut self) -> bool {
+        if self.cast.take().is_some() {
+            return true;
+        }
+        if self.target.is_some() {
+            self.clear_target();
+            return true;
+        }
+        false
+    }
+
+    /// Movement keys: the walk and the waiting actions end, the target stays (and the
+    /// aim of a cast already pressed: its script runs on).
     pub fn moved_by_hand(&mut self) {
         self.walk = None;
         self.act = None;
+        self.placed = None;
         self.navigator.clear();
+    }
+
+    /// Where the frame aims while a cast is placed on the ground (MODES.md 5.3): the
+    /// yaw and pitch from `eye` to the point, while the cast waits or its script runs.
+    pub fn aim_from(&self, eye: Vec3) -> Option<(f32, f32)> {
+        let at = self.placed.map(|(_, at)| at).or(self.aim)?;
+        let d = at - eye;
+        let flat = d.truncate().length();
+        Some((d.y.atan2(d.x).to_degrees(), (-d.z).atan2(flat).to_degrees()))
     }
 
     /// The ray from the camera through a pixel, from the last frame's view-projection.
@@ -160,6 +197,9 @@ impl Rpg {
 
     /// What the pointer would do where it is (MODES.md 5.5): the cursor says so.
     pub fn hover(&self, under: Option<u32>) -> Hover {
+        if self.cast.is_some() {
+            return Hover::Cast;
+        }
         match under {
             Some(id) if self.target == Some(id) => Hover::Attack,
             Some(_) => Hover::Body,
@@ -170,9 +210,16 @@ impl Rpg {
     /// A left click (MODES.md 5.2, 5.5): on a body not yet the target, it is targeted;
     /// on the target, the primary at it (Tales of Pirates, Ether Saga: the first click
     /// picks, the next attacks; the director, 2026-10-08); on the ground, a walk there.
+    /// With a cast waiting (MODES.md 5.3), the click is where it goes: a body is targeted
+    /// and the cast asked at it, the ground has it placed there.
     pub fn click(&mut self, world: &dyn CollisionWorld, from: Vec3, dir: Vec3, bodies: &[Body]) {
+        let cast = self.cast.take();
         if let Some(id) = Self::pick(world, from, dir, bodies) {
-            if self.target == Some(id) {
+            if let Some(act) = cast {
+                self.clear_target();
+                self.target = Some(id);
+                self.ask(act);
+            } else if self.target == Some(id) {
                 self.ask(Act::Primary);
             } else {
                 self.clear_target();
@@ -180,17 +227,27 @@ impl Rpg {
             }
             return;
         }
-        let wall = world.trace(Hull::Point, from, from + dir * PICK_REACH);
-        let reach = PICK_REACH * wall.fraction;
-        if wall.fraction < 1.0 {
-            // Just short of the surface, then down to the floor under it.
-            let at = from + dir * (reach - 4.0).max(0.0);
-            let down = world.trace(Hull::Point, at, at - Vec3::Z * 1024.0);
-            let goal = if down.start_solid { at } else { down.end };
-            self.walk = Some(goal + Vec3::Z * (-Hull::Player.mins().z));
+        if let Some(goal) = Self::ground(world, from, dir) {
+            match cast {
+                Some(act) => self.placed = Some((act, goal)),
+                None => self.walk = Some(goal),
+            }
             self.act = None;
             self.navigator.clear();
         }
+    }
+
+    /// Where a ray meets the world, as a place for the body to stand: just short of the
+    /// surface, then down to the floor under it, lifted by the hull's half-height.
+    fn ground(world: &dyn CollisionWorld, from: Vec3, dir: Vec3) -> Option<Vec3> {
+        let wall = world.trace(Hull::Point, from, from + dir * PICK_REACH);
+        if wall.fraction >= 1.0 {
+            return None;
+        }
+        let at = from + dir * (PICK_REACH * wall.fraction - 4.0).max(0.0);
+        let down = world.trace(Hull::Point, at, at - Vec3::Z * 1024.0);
+        let goal = if down.start_solid { at } else { down.end };
+        Some(goal + Vec3::Z * (-Hull::Player.mins().z))
     }
 
     /// Tab (MODES.md 5.2): the nearest enemy in sight not yet cycled; when every one has
@@ -220,6 +277,30 @@ impl Rpg {
         let Some(t) = self.target else { return };
         self.act = Some((act, t));
         self.walk = None;
+        self.placed = None;
+    }
+
+    /// A key with no target (MODES.md 5.3): the cast waits for a click to say where.
+    pub fn wait_for_click(&mut self, act: Act) {
+        self.cast = Some(act);
+    }
+
+    /// The kit's slot an action names.
+    fn slot_of(kit: &Kit, act: Act) -> Option<u8> {
+        match act {
+            Act::Primary => kit.primary,
+            Act::Secondary => kit.secondary,
+            Act::Active(n) => kit.actives.get(n as usize - 1).copied().flatten(),
+        }
+    }
+
+    /// The press an action is: a button, or the active's number.
+    fn press(out: &mut RpgFrame, act: Act) {
+        match act {
+            Act::Primary => out.buttons |= buttons::PRIMARY,
+            Act::Secondary => out.buttons |= buttons::SECONDARY,
+            Act::Active(n) => out.ability = n,
+        }
     }
 
     /// The target as the frame last saw it is gone (dead, left, out of sight too long).
@@ -257,21 +338,21 @@ impl Rpg {
         };
         if axes.0 != 0.0 || axes.1 != 0.0 {
             self.moved_by_hand();
+            if mover.script.is_none() {
+                self.aim = None;
+            }
             out.forward = axes.0;
             out.side = axes.1;
             return out;
         }
         let pos = mover.mv.origin;
+        // The aim of a cast pressed on the ground stands while its script runs.
+        let mut fired = false;
         // The waiting action: in range, it is pressed; else the body walks to its target.
         let mut goal: Option<Vec3> = self.walk;
         if let Some((act, target)) = self.act {
-            let slot = match act {
-                Act::Primary => kit.primary,
-                Act::Secondary => kit.secondary,
-                Act::Active(n) => kit.actives.get(n as usize - 1).copied().flatten(),
-            };
             let body = bodies.iter().find(|b| b.id == target);
-            match (slot, body) {
+            match (Self::slot_of(kit, act), body) {
                 (Some(slot), Some(b)) => {
                     let ab = &kit.abilities[slot as usize];
                     let range = if ab.range > 0.0 { ab.range } else { 64.0 };
@@ -281,11 +362,7 @@ impl Rpg {
                     let ready = gm_core::sim::tick_delta(tick, mover.cooldowns[slot as usize]) >= 0;
                     if near && seen {
                         if ready && mover.script.is_none() {
-                            match act {
-                                Act::Primary => out.buttons |= buttons::PRIMARY,
-                                Act::Secondary => out.buttons |= buttons::SECONDARY,
-                                Act::Active(n) => out.ability = n,
-                            }
+                            Self::press(&mut out, act);
                             self.act = None;
                         }
                         goal = None;
@@ -295,6 +372,33 @@ impl Rpg {
                 }
                 _ => self.act = None,
             }
+        }
+        // A cast placed on the ground (MODES.md 5.3): within its range of the point it is
+        // pressed, aimed there; else the body walks to the point.
+        if let Some((act, at)) = self.placed {
+            match Self::slot_of(kit, act) {
+                Some(slot) => {
+                    let ab = &kit.abilities[slot as usize];
+                    let range = if ab.range > 0.0 { ab.range } else { 64.0 };
+                    let near = (at - pos).truncate().length() <= range * 0.95;
+                    let ready = gm_core::sim::tick_delta(tick, mover.cooldowns[slot as usize]) >= 0;
+                    if near {
+                        if ready && mover.script.is_none() {
+                            Self::press(&mut out, act);
+                            self.aim = Some(at);
+                            self.placed = None;
+                            fired = true;
+                        }
+                        goal = None;
+                    } else {
+                        goal = Some(at);
+                    }
+                }
+                None => self.placed = None,
+            }
+        }
+        if !fired && mover.script.is_none() {
+            self.aim = None;
         }
         if let Some(g) = goal {
             let nav = self
@@ -307,6 +411,7 @@ impl Rpg {
                 }
                 if steer.blocked {
                     self.act = None;
+                    self.placed = None;
                 }
             } else {
                 let wish = (steer.toward - pos).truncate().normalize_or_zero();
@@ -384,5 +489,71 @@ mod tests {
         rpg.click(&world, from, Vec3::new(0.6, 0.0, -0.8).normalize(), &bodies);
         assert!(rpg.walk.is_some());
         assert_eq!(rpg.target, Some(8));
+    }
+
+    /// A key with no target waits for a click (MODES.md 5.3): on the ground the cast is
+    /// placed there, pressed once the body is within range, aimed at the point while its
+    /// script runs; on a body, the body is targeted and the cast asked at it.
+    #[test]
+    fn a_cast_without_a_target_goes_where_the_click_is() {
+        use gm_core::build::{Build, Kit, Worn};
+        use gm_core::sim::test_content;
+        use gm_core::tick::TickRate;
+        let rate = TickRate::COMBAT;
+        let pack = test_content::pack(rate);
+        let build: Build = pack.build("shaman").unwrap().clone();
+        let kit = Kit::from_build(&build, &Worn::NONE, &pack);
+        let sanctuary = kit.actives[0].expect("the shaman's first active");
+        assert_eq!(kit.abilities[sanctuary as usize].range, 500.0);
+        let world = BoxWorld::floor();
+        let bodies = [dummy(7, 900.0, 0.0)];
+        let mover = Mover::new(Vec3::new(0.0, 0.0, 28.0), 0.0);
+        let mut rpg = Rpg::new();
+        rpg.wait_for_click(Act::Active(1));
+        assert_eq!(rpg.hover(None), Hover::Cast);
+        assert_eq!(rpg.hover(Some(7)), Hover::Cast);
+        // Escape lets the cast go.
+        assert!(rpg.escape());
+        assert_eq!(rpg.hover(None), Hover::Ground);
+        // A click on the ground far off: the cast is placed, and the body walks toward it.
+        rpg.wait_for_click(Act::Active(1));
+        let from = Vec3::new(0.0, 0.0, 200.0);
+        let far = Vec3::new(700.0, 0.0, 0.0);
+        rpg.click(&world, from, (far - from).normalize(), &bodies);
+        assert_eq!(rpg.cast, None);
+        let (act, at) = rpg.placed.expect("placed on the ground");
+        assert_eq!(act, Act::Active(1));
+        assert!((at.x - 700.0).abs() < 8.0, "{at}");
+        let f = rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 1, rate.hz());
+        assert_eq!(f.ability, 0, "out of range: not pressed yet");
+        assert!(f.forward > 0.5, "walks toward the point: {f:?}");
+        assert!(
+            rpg.aim_from(mover.eye()).is_some(),
+            "aimed at the point meanwhile"
+        );
+        // Within range: pressed, aimed at the point, held while the script would run.
+        let near = Vec3::new(300.0, 0.0, 0.0);
+        rpg.wait_for_click(Act::Active(1));
+        rpg.click(&world, from, (near - from).normalize(), &bodies);
+        let f = rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 1, rate.hz());
+        assert_eq!(f.ability, 1, "pressed");
+        assert_eq!(rpg.placed, None);
+        let (yaw, pitch) = rpg.aim_from(mover.eye()).expect("the aim is held");
+        assert!(yaw.abs() < 1.0, "toward +x: {yaw}");
+        assert!(pitch > 0.0, "down at the ground: {pitch}");
+        // No script started (the mover is bare): the aim is let go on the next tick.
+        rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 2, rate.hz());
+        assert_eq!(rpg.aim_from(mover.eye()), None);
+        // A click on a body with the cast waiting: targeted, and the cast asked at it.
+        rpg.wait_for_click(Act::Active(2));
+        rpg.click(
+            &world,
+            from,
+            (bodies[0].centre() - from).normalize(),
+            &bodies,
+        );
+        assert_eq!(rpg.target, Some(7));
+        assert_eq!(rpg.act, Some((Act::Active(2), 7)));
+        assert_eq!(rpg.cast, None);
     }
 }
