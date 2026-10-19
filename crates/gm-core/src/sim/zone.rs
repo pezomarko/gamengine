@@ -1291,7 +1291,7 @@ impl Zone {
         };
         let lag = tick_delta(self.tick, view_tick).clamp(0, p.max_rewind as i32) as Tick;
         // Where the bolt goes: at a target, led as a mind leads (MODES.md 5.3), when the
-        // target is within the ability's range and in sight; else at the point the eye
+        // target is in sight (the range was the client's to judge); else at the point the eye
         // ray meets, turned by the spray so far (3.3): the bolt leaves the muzzle, beside
         // and below the eye, toward the crosshair's point, so it lands there and not a
         // hand's width to its side (the director 2026-10-07, 10.2). The lead is taken
@@ -1303,7 +1303,6 @@ impl Zone {
             world,
             p,
             shot.target,
-            ab.range,
             origin,
             def.speed,
             def.gravity_scale,
@@ -1612,7 +1611,21 @@ impl Zone {
         target: EntityId,
         range: f32,
     ) -> Option<&Player> {
-        if target == 0 || target == p.id || range <= 0.0 {
+        let t = self.target_seen(world, p, target)?;
+        let centre = t.capsule().center();
+        ((centre - p.mover.mv.origin).truncate().length() <= range).then_some(t)
+    }
+
+    /// The body `target` if it is alive, another than `p` and in `p`'s sight, at any
+    /// distance (MODES.md 5.3: range is judged by the client before it presses; a press
+    /// let go at the range's edge is still at the target).
+    fn target_seen(
+        &self,
+        world: &dyn CollisionWorld,
+        p: &Player,
+        target: EntityId,
+    ) -> Option<&Player> {
+        if target == 0 || target == p.id {
             return None;
         }
         let t = self.players.get(&target)?;
@@ -1620,15 +1633,12 @@ impl Zone {
             return None;
         }
         let centre = t.capsule().center();
-        if (centre - p.mover.mv.origin).truncate().length() > range {
-            return None;
-        }
         (world.trace(Hull::Point, p.mover.eye(), centre).fraction >= 1.0).then_some(t)
     }
 
     /// The direction from `origin` to where `target` will be when a bolt of `speed` and
     /// `gravity` let go at tick `at` gets there (MODES.md 5.3: the lead a mind takes), or
-    /// `None` without a target in range. The target is taken where the history has it at
+    /// `None` without a target in sight. The target is taken where the history has it at
     /// `at` (where it stands now when the history does not reach), moving as it does now.
     #[allow(clippy::too_many_arguments)]
     fn lead_at(
@@ -1636,13 +1646,12 @@ impl Zone {
         world: &dyn CollisionWorld,
         p: &Player,
         target: EntityId,
-        range: f32,
         origin: Vec3,
         speed: f32,
         gravity: f32,
         at: Tick,
     ) -> Option<Vec3> {
-        let t = self.target_in_range(world, p, target, range)?;
+        let t = self.target_seen(world, p, target)?;
         let centre = match self.history.body_at(at, t.id) {
             Some((o, crouched)) => capsule_at(o, t.mover.mv.hull, t.frame(), crouched).center(),
             None => t.capsule().center(),
