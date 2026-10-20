@@ -358,10 +358,9 @@ impl App {
                 self.screens.chat.open = true;
                 self.release_keys();
             }
-            // In the RPG mode a target is let go first (MODES.md 5.2).
-            Key::Escape if self.rpg_mode() && self.rpg.target.is_some() => {
-                self.rpg.clear_target();
-            }
+            // In the RPG mode a waiting cast, then a target, is let go first (MODES.md
+            // 5.2, 5.3).
+            Key::Escape if self.rpg_mode() && self.rpg.escape() => {}
             Key::Escape if self.opts.bench_frames.is_none() => {
                 self.screens.menu = Some(GameMenu::default());
                 self.release_keys();

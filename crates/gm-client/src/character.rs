@@ -306,8 +306,8 @@ fn body_column<C: Canvas>(
     if !creation {
         aspect_boxes(ui, col.take(fh), b);
     }
-    // The attributes (up to 25, thirty points to spend above the floors: the body's,
-    // or five each) under their budget.
+    // The attributes (thirty points to spend above the floors, the body's or five each,
+    // all on one if the player likes: no cap since 2026-10-19) under their budget.
     let spent = b.points_spent(pack);
     let head = col.take(line);
     // (A draft from elsewhere may be over the points: said so, in the warning's colour.)
@@ -362,7 +362,7 @@ fn body_column<C: Canvas>(
             attrs[i] -= 1;
         }
         let no_plus = if attrs[i] >= Attributes::MAX {
-            Some("25 is the most")
+            Some("the most there is")
         } else if spent >= Attributes::FREE_POINTS {
             Some("every point is placed: take one off another first")
         } else {

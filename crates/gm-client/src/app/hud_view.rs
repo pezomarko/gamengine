@@ -129,6 +129,10 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     let (Some(c), Some(pack)) = (&o.client, &o.pack) else {
         return Vec::new();
     };
+    // Every cell is the kit's slot (the body skill stands first among the actives,
+    // BODIES.md 3.4, and is no row of the build's: read from the build, the cells after
+    // it were each the next one's, so `3` showed the skill after it and did the skill,
+    // 2026-10-19).
     let kit = &c.sheet.kit;
     let mut cells = Vec::new();
     let mut cell = |key: &'static str, slot: Option<u8>| {
@@ -170,7 +174,8 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
 
 /// One cell of an ability: the key, the ability on the slot (the next stage's in a
 /// chain's window, MODES.md 4.3), and its state from the predicted mover. Nothing for
-/// an empty slot.
+/// an empty slot. The ability's definition is the slot's own (`AbilityId` is the pack's
+/// index plus one).
 fn hotbar_cell(
     c: &ClientState,
     pack: &ContentPack,

@@ -214,7 +214,10 @@ impl Attributes {
     /// The least an attribute may be (MATRIX.md 2): a body's floor may stand here where
     /// the body is plainly bad at something (BODIES.md 3.2; 5 until 2026-10-19).
     pub const MIN: u8 = 3;
-    pub const MAX: u8 = 25;
+    /// The most an attribute may be: no cap of its own (25 until 2026-10-19; the director:
+    /// "if someone wants, they can put all to one stat"), only what the highest floor a
+    /// body may have (`FLOOR_SUM` less four at `MIN`) and every free point on it reach.
+    pub const MAX: u8 = Self::FLOOR_SUM as u8 - 4 * Self::MIN + Self::FREE_POINTS as u8;
     /// The floor of a build without a body (a preset, a creature, a bot): five each, as
     /// every character had until the bodies. A body brings its own floors, summing to
     /// `FLOOR_SUM`.
@@ -745,7 +748,12 @@ mod tests {
         assert_eq!(Attributes::new(3, 25, 10, 8, 9).spent(whelp), 30);
         assert!(Attributes::new(3, 25, 10, 8, 9).at_floors(whelp));
         assert!(!Attributes::new(3, 8, 10, 8, 9).at_floors(whelp));
-        assert!(!Attributes::new(26, 5, 5, 5, 5).affordable());
+        // No cap but the points (2026-10-19): every point on one stat is affordable, one
+        // past them is not, and `MAX` is exactly what the highest floor plus the points reach.
+        assert!(Attributes::new(35, 5, 5, 5, 5).affordable());
+        assert!(!Attributes::new(36, 5, 5, 5, 5).affordable());
+        assert_eq!(Attributes::MAX, 43);
+        assert!(!Attributes::new(44, 5, 5, 5, 5).in_range());
         assert_eq!(Attributes::default().cost(), Attributes::FREE_POINTS);
     }
 

@@ -1432,7 +1432,7 @@ mod tests {
         let pack = test_content::pack(TickRate::COMBAT);
         let base = pack.build("blade").unwrap().clone();
         let mut b = base.clone();
-        b.attributes.str_ = 26;
+        b.attributes.str_ = Attributes::MAX + 1;
         assert_eq!(b.validate(&pack), Err(BuildError::AttributeOutOfRange));
         let mut b = base.clone();
         b.attributes.str_ += 1;
