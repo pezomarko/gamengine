@@ -503,26 +503,32 @@ mod tests {
         let pack = test_content::pack(rate);
         let build: Build = pack.build("shaman").unwrap().clone();
         let kit = Kit::from_build(&build, &Worn::NONE, &pack);
-        let sanctuary = kit.actives[0].expect("the shaman's first active");
-        assert_eq!(kit.abilities[sanctuary as usize].range, 500.0);
+        // The aimed area among the kit's actives (the briar: Aim 500), as the key's number.
+        let n = (1..=4u8)
+            .find(|&n| {
+                kit.actives[n as usize - 1]
+                    .is_some_and(|s| kit.abilities[s as usize].range == 500.0)
+            })
+            .expect("an aimed active of range 500");
+        let other = if n == 1 { 2 } else { 1 };
         let world = BoxWorld::floor();
         let bodies = [dummy(7, 900.0, 0.0)];
         let mover = Mover::new(Vec3::new(0.0, 0.0, 28.0), 0.0);
         let mut rpg = Rpg::new();
-        rpg.wait_for_click(Act::Active(1));
+        rpg.wait_for_click(Act::Active(n));
         assert_eq!(rpg.hover(None), Hover::Cast);
         assert_eq!(rpg.hover(Some(7)), Hover::Cast);
         // Escape lets the cast go.
         assert!(rpg.escape());
         assert_eq!(rpg.hover(None), Hover::Ground);
         // A click on the ground far off: the cast is placed, and the body walks toward it.
-        rpg.wait_for_click(Act::Active(1));
+        rpg.wait_for_click(Act::Active(n));
         let from = Vec3::new(0.0, 0.0, 200.0);
         let far = Vec3::new(700.0, 0.0, 0.0);
         rpg.click(&world, from, (far - from).normalize(), &bodies);
         assert_eq!(rpg.cast, None);
         let (act, at) = rpg.placed.expect("placed on the ground");
-        assert_eq!(act, Act::Active(1));
+        assert_eq!(act, Act::Active(n));
         assert!((at.x - 700.0).abs() < 8.0, "{at}");
         let f = rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 1, rate.hz());
         assert_eq!(f.ability, 0, "out of range: not pressed yet");
@@ -533,10 +539,10 @@ mod tests {
         );
         // Within range: pressed, aimed at the point, held while the script would run.
         let near = Vec3::new(300.0, 0.0, 0.0);
-        rpg.wait_for_click(Act::Active(1));
+        rpg.wait_for_click(Act::Active(n));
         rpg.click(&world, from, (near - from).normalize(), &bodies);
         let f = rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 1, rate.hz());
-        assert_eq!(f.ability, 1, "pressed");
+        assert_eq!(f.ability, n, "pressed");
         assert_eq!(rpg.placed, None);
         let (yaw, pitch) = rpg.aim_from(mover.eye()).expect("the aim is held");
         assert!(yaw.abs() < 1.0, "toward +x: {yaw}");
@@ -545,7 +551,7 @@ mod tests {
         rpg.frame(&world, &kit, &mover, &bodies, (0.0, 0.0), 0.0, 2, rate.hz());
         assert_eq!(rpg.aim_from(mover.eye()), None);
         // A click on a body with the cast waiting: targeted, and the cast asked at it.
-        rpg.wait_for_click(Act::Active(2));
+        rpg.wait_for_click(Act::Active(other));
         rpg.click(
             &world,
             from,
@@ -553,7 +559,7 @@ mod tests {
             &bodies,
         );
         assert_eq!(rpg.target, Some(7));
-        assert_eq!(rpg.act, Some((Act::Active(2), 7)));
+        assert_eq!(rpg.act, Some((Act::Active(other), 7)));
         assert_eq!(rpg.cast, None);
     }
 }
