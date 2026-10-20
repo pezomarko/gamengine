@@ -51,6 +51,19 @@ pub struct AbilityDef {
     pub gun_melee: bool,
 }
 
+impl Mode {
+    /// Whether a build of this mode holds the ability `def` (MODES.md 2, GEAR.md 5.1): an
+    /// FPS build's hands take what shoots (a firearm, a crossbow, a bow, a bolt-throwing
+    /// wand) and the body's own melee (`gun_melee`); an action or RPG build's take
+    /// anything but a firearm.
+    pub fn holds(self, def: &AbilityDef) -> bool {
+        match self {
+            Mode::Fps => def.ability.shoots() || def.gun_melee,
+            Mode::Action | Mode::Rpg => def.ability.firearm.is_none(),
+        }
+    }
+}
+
 /// What a boss drops (COMPANIONS.md 10): `components` items per kill, drawn in order from
 /// `standard` for a party that brought companions and from `top` for a party of humans only.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -326,8 +339,8 @@ pub enum BuildError {
     CreatureOnly(u16),
     /// A chain stage or a mode's extra, slotted by hand (MODES.md 4.3).
     NotSlottable(u16),
-    /// A gun build's primary carries no firearm (MODES.md 2).
-    GunNeedsFirearm,
+    /// An FPS build's primary does not shoot (MODES.md 2, GEAR.md 5.1).
+    GunNeedsRanged,
     /// A firearm in a build of another mode.
     FirearmNeedsGun(u16),
     /// A gun build with a guard (MODES.md 3.7).
@@ -361,7 +374,9 @@ impl core::fmt::Display for BuildError {
                     "ability {i} comes with another and is not slotted by hand"
                 )
             }
-            BuildError::GunNeedsFirearm => write!(f, "a gun build's primary is a firearm"),
+            BuildError::GunNeedsRanged => {
+                write!(f, "an FPS build's primary shoots: a firearm or a bow")
+            }
             BuildError::FirearmNeedsGun(i) => {
                 write!(f, "ability {i} is a firearm: only a gun build holds one")
             }
@@ -691,13 +706,12 @@ impl Build {
             // The mode and the firearm go together (MODES.md 2); a creature's mind holds
             // what content gives it.
             if !creature {
-                let firearm = def.ability.firearm.is_some();
                 match (self.mode, expected) {
-                    (Mode::Fps, Slot::Primary) if !firearm && !def.gun_melee => {
-                        return Err(BuildError::GunNeedsFirearm);
+                    (Mode::Fps, Slot::Primary) if !self.mode.holds(def) => {
+                        return Err(BuildError::GunNeedsRanged);
                     }
                     (Mode::Fps, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
-                    (Mode::Action | Mode::Rpg, _) if firearm => {
+                    (Mode::Action | Mode::Rpg, _) if !self.mode.holds(def) => {
                         return Err(BuildError::FirearmNeedsGun(index));
                     }
                     _ => {}
@@ -1226,6 +1240,32 @@ impl Sheet {
 mod tests {
     use super::*;
     use crate::sim::test_content;
+
+    /// GEAR.md 5.1: an FPS build's hands take what shoots, a firearm or a bow, and the
+    /// body's own melee; an action or RPG build's take anything but a firearm.
+    #[test]
+    fn the_fps_mode_holds_what_shoots() {
+        let pack = test_content::pack(TickRate::COMBAT);
+        let def = |key: &str| {
+            let i = pack.find(key).unwrap_or_else(|| panic!("no {key}"));
+            &pack.abilities[i as usize]
+        };
+        assert!(Mode::Fps.holds(def("musket")));
+        assert!(Mode::Fps.holds(def("crossbow")), "a crossbow shoots");
+        assert!(Mode::Fps.holds(def("bow")));
+        assert!(!Mode::Fps.holds(def("sword")));
+        assert!(Mode::Rpg.holds(def("crossbow")));
+        assert!(Mode::Rpg.holds(def("sword")));
+        assert!(!Mode::Action.holds(def("musket")), "a firearm is FPS only");
+        let mut musketeer = pack.build("musketeer").expect("musketeer").clone();
+        musketeer.primary = pack.find("crossbow").unwrap();
+        assert!(
+            !matches!(musketeer.validate(&pack), Err(BuildError::GunNeedsRanged)),
+            "an FPS build takes a crossbow as its primary"
+        );
+        musketeer.primary = pack.find("sword").unwrap();
+        assert_eq!(musketeer.validate(&pack), Err(BuildError::GunNeedsRanged));
+    }
 
     #[test]
     fn presets_validate_and_spend_all_their_points() {

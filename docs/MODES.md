@@ -382,7 +382,7 @@ when its target walks out of sight** (waits in place, as proposed).
 Built as sections 2 and 4 say, with these readings:
 
 - **The mode is in the build** (`Build.mode`, `builds.toml` `mode`), validated with it
-  (`BuildError::GunNeedsFirearm`, `FirearmNeedsGun`, `GunHasNoGuard`, `NotSlottable`);
+  (`BuildError::GunNeedsRanged`, `FirearmNeedsGun`, `GunHasNoGuard`, `NotSlottable`);
   a build stored before it is read as `action`. The camera follows the mode of the sheet
   the zone sent (`Content`, `BuildApplied`); `V` is a key offline and in a replay only,
   `--third-person` likewise, the `third_person` setting is read and dropped.

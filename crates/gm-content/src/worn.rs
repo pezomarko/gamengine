@@ -24,8 +24,8 @@ const SMALL_PLACE: f32 = 1.0 / 3.0;
 /// - **The right hand** (GEAR.md 2): the primary whose prop is the weapon's model. Of
 ///   several (the staff's blow and its bolts, the musket and the carbine) the build's own
 ///   primary when it is one of them, else the first whose aspect the build holds, else
-///   the first with no aspect. A weapon the mode does not hold (a firearm out of the gun
-///   mode, anything else in it: the hub refuses the wear, GEAR.md 5) brings nothing, and
+///   the first with no aspect. A weapon the mode does not hold (a firearm out of the FPS
+///   mode, one that does not shoot in it: the hub refuses the wear, GEAR.md 5.1) brings nothing, and
 ///   so does an empty hand or a weapon no ability holds: the build's primary plays.
 /// - **The left hand**: the template's `guard` ability, when it is one and the mode has a
 ///   guard (a gun build has none, MODES.md 2). A second one-hander brings nothing.
@@ -87,7 +87,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
                     && let Some(def) = pack.abilities.get(i as usize)
                     && def.slot == slot
                     && !def.creature
-                    && (def.ability.firearm.is_some() == gun)
+                    && build.mode.holds(def)
                 {
                     holders.push(i);
                 }
@@ -125,7 +125,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
             && let Some(def) = pack.abilities.get(i as usize)
             && def.slot == Slot::Secondary
             && !def.creature
-            && (def.ability.firearm.is_some() == gun)
+            && build.mode.holds(def)
             && def.aspect.is_none_or(|needs| build.aspects.contains(needs))
         {
             worn.secondary = Some(i);

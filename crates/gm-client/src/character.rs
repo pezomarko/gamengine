@@ -703,13 +703,12 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     if slot == Slot::Active && b.body_skill(pack) == Some(i) {
         return Some("the body's own: it is in the kit already".into());
     }
-    let firearm = def.ability.firearm.is_some();
     match (b.mode, slot) {
-        (Mode::Fps, Slot::Primary) if !firearm => {
-            return Some("an FPS build's weapon is a firearm".into());
+        (Mode::Fps, Slot::Primary) if !b.mode.holds(def) => {
+            return Some("an FPS build's weapon shoots: a firearm or a bow".into());
         }
         (Mode::Fps, Slot::Guard) => return Some("an FPS build has no guard".into()),
-        (Mode::Action | Mode::Rpg, _) if firearm => {
+        (Mode::Action | Mode::Rpg, _) if !b.mode.holds(def) => {
             return Some("a firearm: only an FPS build holds one".into());
         }
         _ => {}
@@ -1524,7 +1523,7 @@ mod tests {
         );
         assert_eq!(
             why_not(&pack, &musketeer, Slot::Primary, by("sword")).as_deref(),
-            Some("an FPS build's weapon is a firearm")
+            Some("an FPS build's weapon shoots: a firearm or a bow")
         );
         assert_eq!(
             why_not(&pack, &musketeer, Slot::Guard, by("parry")).as_deref(),

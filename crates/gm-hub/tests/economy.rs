@@ -1332,6 +1332,7 @@ async fn a_storm_of_mixed_movements_never_deadlocks() {
                     gm_hub::economy::Holding {
                         mode: gm_core::vocab::Mode::Action,
                         firearms: &[],
+                        shooters: &[],
                     },
                     None,
                 )
@@ -1365,6 +1366,7 @@ async fn a_storm_of_mixed_movements_never_deadlocks() {
                         gm_hub::economy::Holding {
                             mode: gm_core::vocab::Mode::Action,
                             firearms: &[],
+                            shooters: &[],
                         },
                         None,
                     )
