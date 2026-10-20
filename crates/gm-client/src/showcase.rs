@@ -99,11 +99,13 @@ pub fn class_name(pack: Option<&ContentPack>, b: &Build) -> String {
     let Some(pack) = pack else {
         return String::new();
     };
-    if let Some(body) = b.body_def(pack) {
-        return body.name.clone();
-    }
+    // A preset by its name first (the arena's bots are presets with bodies, BODIES.md
+    // 7.5: an Ironclad, not a Brute); a player's build by its body.
     if let Some(p) = pack.builds.iter().find(|p| &p.build == b) {
         return capitalised(&p.name);
+    }
+    if let Some(body) = b.body_def(pack) {
+        return body.name.clone();
     }
     let kit: Vec<u16> = b.slots().into_iter().map(|(i, _)| i).collect();
     let near = pack.builds.iter().find(|p| {
@@ -544,11 +546,16 @@ mod tests {
         let ironclad = pack.builds[0].build.clone();
         assert_eq!(class_name(Some(&pack), &ironclad), "Ironclad");
         assert_eq!(class_name(None, &ironclad), "");
+        // A point moved: no preset, so the body's name (BODIES.md 7.5); without a body,
+        // the preset the kit contains, else custom.
         let mut heavier = ironclad.clone();
         heavier.attributes.str_ = heavier.attributes.str_.saturating_sub(1);
         heavier.attributes.con += 1;
+        assert_eq!(class_name(Some(&pack), &heavier), "Brute");
+        heavier.body = None;
         assert_eq!(class_name(Some(&pack), &heavier), "Custom (an Ironclad)");
         let mut other = ironclad.clone();
+        other.body = None;
         other.frame = gm_core::vocab::ArchetypeFrame::Caster;
         assert_eq!(class_name(Some(&pack), &other), "Custom");
     }

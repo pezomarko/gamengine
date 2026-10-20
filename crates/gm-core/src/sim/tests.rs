@@ -544,13 +544,13 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         );
         let p = zone.player(b).unwrap();
         let taken = p.max_health() - p.health;
-        // Sword 60 x 1.28 (STR 17) x 0.6 (armour 0.40) = 46.08 -> 46 unblocked,
-        // x 0.2 blocked = 9.216 -> 9.
+        // Sword 60 x 1.28 (STR 17) x 1.25 (the Soldier's melee blow, BODIES.md 7.3) x
+        // 0.6 (armour 0.40) = 57.6 -> 58 unblocked, x 0.2 blocked = 11.52 -> 12.
         if expect_block {
-            assert_eq!(taken, 9, "facing {facing}");
+            assert_eq!(taken, 12, "facing {facing}");
             assert_eq!(stamina_before - p.mover.stamina, 12.0);
         } else {
-            assert_eq!(taken, 46, "facing {facing}");
+            assert_eq!(taken, 58, "facing {facing}");
         }
     }
     // Guard break: with less stamina than the block costs, the hit lands in full and staggers.
@@ -569,7 +569,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         13,
     );
     let p = zone.player(b).unwrap();
-    assert_eq!(p.max_health() - p.health, 46);
+    assert_eq!(p.max_health() - p.health, 58);
     assert_eq!(p.mover.stamina, 0.0);
     assert!(p.mover.statuses.has(Status::Stagger));
     assert!(
@@ -704,8 +704,9 @@ fn stomp_pulses_once_damages_and_slows_everyone_in_range() {
     );
     let pb = zone.player(b).unwrap();
     // 35 ground x 0.8 (INT 5), Ground into Water is 1x, ward 0.02 * 5 = 0.10:
-    // 35 * 0.8 * 1 * 0.9 = 25.2 -> 25.
-    assert_eq!(pb.max_health() - pb.health, 25);
+    // 35 * 0.8 * 1 * 0.9 = 25.2; the Brute's Ground affinity x1.25 and the melee
+    // group's x0.75 on a spell (BODIES.md 7.3): 23.6 -> 24.
+    assert_eq!(pb.max_health() - pb.health, 24);
     assert!(pb.mover.statuses.has(Status::Slow));
     assert!(
         (pb.mover.statuses.speed_scale() - 0.7).abs() < 1e-6,
@@ -748,11 +749,11 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
     let (a, b) = (ids[0], ids[1]);
     let idle = input(180.0, 0.0, 0);
     // The nova is the staff's spell (BODIES.md 7.2); the preset in nothing holds it as
-    // its first active.
+    // its first bought active, after the Sorceress's haste (BODIES.md 7.5).
     tick(
         &mut zone,
         &world,
-        &[(a, input(0.0, 0.0, buttons::ABILITY1)), (b, idle)],
+        &[(a, input(0.0, 0.0, buttons::ABILITY2)), (b, idle)],
         0,
     );
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 25);
@@ -760,8 +761,9 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
     assert_eq!(pb.mover.statuses.stacks(Status::Chill), 2);
     assert!((pb.mover.statuses.speed_scale() - 0.7).abs() < 1e-6);
     // Water into Ground is 1.25x (MATRIX.md 19) and ignores plate: 30 * 1.4 (INT 20) *
-    // 1.25 * (1 - 0.2 ward) = 42.
-    assert_eq!(pb.max_health() - pb.health, 42);
+    // 1.25 * (1 - 0.2 ward) = 42; the Sorceress's Water affinity x1.25 and the magic
+    // group's x1.25 (BODIES.md 7.3): 65.6 -> 66.
+    assert_eq!(pb.max_health() - pb.health, 66);
     // The ice shard (the frostweaver's primary) adds the third stack: frozen (rooted),
     // chill cleared, immune after.
     tick(
@@ -835,8 +837,9 @@ fn blink_teleports_along_the_facing_and_stops_at_walls() {
     let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
     let shade = zone.content.build("shade").unwrap().clone();
     let a = zone.add_player_at(shade, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
-    // Blink is active slot 1 of the shade: 256 u, blocked by the wall at x = 150.
-    tick(&mut zone, &world, &[(a, active(0.0, 0.0, 1))], 0);
+    // Blink is active slot 2 of the shade (the Thief's slip is the first, BODIES.md
+    // 7.5): 256 u, blocked by the wall at x = 150.
+    tick(&mut zone, &world, &[(a, active(0.0, 0.0, 2))], 0);
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 2);
     let x = zone.player(a).unwrap().mover.mv.origin.x;
     assert!(x > 130.0 && x <= 134.0 + 1e-3, "x = {x}");
@@ -846,7 +849,7 @@ fn blink_teleports_along_the_facing_and_stops_at_walls() {
     let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 180.0)]);
     let shade = zone.content.build("shade").unwrap().clone();
     let a = zone.add_player_at(shade, 0, Vec3::new(0.0, 0.0, REST_Z), 180.0);
-    tick(&mut zone, &world, &[(a, active(180.0, 0.0, 1))], 0);
+    tick(&mut zone, &world, &[(a, active(180.0, 0.0, 2))], 0);
     run(&mut zone, &world, &[(a, input(180.0, 0.0, 0))], 2);
     let x = zone.player(a).unwrap().mover.mv.origin.x;
     assert!((x + 256.0).abs() < 1.0, "x = {x}");
@@ -907,7 +910,9 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         &world,
         &[
             (a, input(0.0, 0.0, 0)),
-            (b, active(180.0, 0.0, 2)),
+            // The fortify: the ironclad's third active, after the Brute's charge and
+            // the bellow (BODIES.md 7.5).
+            (b, active(180.0, 0.0, 3)),
             (c, idle),
         ],
         0,
@@ -934,8 +939,9 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         60,
     );
     let pb = zone.player(b).unwrap();
-    // Hammer 90 x 1.2 (STR 15) x 0.6 (armour 0.40) = 64.8 -> 65, fortify ignored.
-    assert_eq!(pb.max_health() - pb.health, 65);
+    // Hammer 90 x 1.2 (STR 15) x 1.25 (the Brute's melee blow, BODIES.md 7.3) x 0.6
+    // (armour 0.40) = 81, fortify ignored.
+    assert_eq!(pb.max_health() - pb.health, 81);
     let before = pb.health;
     // c aims at b where the hammer's knockback left it.
     let to = pb.mover.mv.origin - zone.player(c).unwrap().mover.mv.origin;
@@ -958,10 +964,10 @@ fn fortify_cuts_frost_but_not_the_hammer() {
     );
     let pb = zone.player(b).unwrap();
     // Ice shard 50 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.6
-    // (fortify) = 42.
+    // (fortify) = 42; x1.25 affinity x1.25 magic (BODIES.md 7.3) = 65.6 -> 66.
     assert_eq!(
         before - pb.health,
-        42,
+        66,
         "{}",
         hits(&zone, HitKind::Projectile)
     );
@@ -1876,13 +1882,14 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
     let (mut hammer, mut robe) = (Gear::NONE, Gear::NONE);
     hammer.dealt[stone] = 250;
     robe.taken[stone] = 250;
-    // 25.2 unrounded (the stomp test above).
-    assert_eq!(stomp(Gear::NONE, Gear::NONE), 25);
-    assert_eq!(stomp(hammer, Gear::NONE), 31, "25.2 x 1.227");
-    assert_eq!(stomp(Gear::NONE, robe), 21, "25.2 / 1.227");
+    // 25.2 x 0.9375 unrounded (the stomp test above): the Brute's Ground affinity x1.25
+    // and the melee group's x0.75 on a spell (BODIES.md 7.3).
+    assert_eq!(stomp(Gear::NONE, Gear::NONE), 24);
+    assert_eq!(stomp(hammer, Gear::NONE), 29, "23.6 x 1.227");
+    assert_eq!(stomp(Gear::NONE, robe), 19, "23.6 / 1.227");
     assert_eq!(
         stomp(sword, Gear::NONE),
-        25,
+        24,
         "a sword's edge is not a stomp's"
     );
 
@@ -3743,7 +3750,8 @@ fn a_briar_hurts_everyone_in_it_and_feeds_only_its_own_side() {
         pitch: 30.0,
         ..still
     };
-    let cast = Input { ability: 1, ..down };
+    // The briar is the shaman's second active, after the Sorceress's haste.
+    let cast = Input { ability: 2, ..down };
     tick(
         &mut zone,
         &world,

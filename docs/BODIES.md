@@ -435,14 +435,17 @@ have the attribute alone, until 7.5 gives the arena's presets bodies):
 | INT / STR (MATRIX.md 6) | x0.72 at 3 to x1.6 at 25 | the same, by STR |
 | Affinity (`matrix::AFFINITY`): the spell's element is one of the body's | x1.25 | |
 | Group (`matrix::group_mult`): magic | x1.25 | x0.75 |
-| Group: melee, ranged | x0.75 | x1.0 |
+| Group: melee | x0.75 | x1.25 |
+| Group: ranged | x0.75 | x1.0 |
 | The matrix against the target (MATRIX.md 5) | 0.75 / 1.25 | |
 
 Worked (`matrix::tests::affinity_and_group_stack_on_a_spell`): a Sorceress of Fire at
 INT 25 throws a staff's fireball at 1.6 x 1.25 x 1.25 = **x2.5** of the row; a Brute of
 no element at INT 3 with the same staff at 0.72 x 0.75 = **x0.54**: four and a half
 times apart before the target's element and gear. The Brute's fireball is a puff, and
-nothing forbids it. `AttackerStats.affinity` and `.group` ride with the attacker's
+nothing forbids it; its fist is a quarter more than its STR makes it (added after the
+first arena run of 7.5: with the magic group's x1.56 on every spell and nothing for the
+blade, the frostweaver wiped the blade out, 13 : 43 on CI). `AttackerStats.affinity` and `.group` ride with the attacker's
 stats into every packet; a status's pulse takes neither, as it takes no gear
 (ITEMS.md 3.1). The numbers are the overview's proposal, **to tune at the dummy**.
 
@@ -457,3 +460,22 @@ body the body skill's cell was missing (the build buys no actives) and a worn we
 cell showed the empty hands. Every cell is read from the kit now, by the ability's id,
 which is its row in the pack and one (gm-content numbers them so; the fixture pack
 numbers its rows the same since this change).
+
+### 7.5 The presets are bodies, and the orphan spells find a weapon (built)
+
+- **A preset is a body** (`body` on a `builds.toml` row): ironclad a Brute, blade and
+  musketeer a Soldier, frostweaver and shaman a Sorceress, shade a Thief, mender an
+  Elder, each with the weapon it fights with in nothing and its attributes on the
+  body's floors (the shade's INT 6 and STR 14, the shaman's SPR 6 and STR 12 moved a
+  point to sit on them). The body skill is the first active, so the blade's overhead
+  and the mender's sanctuary left their bought lists. The bots and the arena fight as
+  bodies, so 7.3's factors are measured; the sim tests' numbers moved with them (the
+  ironclad's stomp 25 -> 24, the frostweaver's nova 42 -> 66). A preset is still named
+  by its name (`Ironclad`), a player's build by its body.
+- **The orphan spells**: vanish is the dagger's spell (`spell_of = ["dagger"]`, an Air
+  body), poison cloud the bow's, entangle the hammer's, the warhammer's and the mace's
+  (a Grass body), the war standard the spear's (any body: it has no element). A
+  proposal, so that nothing in the catalogue is reachable by nobody; the director's to
+  keep or move.
+- The content README's table is complete again (every row since the techniques and the
+  bare hands). Content v27.

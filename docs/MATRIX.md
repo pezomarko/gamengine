@@ -173,10 +173,10 @@ base   = amount
 type   = kind_table[kind][D.armour_class]        physical
        | Π element_matrix[element][aspect]        elemental, over D's 1–2 aspects
 body   = group_mult(A.group, kind)               BODIES.md 7.3 (2026-10-20): magic ×1.25 on
-       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, the other
-                                                  groups ×0.75 on spells; the caster's own
-                                                  element ×1.25; a body's, 1 for a preset in
-                                                  nothing and for a pulse
+       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, melee the
+                                                  reverse, ranged ×0.75 on spells; the caster's
+                                                  own element ×1.25; a body's, 1 for a creature
+                                                  and for a pulse
 layer  = physical  && !bypass ARMOR        ? 1 − D.armour            : 1
        × elemental && !bypass MAGIC_SHIELD ? 1 − D.ward              : 1
        × D.Fortify && !bypass MAGIC_SHIELD ? 1 − fortify             : 1
@@ -730,3 +730,20 @@ the weapons' spells and the stacking follow in BODIES.md 7.
   cost), content v24.
 - Section 9.1 (the trainer, the respec) and the budget lines of 9 and 10 are
   superseded by this section; the dummies and the arena rule stand.
+
+## 21. v10 (2026-10-20): the groups, the weapons' spells and the stacking, measured
+
+BODIES.md 7 as built in five steps after section 20: the attack group of the body
+(7.1), the weapon's spell (7.2), the affinity and the group in the pipeline (7.3, the
+`body` term of section 7), the hotbar from the kit (7.4), the presets as bodies (7.5).
+
+**Measured** (`gm-bot/tests/arena.rs`, three seeds × 60 s, 8 v 8, offline, the presets
+as bodies in nothing): ironclad : blade **47 : 21 (2.24)** (2.58 in v8); frostweaver :
+ironclad **40 : 23 (1.74)** (1.63); blade : frostweaver **17 : 36 (0.47)** (0.92 in v8,
+13 : 25 after the staff's second move); mirror 42 : 31. The gate passes: the two
+decided legs point the same way and the blade is not wiped out. What moved it: the
+frostweaver is a Sorceress now, so its shards and its nova are ×1.25 affinity × 1.25
+magic on top of INT 20, and the ironclad's stomp went to the staff while its bellow
+and fortify are ×0.75 as a melee body's spells. The blade's leg against the
+frostweaver is the one to tune, as it has been since v7: the director's numbers for
+`AFFINITY` and `group_mult`, or a Water blade with a spell of its own.

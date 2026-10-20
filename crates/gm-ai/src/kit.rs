@@ -341,19 +341,21 @@ mod tests {
                 ..
             }
         ));
-        // The bellow (MATRIX.md 16): a roar at the feet, used with an enemy in reach; the
-        // fortify a buff. (The stomp was the ironclad's first active until BODIES.md 3.6
-        // made it the staff's second move.)
+        // The Brute's charge first (BODIES.md 7.5), then the bellow (MATRIX.md 16): a
+        // roar at the feet, used with an enemy in reach; then the fortify, a buff. (The
+        // stomp was the ironclad's first active until BODIES.md 3.6 made it the staff's
+        // second move.)
         assert!(matches!(
-            ironclad.actives[0],
+            ironclad.actives[1],
             Some((_, Use::Burst { harmful: true, .. }))
         ));
-        assert!(matches!(ironclad.actives[1], Some((_, Use::Buff))));
+        assert!(matches!(ironclad.actives[2], Some((_, Use::Buff))));
         let shade = plan("shade");
         assert!(shade.stealth);
-        assert!(matches!(shade.actives[0], Some((_, Use::Blink { .. }))));
+        // The Thief's slip first (BODIES.md 7.5), then the blink, the vanish, the cloud.
+        assert!(matches!(shade.actives[1], Some((_, Use::Blink { .. }))));
         assert!(matches!(
-            shade.actives[2],
+            shade.actives[3],
             Some((_, Use::Placed { harmful: true, .. }))
         ));
         // The Warden: a frontal swing, a thrown stone, a telegraphed circle, a stomp.

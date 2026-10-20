@@ -9,13 +9,9 @@ impl Run {
     /// no trainer, nothing redone) and the ask is refused in words.
     pub(super) fn on_respec(&mut self, id: EntityId, build: BuildChoice) {
         let result = resolve_build(&self.cfg, &self.zone, Some(&build)).and_then(|b| {
-            // A body is for keeps (BODIES.md 3.5).
-            if let Some(worn) = self.zone.player(id).map(|p| &p.sheet.build)
-                && worn.body.is_some()
-                && b.body != worn.body
-            {
-                return Err("a body is a new character".into());
-            }
+            // (A body is for keeps in the world, BODIES.md 3.5, where every respec is
+            // refused; a team zone's presets are bodies since BODIES.md 7.5, and a bot's
+            // counter-pick from one to another is the body changing.)
             if self.cfg.wild {
                 return Err("a build is set at creation: there is no trainer".into());
             }
