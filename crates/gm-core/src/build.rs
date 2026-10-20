@@ -1,5 +1,7 @@
-//! Point-buy builds and content packs (MATRIX.md 9 and 10): the budget, the slots, validation,
-//! and the runtime [`Kit`] a build compiles to.
+//! Builds and content packs (MATRIX.md 9 and 10): the slots, validation, and the runtime
+//! [`Kit`] a build compiles to. Nothing is priced in points since 2026-10-20 (MATRIX.md 20):
+//! a build is a body, thirty attribute points, its elements and its mode; what it plays is
+//! the gear's and the body's.
 
 use crate::matrix::{Aspects, Attributes, Derived, Element};
 use crate::tick::{Tick, TickRate};
@@ -7,13 +9,6 @@ use crate::vocab::{
     Ability, ArchetypeFrame, DamageType, Guard, Mode, MoveKind, MoveSelf, Riposte, Trigger, Verb,
 };
 
-/// The kit's budget (MATRIX.md 9): a second aspect and the abilities may cost at most this
-/// many points (40 until 2026-10-16, when the armour class, 0 to 12 of it, moved onto the
-/// chest piece, GEAR.md 3: 34 keeps every preset as it was). Attributes are not in it: they
-/// come from `Attributes::FREE_POINTS`.
-pub const BUDGET: u32 = 34;
-/// Second aspect cost (MATRIX.md 5).
-pub const SECOND_ASPECT_COST: u32 = 10;
 pub const MAX_ACTIVES: usize = 4;
 /// Companions a character commands without a leadership ability, and with every bonus
 /// (COMPANIONS.md 3.2).
@@ -37,7 +32,7 @@ pub enum Slot {
     Extra = 4,
 }
 
-/// An ability as content ships it: the verb script plus its price and gating.
+/// An ability as content ships it: the verb script plus its slot and gating.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
 pub struct AbilityDef {
@@ -45,7 +40,6 @@ pub struct AbilityDef {
     pub key: String,
     pub ability: Ability,
     pub slot: Slot,
-    pub cost: u8,
     /// Required aspect; also the element of every elemental packet in the script.
     pub aspect: Option<Element>,
     /// Squad slots the ability adds while slotted (COMPANIONS.md 3.2).
@@ -125,12 +119,13 @@ pub struct Build {
     pub attributes: Attributes,
     pub aspects: Aspects,
     /// What plays in nothing (GEAR.md 2): the worn weapon brings its own in place of it.
-    /// With a body these three cost no points and are the bare hands' (`bare_hands`).
+    /// With a body these three are the bare hands' (`bare_hands`).
     pub primary: u16,
     pub secondary: u16,
     pub guard: Option<u16>,
-    /// The actives bought with the budget. With a body the body skill stands before
-    /// them, free, so at most `MAX_ACTIVES - 1` here.
+    /// The actives beside the body skill, which stands before them with a body (so at
+    /// most `MAX_ACTIVES - 1` here). A player's body has none since 2026-10-20 (MATRIX.md
+    /// 20: nothing is bought); the presets of the bots and the creatures keep theirs.
     pub actives: Vec<u16>,
 }
 
@@ -253,9 +248,6 @@ pub enum BuildError {
     },
     SharedCooldownGroup(u8),
     TooManyActives,
-    Budget {
-        spent: u32,
-    },
     CreatureOnly(u16),
     /// A chain stage or a mode's extra, slotted by hand (MODES.md 4.3).
     NotSlottable(u16),
@@ -306,7 +298,6 @@ impl core::fmt::Display for BuildError {
                 write!(f, "two abilities share cooldown group {g}")
             }
             BuildError::TooManyActives => write!(f, "at most {MAX_ACTIVES} actives"),
-            BuildError::Budget { spent } => write!(f, "kit costs {spent} of {BUDGET} points"),
             BuildError::AttributePoints { spent } => write!(
                 f,
                 "attributes take {spent} of {} points",
@@ -337,26 +328,6 @@ impl core::fmt::Display for ContentError {
 impl core::error::Error for ContentError {}
 
 impl Build {
-    /// Kit points spent (MATRIX.md 9): the second aspect and the abilities. (The armour
-    /// class cost 0 to 12 until 2026-10-16; it is the chest piece's now, GEAR.md 3, and
-    /// `armour` is what a body no hub dresses fights in.)
-    pub fn cost(&self, pack: &ContentPack) -> u32 {
-        let ability = |i: u16| pack.abilities.get(i as usize).map_or(0, |a| a.cost as u32);
-        let aspects = if self.aspects.count() >= 2 {
-            SECOND_ASPECT_COST
-        } else {
-            0
-        };
-        // With a body (BODIES.md 3.4) the hands are the gear's and the bare hands' and
-        // cost nothing; the budget buys spells and the second element.
-        let hands = if self.body.is_some() {
-            0
-        } else {
-            ability(self.primary) + ability(self.secondary) + self.guard.map_or(0, ability)
-        };
-        aspects + hands + self.actives.iter().map(|&i| ability(i)).sum::<u32>()
-    }
-
     /// Every slotted ability index in kit order: primary, secondary, actives, guard.
     pub fn slots(&self) -> Vec<(u16, Slot)> {
         self.kit_slots(&Worn::NONE)
@@ -430,8 +401,8 @@ impl Build {
         out
     }
 
-    /// MATRIX.md 9: ranges, the free points, aspects, slots, gating, cooldown groups, the
-    /// kit's budget; with a body (BODIES.md 3.2), the body's frame, its floors and the
+    /// MATRIX.md 9: ranges, the free points, aspects, slots, gating, cooldown groups; with
+    /// a body (BODIES.md 3.2), the body's frame, its floors and the
     /// points above them.
     pub fn validate(&self, pack: &ContentPack) -> Result<(), BuildError> {
         if !self.attributes.in_range() {
@@ -456,12 +427,7 @@ impl Build {
         if points > Attributes::FREE_POINTS {
             return Err(BuildError::AttributePoints { spent: points });
         }
-        self.check_kit(pack, false)?;
-        let spent = self.cost(pack);
-        if spent > BUDGET {
-            return Err(BuildError::Budget { spent });
-        }
-        Ok(())
+        self.check_kit(pack, false)
     }
 
     /// A build of a body (BODIES.md 3.5): the body's frame, its floors lifted to where
@@ -633,10 +599,10 @@ impl Build {
             if !creature {
                 let firearm = def.ability.firearm.is_some();
                 match (self.mode, expected) {
-                    (Mode::Gun, Slot::Primary) if !firearm && !def.gun_melee => {
+                    (Mode::Fps, Slot::Primary) if !firearm && !def.gun_melee => {
                         return Err(BuildError::GunNeedsFirearm);
                     }
-                    (Mode::Gun, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
+                    (Mode::Fps, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
                     (Mode::Action | Mode::Rpg, _) if firearm => {
                         return Err(BuildError::FirearmNeedsGun(index));
                     }
@@ -690,10 +656,10 @@ impl ContentPack {
             .map(|i| i as u16)
     }
 
-    /// What a body of `mode` plays in nothing (BODIES.md 3.4): the cheapest plain primary
-    /// the mode holds (a firearm for the gun, anything else otherwise), the kick or the
-    /// cheapest plain secondary, the parry or the cheapest plain guard (none for the
-    /// gun). Ties go to the first listed. The worn things bring their own over these.
+    /// What a body of `mode` plays in nothing (BODIES.md 3.4): the first plain primary
+    /// the mode holds (a firearm for FPS, anything else otherwise), the kick or the first
+    /// plain secondary, the parry or the first plain guard (none for FPS). The worn things
+    /// bring their own over these.
     pub fn bare_hands(&self, mode: Mode) -> (u16, u16, Option<u16>) {
         let plain = |slot: Slot, want_firearm: Option<bool>| -> Option<u16> {
             self.abilities
@@ -703,11 +669,11 @@ impl ContentPack {
                 .filter(|(_, d)| {
                     want_firearm.is_none_or(|want| d.ability.firearm.is_some() == want)
                 })
-                .min_by_key(|(_, d)| d.cost)
                 .map(|(i, _)| i as u16)
+                .next()
         };
-        let gun = mode == Mode::Gun;
-        // The fists, or the knife held as the gun mode's weapon (BODIES.md 6.7); a pack without them (a
+        let gun = mode == Mode::Fps;
+        // The fists, or the knife held as the FPS mode's weapon (BODIES.md 6.7); a pack without them (a
         // fixture) falls back to its cheapest plain weapon of the mode.
         let hands = if gun { "knife_hands" } else { "fists" };
         let primary = self
@@ -838,7 +804,7 @@ impl ContentPack {
             }
             // Every body makes a build of every mode: the bare hands exist and the body
             // validates with its floors and nothing bought.
-            for mode in [Mode::Action, Mode::Rpg, Mode::Gun] {
+            for mode in [Mode::Action, Mode::Rpg, Mode::Fps] {
                 let build =
                     Build::of_body(self, i as u16, mode, b.floors, Aspects::NONE, Vec::new())
                         .map_err(|e| err(e.to_string()))?;
@@ -1015,7 +981,7 @@ impl Kit {
             }
             k += 1;
         }
-        if build.mode == Mode::Gun
+        if build.mode == Mode::Fps
             && kit.abilities.len() < crate::sim::MAX_ABILITIES
             && let Some(index) = pack.find("knife")
             && let Some(def) = pack.abilities.get(index as usize)
@@ -1154,11 +1120,10 @@ mod tests {
     use crate::sim::test_content;
 
     #[test]
-    fn presets_validate_within_the_budget_and_spend_all_their_points() {
+    fn presets_validate_and_spend_all_their_points() {
         let pack = test_content::pack(TickRate::COMBAT);
         pack.validate(TickRate::COMBAT).unwrap();
         for nb in &pack.builds {
-            assert!(nb.build.cost(&pack) <= BUDGET, "{}", nb.name);
             assert_eq!(
                 nb.build.attributes.cost(),
                 Attributes::FREE_POINTS,
@@ -1352,12 +1317,11 @@ mod tests {
             b.validate(&pack),
             Err(BuildError::DuplicateAbility(_))
         ));
-        // Fewer points than the free ones is a build; a kit past the budget is not.
+        // Fewer points than the free ones is a build; and since nothing is priced
+        // (MATRIX.md 20) a second aspect under four plain actives is one too.
         let mut b = base.clone();
         b.attributes.str_ -= 1;
         assert_eq!(b.validate(&pack), Ok(()));
-        // (The armour class is off the kit's bill since GEAR.md 3: a second aspect is
-        // what pushes four plain actives over.)
         let mut b = base.clone();
         b.aspects = Aspects::two(Element::Water, Element::Fire);
         b.actives = (0..pack.abilities.len() as u16)
@@ -1368,11 +1332,7 @@ mod tests {
             })
             .take(MAX_ACTIVES)
             .collect();
-        assert!(
-            matches!(b.validate(&pack), Err(BuildError::Budget { .. })),
-            "{:?}",
-            b.validate(&pack)
-        );
+        assert_eq!(b.validate(&pack), Ok(()), "{b:?}");
         // Fire content needs the Fire aspect (the firebolt is a primary; the blade is Water).
         let mut b = base.clone();
         b.primary = pack.find("firebolt").unwrap();

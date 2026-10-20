@@ -234,8 +234,10 @@ impl ArchetypeFrame {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Mode {
-    /// First person, a firearm in hand (MODES.md 3).
-    Gun,
+    /// First person, a firearm in hand (MODES.md 3). "FPS" since 2026-10-20 (the gun
+    /// mode before); a stored "gun" reads as it.
+    #[cfg_attr(feature = "serde", serde(alias = "gun"))]
+    Fps,
     /// Over the shoulder, free aim, chains and the dodge (MODES.md 4).
     #[default]
     Action,
@@ -244,23 +246,27 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub const ALL: [Mode; 3] = [Mode::Gun, Mode::Action, Mode::Rpg];
+    pub const ALL: [Mode; 3] = [Mode::Fps, Mode::Action, Mode::Rpg];
 
     pub const fn name(self) -> &'static str {
         match self {
-            Mode::Gun => "gun",
+            Mode::Fps => "fps",
             Mode::Action => "action",
             Mode::Rpg => "rpg",
         }
     }
 
+    /// By its name; "gun", the FPS mode's name until 2026-10-20, is read too.
     pub fn from_name(s: &str) -> Option<Mode> {
+        if s == "gun" {
+            return Some(Mode::Fps);
+        }
         Mode::ALL.into_iter().find(|m| m.name() == s)
     }
 
-    /// Seen from behind the body (the action and RPG modes) or from its eyes (the gun).
+    /// Seen from behind the body (the action and RPG modes) or from its eyes (FPS).
     pub const fn third_person(self) -> bool {
-        !matches!(self, Mode::Gun)
+        !matches!(self, Mode::Fps)
     }
 }
 

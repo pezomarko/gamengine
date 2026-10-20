@@ -133,7 +133,7 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     let mut cell = |key: &'static str, slot: Option<u8>, def: Option<u16>| {
         cells.extend(hotbar_cell(c, pack, key, slot, def));
     };
-    if kit.mode == gm_core::vocab::Mode::Gun {
+    if kit.mode == gm_core::vocab::Mode::Fps {
         // The gun mode (MODES.md 3.7): the three weapons, the one in hand lit, then the
         // actives on 4 to 7.
         let knife = kit
@@ -1144,7 +1144,7 @@ mod kit_tests {
     fn f_is_the_kit_in_every_mode() {
         let modes: [(&str, bool, Option<crate::rpg::RpgFrame>); 3] = [
             ("action", false, None),
-            ("gun", true, None),
+            ("fps", true, None),
             ("rpg", false, Some(crate::rpg::RpgFrame::default())),
         ];
         for (mode, gun, rpg) in modes {

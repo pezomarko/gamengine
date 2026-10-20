@@ -142,7 +142,6 @@ pub(crate) struct AbilityToml {
     pub(crate) key: String,
     name: String,
     slot: String,
-    cost: u8,
     aspect: Option<String>,
     /// The look fields (CONTENT.md 3): a picture, the prop held while this is the primary
     /// and nothing is worn, the patch its cues use. Read by `looks`, not compiled.
@@ -1092,7 +1091,6 @@ fn compile_ability(
             ammo: a.ammo.clone(),
         },
         slot,
-        cost: a.cost,
         aspect,
         squad: a.squad,
         creature: a.creature,
@@ -1406,7 +1404,6 @@ mod tests {
         for (a, b) in pack.abilities.iter().zip(&fixture.abilities) {
             assert_eq!(a.key, b.key);
             assert_eq!(a.slot, b.slot, "{}", a.key);
-            assert_eq!(a.cost, b.cost, "{}", a.key);
             assert_eq!(a.aspect, b.aspect, "{}", a.key);
             assert_eq!(a.squad, b.squad, "{}", a.key);
             assert_eq!(a.creature, b.creature, "{}", a.key);
@@ -1470,7 +1467,6 @@ mod tests {
 key = "x"
 name = "X"
 slot = "primary"
-cost = 0
 [[ability.step]]
 melee_arc = { reach = 9999, arc = 90, windup_ms = 1, active_ms = 1, recovery_ms = 1, damage = { amount = 1, type = "slash" } }
 "#;
@@ -1481,7 +1477,6 @@ melee_arc = { reach = 9999, arc = 90, windup_ms = 1, active_ms = 1, recovery_ms 
 key = "y"
 name = "Y"
 slot = "primary"
-cost = 0
 [[ability.step]]
 melee_arc = { reach = 10, arc = 90, windup_ms = 1, active_ms = 1, recovery_ms = 1, damage = { amount = 1, type = "plasma" } }
 "#;
@@ -1491,7 +1486,6 @@ melee_arc = { reach = 10, arc = 90, windup_ms = 1, active_ms = 1, recovery_ms = 
 key = "z"
 name = "Z"
 slot = "primary"
-cost = 0
 cooldwon_ms = 5
 "#;
         assert!(matches!(

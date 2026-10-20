@@ -50,7 +50,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
             .filter(|t| !t.is_empty())
             .and_then(|t| looks.templates.iter().find(|l| l.key == t))
     };
-    let gun = build.mode == Mode::Gun;
+    let gun = build.mode == Mode::Fps;
     // The build's own among `holders`, else the first the build's aspect allows, else
     // the first of no aspect.
     let pick = |holders: &[u16], own: u16| -> Option<u16> {

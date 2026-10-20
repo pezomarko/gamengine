@@ -464,20 +464,17 @@ mod tests {
 key = "sword"
 name = "Sword"
 slot = "primary"
-cost = 2
 prop = "sword_plain"
 icon = "sword"
 [[ability]]
 key = "hammer"
 name = "Hammer"
 slot = "primary"
-cost = 2
 prop = "hammer_plain"
 [[ability]]
 key = "firebolt"
 name = "Firebolt"
 slot = "secondary"
-cost = 4
 sound = "whoosh"
 "#;
 

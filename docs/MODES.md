@@ -39,7 +39,7 @@ Code follows this document; changes to both go in one commit. The numbers are pr
 The build carries it, as content (`builds.toml`, `gm-core::build::Build`):
 
 ```toml
-mode = "gun" | "action" | "rpg"
+mode = "fps" | "action" | "rpg"      # "gun" until 2026-10-20 (MATRIX.md 20); a stored "gun" reads as fps
 ```
 
 Validated with the build (`BuildError`): `gun` needs a primary with a `firearm` block
@@ -63,7 +63,7 @@ The presets' modes are a proposal; an archetype in `action` could as well be `rp
 tavern's list and the people page say the mode with the frame (`blade: striker in mail,
 action`).
 
-## 3. Gun: first person, Counter-Strike 1.6
+## 3. FPS (the gun mode until 2026-10-20): first person, Counter-Strike 1.6
 
 ### 3.1 What is kept from the root
 

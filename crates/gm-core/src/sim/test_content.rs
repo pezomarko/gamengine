@@ -219,12 +219,11 @@ fn ability(
     }
 }
 
-fn def(key: &str, slot: Slot, cost: u8, aspect: Option<Element>, ability: Ability) -> AbilityDef {
+fn def(key: &str, slot: Slot, aspect: Option<Element>, ability: Ability) -> AbilityDef {
     AbilityDef {
         key: key.into(),
         ability,
         slot,
-        cost,
         aspect,
         squad: 0,
         creature: false,
@@ -242,7 +241,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "sword",
             Primary,
-            2,
             None,
             ability(
                 1,
@@ -275,7 +273,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "hammer",
             Primary,
-            2,
             None,
             ability(
                 2,
@@ -308,7 +305,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "staff",
             Primary,
-            0,
             None,
             ability(
                 3,
@@ -338,7 +334,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "dagger",
             Primary,
-            0,
             None,
             ability(
                 4,
@@ -372,7 +367,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "crossbow",
             Primary,
-            2,
             None,
             ability(
                 10,
@@ -392,7 +386,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "firebolt",
             Primary,
-            2,
             Some(Element::Fire),
             ability(
                 11,
@@ -427,7 +420,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "ice_shard",
             Primary,
-            2,
             Some(Element::Water),
             ability(
                 12,
@@ -462,7 +454,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "stone_throw",
             Primary,
-            2,
             Some(Element::Ground),
             ability(
                 13,
@@ -482,7 +473,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "shadow_dart",
             Primary,
-            2,
             Some(Element::Air),
             ability(
                 14,
@@ -512,7 +502,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "spark",
             Primary,
-            2,
             Some(Element::Electric),
             ability(
                 15,
@@ -548,7 +537,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "shield_wall",
             Guard,
-            6,
             None,
             ability(
                 20,
@@ -574,7 +562,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "parry",
             Guard,
-            4,
             None,
             ability(
                 21,
@@ -625,7 +612,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "brace",
             Guard,
-            2,
             None,
             ability(
                 22,
@@ -652,7 +638,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "dash",
             Active,
-            6,
             None,
             ability(
                 30,
@@ -682,7 +667,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "leap",
             Active,
-            6,
             None,
             ability(
                 31,
@@ -711,7 +695,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "charge",
             Active,
-            6,
             None,
             ability(
                 32,
@@ -741,7 +724,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "blink",
             Active,
-            10,
             Some(Element::Air),
             ability(
                 33,
@@ -767,7 +749,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "overhead",
             Active,
-            8,
             None,
             ability(
                 34,
@@ -797,7 +778,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "stomp",
             Secondary,
-            10,
             Some(Element::Ground),
             ability(
                 35,
@@ -840,7 +820,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "fortify",
             Active,
-            8,
             Some(Element::Ground),
             ability(
                 36,
@@ -868,7 +847,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "frost_nova",
             Secondary,
-            10,
             Some(Element::Water),
             ability(
                 37,
@@ -919,7 +897,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "haste",
             Active,
-            8,
             None,
             ability(
                 38,
@@ -947,7 +924,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "thunderclap",
             Secondary,
-            10,
             Some(Element::Electric),
             ability(
                 39,
@@ -987,7 +963,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "vanish",
             Active,
-            8,
             Some(Element::Air),
             ability(
                 40,
@@ -1015,7 +990,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "slip",
             Active,
-            6,
             None,
             ability(
                 40,
@@ -1043,7 +1017,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "poison_cloud",
             Active,
-            8,
             Some(Element::Air),
             ability(
                 41,
@@ -1088,7 +1061,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "fireball",
             Active,
-            12,
             Some(Element::Fire),
             ability(
                 42,
@@ -1146,7 +1118,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "mend",
             Secondary,
-            4,
             None,
             ability(
                 43,
@@ -1192,7 +1163,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "sanctuary",
             Active,
-            10,
             None,
             ability(
                 44,
@@ -1237,7 +1207,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ..def(
                 "war_standard",
                 Active,
-                10,
                 None,
                 ability(
                     45,
@@ -1284,7 +1253,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ..def(
                 "maul",
                 Primary,
-                0,
                 None,
                 ability(
                     46,
@@ -1325,7 +1293,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ..def(
                 "quake",
                 Active,
-                0,
                 Some(Element::Ground),
                 ability(
                     47,
@@ -1363,7 +1330,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "musket",
             Primary,
-            2,
             None,
             firearm(
                 r,
@@ -1396,7 +1362,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "kick",
             Secondary,
-            2,
             None,
             ability(
                 49,
@@ -1426,7 +1391,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "shield_bash",
             Secondary,
-            2,
             None,
             ability(
                 50,
@@ -1462,7 +1426,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "throwing_knife",
             Secondary,
-            3,
             None,
             ability(
                 51,
@@ -1491,7 +1454,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "sword_2",
             Extra,
-            0,
             None,
             ability(
                 36,
@@ -1524,7 +1486,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "sword_3",
             Extra,
-            0,
             None,
             ability(
                 37,
@@ -1578,7 +1539,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "dagger_2",
             Extra,
-            0,
             None,
             ability(
                 38,
@@ -1611,7 +1571,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "dagger_3",
             Extra,
-            0,
             None,
             ability(
                 39,
@@ -1665,7 +1624,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "knife",
             Extra,
-            0,
             None,
             ability(
                 40,
@@ -1695,7 +1653,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "pistol",
             Secondary,
-            3,
             None,
             firearm(
                 r,
@@ -1731,7 +1688,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "carbine",
             Primary,
-            2,
             None,
             firearm(
                 r,
@@ -1787,7 +1743,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "greatsword",
             Primary,
-            2,
             None,
             ability(
                 44,
@@ -1828,7 +1783,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "bellow",
             Active,
-            8,
             None,
             ability(
                 45,
@@ -1886,7 +1840,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "slam",
             Secondary,
-            4,
             None,
             ability(
                 52,
@@ -1921,7 +1874,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "briar",
             Active,
-            10,
             Some(Element::Grass),
             ability(
                 53,
@@ -1964,7 +1916,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "entangle",
             Active,
-            10,
             Some(Element::Grass),
             ability(
                 54,
@@ -2008,7 +1959,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "axe",
             Primary,
-            2,
             None,
             ability(
                 55,
@@ -2041,7 +1991,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "spear",
             Primary,
-            2,
             None,
             ability(
                 56,
@@ -2074,7 +2023,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "bow",
             Primary,
-            2,
             None,
             ability(
                 57,
@@ -2094,7 +2042,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "wand",
             Primary,
-            2,
             None,
             ability(
                 58,
@@ -2115,7 +2062,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "mace",
             Primary,
-            2,
             None,
             ability(
                 59,
@@ -2148,7 +2094,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "katana",
             Primary,
-            2,
             None,
             ability(
                 60,
@@ -2181,7 +2126,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "claymore",
             Primary,
-            2,
             None,
             ability(
                 61,
@@ -2214,7 +2158,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "greataxe",
             Primary,
-            2,
             None,
             ability(
                 62,
@@ -2247,7 +2190,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "warhammer",
             Primary,
-            2,
             None,
             ability(
                 63,
@@ -2280,7 +2222,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "scythe",
             Primary,
-            2,
             None,
             ability(
                 64,
@@ -2315,7 +2256,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "thorn",
             Primary,
-            2,
             Some(Element::Grass),
             ability(
                 65,
@@ -2350,7 +2290,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "flame_burst",
             Secondary,
-            8,
             Some(Element::Fire),
             ability(
                 66,
@@ -2393,7 +2332,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "briar_burst",
             Secondary,
-            8,
             Some(Element::Grass),
             ability(
                 67,
@@ -2436,7 +2374,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "gust",
             Secondary,
-            6,
             Some(Element::Air),
             ability(
                 68,
@@ -2471,7 +2408,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "staff_sweep",
             Secondary,
-            2,
             None,
             ability(
                 69,
@@ -2501,7 +2437,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "pommel",
             Secondary,
-            2,
             None,
             ability(
                 70,
@@ -2531,7 +2466,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "thrust",
             Primary,
-            2,
             None,
             ability(
                 71,
@@ -2561,7 +2495,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "hammer_sweep",
             Primary,
-            2,
             None,
             ability(
                 72,
@@ -2591,7 +2524,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "volley",
             Primary,
-            2,
             None,
             ability(
                 73,
@@ -2618,7 +2550,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "backstab",
             Primary,
-            2,
             None,
             ability(
                 74,
@@ -2655,7 +2586,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "fists",
             Primary,
-            0,
             None,
             ability(
                 0,
@@ -2685,7 +2615,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
         def(
             "fists_2",
             Extra,
-            0,
             None,
             ability(
                 0,
@@ -2718,7 +2647,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ..def(
                 "knife_hands",
                 Primary,
-                0,
                 None,
                 ability(
                     0,
@@ -2871,7 +2799,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         NamedBuild {
             name: "musketeer".into(),
             build: Build {
-                mode: Mode::Gun,
+                mode: Mode::Fps,
                 body: None,
                 frame: ArchetypeFrame::Striker,
                 attributes: Attributes::new(10, 17, 13, 5, 10),
@@ -2967,7 +2895,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             wears: Default::default(),
             might: 2.0,
         },
-        // The town (2026-10-06): the dummy and the trainer.
+        // The town (2026-10-06): the dummy.
         CreatureDef {
             key: "dummy".into(),
             name: "Training dummy".into(),
@@ -2992,33 +2920,6 @@ pub fn pack(rate: TickRate) -> ContentPack {
             still: true,
             npc: false,
             role: String::new(),
-            wears: Default::default(),
-            might: 1.0,
-        },
-        CreatureDef {
-            key: "trainer".into(),
-            name: "Trainer".into(),
-            build: Build {
-                mode: Mode::Action,
-                body: None,
-                frame: ArchetypeFrame::Striker,
-                attributes: Attributes::flat(5),
-                aspects: Aspects::one(Element::Fire),
-                primary: id(&pack, "staff"),
-                secondary: id(&pack, "kick"),
-                guard: None,
-                actives: vec![],
-            },
-            health: 1000,
-            stagger_threshold: 0,
-            sight: 0.0,
-            leash: 0.0,
-            boss: false,
-            respawn_s: 0,
-            loot: None,
-            still: true,
-            npc: true,
-            role: "trainer".into(),
             wears: Default::default(),
             might: 1.0,
         },

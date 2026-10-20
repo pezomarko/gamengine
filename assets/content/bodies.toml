@@ -1,9 +1,9 @@
 # The bodies (BODIES.md 3.1): who a player's character is. A body is a frame (the hitbox
 # and the gait, MATRIX.md 3), five attribute floors summing to 25 (each 3..=25; a 3 where
 # the body is plainly bad at something), one body skill (an `active` of no aspect, the
-# first active of every build of the body, at no cost) and the stamina pool's share
-# (percent; the whelp's youth). A player picks one at creation and keeps it; the thirty
-# points, the element and the spells are the trainer's to redo. The presets of
+# first active of every build of the body) and the stamina pool's share (percent; the
+# whelp's youth). A player picks one at creation with the thirty points and the element,
+# and keeps all of it (MATRIX.md 20: no trainer, nothing redone). The presets of
 # builds.toml are the bots', the creatures' and the arena's, and no player's.
 # `blurb` is what the body is, in a line or two of plain words (at most 160 characters
 # of ASCII). The avatar is the frame's (CONTENT.md 3.2) until a body has a model of its

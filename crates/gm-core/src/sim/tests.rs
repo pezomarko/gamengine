@@ -2492,7 +2492,7 @@ fn a_gun_build_carries_its_knife_and_loads_at_a_spawn() {
     let (_, zone, a, _) = gun_duel(0.0, 400.0);
     let p = zone.player(a).unwrap();
     let kit = &p.sheet.kit;
-    assert_eq!(kit.mode, crate::vocab::Mode::Gun);
+    assert_eq!(kit.mode, crate::vocab::Mode::Fps);
     assert!(kit.knife.is_some(), "the knife comes with the mode");
     assert!(kit.guard.is_none());
     assert_eq!(

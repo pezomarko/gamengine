@@ -349,6 +349,7 @@ picked, what each does and is weak to on the pointer; the points start at the fl
 - The characters list says where a character is without naming its body again (the
   ribbon over it does).
 
-Not decided: whether a body's skill is the body's alone (today every aspectless active
-is on the trainer's list for every body).
+Decided 2026-10-20 (MATRIX.md 20): there is no trainer and nothing is bought, so a
+body's skill is the body's alone by construction; the groups (melee, magic, ranged), the
+weapons' spells and the stacking are section 7, the next job.
 

@@ -130,9 +130,7 @@ impl App {
         else {
             return;
         };
-        // Whether the character's page may wear its draft here, and the UI's scale this
-        // frame: read before the renderer is borrowed for the frame.
-        let at_trainer = self.at_trainer();
+        // The UI's scale this frame: read before the renderer is borrowed for the frame.
         let chosen = self.ui_scale_choice();
         self.touch_frame(watching, bench);
         let Some(frame) = self.acquire(camera, event_loop) else {
@@ -143,7 +141,7 @@ impl App {
         let actions = if bench {
             Actions::default()
         } else {
-            self.screens_frame(chosen, returns, at_trainer)
+            self.screens_frame(chosen, returns)
         };
         let doll = self.doll_frame(frame_dt);
         if !self.present(frame, vp, doll, bench) {
@@ -690,7 +688,7 @@ impl App {
     /// what they asked for this frame. The renderer and the toolkit's memory are taken
     /// out of `self` for the drawing, so that the screens can ask the client what they
     /// need, and put back after.
-    fn screens_frame(&mut self, chosen: u8, returns: bool, at_trainer: bool) -> Actions {
+    fn screens_frame(&mut self, chosen: u8, returns: bool) -> Actions {
         let mut actions = Actions::default();
         let Some(mut a) = self.active.take() else {
             return actions;
@@ -721,7 +719,7 @@ impl App {
                 actions.front = front.frame(&mut ui);
             }
         } else {
-            self.game_screens(&mut ui, &mut actions, returns, at_trainer);
+            self.game_screens(&mut ui, &mut actions, returns);
         }
         ui.end();
         if std::mem::take(&mut state.presses) > 0 {
@@ -777,7 +775,6 @@ impl App {
         ui: &mut Ui<'_, C>,
         actions: &mut Actions,
         returns: bool,
-        at_trainer: bool,
     ) {
         let playing = self.online.as_ref().is_some_and(|o| o.client.is_some());
         if playing {
@@ -799,7 +796,7 @@ impl App {
         self.bag_screen(ui, actions, &me);
         self.smithy_screen(ui, actions);
         self.people_screen(ui, actions, &me);
-        self.pages_screen(ui, actions, at_trainer);
+        self.pages_screen(ui, actions);
         self.menu_screen(ui, actions, playing, returns);
     }
 
@@ -913,14 +910,9 @@ impl App {
         );
     }
 
-    /// The game master's page (GM.md 4) and the character's page (MATRIX.md 9.1), each
+    /// The game master's page (GM.md 4) and the character's page (CLIENT.md 4.5), each
     /// under nothing else.
-    fn pages_screen<C: ui::Canvas>(
-        &mut self,
-        ui: &mut Ui<'_, C>,
-        actions: &mut Actions,
-        at_trainer: bool,
-    ) {
+    fn pages_screen<C: ui::Canvas>(&mut self, ui: &mut Ui<'_, C>, actions: &mut Actions) {
         if let (Some(page), Some(o), None, None, None) = (
             &mut self.screens.gm_page,
             &self.online,
@@ -952,8 +944,6 @@ impl App {
                 own: &c.sheet.build,
                 worn: &o.worn,
                 rate: o.rate,
-                at_trainer,
-                note: &o.respec_note,
             };
             actions.character = page.frame(ui, &view);
         }

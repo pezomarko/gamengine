@@ -246,7 +246,7 @@ impl Run {
             let Some(p) = self.zone.player(s.id) else {
                 continue;
             };
-            if p.sheet.kit.mode != gm_core::vocab::Mode::Gun {
+            if p.sheet.kit.mode != gm_core::vocab::Mode::Fps {
                 continue;
             }
             let held = p.mover.held;
@@ -275,7 +275,7 @@ impl Run {
             let Some(p) = self.zone.player(s.id) else {
                 continue;
             };
-            if p.sheet.kit.mode == gm_core::vocab::Mode::Gun || !p.alive || p.ghost {
+            if p.sheet.kit.mode == gm_core::vocab::Mode::Fps || !p.alive || p.ghost {
                 continue;
             }
             let now = sheathed_now(

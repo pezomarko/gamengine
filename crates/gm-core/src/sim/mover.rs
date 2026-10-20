@@ -292,7 +292,7 @@ impl Mover {
     /// The ability the primary mouse button fires (MODES.md 3.7): the weapon in hand in
     /// the gun mode, the primary elsewhere.
     pub fn in_hand(&self, kit: &crate::build::Kit) -> Option<u8> {
-        if kit.mode != crate::vocab::Mode::Gun {
+        if kit.mode != crate::vocab::Mode::Fps {
             return kit.primary;
         }
         match self.held {
@@ -558,7 +558,7 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
     guard_step(sheet, m, input, pressed, now, staggered, actions);
 
     // The weapon in hand (MODES.md 3.7): a switch cancels a reload under way.
-    if kit.mode == Mode::Gun && input.held != m.held && input.held <= 2 && !staggered {
+    if kit.mode == Mode::Fps && input.held != m.held && input.held <= 2 && !staggered {
         m.guns[m.held.min(1) as usize].reload_until = None;
         m.held = input.held;
     }
@@ -570,7 +570,7 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         kit.actives[input.ability as usize - 1]
     } else if pressed & buttons::PRIMARY != 0 || (auto && input.buttons & buttons::PRIMARY != 0) {
         primary
-    } else if pressed & buttons::SECONDARY != 0 && kit.mode != Mode::Gun {
+    } else if pressed & buttons::SECONDARY != 0 && kit.mode != Mode::Fps {
         kit.secondary
     } else if pressed & buttons::ABILITY1 != 0 {
         kit.actives[0]
@@ -775,7 +775,7 @@ fn guard_step(
 /// rounds are kept (and the empty magazine begins it again once the body can).
 fn reload_step(sheet: &Sheet, m: &mut Mover, pressed: u16, now: Tick, staggered: bool) {
     let kit = &sheet.kit;
-    if kit.mode != Mode::Gun || m.held > 1 {
+    if kit.mode != Mode::Fps || m.held > 1 {
         return;
     }
     let Some(f) = m

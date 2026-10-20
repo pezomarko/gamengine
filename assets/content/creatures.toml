@@ -3,7 +3,7 @@
 # here. Abilities marked `creature = true` in abilities.toml are theirs alone. A creature may
 # hold a ranged primary in its secondary slot (the range rule of MATRIX.md 10 is for players).
 # `still = true` stands and does nothing (the dummy); `npc = true` cannot be hurt and is spoken
-# to with `E` (the trainer). `might` multiplies a creature's damage (1 = a player's numbers).
+# to with `E` (the smith). `might` multiplies a creature's damage (1 = a player's numbers).
 # v2 (2026-10-06): players have about seven times v1's health; creatures three times, and
 # their blows two and a half.
 
@@ -45,7 +45,7 @@ standard = ["core/iron", "frame/ash", "catalyst/basalt"]
 top = ["core/dragonbone", "frame/whalebone", "catalyst/basalt"]
 coin = 30
 
-# The town (2026-10-06): a dummy to count one's damage on and a trainer to redo the build at.
+# The town (2026-10-06): a dummy to count one's damage on.
 
 [[creature]]
 key = "dummy"
@@ -61,21 +61,6 @@ sight = 0
 leash = 0
 respawn_s = 5
 still = true
-
-[[creature]]
-key = "trainer"
-name = "Trainer"
-frame = "striker"
-aspects = ["fire"]
-attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
-health = 1000
-primary = "staff"
-secondary = "kick"
-sight = 0
-leash = 0
-still = true
-npc = true
-role = "trainer"
 
 # The blacksmith (ITEMS.md 6.6, 2026-10-19): stands at the forge by the mouth of the
 # dummies' street, sells every material, and the forge beside him makes a craft of them

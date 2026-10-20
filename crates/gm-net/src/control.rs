@@ -3,9 +3,10 @@
 use bitcode::{Decode, Encode};
 use gm_core::build::{Build, ContentPack, Worn};
 
-/// How near the trainer a body must stand to wear a new build in the world (MATRIX.md
-/// 9.1): the zone enforces it, the client offers the button by it.
-pub const TRAINER_REACH: f32 = 160.0;
+/// How near somebody of the town (the smith, ITEMS.md 6.6) a body must stand to deal
+/// with them: the zone enforces it, the client offers the key by it. (The trainer's
+/// reach until 2026-10-20, MATRIX.md 20.)
+pub const NPC_REACH: f32 = 160.0;
 
 /// How a client asks for a build: a preset by name (the zone resolves it against its
 /// content; the bots' and the arena's), a full allocation (validated by the zone against
@@ -18,10 +19,11 @@ pub enum BuildChoice {
     Body(BodyChoice),
 }
 
-/// A player's choice at creation and at the trainer (BODIES.md 3.5): the body by key,
-/// the mode, the five attributes (at or above the body's floors, thirty points above
-/// them at most), the aspects and the actives bought with the budget. The frame, the
-/// body skill and the bare hands are the body's and the content's.
+/// A player's choice at creation (BODIES.md 3.5): the body by key, the mode, the five
+/// attributes (at or above the body's floors, thirty points above them), the aspects,
+/// and the actives (none for a player since MATRIX.md 20; the arena's and the bots'
+/// presets keep theirs). The frame, the body skill and the bare hands are the body's
+/// and the content's.
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct BodyChoice {
     pub body: String,
@@ -240,7 +242,8 @@ pub enum FromClient {
         team: u8,
     },
     Chat(String),
-    /// Applied at the next respawn (MATRIX.md 9); answered by `RespecResult`.
+    /// A team zone's (MATRIX.md 9.1): applied at the next respawn; the world refuses it
+    /// (MATRIX.md 20). Answered by `RespecResult`.
     Respec(BuildChoice),
     /// Ask the hub (through the zone) for a ticket to another zone (HUB.md 3.3).
     Travel(String),
