@@ -727,6 +727,16 @@ pub struct Ability {
 
 /// Validation limits (VOCABULARY.md section 11). Content outside these ranges fails to load.
 impl Ability {
+    /// Whether it shoots (GEAR.md 5.1): a firearm, or any step that launches a bolt (the
+    /// crossbow, the bow, a wand's or a staff's bolt). What an FPS build's hands take.
+    pub fn shoots(&self) -> bool {
+        self.firearm.is_some()
+            || self
+                .steps
+                .iter()
+                .any(|s| matches!(s.verb, Verb::Projectile(_)))
+    }
+
     /// The stack a shot draws on (GEAR.md 7, MODES.md 11.2): a firearm's `ammo`, else the
     /// ability's own; `None` for neither.
     pub fn ammo_stack(&self) -> Option<&str> {

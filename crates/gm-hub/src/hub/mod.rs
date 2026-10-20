@@ -1156,6 +1156,7 @@ pub fn hands(cfg: &HubConfig, build: &Build) -> Vec<String> {
 pub struct Hands {
     pub mode: gm_core::vocab::Mode,
     pub firearms: Vec<String>,
+    pub shooters: Vec<String>,
     pub presets: Vec<(String, Vec<String>)>,
 }
 
@@ -1164,20 +1165,28 @@ impl Hands {
         crate::economy::Holding {
             mode: self.mode,
             firearms: &self.firearms,
+            shooters: &self.shooters,
         }
     }
 }
 
 /// The models a firearm ability holds (`economy::fits`): the musket, the pistol, the
-/// carbine; what a gun build's hands are for and nobody else's.
+/// carbine; what no action or RPG build's hands take.
 pub fn firearm_props(cfg: &HubConfig) -> Vec<String> {
+    props_where(cfg, |def| def.ability.firearm.is_some())
+}
+
+/// The models a primary that shoots holds (`economy::fits`, GEAR.md 5.1): the firearms,
+/// the crossbow, the bow, the wand; what an FPS build's hands are for.
+pub fn shooter_props(cfg: &HubConfig) -> Vec<String> {
+    props_where(cfg, |def| {
+        def.slot == gm_core::build::Slot::Primary && def.ability.shoots()
+    })
+}
+
+fn props_where(cfg: &HubConfig, pick: impl Fn(&gm_core::build::AbilityDef) -> bool) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for def in cfg
-        .content
-        .abilities
-        .iter()
-        .filter(|a| a.ability.firearm.is_some())
-    {
+    for def in cfg.content.abilities.iter().filter(|a| pick(a)) {
         let prop = cfg
             .looks
             .abilities
@@ -1248,6 +1257,7 @@ async fn hands_of(hub: &Hub, character: CharacterId) -> Result<Hands, HubError> 
     Ok(Hands {
         mode: row.build.mode,
         firearms: firearm_props(&hub.cfg),
+        shooters: shooter_props(&hub.cfg),
         presets: preset_hands(&hub.cfg),
     })
 }
