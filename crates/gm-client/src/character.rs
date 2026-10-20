@@ -143,8 +143,12 @@ pub fn build_editor_wearing<C: Canvas>(
         let mut mode = MODES.iter().position(|m| *m == b.mode).unwrap_or(0);
         let modes = Rect::new(row.x + label_w, row.y, row.w - label_w, row.h);
         if ui.choice(modes, "mode", &["action", "rpg", "fps"], &mut mode) {
-            let (primary, secondary, guard) = pack.bare_hands(MODES[mode]);
             b.mode = MODES[mode];
+        }
+        // The bare hands follow the group and the element (BODIES.md 7) while the build
+        // is drafted; a worn build's stand as created.
+        if !spells {
+            let (primary, secondary, guard) = b.bare_hands(pack);
             b.primary = primary;
             b.secondary = secondary;
             b.guard = guard;
@@ -514,11 +518,22 @@ fn creation_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack
         .body_skill(pack)
         .map(|i| name_of(pack, i))
         .unwrap_or_default();
+    let group = b.group(pack);
+    let fights = match group {
+        gm_core::build::Group::Melee => "fists until a weapon is in hand",
+        gm_core::build::Group::Magic => {
+            "a weak bolt of your element until a staff or a wand is in hand, which casts it harder"
+        }
+        gm_core::build::Group::Ranged => {
+            "the knife until a bow or a gun is in hand, and again when the gun is empty"
+        }
+    };
     let text = format!(
-        "Empty-handed: {hands}. A weapon in the right hand brings its blow and its second \
-         move; a shield or a focus in the left brings the guard.\n\nBody skill: {skill}, \
-         free, always on the first key.\n\nSpells come with the weapons that carry them: \
-         the element picked here is what a staff casts, and what you resist."
+        "You fight {}: {fights}. Empty-handed: {hands}. A weapon in the right hand brings \
+         its blow and its second move; a shield or a focus in the left brings the guard.\n\n\
+         Body skill: {skill}, free, always on the first key.\n\nSpells come with the weapons \
+         that carry them: the element picked here is what a staff casts, and what you resist.",
+        group.name()
     );
     let r = Rect::new(
         words.x,
@@ -1283,14 +1298,16 @@ fn sheet_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b
     let mut col = Column::new(area, gap);
     let who = match b.body_def(pack) {
         Some(body) => format!(
-            "{}  |  {}  |  {} mode",
+            "{}  |  {}  |  {}  |  {} mode",
             body.name,
             crate::front::frame_name(body.frame),
+            b.group(pack).name(),
             b.mode.name()
         ),
         None => format!(
-            "{}  |  {} mode",
+            "{}  |  {}  |  {} mode",
             crate::front::frame_name(b.frame),
+            b.group(pack).name(),
             b.mode.name()
         ),
     };
@@ -1374,6 +1391,7 @@ fn hands_column<C: Canvas>(
             Slot::Guard if worn.guard.is_some() => "the off hand",
             Slot::Guard => "the empty off hand",
             Slot::Active if b.body_skill(pack) == Some(i) => "the body",
+            Slot::Active if worn.spell == Some(i) => "the weapon's spell",
             Slot::Active => "the build",
             Slot::Extra => continue,
         };
@@ -1515,7 +1533,7 @@ mod tests {
         // An aspect the build lacks; what is in the kit already is fine. (The nova and
         // the stomp are the staff's second moves since BODIES.md 3.6: secondaries.)
         assert_eq!(
-            why_not(&pack, &ironclad, Slot::Secondary, by("frost_nova")).as_deref(),
+            why_not(&pack, &ironclad, Slot::Active, by("frost_nova")).as_deref(),
             Some("needs the water aspect")
         );
         assert_eq!(why_not(&pack, &ironclad, Slot::Active, by("fortify")), None);

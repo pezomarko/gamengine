@@ -46,8 +46,8 @@ pub struct AbilityDef {
     pub squad: u8,
     /// Only a creature may slot it (COMPANIONS.md 8.1).
     pub creature: bool,
-    /// A melee primary a gun build may hold (MODES.md 2, BODIES.md 6.7): the knife, the
-    /// gun mode's bare hands. Everything else a gun build swings is a firearm.
+    /// A primary an FPS build may hold beside a firearm (MODES.md 2, BODIES.md 6.7 and
+    /// 7): the empty hands of a body (the knife, the fists, the magic blows).
     pub gun_melee: bool,
 }
 
@@ -129,6 +129,75 @@ pub struct Build {
     pub actives: Vec<u16>,
 }
 
+/// How a body attacks (BODIES.md 7, 2026-10-20): what its empty hands do, and what a
+/// weapon upgrades. The melee group's hands are fists, the magic group's a weak bolt of
+/// its element (force without one), the ranged group's the knife, until a weapon is
+/// held. Of a build without a body (a preset, a creature) it is the mode's: FPS ranged,
+/// RPG magic, action melee.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+pub enum Group {
+    Melee,
+    Magic,
+    Ranged,
+}
+
+impl Group {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Group::Melee => "melee",
+            Group::Magic => "magic",
+            Group::Ranged => "ranged",
+        }
+    }
+
+    /// A bodiless build's group: the mode's.
+    pub const fn of_mode(mode: Mode) -> Group {
+        match mode {
+            Mode::Fps => Group::Ranged,
+            Mode::Rpg => Group::Magic,
+            Mode::Action => Group::Melee,
+        }
+    }
+
+    pub fn from_name(s: &str) -> Option<Group> {
+        [Group::Melee, Group::Magic, Group::Ranged]
+            .into_iter()
+            .find(|g| g.name() == s)
+    }
+}
+
+/// A body's group (BODIES.md 7): its own, or `ByMode` (the Soldier: ranged in the FPS
+/// mode, melee in the others).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+pub enum BodyGroup {
+    Fixed(Group),
+    ByMode,
+}
+
+impl BodyGroup {
+    pub const fn in_mode(self, mode: Mode) -> Group {
+        match self {
+            BodyGroup::Fixed(g) => g,
+            BodyGroup::ByMode => match mode {
+                Mode::Fps => Group::Ranged,
+                Mode::Action | Mode::Rpg => Group::Melee,
+            },
+        }
+    }
+
+    /// `melee`, `magic`, `ranged` or `by_mode`.
+    pub fn from_name(s: &str) -> Option<BodyGroup> {
+        if s == "by_mode" {
+            return Some(BodyGroup::ByMode);
+        }
+        Group::from_name(s).map(BodyGroup::Fixed)
+    }
+}
+
 /// A body (BODIES.md 3): who the character is. Its frame is the hitbox and the gait, its
 /// floors are where the thirty points start, its skill is the first active, free, and
 /// its stamina is the pool's share (the whelp's youth). A player picks one at creation
@@ -140,6 +209,8 @@ pub struct BodyDef {
     pub key: String,
     pub name: String,
     pub frame: ArchetypeFrame,
+    /// How it attacks (BODIES.md 7): what its empty hands do.
+    pub group: BodyGroup,
     /// The five floors, each `Attributes::MIN..=MAX`, summing to `Attributes::FLOOR_SUM`.
     pub floors: Attributes,
     /// The body skill: an `active` of no aspect and no creature's, the first active of
@@ -171,6 +242,9 @@ pub struct Worn {
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
+    /// The spell the weapon in the right hand brings (BODIES.md 7.2): a staff's or a
+    /// wand's of the body's element, the active after the body skill; `None`: nothing.
+    pub spell: Option<u16>,
     /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
     /// holds its prop and the build may use, the one in `primary` among them; the K page
     /// offers them, and the build's stored primary picks one when it is one of them.
@@ -197,6 +271,7 @@ impl Worn {
         primary: None,
         secondary: None,
         guard: None,
+        spell: None,
         techniques: Vec::new(),
         armour: 0.0,
         ward: 0.0,
@@ -343,6 +418,18 @@ impl Build {
         self.body_def(pack).map(|b| b.skill)
     }
 
+    /// How this build attacks (BODIES.md 7): the body's group in this mode, else the
+    /// mode's.
+    pub fn group(&self, pack: &ContentPack) -> Group {
+        self.body_def(pack)
+            .map_or(Group::of_mode(self.mode), |b| b.group.in_mode(self.mode))
+    }
+
+    /// The bare hands of this build (BODIES.md 7): what its group plays in nothing.
+    pub fn bare_hands(&self, pack: &ContentPack) -> (u16, u16, Option<u16>) {
+        pack.bare_hands(self.group(pack), self.aspects, self.mode)
+    }
+
     /// Where the thirty points start: the body's floors, or five each without one.
     pub fn floors(&self, pack: &ContentPack) -> Attributes {
         self.body_def(pack)
@@ -394,6 +481,13 @@ impl Build {
             (worn.secondary.unwrap_or(self.secondary), Slot::Secondary),
         ];
         out.extend(skill.map(|i| (i, Slot::Active)));
+        // The weapon's spell (BODIES.md 7.2), after the body skill; a preset that holds
+        // it among its own actives (the arena's frostweaver, the nova) has it once.
+        out.extend(
+            worn.spell
+                .filter(|i| !self.actives.contains(i))
+                .map(|i| (i, Slot::Active)),
+        );
         out.extend(self.actives.iter().map(|&i| (i, Slot::Active)));
         if let Some(g) = worn.guard.or(self.guard) {
             out.push((g, Slot::Guard));
@@ -445,7 +539,7 @@ impl Build {
             .bodies
             .get(body as usize)
             .ok_or(BuildError::UnknownBody(body))?;
-        let (primary, secondary, guard) = pack.bare_hands(mode);
+        let (primary, secondary, guard) = pack.bare_hands(def.group.in_mode(mode), aspects, mode);
         Ok(Build {
             mode,
             body: Some(body),
@@ -656,11 +750,17 @@ impl ContentPack {
             .map(|i| i as u16)
     }
 
-    /// What a body of `mode` plays in nothing (BODIES.md 3.4): the first plain primary
-    /// the mode holds (a firearm for FPS, anything else otherwise), the kick or the first
-    /// plain secondary, the parry or the first plain guard (none for FPS). The worn things
-    /// bring their own over these.
-    pub fn bare_hands(&self, mode: Mode) -> (u16, u16, Option<u16>) {
+    /// What a body of `group` with `aspects` plays in nothing in `mode` (BODIES.md 7):
+    /// the fists (melee), the bolt of the first element it holds or of force (magic),
+    /// the knife (ranged); the kick; the parry (none in FPS). A pack without them (a
+    /// fixture) falls back to the first plain primary the mode holds (a firearm for FPS,
+    /// anything else otherwise). The worn things bring their own over these.
+    pub fn bare_hands(
+        &self,
+        group: Group,
+        aspects: Aspects,
+        mode: Mode,
+    ) -> (u16, u16, Option<u16>) {
         let plain = |slot: Slot, want_firearm: Option<bool>| -> Option<u16> {
             self.abilities
                 .iter()
@@ -673,11 +773,15 @@ impl ContentPack {
                 .next()
         };
         let gun = mode == Mode::Fps;
-        // The fists, or the knife held as the FPS mode's weapon (BODIES.md 6.7); a pack without them (a
-        // fixture) falls back to its cheapest plain weapon of the mode.
-        let hands = if gun { "knife_hands" } else { "fists" };
-        let primary = self
-            .find(hands)
+        let hands = match group {
+            Group::Melee => self.find("fists"),
+            Group::Ranged => self.find("knife_hands"),
+            Group::Magic => aspects
+                .iter()
+                .find_map(|e| self.find(&format!("{}_blow", e.name())))
+                .or_else(|| self.find("force_blow")),
+        };
+        let primary = hands
             .or_else(|| plain(Slot::Primary, Some(gun)))
             .unwrap_or(0);
         let secondary = self

@@ -747,11 +747,12 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
     ]);
     let (a, b) = (ids[0], ids[1]);
     let idle = input(180.0, 0.0, 0);
-    // The nova is the frostweaver's second move (BODIES.md 3.6).
+    // The nova is the staff's spell (BODIES.md 7.2); the preset in nothing holds it as
+    // its first active.
     tick(
         &mut zone,
         &world,
-        &[(a, input(0.0, 0.0, buttons::SECONDARY)), (b, idle)],
+        &[(a, input(0.0, 0.0, buttons::ABILITY1)), (b, idle)],
         0,
     );
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 25);

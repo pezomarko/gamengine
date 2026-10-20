@@ -290,16 +290,27 @@ impl Mover {
     }
 
     /// The ability the primary mouse button fires (MODES.md 3.7): the weapon in hand in
-    /// the gun mode, the primary elsewhere.
+    /// the FPS mode, the primary elsewhere. A firearm with nothing in it and nothing to
+    /// load plays the knife (BODIES.md 7: out of ammo, a ranged body is melee).
     pub fn in_hand(&self, kit: &crate::build::Kit) -> Option<u8> {
         if kit.mode != crate::vocab::Mode::Fps {
             return kit.primary;
         }
-        match self.held {
+        let slot = match self.held {
             1 => kit.secondary,
             2 => kit.knife,
             _ => kit.primary,
+        };
+        if let Some(i) = slot
+            && kit.abilities[i as usize].firearm.is_some()
+            && let g = &self.guns[self.held.min(1) as usize]
+            && g.magazine == 0
+            && g.reserve == 0
+            && let Some(knife) = kit.knife
+        {
+            return Some(knife);
         }
+        slot
     }
 
     /// The firearm in hand and its state, if the weapon in hand is one.
