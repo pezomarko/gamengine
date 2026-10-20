@@ -58,7 +58,7 @@ pub fn fits(
     }
     let model = content.model(template).unwrap_or(template);
     let firearm = holding.firearms.iter().any(|f| f == model);
-    match (holding.mode == Mode::Gun, firearm) {
+    match (holding.mode == Mode::Fps, firearm) {
         (true, false) => Err(format!(
             "a gun build's hands are for a firearm: not a {template}"
         )),

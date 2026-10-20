@@ -277,43 +277,16 @@ The HUD as before, and:
   beside the bag when that is up; `C` is the gun mode's crouch, so not that key), and
   **E** the stall the body stands at (ITEMS.md 6): screens like the menu's, with the body
   standing while one is up.
-- **K** opens the character (MATRIX.md 9.1): the thirty attribute points with what each
-  buys, the frame, the aspects and the kit, edited anywhere; "Wear it" is
-  offered beside the trainer (the client knows one by a body nothing hurts), or anywhere
-  in a zone with none, where the zone wears it at the next respawn (the arena) or says why
-  not (the dungeon). Away from the trainer, with nothing changed, or with a draft the
-  pack refuses, "Wear it" is grey and **says why on itself** (3: the reason beside the
-  pointer when it rests on the button or presses it; since 2026-10-08, when the director
-  pressed the grey button and took the nothing that followed for a change that did not
-  stick). The zone's answer is the page's note and a line on the HUD, so that it is read
-  with the page up or closed: `worn, and saved` or `saved; worn at the next respawn`
-  (MATRIX.md 9.1: the zone answers once the hub holds the build), else the zone's words
-  (`stand by the trainer in the town`, `not in a fight: wait a moment`, `worn here, but
-  not saved: ...`). Its shape since the evening of
-  2026-10-06 (the director: "confusing and can't even read everything"; Gemini's review of
-  a capture against Ether Saga's and Tales of Pirates' sheets agreed on every point): a
-  panel 820 units wide where the frame allows, two columns under a row of presets. Left,
-  the body: frame (the armour row went with the class, 2026-10-17), aspects, then
-  `attributes   n of 30 points to place` in gold over five rows of `STR  - 7 +  blows x0.88`
-  (a name, the buttons, the value, what the points buy, in words). Right, the kit: the
-  weapons, the secondaries over the guards, and the actives in two lists side by side
-  (one that scrolls where the panel is narrow), every row in sight at 1080p; the kit's
-  budget in gold over the actives; the actives in the build lit like a picked row
-  (`RowMark::Picked`), not `[x]`. Under both, a line or two that read the ability under
-  the cursor from its script (`character::words_of`: points, stamina or focus, cooldown,
-  the aspect it needs, and what it does: `140 u around you: 40 electric, staggers, shock for
-  0.1 s`); the bottom row holds the buttons and, beside them, what is wrong with the draft,
-  else the zone's word, else `to wear it, stand by the trainer at the town board`. The
-  same editor is the game master's Build tab (GM.md 4), with Close in its tab row.
-  **A row that cannot be taken as the draft stands is off** (since 2026-10-09:
-  `character::why_not`, `RowMark::Off`, drawn in the colour of a button that is off; a
-  click on it picks nothing): an ability that needs an aspect the build lacks, a firearm
-  in an action or RPG build, any weapon but a firearm and any guard in a gun build, one
-  that is in the kit already or shares a cooldown group with one that is, a fifth active,
-  and one that would take the kit over its forty points. Pointing at it reads why before
-  its words, in the warning's colour (`Musket: a firearm: only a gun build holds one. 2
-  pts, ...`). What is wrong with the draft is said with the abilities' names, not their
-  numbers (`Stomp needs the ground aspect`).
+- **K** opens the character (MATRIX.md 20, since 2026-10-20): a sheet, read, never
+  edited. Left, the body: `Soldier  |  striker  |  action mode`, its elements, then
+  `attributes   30 of 30 points` over five rows of `STR  7  floor 7   blows x0.88`. Right,
+  "in hand and in the body": the kit as it plays now, slot by slot, each ability read
+  from its script (`character::words_of`: the slot, stamina or focus, cooldown, the
+  aspect it needs, and what it does). Close is the one button. Until 2026-10-20 the page
+  was the build editor with "Wear it" beside the trainer (MATRIX.md 9.1; the editor's
+  rules, `character::why_not` and the grey button that says why, live on in the game
+  master's Build tab, GM.md 4, and the creation screen, BODIES.md 6.7); the git history
+  of this bullet has the words.
 - **P** opens the people (PARTY.md 8): the party, who asks something, who else is here;
   from it the trade window (which also comes up by itself when the zone opens a trade)
   and the tavern. Under the squad the HUD shows the party's other members, with the

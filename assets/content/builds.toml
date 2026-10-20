@@ -1,10 +1,9 @@
-# Preset builds (MATRIX.md 9, 11, 15 and 17: seven, one frame-and-element face each). `mode` is the game the archetype plays (MODES.md 2:
-# gun, action, rpg); a gun build's primary is a firearm and it has no guard. Attributes are the character's own thirty points
-# (each point above 5; a preset spends all thirty). The kit costs at most 34: a second aspect
-# (10) and the slotted abilities. There is no armour class since 2026-10-17 (GEAR.md 12,
-# MATRIX.md 4): a body is its frame, its attributes, its aspects and what it wears; the
-# costs noted beside each are the abilities' (the old armour figures stand in the comments
-# for the record).
+# Preset builds (MATRIX.md 9, 11, 15 and 17: seven, one frame-and-element face each), the
+# bots', the arena's and the creatures' (a player has a body, bodies.toml). `mode` is the
+# game the archetype plays (MODES.md 2: fps, action, rpg); an FPS build's primary is a
+# firearm and it has no guard. Attributes are the character's own thirty points (each
+# point above 5; a preset spends all thirty). Nothing is priced since 2026-10-20
+# (MATRIX.md 20); the point figures beside the rows are the old prices, for the record.
 # The range is the weapon's (2026-10-06): a melee primary has no bolt, a ranged primary is
 # the whole of its damage at range. `blurb` is what the archetype is, in a line or two of
 # plain words (CLIENT.md 4.3): at most 160 characters of ASCII.
@@ -78,7 +77,7 @@ actives = ["sanctuary", "haste"]                                     # 10 + 8  =
 
 [[build]]
 name = "musketeer"
-mode = "gun"
+mode = "fps"
 blurb = "A musket, a pistol and a knife. One shot that has to land, then the reload; lethal from a window, lost in a doorway."
 frame = "striker"
 attributes = { str = 10, agi = 17, con = 13, int = 5, spr = 10 }   # 30

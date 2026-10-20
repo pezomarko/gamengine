@@ -35,19 +35,6 @@ pub(super) async fn create_character(
     Ok(HubResponse::Character(row.summary()))
 }
 
-/// `HubRequest::SetBuild`.
-pub(super) async fn set_build(
-    hub: &Arc<Hub>,
-    session: SessionId,
-    character: CharacterId,
-    build: BuildChoice,
-) -> Result<HubResponse, HubError> {
-    let account = hub.session_account(session)?;
-    let build = hub.resolve_build(build)?;
-    hub.db.set_build(account, character, &build).await?;
-    Ok(HubResponse::Ok)
-}
-
 /// `HubRequest::Content`.
 pub(super) async fn content(hub: &Arc<Hub>, session: SessionId) -> Result<HubResponse, HubError> {
     hub.session_account(session)?;

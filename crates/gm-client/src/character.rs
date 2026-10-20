@@ -1,9 +1,9 @@
-//! The character's page (MATRIX.md 9.1, CLIENT.md 4.5): the thirty attribute points and the
-//! kit, edited here and worn at the trainer in the town. The editor itself is shared with
-//! the game master's page (GM.md 4), which wears any build at once, anywhere. Nothing is
-//! decided here: the zone validates, saves and answers (`FromZone::RespecResult`).
+//! The character's page (CLIENT.md 4.5): the body, its thirty points, its elements and
+//! what its hands bring, read, not edited (MATRIX.md 20, 2026-10-20: a build is set at
+//! creation and there is no trainer). The build editor here is the creation screen's
+//! (BODIES.md 6.7) and the game master's (GM.md 4), which wears any build at once.
 
-use gm_core::build::{AbilityDef, BUDGET, Build, BuildError, ContentPack, MAX_ACTIVES, Slot, Worn};
+use gm_core::build::{AbilityDef, Build, BuildError, ContentPack, MAX_ACTIVES, Slot, Worn};
 use gm_core::matrix::{Aspects, Attributes, Element};
 use gm_core::tick::TickRate;
 use gm_core::vocab::{ArchetypeFrame, Guard, Mode, MoveKind, Origin, Shape, Trigger, Verb};
@@ -91,8 +91,8 @@ pub fn build_editor<C: Canvas>(
 }
 
 /// The creation screen's editor (BODIES.md 6.7): the body's attributes with the thirty
-/// points to place, the element wheel and the mode; no spells (the trainer's) and no
-/// lists of the hands (the gear's).
+/// points to place, the element wheel and the mode; no lists of the hands (the gear's)
+/// and no spells (the weapons').
 pub fn creation_editor<C: Canvas>(
     ui: &mut Ui<'_, C>,
     area: Rect,
@@ -139,10 +139,10 @@ pub fn build_editor_wearing<C: Canvas>(
             ui::TEXT,
             &said,
         );
-        const MODES: [Mode; 3] = [Mode::Action, Mode::Rpg, Mode::Gun];
+        const MODES: [Mode; 3] = [Mode::Action, Mode::Rpg, Mode::Fps];
         let mut mode = MODES.iter().position(|m| *m == b.mode).unwrap_or(0);
         let modes = Rect::new(row.x + label_w, row.y, row.w - label_w, row.h);
-        if ui.choice(modes, "mode", &["action", "rpg", "gun"], &mut mode) {
+        if ui.choice(modes, "mode", &["action", "rpg", "fps"], &mut mode) {
             let (primary, secondary, guard) = pack.bare_hands(MODES[mode]);
             b.mode = MODES[mode];
             b.primary = primary;
@@ -517,8 +517,8 @@ fn creation_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack
     let text = format!(
         "Empty-handed: {hands}. A weapon in the right hand brings its blow and its second \
          move; a shield or a focus in the left brings the guard.\n\nBody skill: {skill}, \
-         free, always on the first key.\n\nSpells are bought at the trainer in town, with \
-         the element picked here."
+         free, always on the first key.\n\nSpells come with the weapons that carry them: \
+         the element picked here is what a staff casts, and what you resist."
     );
     let r = Rect::new(
         words.x,
@@ -690,12 +690,12 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     }
     let firearm = def.ability.firearm.is_some();
     match (b.mode, slot) {
-        (Mode::Gun, Slot::Primary) if !firearm => {
-            return Some("a gun build's weapon is a firearm".into());
+        (Mode::Fps, Slot::Primary) if !firearm => {
+            return Some("an FPS build's weapon is a firearm".into());
         }
-        (Mode::Gun, Slot::Guard) => return Some("a gun build has no guard".into()),
+        (Mode::Fps, Slot::Guard) => return Some("an FPS build has no guard".into()),
         (Mode::Action | Mode::Rpg, _) if firearm => {
-            return Some("a firearm: only a gun build holds one".into());
+            return Some("a firearm: only an FPS build holds one".into());
         }
         _ => {}
     }
@@ -731,18 +731,6 @@ pub fn why_not(pack: &ContentPack, b: &Build, slot: Slot, i: u16) -> Option<Stri
     };
     if slot == Slot::Active && b.actives.len() >= most {
         return Some(format!("{most} spells already: take one out"));
-    }
-    let mut draft = b.clone();
-    match slot {
-        Slot::Primary => draft.primary = i,
-        Slot::Secondary => draft.secondary = i,
-        Slot::Guard => draft.guard = Some(i),
-        Slot::Active => draft.actives.push(i),
-        Slot::Extra => {}
-    }
-    let cost = draft.cost(pack);
-    if cost > BUDGET {
-        return Some(format!("would take the kit to {cost} of {BUDGET} points"));
     }
     None
 }
@@ -816,7 +804,7 @@ fn kit_columns<C: Canvas>(
             .iter()
             .enumerate()
             .filter(|(_, d)| d.slot == slot && !d.creature)
-            .map(|(i, d)| (i as u16, d.ability.name.clone(), d.cost.to_string()))
+            .map(|(i, d)| (i as u16, d.ability.name.clone(), String::new()))
             .collect()
     };
     let (primaries, secondaries, guards, actives) = (
@@ -840,16 +828,9 @@ fn kit_columns<C: Canvas>(
         ui.label(cols[0].x, head_y, cols[0].w, ui::FAINT, "weapon");
         ui.label(cols[1].x, head_y, cols[1].w, ui::FAINT, "secondary");
     }
-    // The budget over the actives, which are the kit's choice; short where narrow.
+    // Over the actives, which are the kit's choice (nothing is priced, MATRIX.md 20).
     let what = if bodied { "spells" } else { "actives" };
-    let budget = if split {
-        format!(
-            "{what}, up to {most}   kit {}/{BUDGET} points",
-            b.cost(pack)
-        )
-    } else {
-        format!("kit {}/{BUDGET}", b.cost(pack))
-    };
+    let budget = format!("{what}, up to {most}");
     let budget_w = area.x + area.w - cols[first_active].x;
     ui.label(cols[first_active].x, head_y, budget_w, ui::FOCUS, &budget);
     // The lists: as many rows as the column has room for, the column's own count at most.
@@ -860,7 +841,7 @@ fn kit_columns<C: Canvas>(
     let row_height = |rows: usize| rows as f32 * row_h + 2.0 * s;
     let list_rect =
         move |c: Rect, rows: usize| Rect::new(c.x, lists_y, c.w, row_height(rows.min(fits).max(1)));
-    // Name, then the cost in its own column.
+    // The name; the second column is empty since nothing is priced (MATRIX.md 20).
     const COLS: [f32; 2] = [0.0, 0.86];
     let rows_of = |list: &[(u16, String, String)], none: bool| -> Vec<Vec<String>> {
         let mut rows: Vec<Vec<String>> = list
@@ -1063,12 +1044,19 @@ fn secs(rate: TickRate, ticks: u32) -> String {
     }
 }
 
-/// An ability in a line a player can read: what it costs, when it is back, and what
-/// it does, from its script (VOCABULARY.md 5). Nothing here decides anything; the
-/// numbers are the pack's.
+/// An ability in a line a player can read: its slot, what it costs to use, when it is
+/// back, and what it does, from its script (VOCABULARY.md 5). Nothing here decides
+/// anything; the numbers are the pack's.
 pub fn words_of(def: &AbilityDef, rate: TickRate) -> String {
     let a = &def.ability;
-    let mut parts = vec![format!("{}: {} pts", a.name, def.cost)];
+    let slot = match def.slot {
+        Slot::Primary => "a blow",
+        Slot::Secondary => "a second move",
+        Slot::Guard => "a guard",
+        Slot::Active => "an active",
+        Slot::Extra => "a stage",
+    };
+    let mut parts = vec![format!("{}: {slot}", a.name)];
     if a.cost.stamina > 0 {
         parts.push(format!("{} stamina", a.cost.stamina));
     }
@@ -1194,14 +1182,10 @@ pub fn words_of(def: &AbilityDef, rate: TickRate) -> String {
 /// The pack's word on a draft: the points, the kit's cost, and what is wrong if anything.
 pub fn verdict(pack: &ContentPack, b: &Build) -> (bool, String) {
     let points = b.points_spent(pack);
-    let spent = b.cost(pack);
     match b.validate(pack) {
         Ok(()) => (
             true,
-            format!(
-                "{points} of {} points, kit {spent} of {BUDGET}",
-                Attributes::FREE_POINTS
-            ),
+            format!("{points} of {} points", Attributes::FREE_POINTS),
         ),
         Err(e) => (false, said(pack, &e)),
     }
@@ -1212,8 +1196,6 @@ pub fn verdict(pack: &ContentPack, b: &Build) -> (bool, String) {
 pub enum CharacterAction {
     None,
     Close,
-    /// Wear this build: the zone decides where and when (MATRIX.md 9.1).
-    Wear(Build),
 }
 
 /// What the page is shown each frame.
@@ -1221,27 +1203,16 @@ pub struct CharacterView<'a> {
     pub pack: &'a ContentPack,
     /// The build worn now.
     pub own: &'a Build,
-    /// What the hands bring now (GEAR.md 2, BODIES.md 3.8): the weapon's techniques are
-    /// offered as the build's primary when it holds more than one.
+    /// What the hands bring now (GEAR.md 2).
     pub worn: &'a Worn,
     /// The zone's tick rate: the abilities' ticks read in seconds.
     pub rate: TickRate,
-    /// Standing by the trainer (within `TRAINER_REACH` of one) in a zone of the world; in a
-    /// team zone (the arena) a build is worn at the next respawn, so `true` there.
-    pub at_trainer: bool,
-    /// The zone's last word on what was asked.
-    pub note: &'a str,
 }
 
-/// Why "Wear it" is off away from the trainer: the page's note, and the button's own
-/// word when it is pointed at or pressed.
-pub const AWAY: &str = "to wear it, stand by the trainer at the town board";
-
+/// The character's page: the build as it is (MATRIX.md 20: set at creation, never
+/// edited in play), the sheet it comes to, and what the hands bring.
 #[derive(Default)]
-pub struct CharacterPage {
-    draft: Option<Build>,
-    draft_from: Option<Build>,
-}
+pub struct CharacterPage;
 
 impl CharacterPage {
     /// The name a UI script waits for (CLIENT.md 9).
@@ -1260,77 +1231,160 @@ impl CharacterPage {
         let s = ui.scale;
         let gap = 5.0 * s;
         let h = ui.button_height();
-        // As tall as the editor wants with every list whole, under what a panel may be
-        // (ui::PANEL_HIGH): past that the lists scroll.
+        let line = ui.line();
         let w = panel_width(ui);
-        let want = editor_height(ui, v.pack, w - 16.0 * s) + gap + h;
+        let want = sheet_height(ui) + gap + h;
         let most = ui::PANEL_HIGH * s - ui.panel_height(0.0, true);
         let inner = want.min(most);
         let panel = Rect::centred(ui.size(), w, ui.panel_height(inner, true));
         let inner = ui.panel(panel, "character");
-        let col = Column::new(inner, gap);
-        // The draft starts from what is worn, and starts over when that changes under it.
-        if self.draft_from.as_ref() != Some(v.own) {
-            self.draft_from = Some(v.own.clone());
-            self.draft = Some(v.own.clone());
-        }
-        let Some(b) = self.draft.as_mut() else {
-            return CharacterAction::None;
-        };
-        let rest = col.rest();
-        build_editor_wearing(
-            ui,
-            Rect::new(rest.x, rest.y, rest.w, rest.h - gap - h),
-            v.pack,
-            v.rate,
-            b,
-            v.worn,
-            true,
+        let rest = Rect::new(inner.x, inner.y, inner.w, inner.h - gap - h);
+        let body = Rect::new(rest.x, rest.y, BODY_WIDE * s, rest.h);
+        let hands = Rect::new(
+            rest.x + body.w + 2.0 * gap,
+            rest.y,
+            rest.w - body.w - 2.0 * gap,
+            rest.h,
         );
-        // The buttons, and beside them what is wrong with the draft, else the zone's
-        // word, else where this may be worn.
-        let row = Rect::new(rest.x, rest.y + rest.h - h, rest.w, h);
-        let (valid, words) = verdict(v.pack, b);
-        let note = if !valid {
-            words.as_str()
-        } else if !v.note.is_empty() {
-            v.note
-        } else if v.at_trainer {
-            ""
-        } else {
-            AWAY
-        };
-        // Why the build cannot be worn, when it cannot: the grey button says so itself.
-        let off = if !valid {
-            Some(words.as_str())
-        } else if *b == *v.own {
-            Some("this is what you wear")
-        } else if !v.at_trainer {
-            Some(AWAY)
-        } else {
-            None
-        };
+        sheet_column(ui, body, v.pack, v.own);
+        hands_column(ui, hands, v.pack, v.own, v.worn, v.rate);
+        let row = Rect::new(rest.x, rest.y + rest.h + gap, rest.w, h);
+        let (_, words) = verdict(v.pack, v.own);
         ui.label(
             row.x + row.w * 0.42,
-            row.y + (row.h - ui.line()) * 0.5,
+            row.y + (row.h - line) * 0.5,
             row.w * 0.58,
-            ui::WARN,
-            note,
+            ui::FAINT,
+            &words,
         );
-        let buttons = ui.buttons(
-            Rect::new(row.x, row.y, row.w * 0.4, row.h),
-            &["Wear it", "Back to worn", "Close"],
-        );
-        if ui.button_or(buttons[0], "Wear it", off) {
-            return CharacterAction::Wear(b.clone());
-        }
-        if ui.button_if(buttons[1], "Back to worn", b != v.own) {
-            *b = v.own.clone();
-        }
-        if ui.button(buttons[2], "Close") {
+        let buttons = ui.buttons(Rect::new(row.x, row.y, row.w * 0.4, row.h), &["Close"]);
+        if ui.button(buttons[0], "Close") {
             return CharacterAction::Close;
         }
         CharacterAction::None
+    }
+}
+
+/// What the sheet's column takes: the body's line, the elements' line, the attributes'
+/// header and five rows.
+fn sheet_height<C: Canvas>(ui: &Ui<'_, C>) -> f32 {
+    let s = ui.scale;
+    let gap = 5.0 * s;
+    let line = ui.line();
+    3.0 * (line + gap) + 5.0 * (line + ATTR_ROW_EXTRA * s) + 4.0 * ATTR_GAP * s
+}
+
+/// The build, read: who the body is, its mode, its elements, and the five attributes
+/// with their floors and what they buy (MATRIX.md 6).
+fn sheet_column<C: Canvas>(ui: &mut Ui<'_, C>, area: Rect, pack: &ContentPack, b: &Build) {
+    let s = ui.scale;
+    let gap = 5.0 * s;
+    let line = ui.line();
+    let mut col = Column::new(area, gap);
+    let who = match b.body_def(pack) {
+        Some(body) => format!(
+            "{}  |  {}  |  {} mode",
+            body.name,
+            crate::front::frame_name(body.frame),
+            b.mode.name()
+        ),
+        None => format!(
+            "{}  |  {} mode",
+            crate::front::frame_name(b.frame),
+            b.mode.name()
+        ),
+    };
+    let r = col.take(line);
+    ui.label(r.x, r.y, r.w, ui::TEXT, &who);
+    let elements: Vec<&str> = Element::ALL
+        .iter()
+        .filter(|e| b.aspects.contains(**e))
+        .map(|e| e.name())
+        .collect();
+    let elements = if elements.is_empty() {
+        "no element".to_string()
+    } else {
+        elements.join(" + ")
+    };
+    let r = col.take(line);
+    ui.label(r.x, r.y, r.w, ui::FAINT, &elements);
+    let spent = b.points_spent(pack);
+    let r = col.take(line);
+    ui.label(
+        r.x,
+        r.y,
+        r.w,
+        ui::FOCUS,
+        &format!("attributes   {spent} of {} points", Attributes::FREE_POINTS),
+    );
+    const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
+    let attrs = b.attributes.as_array();
+    let floors = b.floors(pack).as_array();
+    let d = b.derived_in(pack);
+    let buys = [
+        format!("blows x{:.2}", d.physical_mult),
+        format!("speed {:.0} u/s", d.max_speed),
+        format!("health {}", d.health),
+        format!("spells x{:.2}", d.elemental_mult),
+        format!("ward {:.0}%", d.ward * 100.0),
+    ];
+    let row_h = line + ATTR_ROW_EXTRA * s;
+    let (name_w, value_w) = (34.0 * s, 26.0 * s);
+    let rows = col.take(5.0 * row_h + 4.0 * ATTR_GAP * s);
+    for i in 0..5 {
+        let y = rows.y + i as f32 * (row_h + ATTR_GAP * s) + (row_h - line) * 0.5;
+        ui.label(rows.x, y, name_w, ui::TEXT, NAMES[i]);
+        ui.label(rows.x + name_w, y, value_w, ui::TEXT, &attrs[i].to_string());
+        let words_x = rows.x + name_w + value_w + 2.0 * gap;
+        let words = if b.body.is_some() && rows.w >= 260.0 * s {
+            format!("floor {}   {}", floors[i], buys[i])
+        } else {
+            buys[i].clone()
+        };
+        ui.label(words_x, y, rows.x + rows.w - words_x, ui::FAINT, &words);
+    }
+}
+
+/// What the hands bring and what the body does (GEAR.md 2, BODIES.md 3.4): the kit as
+/// it plays now, a line a slot, where each comes from and when it is back.
+fn hands_column<C: Canvas>(
+    ui: &mut Ui<'_, C>,
+    area: Rect,
+    pack: &ContentPack,
+    b: &Build,
+    worn: &Worn,
+    rate: TickRate,
+) {
+    let gap = 5.0 * ui.scale;
+    let line = ui.line();
+    ui.label(area.x, area.y, area.w, ui::FAINT, "in hand and in the body");
+    let mut y = area.y + line + gap;
+    for (i, slot) in b.kit_slots_in(worn, pack) {
+        let Some(def) = pack.abilities.get(i as usize) else {
+            continue;
+        };
+        if y + line > area.y + area.h {
+            break;
+        }
+        let from = match slot {
+            Slot::Primary if worn.primary.is_some() => "the weapon",
+            Slot::Primary => "empty hands",
+            Slot::Secondary if worn.secondary.is_some() => "the hands' second move",
+            Slot::Secondary => "the kick",
+            Slot::Guard if worn.guard.is_some() => "the off hand",
+            Slot::Guard => "the empty off hand",
+            Slot::Active if b.body_skill(pack) == Some(i) => "the body",
+            Slot::Active => "the build",
+            Slot::Extra => continue,
+        };
+        let back = if def.ability.cooldown.ticks > 0 {
+            format!(", {}", secs(rate, def.ability.cooldown.ticks))
+        } else {
+            String::new()
+        };
+        let text = ui.fit_text(area.w, &format!("{from}: {}{back}", def.ability.name));
+        ui.label(area.x, y, area.w, ui::TEXT, &text);
+        y += line + gap;
     }
 }
 
@@ -1369,31 +1423,6 @@ mod tests {
         click_at(page, st, at, v)
     }
 
-    /// The `+` or `-` of the attribute called `name`: the button on its row.
-    fn click_attr(
-        page: &mut CharacterPage,
-        st: &mut UiState,
-        name: &str,
-        button: &str,
-        v: &CharacterView<'_>,
-    ) -> CharacterAction {
-        frame(page, st, &UiInput::default(), v);
-        let row = st
-            .seen
-            .iter()
-            .find(|s| s.text == name)
-            .unwrap_or_else(|| panic!("no attribute {name:?}"))
-            .rect;
-        let at = st
-            .seen
-            .iter()
-            .find(|s| s.text == button && (s.rect.centre().1 - row.centre().1).abs() < row.h)
-            .unwrap_or_else(|| panic!("no {button:?} on the row of {name:?}: {:?}", st.seen))
-            .rect
-            .centre();
-        click_at(page, st, at, v)
-    }
-
     fn click_at(
         page: &mut CharacterPage,
         st: &mut UiState,
@@ -1424,11 +1453,9 @@ mod tests {
             own: &own,
             worn: &Worn::NONE,
             rate: TickRate::TOWN,
-            at_trainer: false,
-            note: "",
         };
         for size in crate::ui::tests::SIZES {
-            let (mut page, mut st) = (CharacterPage::default(), UiState::default());
+            let (mut page, mut st) = (CharacterPage, UiState::default());
             let mut canvas = Recorder::new(size.0, size.1);
             let input = UiInput::default();
             let mut ui = Ui::begin(&mut canvas, &mut st, &input, page.name(), 300.0);
@@ -1439,148 +1466,30 @@ mod tests {
         }
     }
 
+    /// The page reads the build and offers nothing to change (MATRIX.md 20): the
+    /// points, the elements, the hands, and Close.
     #[test]
-    fn thirty_points_and_the_trainer() {
+    fn the_page_reads_and_never_edits() {
         let pack = test_content::pack(TickRate::TOWN);
         let own = pack.builds[1].build.clone();
-        let away = CharacterView {
+        let v = CharacterView {
             pack: &pack,
             own: &own,
             worn: &Worn::NONE,
             rate: TickRate::TOWN,
-            at_trainer: false,
-            note: "",
         };
-        let (mut page, mut st) = (CharacterPage::default(), UiState::default());
-        frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("0 of 30 points to place"), "{:?}", st.seen);
-        assert!(st.shows("kit 22/34"), "{:?}", st.seen);
-        // All thirty spent: no `+` is offered; a point taken off STR, and `+` is.
+        let (mut page, mut st) = (CharacterPage, UiState::default());
+        frame(&mut page, &mut st, &UiInput::default(), &v);
+        assert!(st.shows("30 of 30 points"), "{:?}", st.seen);
+        assert!(st.shows("water"), "{:?}", st.seen);
+        assert!(st.shows("STR"), "{:?}", st.seen);
+        assert!(st.shows("empty hands: Sword"), "{:?}", st.seen);
         assert!(st.find("+").is_none(), "{:?}", st.seen);
-        assert_eq!(
-            click_attr(&mut page, &mut st, "STR", "-", &away),
-            CharacterAction::None
-        );
-        frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("1 of 30 points to place"), "{:?}", st.seen);
-        assert_eq!(
-            click_attr(&mut page, &mut st, "CON", "+", &away),
-            CharacterAction::None
-        );
-        frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.shows("0 of 30 points to place"), "{:?}", st.seen);
-        // Away from the trainer the build is not worn; beside it, it is.
         assert!(st.find("Wear it").is_none(), "{:?}", st.seen);
-        assert!(st.shows("stand by the trainer"));
-        let here = CharacterView {
-            at_trainer: true,
-            ..away
-        };
-        match click(&mut page, &mut st, "Wear it", &here) {
-            CharacterAction::Wear(b) => {
-                assert_eq!(b.attributes.con, own.attributes.con + 1);
-                assert_eq!(b.attributes.str_, own.attributes.str_ - 1);
-            }
-            other => panic!("{other:?}"),
-        }
-        // A kit past its budget is said so, and not worn.
-        let b = page.draft.as_mut().unwrap();
-        b.actives = ["overhead", "haste", "war_standard", "dash"]
-            .iter()
-            .map(|k| pack.find(k).unwrap())
-            .collect();
-        frame(&mut page, &mut st, &UiInput::default(), &here);
-        assert!(st.shows("kit costs 40 of 34 points"), "{:?}", st.seen);
-        assert!(st.find("Wear it").is_none());
-    }
-
-    /// A grey "Wear it" says why it is grey, on the button itself: pointed at for a
-    /// moment, or pressed (a tap on a phone), the reason comes up beside the pointer; a
-    /// script never finds the button. The zone's refusal is the page's note.
-    #[test]
-    fn the_grey_button_explains_itself() {
-        let pack = test_content::pack(TickRate::TOWN);
-        let own = pack.builds[1].build.clone();
-        let away = CharacterView {
-            pack: &pack,
-            own: &own,
-            worn: &Worn::NONE,
-            rate: TickRate::TOWN,
-            at_trainer: false,
-            note: "",
-        };
-        let (mut page, mut st) = (CharacterPage::default(), UiState::default());
-        // A changed draft, away from the trainer: the button is off and says where to go.
-        click_attr(&mut page, &mut st, "STR", "-", &away);
-        frame(&mut page, &mut st, &UiInput::default(), &away);
-        assert!(st.find("Wear it").is_none(), "{:?}", st.seen);
-        assert!(st.shows(&format!("Wear it (off: {AWAY})")), "{:?}", st.seen);
-        assert!(!st.shows("tooltip:"), "{:?}", st.seen);
-        let at = st
-            .seen
-            .iter()
-            .find(|s| s.text.starts_with("Wear it (off"))
-            .unwrap()
-            .rect
-            .centre();
-        // The pointer rests on it: after the tooltip's 150 ms the reason is beside it.
-        for time in [1.0, 1.1] {
-            let rest = UiInput {
-                cursor: at,
-                time,
-                ..Default::default()
-            };
-            frame(&mut page, &mut st, &rest, &away);
-        }
-        assert!(!st.shows("tooltip:"), "{:?}", st.seen);
-        let rest = UiInput {
-            cursor: at,
-            time: 1.2,
-            ..Default::default()
-        };
-        frame(&mut page, &mut st, &rest, &away);
-        assert!(st.shows(&format!("tooltip: {AWAY}")), "{:?}", st.seen);
-        // A press on it (a tap): the reason stays up two seconds after the finger left.
-        let (mut page, mut st) = (CharacterPage::default(), UiState::default());
-        click_attr(&mut page, &mut st, "STR", "-", &away);
         assert_eq!(
-            click_at(&mut page, &mut st, at, &away),
-            CharacterAction::None
+            click(&mut page, &mut st, "Close", &v),
+            CharacterAction::Close
         );
-        assert!(st.shows(&format!("tooltip: {AWAY}")), "{:?}", st.seen);
-        let later = UiInput {
-            cursor: (0.0, 0.0),
-            time: 1.5,
-            ..Default::default()
-        };
-        frame(&mut page, &mut st, &later, &away);
-        assert!(st.shows(&format!("tooltip: {AWAY}")), "{:?}", st.seen);
-        let gone = UiInput {
-            cursor: (0.0, 0.0),
-            time: 2.5,
-            ..Default::default()
-        };
-        frame(&mut page, &mut st, &gone, &away);
-        assert!(!st.shows("tooltip:"), "{:?}", st.seen);
-        // By the trainer with nothing changed: off too, and says so.
-        let (mut page, mut st) = (CharacterPage::default(), UiState::default());
-        let here = CharacterView {
-            at_trainer: true,
-            ..away
-        };
-        frame(&mut page, &mut st, &UiInput::default(), &here);
-        assert!(
-            st.shows("Wear it (off: this is what you wear)"),
-            "{:?}",
-            st.seen
-        );
-        // The zone's word is the page's note, as it came.
-        let refused = CharacterView {
-            note: "not in a fight: wait a moment",
-            ..here
-        };
-        frame(&mut page, &mut st, &UiInput::default(), &refused);
-        assert!(st.shows("not in a fight: wait a moment"), "{:?}", st.seen);
     }
 
     #[test]
@@ -1590,18 +1499,18 @@ mod tests {
         let ironclad = pack.build("ironclad").expect("ironclad").clone();
         let blade = pack.build("blade").expect("blade").clone();
         let musketeer = pack.build("musketeer").expect("musketeer").clone();
-        // A firearm in an action build; a sword and a guard in a gun build.
+        // A firearm in an action build; a sword and a guard in an FPS build.
         assert_eq!(
             why_not(&pack, &blade, Slot::Primary, by("musket")).as_deref(),
-            Some("a firearm: only a gun build holds one")
+            Some("a firearm: only an FPS build holds one")
         );
         assert_eq!(
             why_not(&pack, &musketeer, Slot::Primary, by("sword")).as_deref(),
-            Some("a gun build's weapon is a firearm")
+            Some("an FPS build's weapon is a firearm")
         );
         assert_eq!(
             why_not(&pack, &musketeer, Slot::Guard, by("parry")).as_deref(),
-            Some("a gun build has no guard")
+            Some("an FPS build has no guard")
         );
         // An aspect the build lacks; what is in the kit already is fine. (The nova and
         // the stomp are the staff's second moves since BODIES.md 3.6: secondaries.)
@@ -1613,55 +1522,6 @@ mod tests {
         assert_eq!(
             why_not(&pack, &ironclad, Slot::Primary, ironclad.primary),
             None
-        );
-        // The budget: the ironclad spends 26 of 34 (its plate is its chest piece's since
-        // GEAR.md 3, not the kit's), so an active of nine or more without an aspect would
-        // take it over.
-        let plain = pack
-            .abilities
-            .iter()
-            .position(|a| {
-                a.slot == Slot::Active && a.aspect.is_none() && !a.creature && a.cost >= 9
-            })
-            .expect("an active with no aspect") as u16;
-        let why = why_not(&pack, &ironclad, Slot::Active, plain).expect("over the budget");
-        assert!(why.starts_with("would take the kit to"), "{why}");
-        // On the page: the row is off, the cursor over it reads why, and a click on it
-        // changes nothing.
-        let view = CharacterView {
-            pack: &pack,
-            own: &blade,
-            worn: &Worn::NONE,
-            rate: TickRate::TOWN,
-            at_trainer: true,
-            note: "",
-        };
-        let (mut page, mut st) = (CharacterPage::default(), UiState::default());
-        frame(&mut page, &mut st, &UiInput::default(), &view);
-        let row = st
-            .seen
-            .iter()
-            .find(|s| s.kind == ui::SeenKind::Row && s.text.starts_with("Musket"))
-            .expect("the musket's row")
-            .rect
-            .centre();
-        frame(
-            &mut page,
-            &mut st,
-            &UiInput {
-                cursor: row,
-                ..Default::default()
-            },
-            &view,
-        );
-        assert!(st.shows("only a gun build holds one"), "{:?}", st.seen);
-        click_at(&mut page, &mut st, row, &view);
-        frame(&mut page, &mut st, &UiInput::default(), &view);
-        assert_eq!(page.draft.as_ref().map(|d| d.primary), Some(blade.primary));
-        assert!(
-            st.find("Wear it").is_none(),
-            "nothing changed: {:?}",
-            st.seen
         );
     }
 }

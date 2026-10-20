@@ -174,7 +174,7 @@ pub(super) fn gun_hand_prop(
     c: &gm_net::client::ClientState,
 ) -> Option<String> {
     let kit = &c.sheet.kit;
-    if kit.mode != gm_core::vocab::Mode::Gun {
+    if kit.mode != gm_core::vocab::Mode::Fps {
         return None;
     }
     let slot = c.mover.in_hand(kit)? as usize;

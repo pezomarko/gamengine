@@ -994,11 +994,6 @@ async fn handle(
             name,
             build,
         } => characters::create_character(hub, session, name, build).await,
-        HubRequest::SetBuild {
-            session,
-            character,
-            build,
-        } => characters::set_build(hub, session, character, build).await,
         HubRequest::Content { session } => characters::content(hub, session).await,
         HubRequest::ListZones { session } => characters::list_zones(hub, session).await,
         HubRequest::Enter {

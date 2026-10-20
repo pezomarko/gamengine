@@ -61,7 +61,7 @@ use crate::touch::{self, Button as TouchButton, Event as TouchEvent, Fingers, Zo
 use crate::ui::{self, Key, Ui, UiInput, UiState};
 use crate::world::{self, WorldMesh};
 use crate::{Error, Options};
-use gm_net::control::TRAINER_REACH;
+use gm_net::control::NPC_REACH;
 
 mod frame;
 mod hud_view;

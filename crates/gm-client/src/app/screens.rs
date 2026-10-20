@@ -84,7 +84,7 @@ impl App {
         if self.forge_in_reach() {
             return Some("Forge  E craft".to_string());
         }
-        if Self::npc_in_reach(self.online.as_ref(), "smith", TRAINER_REACH) {
+        if Self::npc_in_reach(self.online.as_ref(), "smith", NPC_REACH) {
             return Some("Blacksmith  E talk".to_string());
         }
         Self::stall_in_reach(self.online.as_ref()).map(|s| format!("{}'s stall  E look", s.owner))
@@ -94,7 +94,7 @@ impl App {
     pub(super) fn open_use(&mut self) {
         if self.forge_in_reach() {
             self.open_forge();
-        } else if Self::npc_in_reach(self.online.as_ref(), "smith", TRAINER_REACH) {
+        } else if Self::npc_in_reach(self.online.as_ref(), "smith", NPC_REACH) {
             self.open_smithy();
         } else {
             self.open_stall();
@@ -217,14 +217,13 @@ impl App {
         self.release_keys();
     }
 
-    /// `K`: the character's page (MATRIX.md 9.1): the thirty points and the kit, worn at
-    /// the trainer.
+    /// `K`: the character's page (CLIENT.md 4.5): the build, read.
     pub(super) fn open_character(&mut self) {
         let Some(o) = &self.online else { return };
         if o.client.is_none() {
             return;
         }
-        self.screens.character_page = Some(CharacterPage::default());
+        self.screens.character_page = Some(CharacterPage);
         self.screens.menu = None;
         self.screens.bag = None;
         self.screens.people = None;
@@ -232,34 +231,12 @@ impl App {
         self.release_keys();
     }
 
-    /// What the character's page asked for: the zone is asked, and answers
-    /// (`RespecResult`, shown as the page's note).
+    /// What the character's page asked for.
     pub(super) fn character_act(&mut self, action: CharacterAction) {
         match action {
             CharacterAction::None => {}
             CharacterAction::Close => self.screens.character_page = None,
-            CharacterAction::Wear(build) => {
-                if let Some(o) = &mut self.online {
-                    o.respec_note = "asked".into();
-                    o.net
-                        .send_control(FromClient::Respec(BuildChoice::Custom(build)));
-                }
-            }
         }
-    }
-
-    /// Standing by the trainer (TRAINER_REACH of a body nothing hurts), where a build is
-    /// worn in the world; in a team zone (the arena) anywhere, at the next respawn.
-    pub(super) fn at_trainer(&self) -> bool {
-        let Some(o) = &self.online else { return false };
-        let (Some(c), Some(pack)) = (&o.client, &o.pack) else {
-            return false;
-        };
-        if !o.has_trainer() {
-            return true;
-        }
-        let _ = (c, pack);
-        Self::npc_in_reach(self.online.as_ref(), "trainer", TRAINER_REACH)
     }
 
     /// `G`: the game master's page (GM.md 4), for a character the zone granted it to.

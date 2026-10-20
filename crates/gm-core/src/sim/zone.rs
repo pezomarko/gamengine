@@ -122,7 +122,7 @@ pub struct Player {
     /// dead, a creature belongs to its encounter).
     pub hold: bool,
     /// Nothing hurts it (COMPANIONS.md 8.1 `npc`): a packet lands for nothing, not even
-    /// its triggers. The town's trainer.
+    /// its triggers. The town's smith.
     pub unhurt: bool,
     /// A mind's frame for the next tick.
     next: Option<Input>,
