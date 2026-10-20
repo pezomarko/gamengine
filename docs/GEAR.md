@@ -384,7 +384,9 @@ plays every one before the next.
   numbers are the gun mode's), the helmets' difference (section 7 left them as looks).
 - **2026-10-17, the arrows are unlimited.** The director: "arrows we can make unlimited
   but rate limited by stamina, just like make them use stamina and that's it." The bow
-  names no `ammo`; its 20 stamina a draw is the limit, as a blow's is. The `arrow`
+  names no `ammo`; its 20 stamina a draw is the limit, as a blow's is. The crossbow is
+  the same rule (2026-10-20, the director's crossbow on the LAN spanned for free): 30 a
+  span, the bow's cost per second at its slower rate. The `arrow`
   template is gone from `items.toml` and the quartermaster's stock (`play.sh`), and
   migration 0019 retires every arrow a bag or a stall holds. `Ability.ammo` and the
   reserve it draws on stay in the engine, tested on a synthetic pack, for a thrown thing
