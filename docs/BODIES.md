@@ -423,3 +423,25 @@ now, as the bolt and the blast already were, and nothing is learned.
   nothing and the nova among its own actives, so the arena's frostweaver is what it was.
 - Not yet moved: vanish, poison cloud and entangle (nobody's but the presets'), war
   standard, the four techniques: 7.5. Content v26, protocol v31 (`Worn.spell`).
+
+### 7.3 The stacking (built)
+
+"Fire affinity + magical + int build = near max damage dealt by fireball." Three
+multipliers on a spell, one on a blow, all a body's (a preset in nothing and a creature
+have the attribute alone, until 7.5 gives the arena's presets bodies):
+
+| Lever | On a spell | On a blow |
+|---|---|---|
+| INT / STR (MATRIX.md 6) | x0.72 at 3 to x1.6 at 25 | the same, by STR |
+| Affinity (`matrix::AFFINITY`): the spell's element is one of the body's | x1.25 | |
+| Group (`matrix::group_mult`): magic | x1.25 | x0.75 |
+| Group: melee, ranged | x0.75 | x1.0 |
+| The matrix against the target (MATRIX.md 5) | 0.75 / 1.25 | |
+
+Worked (`matrix::tests::affinity_and_group_stack_on_a_spell`): a Sorceress of Fire at
+INT 25 throws a staff's fireball at 1.6 x 1.25 x 1.25 = **x2.5** of the row; a Brute of
+no element at INT 3 with the same staff at 0.72 x 0.75 = **x0.54**: four and a half
+times apart before the target's element and gear. The Brute's fireball is a puff, and
+nothing forbids it. `AttackerStats.affinity` and `.group` ride with the attacker's
+stats into every packet; a status's pulse takes neither, as it takes no gear
+(ITEMS.md 3.1). The numbers are the overview's proposal, **to tune at the dummy**.

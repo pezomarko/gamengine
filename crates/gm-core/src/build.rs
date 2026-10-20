@@ -1182,6 +1182,9 @@ pub struct Sheet {
     pub worn: Worn,
     pub kit: Kit,
     pub derived: Derived,
+    /// The body's group (BODIES.md 7.3), for the damage pipeline's factor; `None`
+    /// without a body (a preset in nothing, a creature): no factor, and no affinity.
+    pub group: Option<Group>,
     /// Build points left after the kit; informational.
     pub team: u8,
 }
@@ -1198,6 +1201,7 @@ impl Sheet {
         Sheet {
             kit: Kit::from_build(&build, &worn, pack),
             derived: build.derived_wearing(&worn, pack),
+            group: build.body.map(|_| build.group(pack)),
             build,
             worn,
             team,

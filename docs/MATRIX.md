@@ -172,6 +172,11 @@ base   = amount
        × (A.Weaken ? 1 − weaken : 1)
 type   = kind_table[kind][D.armour_class]        physical
        | Π element_matrix[element][aspect]        elemental, over D's 1–2 aspects
+body   = group_mult(A.group, kind)               BODIES.md 7.3 (2026-10-20): magic ×1.25 on
+       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, the other
+                                                  groups ×0.75 on spells; the caster's own
+                                                  element ×1.25; a body's, 1 for a preset in
+                                                  nothing and for a pulse
 layer  = physical  && !bypass ARMOR        ? 1 − D.armour            : 1
        × elemental && !bypass MAGIC_SHIELD ? 1 − D.ward              : 1
        × D.Fortify && !bypass MAGIC_SHIELD ? 1 − fortify             : 1
@@ -182,7 +187,7 @@ gear   = (2000 + A.dealt[t]) / (2000 + D.taken[t])              ITEMS.md 3.1: th
          each; 1 for the pulses of a status, and for two bodies in nothing
 zone   = the bolt is a firearm's and entered the hull within its top 12 u ? headshot : 1
          (the head band, MODES.md 3.5: before armour, on the amount)
-damage = max(1, round(base × type × layer × guard × gear × zone))
+damage = max(1, round(base × type × body × layer × guard × gear × zone))
 ```
 
 `Expose` on the defender grants every attacker `bypass ARMOR`. A parry inside its window
