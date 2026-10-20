@@ -445,3 +445,15 @@ times apart before the target's element and gear. The Brute's fireball is a puff
 nothing forbids it. `AttackerStats.affinity` and `.group` ride with the attacker's
 stats into every packet; a status's pulse takes neither, as it takes no gear
 (ITEMS.md 3.1). The numbers are the overview's proposal, **to tune at the dummy**.
+
+### 7.4 The hotbar (built)
+
+Four buttons in every mode, in one order, a fifth with a staff or a wand: the blow, the
+second move, the guard, the body skill, the weapon's spell (`LMB RMB C 1 2` in the
+action mode, `1 2 Shift 3 4` in the RPG mode, the three weapons then `4 5` in FPS).
+Nothing new on the HUD: the cells were the kit's already. What was wrong, and is fixed
+here: `hud_view::hotbar` read each cell's picture from the build's own lists, so with a
+body the body skill's cell was missing (the build buys no actives) and a worn weapon's
+cell showed the empty hands. Every cell is read from the kit now, by the ability's id,
+which is its row in the pack and one (gm-content numbers them so; the fixture pack
+numbers its rows the same since this change).

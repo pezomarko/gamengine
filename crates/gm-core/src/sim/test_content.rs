@@ -2900,6 +2900,11 @@ pub fn pack(rate: TickRate) -> ContentPack {
             window: r.ms_to_ticks(window_ms),
         });
     }
+    // An ability's id is its row and one, as gm-content numbers them (the hotbar and the
+    // fx read a pack row from a kit ability by it); the ids typed above are history.
+    for (i, def) in pack.abilities.iter_mut().enumerate() {
+        def.ability.id = AbilityId(i as u16 + 1);
+    }
     // The fists and the magic blows are held in the FPS mode too (BODIES.md 7: the empty
     // hands of a body of any group).
     for key in [
