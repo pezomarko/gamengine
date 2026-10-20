@@ -122,32 +122,26 @@ pub(super) fn item_cells(o: &Online, c: &ClientState) -> Vec<HotbarCell> {
         .collect()
 }
 
-/// The hotbar's cells for the own body: what each key does and its state now.
+/// The hotbar's cells for the own body: what each key does and its state now. Every
+/// cell is read from the kit (BODIES.md 7.4): the worn weapon's blow, the body skill
+/// and the weapon's spell are in it, and not in the build's own lists.
 pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     let (Some(c), Some(pack)) = (&o.client, &o.pack) else {
         return Vec::new();
     };
     let kit = &c.sheet.kit;
-    let build = &c.sheet.build;
     let mut cells = Vec::new();
-    let mut cell = |key: &'static str, slot: Option<u8>, def: Option<u16>| {
-        cells.extend(hotbar_cell(c, pack, key, slot, def));
+    let mut cell = |key: &'static str, slot: Option<u8>| {
+        cells.extend(hotbar_cell(c, pack, key, slot));
     };
     if kit.mode == gm_core::vocab::Mode::Fps {
-        // The gun mode (MODES.md 3.7): the three weapons, the one in hand lit, then the
+        // The FPS mode (MODES.md 3.7): the three weapons, the one in hand lit, then the
         // actives on 4 to 7.
-        let knife = kit
-            .knife
-            .map(|k| kit.abilities[k as usize].id.0.saturating_sub(1));
-        cell("1", kit.primary, Some(build.primary));
-        cell("2", kit.secondary, Some(build.secondary));
-        cell("3", kit.knife, knife);
+        cell("1", kit.primary);
+        cell("2", kit.secondary);
+        cell("3", kit.knife);
         for (i, key) in ["4", "5", "6", "7"].into_iter().enumerate() {
-            cell(
-                key,
-                kit.actives.get(i).copied().flatten(),
-                build.actives.get(i).copied(),
-            );
+            cell(key, kit.actives.get(i).copied().flatten());
         }
         if let Some(held) = cells.get_mut(c.mover.held as usize)
             && held.state == "ready"
@@ -164,15 +158,11 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     } else {
         ["LMB", "RMB", "C", "1", "2", "3", "4"]
     };
-    cell(keys[0], kit.primary, Some(build.primary));
-    cell(keys[1], kit.secondary, Some(build.secondary));
-    cell(keys[2], kit.guard, build.guard);
+    cell(keys[0], kit.primary);
+    cell(keys[1], kit.secondary);
+    cell(keys[2], kit.guard);
     for (i, key) in keys[3..].iter().enumerate() {
-        cell(
-            key,
-            kit.actives.get(i).copied().flatten(),
-            build.actives.get(i).copied(),
-        );
+        cell(key, kit.actives.get(i).copied().flatten());
     }
     cells.extend(item_cells(o, c));
     cells
@@ -186,11 +176,12 @@ fn hotbar_cell(
     pack: &ContentPack,
     key: &'static str,
     slot: Option<u8>,
-    def: Option<u16>,
 ) -> Option<HotbarCell> {
     let kit = &c.sheet.kit;
     let now = c.tick;
-    let (mut slot, mut def) = (slot? as usize, def? as usize);
+    // The pack's row of the kit's ability: its id is its index and one (gm-content).
+    let mut slot = slot? as usize;
+    let mut def = kit.abilities.get(slot)?.id.0.saturating_sub(1) as usize;
     // A chain's window (MODES.md 4.3): the cell is the next stage's.
     let mut stage = 0;
     if let Some((from, next, _)) = c.mover.chain

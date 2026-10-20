@@ -9,8 +9,8 @@ use crate::build::{Build, BuildError, ContentPack, Kit, Sheet, Worn};
 use crate::collide::{Aabb, BodyGrid, EntityWorld};
 use crate::geom::{Capsule, ray_capsule, sweep_sphere_capsule};
 use crate::matrix::{
-    AttackerStats, DOT_PULSES_PER_S, DefenderStats, Gear, STAGGER_DECAY_PER_S, STAGGER_IMMUNITY_MS,
-    STAGGER_MS, resolve_damage,
+    Aspects, AttackerStats, DOT_PULSES_PER_S, DefenderStats, Gear, STAGGER_DECAY_PER_S,
+    STAGGER_IMMUNITY_MS, STAGGER_MS, resolve_damage,
 };
 use crate::movement::{MoveVars, yaw_vectors};
 use crate::rng::Rng;
@@ -169,10 +169,18 @@ impl Player {
     }
 
     fn attacker_stats(&self) -> AttackerStats {
+        // The affinity and the group are a body's (BODIES.md 7.3): a preset in nothing
+        // and a creature have neither.
+        let affinity = match self.sheet.group {
+            Some(_) => self.sheet.build.aspects,
+            None => Aspects::NONE,
+        };
         AttackerStats::from_derived(
             &self.sheet.derived,
             self.mover.statuses.magnitude(Status::Weaken),
             &self.gear,
+            affinity,
+            self.sheet.group,
         )
     }
 }
@@ -2139,6 +2147,8 @@ impl Zone {
                 gear: [0; 9],
                 on_hit: None,
                 status_dealt: [100; 6],
+                affinity: Aspects::NONE,
+                group: None,
                 ..stats
             }
         };
