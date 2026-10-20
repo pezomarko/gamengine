@@ -40,9 +40,9 @@ frame = "caster"
 attributes = { str = 5, agi = 10, con = 5, int = 20, spr = 15 }    # 30
 aspects = ["water", "air"]                                           # 10: Ground is 0.5x in
 primary = "ice_shard"                                                # 2
-secondary = "frost_nova"                                             # 10  (the staff's second move since BODIES.md 3.6: what plays in nothing)
+secondary = "chill_wave"                                             # the staff's second move (BODIES.md 7.2): what plays in nothing
 guard = "brace"                                                      # 2
-actives = ["blink"]                                                  # 10  = 34
+actives = ["frost_nova", "blink"]                                    # the nova is the staff's spell (BODIES.md 7.2); in nothing, the preset's own
 
 [[build]]
 name = "shade"

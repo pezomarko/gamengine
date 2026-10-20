@@ -242,6 +242,9 @@ pub struct Worn {
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
+    /// The spell the weapon in the right hand brings (BODIES.md 7.2): a staff's or a
+    /// wand's of the body's element, the active after the body skill; `None`: nothing.
+    pub spell: Option<u16>,
     /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
     /// holds its prop and the build may use, the one in `primary` among them; the K page
     /// offers them, and the build's stored primary picks one when it is one of them.
@@ -268,6 +271,7 @@ impl Worn {
         primary: None,
         secondary: None,
         guard: None,
+        spell: None,
         techniques: Vec::new(),
         armour: 0.0,
         ward: 0.0,
@@ -477,6 +481,13 @@ impl Build {
             (worn.secondary.unwrap_or(self.secondary), Slot::Secondary),
         ];
         out.extend(skill.map(|i| (i, Slot::Active)));
+        // The weapon's spell (BODIES.md 7.2), after the body skill; a preset that holds
+        // it among its own actives (the arena's frostweaver, the nova) has it once.
+        out.extend(
+            worn.spell
+                .filter(|i| !self.actives.contains(i))
+                .map(|i| (i, Slot::Active)),
+        );
         out.extend(self.actives.iter().map(|&i| (i, Slot::Active)));
         if let Some(g) = worn.guard.or(self.guard) {
             out.push((g, Slot::Guard));

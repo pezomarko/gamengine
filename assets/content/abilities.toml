@@ -235,6 +235,7 @@ move_self = { charge = { speed = 700, duration_ms = 400, stop_on_hit = true } }
 key = "blink"
 name = "Blink"
 slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "air"
 cooldown_ms = 6000
 focus = 30
@@ -280,6 +281,7 @@ exclude_actor = true
 key = "fortify"
 name = "Fortify"
 slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "ground"
 cooldown_ms = 15000
 focus = 30
@@ -291,8 +293,8 @@ apply_status = { status = "fortify", duration_ms = 5000, magnitude = 0.4, max_st
 [[ability]]
 key = "frost_nova"
 name = "Frost nova"
-slot = "secondary"
-secondary_of = ["staff", "wand"]
+slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "water"
 cooldown_ms = 8000
 focus = 30
@@ -327,8 +329,8 @@ apply_status = { status = "haste", duration_ms = 5000, magnitude = 0.25, max_sta
 [[ability]]
 key = "thunderclap"
 name = "Thunderclap"
-slot = "secondary"
-secondary_of = ["staff", "wand"]
+slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "electric"
 cooldown_ms = 7000
 focus = 30
@@ -392,6 +394,7 @@ exclude_actor = false
 key = "fireball"
 name = "Fireball"
 slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "fire"
 cooldown_ms = 5000
 focus = 35
@@ -760,6 +763,7 @@ exclude_actor = true
 key = "briar"
 name = "Briar"
 slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "grass"
 cooldown_ms = 14000
 focus = 35
@@ -1282,3 +1286,49 @@ interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
 projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "air", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+# ---------- the staff's second move for Water and Electric (BODIES.md 7.2, 2026-10-20) ----------
+# The nova and the thunderclap are the staff's spells now (active 2, `spell_of`); these two
+# cones are its second move for a Water or an Electric body. Appended.
+
+[[ability]]
+key = "chill_wave"
+name = "Chill wave"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+aspect = "water"
+cooldown_ms = 4000
+focus = 20
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+[ability.step.area_effect]
+shape = { cone = { length = 200, half_angle = 35 } }
+origin = "self_feet"
+damage = { amount = 30, type = "water", knockback = 100, stagger = 10 }
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true
+
+[[ability]]
+key = "static"
+name = "Static"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+aspect = "electric"
+cooldown_ms = 4000
+focus = 20
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+[ability.step.area_effect]
+shape = { cone = { length = 200, half_angle = 35 } }
+origin = "self_feet"
+damage = { amount = 30, type = "electric", knockback = 100, stagger = 10 }
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true

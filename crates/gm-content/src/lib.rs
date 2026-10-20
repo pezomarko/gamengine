@@ -157,6 +157,9 @@ pub(crate) struct AbilityToml {
     /// second move. Read by `looks`, not compiled.
     #[serde(default)]
     pub(crate) secondary_of: Vec<String>,
+    /// An active's weapons (BODIES.md 7.2): the props whose weapon brings it as its spell.
+    #[serde(default)]
+    pub(crate) spell_of: Vec<String>,
     /// Squad slots the ability adds while slotted (COMPANIONS.md 3.2).
     #[serde(default)]
     squad: u8,

@@ -397,3 +397,29 @@ max damage dealt by fireball".
 - The ribbon says the group (`Brute  |  colossus  |  melee  |  no aspect  |  action
   mode`), the creation paragraph says how the body fights, the K page's line too.
   Content v25, protocol v30 (the body's group rides with the pack).
+
+### 7.2 The weapon carries the spells (built)
+
+"They don't cast unless they equip weapon with casting skill": a spell is a weapon's
+now, as the bolt and the blast already were, and nothing is learned.
+
+| Element | Staff's bolt (primary) | Staff's blast (secondary) | Staff's spell (active 2) |
+|---|---|---|---|
+| Fire | firebolt | flame burst | fireball |
+| Water | ice shard | **chill wave** (new) | frost nova (a secondary until now) |
+| Grass | thorn | briar burst | briar |
+| Electric | spark | **static** (new) | thunderclap (a secondary until now) |
+| Ground | stone throw | stomp | fortify |
+| Air | shadow dart | gust | blink |
+| none | the staff's blow | staff sweep | nothing |
+
+- `spell_of = ["staff", "wand"]` on an active row (a looks field beside `prop` and
+  `secondary_of`); `Worn.spell` is the one the right hand's weapon brings, picked as
+  the second move is (the build's own among the holders, else the first of the body's
+  element, else none); `Build::kit_slots` puts it after the body skill. A caster with a
+  sword in hand has no spell; a Brute with a Fire staff throws fireballs, weakly (7.3).
+- The two new cones (30 of the element, 20 focus, 4 s) are the Water and Electric
+  staffs' second move; the frostweaver preset stores the chill wave as what plays in
+  nothing and the nova among its own actives, so the arena's frostweaver is what it was.
+- Not yet moved: vanish, poison cloud and entangle (nobody's but the presets'), war
+  standard, the four techniques: 7.5. Content v26, protocol v31 (`Worn.spell`).

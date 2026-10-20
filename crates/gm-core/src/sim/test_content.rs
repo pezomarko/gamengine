@@ -847,7 +847,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ),
         def(
             "frost_nova",
-            Secondary,
+            Active,
             Some(Element::Water),
             ability(
                 37,
@@ -924,7 +924,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         ),
         def(
             "thunderclap",
-            Secondary,
+            Active,
             Some(Element::Electric),
             ability(
                 39,
@@ -2810,6 +2810,75 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 r,
             ),
         ),
+        // The staff's second move for Water and Electric (BODIES.md 7.2).
+        def(
+            "chill_wave",
+            Secondary,
+            Some(Element::Water),
+            ability(
+                79,
+                "Chill wave",
+                4000,
+                0,
+                20,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    150,
+                    Verb::AreaEffect(AreaEffect {
+                        shape: Shape::Cone {
+                            length: 200.0,
+                            half_angle_deg: 35.0,
+                        },
+                        origin: Origin::SelfFeet,
+                        delay: 0,
+                        duration: 0,
+                        interval: 0,
+                        damage: Some(packet(30, Water, 100.0, 10)),
+                        effects: vec![],
+                        falloff: Falloff::None,
+                        max_targets: 6,
+                        requires_los: true,
+                        exclude_actor: true,
+                    }),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "static",
+            Secondary,
+            Some(Element::Electric),
+            ability(
+                80,
+                "Static",
+                4000,
+                0,
+                20,
+                0.6,
+                Interrupt::OnStagger,
+                vec![(
+                    150,
+                    Verb::AreaEffect(AreaEffect {
+                        shape: Shape::Cone {
+                            length: 200.0,
+                            half_angle_deg: 35.0,
+                        },
+                        origin: Origin::SelfFeet,
+                        delay: 0,
+                        duration: 0,
+                        interval: 0,
+                        damage: Some(packet(30, Electric, 100.0, 10)),
+                        effects: vec![],
+                        falloff: Falloff::None,
+                        max_targets: 6,
+                        requires_los: true,
+                        exclude_actor: true,
+                    }),
+                )],
+                r,
+            ),
+        ),
     ];
     let mut pack = ContentPack {
         abilities,
@@ -2909,9 +2978,9 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 attributes: Attributes::new(5, 10, 5, 20, 15),
                 aspects: Aspects::two(Element::Water, Element::Air),
                 primary: id(&pack, "ice_shard"),
-                secondary: id(&pack, "frost_nova"),
+                secondary: id(&pack, "chill_wave"),
                 guard: Some(id(&pack, "brace")),
-                actives: vec![id(&pack, "blink")],
+                actives: vec![id(&pack, "frost_nova"), id(&pack, "blink")],
             },
         },
         NamedBuild {

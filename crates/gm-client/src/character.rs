@@ -1391,6 +1391,7 @@ fn hands_column<C: Canvas>(
             Slot::Guard if worn.guard.is_some() => "the off hand",
             Slot::Guard => "the empty off hand",
             Slot::Active if b.body_skill(pack) == Some(i) => "the body",
+            Slot::Active if worn.spell == Some(i) => "the weapon's spell",
             Slot::Active => "the build",
             Slot::Extra => continue,
         };
@@ -1532,7 +1533,7 @@ mod tests {
         // An aspect the build lacks; what is in the kit already is fine. (The nova and
         // the stomp are the staff's second moves since BODIES.md 3.6: secondaries.)
         assert_eq!(
-            why_not(&pack, &ironclad, Slot::Secondary, by("frost_nova")).as_deref(),
+            why_not(&pack, &ironclad, Slot::Active, by("frost_nova")).as_deref(),
             Some("needs the water aspect")
         );
         assert_eq!(why_not(&pack, &ironclad, Slot::Active, by("fortify")), None);
