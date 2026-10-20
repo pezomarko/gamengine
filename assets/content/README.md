@@ -36,12 +36,12 @@ when the two drift.
 | charge | active | — | 700 u/s for 400 ms, stops on hit |
 | blink | active | air | 256 u along the facing, 30 focus |
 | overhead | active | — | 70 slash, 60° arc, slow |
-| stomp | active | ground | 128 u cylinder at the feet: 35 ground, Slow 30% 2 s, knockback |
+| stomp | secondary | ground | 128 u cylinder at the feet: 35 ground, Slow 30% 2 s, knockback |
 | fortify | active | ground | Fortify 40% for 5 s (hammers ignore it) |
 | bellow | active | — | Taunt 2.5 s on every enemy within 256 u (turned to the roarer and held; a control), Fortify 30% 4 s on the roarer |
-| frost_nova | active | water | 160 u sphere: 30 water + 2 Chill stacks |
+| frost_nova | active | water | 160 u sphere: 30 water + 2 Chill stacks; the Water staff's spell (BODIES.md 7.2) |
 | haste | active | — | Haste 25% for 5 s |
-| thunderclap | active | electric | 140 u sphere: 40 electric + Shock |
+| thunderclap | active | electric | 140 u sphere: 40 electric + Shock; the Electric staff's spell |
 | vanish | active | air | Stealth 256 u for 6 s |
 | poison_cloud | active | air | 96 u cloud ahead for 5 s: Bleed 6/s |
 | fireball | active | fire | 20 fire bolt, 96 u splash 30 fire + Burn |
@@ -62,9 +62,35 @@ when the two drift.
 | greataxe | primary | — | 90 slash, 90° arc, two targets, knockback 300, 300/80/500 ms, 1.1 s; both hands |
 | warhammer | primary | — | 95 blunt, 100° arc, two targets, knockback 320, stagger 70, 320/90/520 ms, 1.2 s; both hands |
 | scythe | primary | — | 75 slash, 150° arc, three targets at 0.6, 300/80/500 ms, 1.1 s; both hands |
+| slip | active | — | the Thief's body skill: a three-second vanish of no element, 20 stamina, 10 s |
+| pistol | secondary | — | the FPS sidearm, the pistol in the off hand |
+| carbine | primary | — | the lighter gun |
+| thorn | primary | grass | 45 grass bolt + Bleed 2 s; the Grass staff's bolt |
+| flame_burst | secondary | fire | a cone of 60 fire + Burn; the Fire staff's second move |
+| briar_burst | secondary | grass | a cylinder of 40 grass + Root 0.8 s; the Grass staff's second move |
+| gust | secondary | air | a cone of 30 air, knockback 300; the Air staff's second move |
+| staff_sweep | secondary | — | an arc of 30 blunt, stagger 40; the plain staff's second move |
+| pommel | secondary | — | 25 blunt, stagger 50, 1.5 s; a sword's, a katana's and an axe's second move |
+| thrust | primary | — | 70 pierce, reach 84, one target; the sword's technique |
+| hammer_sweep | primary | — | 55 blunt, arc 140, five targets; the hammer's technique |
+| volley | primary | — | three arrows of 30, 35 stamina; the bow's technique |
+| backstab | primary | — | 55 pierce, unparryable; the dagger's technique |
+| fists | primary | — | the melee group's empty hands (BODIES.md 7.1): two blows, 18 and 22 blunt |
+| knife_hands | primary | — | the ranged group's empty hands: the knife held as the weapon |
+| force_blow | primary | — | the magic group's empty hands with no element: a bolt of 22 force, 4 focus |
+| fire_blow | primary | fire | the magic group's empty hands with Fire: a bolt of 22; so for each element below |
+| water_blow | primary | water | as the fire blow, of water |
+| grass_blow | primary | grass | of grass |
+| electric_blow | primary | electric | of electric |
+| ground_blow | primary | ground | of ground |
+| air_blow | primary | air | of air |
+| chill_wave | secondary | water | a cone of 30 water, 20 focus, 4 s; the Water staff's second move (BODIES.md 7.2) |
+| static | secondary | electric | a cone of 30 electric, 20 focus, 4 s; the Electric staff's second move |
 
 The range is the weapon's (MATRIX.md 10, 2026-10-06): a primary is a blade or the bow; a
-secondary is a short utility. Presets (thirty attribute points each, a kit of at most 40):
+secondary is a short utility or the weapon's second move; an active is a body's skill or
+a weapon's spell (`spell_of`, BODIES.md 7.2). Presets (thirty attribute points each, a body
+each since BODIES.md 7.5):
 **ironclad** (colossus, plate, ground; greatsword, shield bash, a shield in the off hand; stomp, bellow), **blade** (striker, mail, water;
 sword, kick; charge), **frostweaver** (caster, cloth, water + air; ice shard, kick), **shade**
 (infiltrator, leather, air; dagger, knife), **mender** (caster, cloth, electric: the healer;

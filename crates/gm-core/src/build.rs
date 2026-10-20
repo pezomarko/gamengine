@@ -1379,7 +1379,8 @@ mod tests {
         // A kit the pack refuses: the preset with that primary, the attributes kept.
         let mut b = base.clone();
         b.secondary = pack.find("ice_shard").unwrap();
-        b.attributes = Attributes::new(25, 10, 5, 5, 5);
+        // (On the Soldier's floors, BODIES.md 7.5: the repair lifts nothing.)
+        b.attributes = Attributes::new(25, 10, 7, 3, 3);
         let r = b.repaired(&pack).expect("repairable");
         assert_eq!(r.attributes, b.attributes);
         assert_eq!(r.secondary, base.secondary);
@@ -1432,13 +1433,16 @@ mod tests {
         assert_eq!(b.validate(&pack), Ok(()));
         let mut b = base.clone();
         b.aspects = Aspects::two(Element::Water, Element::Fire);
+        // (Three bought beside the body skill, BODIES.md 7.5: the blade is a Soldier.)
+        let skill = b.body_skill(&pack);
         b.actives = (0..pack.abilities.len() as u16)
             .filter(|&i| {
                 pack.abilities[i as usize].slot == Slot::Active
                     && pack.abilities[i as usize].aspect.is_none()
                     && !pack.abilities[i as usize].creature
+                    && skill != Some(i)
             })
-            .take(MAX_ACTIVES)
+            .take(MAX_ACTIVES - 1)
             .collect();
         assert_eq!(b.validate(&pack), Ok(()), "{b:?}");
         // Fire content needs the Fire aspect (the firebolt is a primary; the blade is Water).

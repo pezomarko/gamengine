@@ -552,6 +552,11 @@ pub(crate) struct BuildToml {
     #[serde(default = "action")]
     pub(crate) mode: String,
     frame: String,
+    /// The body the preset is (BODIES.md 7.5): the bots and the arena fight as bodies
+    /// since 2026-10-20, so the groups and the affinity are measured. Optional: a
+    /// fixture's preset may be bodiless.
+    #[serde(default)]
+    body: Option<String>,
     attributes: AttributesToml,
     aspects: Vec<String>,
     primary: String,
@@ -1111,6 +1116,8 @@ struct KitToml<'a> {
     /// The mode (MODES.md 2); a creature plays none.
     mode: Option<&'a str>,
     frame: &'a str,
+    /// The body (BODIES.md 7.5), a preset's; a creature has none.
+    body: Option<&'a str>,
     aspects: &'a [String],
     attributes: &'a AttributesToml,
     primary: &'a str,
@@ -1192,9 +1199,16 @@ fn compile_body(b: &KitToml<'_>, pack: &ContentPack) -> Result<Build, ContentErr
         None => Mode::Action,
         Some(m) => Mode::from_name(m).ok_or_else(|| err(format!("unknown mode {m:?}")))?,
     };
+    let body = b
+        .body
+        .map(|key| {
+            pack.body(key)
+                .ok_or_else(|| err(format!("unknown body {key:?}")))
+        })
+        .transpose()?;
     Ok(Build {
         mode,
-        body: None,
+        body,
         frame,
         attributes: Attributes::new(
             b.attributes.str,
@@ -1224,6 +1238,7 @@ fn compile_build(b: &BuildToml, pack: &ContentPack) -> Result<NamedBuild, Conten
                 name: &b.name,
                 mode: Some(&b.mode),
                 frame: &b.frame,
+                body: b.body.as_deref(),
                 aspects: &b.aspects,
                 attributes: &b.attributes,
                 primary: &b.primary,
@@ -1246,6 +1261,7 @@ fn compile_creature(c: &CreatureToml, pack: &ContentPack) -> Result<CreatureDef,
                 name: &c.key,
                 mode: None,
                 frame: &c.frame,
+                body: None,
                 aspects: &c.aspects,
                 attributes: &c.attributes,
                 primary: &c.primary,
@@ -1332,6 +1348,11 @@ pub fn load_all(
     for (i, a) in af.ability.iter().enumerate() {
         pack.abilities.push(compile_ability(a, i, &keys, rate)?);
     }
+    // The bodies before the presets: a preset is a body (BODIES.md 7.5).
+    for b in &yf.body {
+        let def = compile_body_def(b, &pack)?;
+        pack.bodies.push(def);
+    }
     for b in &bf.build {
         let nb = compile_build(b, &pack)?;
         pack.builds.push(nb);
@@ -1341,10 +1362,6 @@ pub fn load_all(
         pack.creatures.push(def);
     }
     pack.trials = tf.trial.iter().map(compile_trial).collect();
-    for b in &yf.body {
-        let def = compile_body_def(b, &pack)?;
-        pack.bodies.push(def);
-    }
     pack.validate(rate)?;
     Ok(pack)
 }
@@ -1462,7 +1479,13 @@ mod tests {
             .replace("core/iron", "core/unobtainium");
         let dir = std::env::temp_dir().join(format!("gm-content-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        for f in ["abilities.toml", "builds.toml", "trials.toml", "items.toml"] {
+        for f in [
+            "abilities.toml",
+            "bodies.toml",
+            "builds.toml",
+            "trials.toml",
+            "items.toml",
+        ] {
             std::fs::copy(Path::new(DIR).join(f), dir.join(f)).unwrap();
         }
         std::fs::write(dir.join("creatures.toml"), bad).unwrap();
