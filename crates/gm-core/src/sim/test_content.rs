@@ -4,7 +4,8 @@
 //! simulation tests mean something, but it is a fixture, not the source of truth.
 
 use crate::build::{
-    AbilityDef, BodyDef, Build, ContentPack, CreatureDef, Loot, NamedBuild, Sheet, Slot,
+    AbilityDef, BodyDef, BodyGroup, Build, ContentPack, CreatureDef, Group, Loot, NamedBuild,
+    Sheet, Slot,
 };
 use crate::matrix::{Aspects, Attributes, Element};
 use crate::tick::TickRate;
@@ -2674,6 +2675,141 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 ),
             )
         },
+        // The magic group's empty hands (BODIES.md 7): a weak bolt of force, and one of
+        // each element for a body that holds it.
+        def(
+            "force_blow",
+            Primary,
+            None,
+            ability(
+                72,
+                "Force blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Blunt, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "fire_blow",
+            Primary,
+            Some(Element::Fire),
+            ability(
+                73,
+                "Fire blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Fire, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "water_blow",
+            Primary,
+            Some(Element::Water),
+            ability(
+                74,
+                "Water blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Water, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "grass_blow",
+            Primary,
+            Some(Element::Grass),
+            ability(
+                75,
+                "Grass blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Grass, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "electric_blow",
+            Primary,
+            Some(Element::Electric),
+            ability(
+                76,
+                "Electric blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Electric, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "ground_blow",
+            Primary,
+            Some(Element::Ground),
+            ability(
+                77,
+                "Ground blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Ground, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
+        def(
+            "air_blow",
+            Primary,
+            Some(Element::Air),
+            ability(
+                78,
+                "Air blow",
+                600,
+                0,
+                4,
+                0.9,
+                Interrupt::OnDamage,
+                vec![(
+                    100,
+                    projectile(r, 1800.0, 0.05, 3.0, packet(22, Air, 30.0, 5), vec![]),
+                )],
+                r,
+            ),
+        ),
     ];
     let mut pack = ContentPack {
         abilities,
@@ -2694,6 +2830,21 @@ pub fn pack(rate: TickRate) -> ContentPack {
             next,
             window: r.ms_to_ticks(window_ms),
         });
+    }
+    // The fists and the magic blows are held in the FPS mode too (BODIES.md 7: the empty
+    // hands of a body of any group).
+    for key in [
+        "fists",
+        "force_blow",
+        "fire_blow",
+        "water_blow",
+        "grass_blow",
+        "electric_blow",
+        "ground_blow",
+        "air_blow",
+    ] {
+        let i = id(&pack, key) as usize;
+        pack.abilities[i].gun_melee = true;
     }
     // The reach of a target-action (MODES.md 5.3), as the loader derives it: an arc's
     // reach, an aimed area's range, 600 for a bolt, or what content names.
@@ -3019,6 +3170,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
     let body = |key: &str,
                 name: &str,
                 frame: ArchetypeFrame,
+                group: BodyGroup,
                 floors: [u8; 5],
                 skill: &str,
                 stamina: u8,
@@ -3026,6 +3178,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
         key: key.into(),
         name: name.into(),
         frame,
+        group,
         floors: Attributes::new(floors[0], floors[1], floors[2], floors[3], floors[4]),
         skill: id(&pack, skill),
         stamina,
@@ -3036,6 +3189,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "brute",
             "Brute",
             ArchetypeFrame::Colossus,
+            BodyGroup::Fixed(Group::Melee),
             [7, 3, 9, 3, 3],
             "charge",
             100,
@@ -3045,6 +3199,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "veteran",
             "Veteran",
             ArchetypeFrame::Colossus,
+            BodyGroup::Fixed(Group::Ranged),
             [7, 3, 5, 3, 7],
             "bellow",
             100,
@@ -3054,6 +3209,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "soldier",
             "Soldier",
             ArchetypeFrame::Striker,
+            BodyGroup::ByMode,
             [7, 5, 7, 3, 3],
             "overhead",
             100,
@@ -3063,6 +3219,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "huntress",
             "Huntress",
             ArchetypeFrame::Striker,
+            BodyGroup::Fixed(Group::Ranged),
             [5, 8, 5, 3, 4],
             "leap",
             100,
@@ -3072,6 +3229,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "sorceress",
             "Sorceress",
             ArchetypeFrame::Caster,
+            BodyGroup::Fixed(Group::Magic),
             [3, 4, 3, 9, 6],
             "haste",
             100,
@@ -3081,6 +3239,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "elder",
             "Elder",
             ArchetypeFrame::Caster,
+            BodyGroup::Fixed(Group::Magic),
             [3, 3, 4, 6, 9],
             "sanctuary",
             100,
@@ -3090,6 +3249,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "whelp",
             "Whelp",
             ArchetypeFrame::Infiltrator,
+            BodyGroup::Fixed(Group::Melee),
             [3, 9, 5, 4, 4],
             "dash",
             115,
@@ -3099,6 +3259,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             "thief",
             "Thief",
             ArchetypeFrame::Infiltrator,
+            BodyGroup::Fixed(Group::Melee),
             [4, 8, 3, 6, 4],
             "slip",
             100,

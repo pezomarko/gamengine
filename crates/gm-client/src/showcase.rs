@@ -134,10 +134,11 @@ pub fn short_ribbon(class: &str, b: &Build) -> String {
     }
 }
 
-/// `Class  |  frame  |  aspects  |  mode`, the line under the name; the class leads it
-/// when the content is here to name one. (The armour left the line on 2026-10-16: it is
-/// the chest piece's, GEAR.md 3, worn in the world and not chosen here.)
-pub fn ribbon(class: &str, b: &Build) -> String {
+/// `Class  |  frame  |  group  |  aspects  |  mode`, the line under the name; the class
+/// leads it when the content is here to name one, and the group (BODIES.md 7) is said
+/// when the pack is here to read it. (The armour left the line on 2026-10-16: it is the
+/// chest piece's, GEAR.md 3, worn in the world and not chosen here.)
+pub fn ribbon(class: &str, pack: Option<&ContentPack>, b: &Build) -> String {
     let aspects: Vec<&str> = b.aspects.iter().map(|e| e.name()).collect();
     let aspects = if aspects.is_empty() {
         "no aspect".to_string()
@@ -149,8 +150,12 @@ pub fn ribbon(class: &str, b: &Build) -> String {
     } else {
         format!("{class}  |  ")
     };
+    let group = match pack {
+        Some(pack) => format!("{}  |  ", b.group(pack).name()),
+        None => String::new(),
+    };
     format!(
-        "{lead}{}  |  {}  |  {} mode",
+        "{lead}{}  |  {group}{}  |  {} mode",
         frame_name(b.frame),
         aspects,
         b.mode.name()
@@ -193,7 +198,7 @@ pub fn selector<C: Canvas>(
     let (name, ribbon_text) = match shown {
         Some(sh) => (
             sh.name.to_string(),
-            ribbon(&class_name(sh.pack, sh.build), sh.build),
+            ribbon(&class_name(sh.pack, sh.build), sh.pack, sh.build),
         ),
         None => (String::new(), String::new()),
     };
@@ -517,15 +522,18 @@ mod tests {
     fn the_ribbon_reads_the_build() {
         let pack = gm_core::sim::test_content::pack(TickRate::COMBAT);
         let ironclad = &pack.builds[0].build;
-        assert_eq!(ribbon("", ironclad), "colossus  |  ground  |  action mode");
         assert_eq!(
-            ribbon(&class_name(Some(&pack), ironclad), ironclad),
-            "Ironclad  |  colossus  |  ground  |  action mode"
+            ribbon("", None, ironclad),
+            "colossus  |  ground  |  action mode"
+        );
+        assert_eq!(
+            ribbon(&class_name(Some(&pack), ironclad), Some(&pack), ironclad),
+            "Ironclad  |  colossus  |  melee  |  ground  |  action mode"
         );
         assert_eq!(short_ribbon("Ironclad", ironclad), "Ironclad  |  colossus");
         let mut neutral = ironclad.clone();
         neutral.aspects = gm_core::matrix::Aspects::default();
-        assert!(ribbon("", &neutral).contains("|  no aspect  |"));
+        assert!(ribbon("", None, &neutral).contains("|  no aspect  |"));
     }
 
     /// EQUIPMENT.md 2: a preset is its class; a build with a preset's whole kit in it

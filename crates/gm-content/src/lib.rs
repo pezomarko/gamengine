@@ -124,6 +124,8 @@ struct BodyToml {
     key: String,
     name: String,
     frame: String,
+    /// `melee`, `magic`, `ranged` or `by_mode` (BODIES.md 7).
+    group: String,
     floors: AttributesToml,
     skill: String,
     /// The stamina pool, percent.
@@ -1147,6 +1149,12 @@ fn compile_body_def(b: &BodyToml, pack: &ContentPack) -> Result<BodyDef, Content
         key: b.key.clone(),
         name: b.name.clone(),
         frame: frame_of(&b.frame).ok_or_else(|| err(format!("unknown frame {:?}", b.frame)))?,
+        group: gm_core::build::BodyGroup::from_name(&b.group).ok_or_else(|| {
+            err(format!(
+                "unknown group {:?} (melee, magic, ranged, by_mode)",
+                b.group
+            ))
+        })?,
         floors: Attributes::new(
             b.floors.str,
             b.floors.agi,

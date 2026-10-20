@@ -1511,7 +1511,7 @@ mod tests {
         // The bodies with the content's words (BODIES.md 3.5), and no way back to an
         // empty list.
         assert!(run.says("brute"), "{:?}", run.said());
-        assert!(run.says("Brute  |  colossus  |  no aspect  |  action mode"));
+        assert!(run.says("Brute  |  colossus  |  melee  |  no aspect  |  action mode"));
         assert!(run.says(
             "A big man in his thirties. Takes and gives blows. Slow, and no head for magic."
         ));
@@ -1563,7 +1563,7 @@ mod tests {
         );
         assert!(!run.says("Haste  8"), "{:?}", run.said());
         assert!(
-            run.says("Empty-handed: Fists, Kick and Parry"),
+            run.says("Empty-handed: Force blow, Kick and Parry"),
             "{:?}",
             run.said()
         );
@@ -1939,7 +1939,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         assert!(
-            run.says("Brute  |  colossus  |  no aspect  |  action mode"),
+            run.says("Brute  |  colossus  |  melee  |  no aspect  |  action mode"),
             "{:?}",
             run.said()
         );

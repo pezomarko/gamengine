@@ -1147,6 +1147,7 @@ melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms
 key = "fists"
 name = "Fists"
 slot = "primary"
+gun_melee = true
 cooldown_ms = 450
 move_scale = 0.9
 interrupt = "on_stagger"
@@ -1178,3 +1179,106 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 40, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# ---------- the magic group's empty hands (BODIES.md 7, 2026-10-20) ----------
+# A magic body (the sorceress, the elder) empty-handed throws a weak bolt: of force with no
+# element, of its first element with one. A staff is the next level: its bolt of the same
+# element in place of this. Held in the FPS mode too (`gun_melee`: the empty hands of a body
+# of any group, as the fists). Appended: builds name abilities by position.
+
+[[ability]]
+key = "force_blow"
+name = "Force blow"
+slot = "primary"
+gun_melee = true
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "blunt", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "fire_blow"
+name = "Fire blow"
+slot = "primary"
+gun_melee = true
+aspect = "fire"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "fire", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "water_blow"
+name = "Water blow"
+slot = "primary"
+gun_melee = true
+aspect = "water"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "water", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "grass_blow"
+name = "Grass blow"
+slot = "primary"
+gun_melee = true
+aspect = "grass"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "grass", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "electric_blow"
+name = "Electric blow"
+slot = "primary"
+gun_melee = true
+aspect = "electric"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "electric", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "ground_blow"
+name = "Ground blow"
+slot = "primary"
+gun_melee = true
+aspect = "ground"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "ground", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "air_blow"
+name = "Air blow"
+slot = "primary"
+gun_melee = true
+aspect = "air"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "air", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }

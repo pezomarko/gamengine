@@ -353,3 +353,47 @@ Decided 2026-10-20 (MATRIX.md 20): there is no trainer and nothing is bought, so
 body's skill is the body's alone by construction; the groups (melee, magic, ranged), the
 weapons' spells and the stacking are section 7, the next job.
 
+
+## 7. The groups, the weapons' spells and the stacking (v2, 2026-10-20)
+
+The director, after the skills overview (MATRIX.md 20): "we should change character
+(body) attack types, lets group them into melee, magic, and ranged ... melee group would
+have fist attacks as base, magic would have some weak magical (elemental or neutral)
+blows as basic empty handed skill (staff gets it on the whole next level, changes base
+magical attack into more powerful one). Ranged group has knife as base, which actually
+makes them melee until they equip the gun (also makes melee if gun is out of ammo)."
+Then: "veteran and huntress are ranged, sorceress and elder are magical, other are
+melee, soldier can be melee or ranged, depending on game mode selected, FPS -> ranged,
+others melee"; the mode stays a separate switch; nothing is respecced ("we are past
+that testing phase"); and casting is the weapon's: "they don't cast unless they equip
+weapon with casting skill ... having fire elemental selection + fireball on staff should
+result in increased fireball base damage ... fire affinity + magical + int build = near
+max damage dealt by fireball".
+
+### 7.1 The group (built)
+
+| Body | Group | Empty hands |
+|---|---|---|
+| Brute, Whelp, Thief | melee | `fists` |
+| Veteran, Huntress | ranged | `knife_hands` |
+| Soldier | by the mode: FPS ranged, else melee | the knife in FPS, else the fists |
+| Sorceress, Elder | magic | `<element>_blow` of the first element held, else `force_blow` |
+
+- `group` on a body row (`melee`, `magic`, `ranged`, `by_mode`); `BodyDef.group:
+  BodyGroup`; `Build::group(pack)` is the body's in the build's mode, and for a build
+  without a body (a preset, a creature) the mode's: FPS ranged, RPG magic, action melee,
+  which is what the seven presets are. `Build::bare_hands(pack)` is what the group plays
+  in nothing; `ContentPack::bare_hands(group, aspects, mode)` picks it, and falls back to
+  the first plain primary of the mode in a pack without the rows.
+- **The magic blows**: seven rows appended, `force_blow` and one per element, each a
+  short bolt of 22 (force is blunt), 4 focus, 0.6 s, no status: the weak thing a caster
+  does with empty hands. The creation editor follows the element: pick Fire and the
+  hands are the fire blow. A staff is the next level (7.2).
+- **The fists hold in FPS** (`gun_melee = true`): a melee body in the FPS mode is
+  empty-handed until it takes a gun.
+- **Out of ammo, the knife**: `Mover::in_hand` plays the knife when the firearm in hand
+  has nothing in it and nothing to load, on the zone and in the prediction alike; the
+  weapon in hand comes back with a reload. (The bow has no ammo: its draw is stamina.)
+- The ribbon says the group (`Brute  |  colossus  |  melee  |  no aspect  |  action
+  mode`), the creation paragraph says how the body fights, the K page's line too.
+  Content v25, protocol v30 (the body's group rides with the pack).
