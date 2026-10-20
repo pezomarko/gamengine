@@ -173,10 +173,10 @@ base   = amount
 type   = kind_table[kind][D.armour_class]        physical
        | Π element_matrix[element][aspect]        elemental, over D's 1–2 aspects
 body   = group_mult(A.group, kind)               BODIES.md 7.3 (2026-10-20): magic ×1.25 on
-       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, the other
-                                                  groups ×0.75 on spells; the caster's own
-                                                  element ×1.25; a body's, 1 for a preset in
-                                                  nothing and for a pulse
+       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, melee the
+                                                  reverse, ranged ×0.75 on spells; the caster's
+                                                  own element ×1.25; a body's, 1 for a creature
+                                                  and for a pulse
 layer  = physical  && !bypass ARMOR        ? 1 − D.armour            : 1
        × elemental && !bypass MAGIC_SHIELD ? 1 − D.ward              : 1
        × D.Fortify && !bypass MAGIC_SHIELD ? 1 − fortify             : 1

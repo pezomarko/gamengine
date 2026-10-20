@@ -88,9 +88,10 @@ pub const RESISTED: f32 = 0.75;
 /// BODIES.md 7.3 (2026-10-20): a spell of one of the attacker's own elements deals this
 /// much more. A body's, like the group's factor; a preset in nothing has neither.
 pub const AFFINITY: f32 = 1.25;
-/// BODIES.md 7.3: the magic group's spells deal this much more, and its blows and the
-/// other groups' spells this much less. "Fire affinity + magical + INT build = near max
-/// damage dealt by fireball"; a Brute's fireball is a puff.
+/// BODIES.md 7.3: the magic group's spells and the melee group's blows deal this much
+/// more; the magic group's blows and the melee and ranged groups' spells this much less.
+/// "Fire affinity + magical + INT build = near max damage dealt by fireball"; a Brute's
+/// fireball is a puff, and its fist is not.
 pub const GROUP_FAVOURED: f32 = 1.25;
 pub const GROUP_UNFAVOURED: f32 = 0.75;
 
@@ -523,16 +524,18 @@ pub struct DefenderStats {
 }
 
 /// BODIES.md 7.3: what a group's blows (`elemental` false) and spells (true) are
-/// multiplied by. Magic: spells `GROUP_FAVOURED`, blows `GROUP_UNFAVOURED`; melee and
-/// ranged: blows as they are, spells `GROUP_UNFAVOURED`. No group: 1.
+/// multiplied by. Magic: spells `GROUP_FAVOURED`, blows `GROUP_UNFAVOURED`; melee: blows
+/// `GROUP_FAVOURED`, spells `GROUP_UNFAVOURED`; ranged: blows as they are (a bow, a gun:
+/// the range is the edge), spells `GROUP_UNFAVOURED`. No group: 1.
 pub fn group_mult(group: Option<crate::build::Group>, elemental: bool) -> f32 {
     use crate::build::Group;
     match (group, elemental) {
         (None, _) => 1.0,
-        (Some(Group::Magic), true) => GROUP_FAVOURED,
-        (Some(Group::Magic), false) => GROUP_UNFAVOURED,
-        (Some(Group::Melee | Group::Ranged), true) => GROUP_UNFAVOURED,
-        (Some(Group::Melee | Group::Ranged), false) => 1.0,
+        (Some(Group::Magic), true) | (Some(Group::Melee), false) => GROUP_FAVOURED,
+        (Some(Group::Magic), false) | (Some(Group::Melee | Group::Ranged), true) => {
+            GROUP_UNFAVOURED
+        }
+        (Some(Group::Ranged), false) => 1.0,
     }
 }
 
@@ -880,7 +883,7 @@ mod tests {
     /// BODIES.md 7.3: a Sorceress of Fire at INT 25 throws a staff's fireball at 1.6 x
     /// 1.25 x 1.25 of its row; a Brute of no element at INT 3 with the same staff at
     /// 0.72 x 0.75. The attribute, the affinity and the group multiply; a melee body's
-    /// blow is as its STR makes it, a magic body's a quarter less.
+    /// blow is a quarter more than its STR makes it, a magic body's a quarter less.
     #[test]
     fn affinity_and_group_stack_on_a_spell() {
         use crate::build::Group;
@@ -914,7 +917,7 @@ mod tests {
         assert_eq!(resolve_damage(&fire, &sorceress, &d), 250);
         assert_eq!(resolve_damage(&fire, &brute, &d), 54);
         assert_eq!(resolve_damage(&slash, &sorceress, &d), 54);
-        assert_eq!(resolve_damage(&slash, &brute, &d), 88);
+        assert_eq!(resolve_damage(&slash, &brute, &d), 110);
         // Water with the Fire affinity: the affinity is the element's, not any spell's.
         let water = packet(100, DamageType::Water, Bypass::NONE);
         assert_eq!(resolve_damage(&water, &sorceress, &d), 200);

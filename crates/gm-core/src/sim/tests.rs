@@ -544,13 +544,13 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         );
         let p = zone.player(b).unwrap();
         let taken = p.max_health() - p.health;
-        // Sword 60 x 1.28 (STR 17) x 0.6 (armour 0.40) = 46.08 -> 46 unblocked,
-        // x 0.2 blocked = 9.216 -> 9.
+        // Sword 60 x 1.28 (STR 17) x 1.25 (the Soldier's melee blow, BODIES.md 7.3) x
+        // 0.6 (armour 0.40) = 57.6 -> 58 unblocked, x 0.2 blocked = 11.52 -> 12.
         if expect_block {
-            assert_eq!(taken, 9, "facing {facing}");
+            assert_eq!(taken, 12, "facing {facing}");
             assert_eq!(stamina_before - p.mover.stamina, 12.0);
         } else {
-            assert_eq!(taken, 46, "facing {facing}");
+            assert_eq!(taken, 58, "facing {facing}");
         }
     }
     // Guard break: with less stamina than the block costs, the hit lands in full and staggers.
@@ -569,7 +569,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         13,
     );
     let p = zone.player(b).unwrap();
-    assert_eq!(p.max_health() - p.health, 46);
+    assert_eq!(p.max_health() - p.health, 58);
     assert_eq!(p.mover.stamina, 0.0);
     assert!(p.mover.statuses.has(Status::Stagger));
     assert!(
@@ -939,8 +939,9 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         60,
     );
     let pb = zone.player(b).unwrap();
-    // Hammer 90 x 1.2 (STR 15) x 0.6 (armour 0.40) = 64.8 -> 65, fortify ignored.
-    assert_eq!(pb.max_health() - pb.health, 65);
+    // Hammer 90 x 1.2 (STR 15) x 1.25 (the Brute's melee blow, BODIES.md 7.3) x 0.6
+    // (armour 0.40) = 81, fortify ignored.
+    assert_eq!(pb.max_health() - pb.health, 81);
     let before = pb.health;
     // c aims at b where the hammer's knockback left it.
     let to = pb.mover.mv.origin - zone.player(c).unwrap().mover.mv.origin;
