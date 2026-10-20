@@ -325,7 +325,7 @@ fn look_of(
 ) -> Look {
     let player = zone.player(body);
     if let Some(p) = player
-        && p.sheet.kit.mode == gm_core::vocab::Mode::Gun
+        && p.sheet.kit.mode == gm_core::vocab::Mode::Fps
     {
         let in_hand = p
             .mover
@@ -339,7 +339,7 @@ fn look_of(
             sheathed: false,
         };
     }
-    // Somebody of the town nothing hurts (the smith, the trainer: ITEMS.md 6.6) wears
+    // Somebody of the town nothing hurts (the smith: ITEMS.md 6.6) wears
     // nothing of the hub's and holds the prop of its primary, so the smith has his hammer.
     if let Some(p) = player
         && p.unhurt
@@ -491,7 +491,7 @@ const HUB_PATIENCE: Duration = Duration::from_secs(10);
 pub const GEAR_AFTER_FIGHT: Duration = Duration::from_secs(10);
 /// What a player is told when the hub did not answer in `HUB_PATIENCE`.
 const HUB_SILENT: &str = "the hub did not answer: try again";
-use gm_net::control::TRAINER_REACH;
+use gm_net::control::NPC_REACH;
 
 /// A line of the zone itself to one client (a refusal, a notice): it is not lost.
 /// What a body of the director's wears for its look (ITEMS.md 6.6): a creature's

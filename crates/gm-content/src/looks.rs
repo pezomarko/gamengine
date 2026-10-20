@@ -22,6 +22,9 @@ pub struct AbilityLook {
     /// second move (`["staff", "wand"]`), as a primary's `prop` names the weapon that
     /// swings it.
     pub secondary_of: Vec<String>,
+    /// An active's weapons (BODIES.md 7.2): the props whose weapon brings it as its
+    /// spell, the active after the body skill (`["staff", "wand"]`).
+    pub spell_of: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -212,6 +215,7 @@ impl Looks {
                 icon: a.icon.clone(),
                 prop: a.prop.clone(),
                 secondary_of: a.secondary_of.clone(),
+                spell_of: a.spell_of.clone(),
                 sound: a.sound.clone(),
             });
         }
@@ -464,20 +468,17 @@ mod tests {
 key = "sword"
 name = "Sword"
 slot = "primary"
-cost = 2
 prop = "sword_plain"
 icon = "sword"
 [[ability]]
 key = "hammer"
 name = "Hammer"
 slot = "primary"
-cost = 2
 prop = "hammer_plain"
 [[ability]]
 key = "firebolt"
 name = "Firebolt"
 slot = "secondary"
-cost = 4
 sound = "whoosh"
 "#;
 

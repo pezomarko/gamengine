@@ -24,8 +24,8 @@ const SMALL_PLACE: f32 = 1.0 / 3.0;
 /// - **The right hand** (GEAR.md 2): the primary whose prop is the weapon's model. Of
 ///   several (the staff's blow and its bolts, the musket and the carbine) the build's own
 ///   primary when it is one of them, else the first whose aspect the build holds, else
-///   the first with no aspect. A weapon the mode does not hold (a firearm out of the gun
-///   mode, anything else in it: the hub refuses the wear, GEAR.md 5) brings nothing, and
+///   the first with no aspect. A weapon the mode does not hold (a firearm out of the FPS
+///   mode, one that does not shoot in it: the hub refuses the wear, GEAR.md 5.1) brings nothing, and
 ///   so does an empty hand or a weapon no ability holds: the build's primary plays.
 /// - **The left hand**: the template's `guard` ability, when it is one and the mode has a
 ///   guard (a gun build has none, MODES.md 2). A second one-hander brings nothing.
@@ -36,6 +36,10 @@ const SMALL_PLACE: f32 = 1.0 / 3.0;
 ///   secondaries whose `secondary_of` names the weapon's model, picked as the primary is
 ///   (the build's own when it is one of them, else the first whose aspect the build
 ///   holds, else the first with no aspect); else nothing, and the build's own plays.
+/// - **The spell** (BODIES.md 7.2): the active whose `spell_of` names the right hand's
+///   weapon and whose element the body holds (a staff's fireball, nova, briar,
+///   thunderclap, fortify or blink), the build's own when it holds one; nothing for a
+///   weapon of no element or a body of none.
 /// - **The techniques** (BODIES.md 3.8): every primary the right hand's weapon holds, for
 ///   the K page to offer.
 /// - **The chest, the head and the legs** bring their base mitigation (BODIES.md 3.7),
@@ -50,7 +54,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
             .filter(|t| !t.is_empty())
             .and_then(|t| looks.templates.iter().find(|l| l.key == t))
     };
-    let gun = build.mode == Mode::Gun;
+    let gun = build.mode == Mode::Fps;
     // The build's own among `holders`, else the first the build's aspect allows, else
     // the first of no aspect.
     let pick = |holders: &[u16], own: u16| -> Option<u16> {
@@ -83,7 +87,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
                     && let Some(def) = pack.abilities.get(i as usize)
                     && def.slot == slot
                     && !def.creature
-                    && (def.ability.firearm.is_some() == gun)
+                    && build.mode.holds(def)
                 {
                     holders.push(i);
                 }
@@ -95,6 +99,17 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
         worn.techniques = primaries;
         let secondaries = holds(Slot::Secondary, &|a| a.secondary_of.contains(model));
         worn.secondary = pick(&secondaries, build.secondary);
+        // The weapon's spell (BODIES.md 7.2): among the actives whose `spell_of` names
+        // the weapon, the build's own when it holds one, else the first of the body's
+        // element; a weapon of no element carries none.
+        let spells = holds(Slot::Active, &|a| a.spell_of.contains(model));
+        let own = build
+            .actives
+            .iter()
+            .copied()
+            .find(|i| spells.contains(i))
+            .unwrap_or(u16::MAX);
+        worn.spell = pick(&spells, own);
     }
     if let Some(t) = template(LEFT) {
         if !gun
@@ -110,7 +125,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
             && let Some(def) = pack.abilities.get(i as usize)
             && def.slot == Slot::Secondary
             && !def.creature
-            && (def.ability.firearm.is_some() == gun)
+            && build.mode.holds(def)
             && def.aspect.is_none_or(|needs| build.aspects.contains(needs))
         {
             worn.secondary = Some(i);
@@ -302,15 +317,23 @@ mod tests {
         };
         assert_eq!(
             w("frostweaver", "staff", "").secondary,
-            Some(by("frost_nova"))
+            Some(by("chill_wave"))
         );
-        assert_eq!(w("mender", "staff", "").secondary, Some(by("thunderclap")));
+        assert_eq!(w("mender", "staff", "").secondary, Some(by("static")));
         assert_eq!(w("ironclad", "staff", "").secondary, Some(by("stomp")));
         assert_eq!(w("shaman", "staff", "").secondary, Some(by("briar_burst")));
         assert_eq!(w("shade", "staff", "").secondary, Some(by("gust")));
         assert_eq!(w("shade", "wand", "").secondary, Some(by("gust")));
         // The blade is Water: the nova; a body of no element gets the sweep.
-        assert_eq!(w("blade", "staff", "").secondary, Some(by("frost_nova")));
+        assert_eq!(w("blade", "staff", "").secondary, Some(by("chill_wave")));
+        // The staff's spell (BODIES.md 7.2): the active of the body's element; the
+        // frostweaver's own nova; nothing for a neutral build or a sword.
+        assert_eq!(w("frostweaver", "staff", "").spell, Some(by("frost_nova")));
+        assert_eq!(w("mender", "staff", "").spell, Some(by("thunderclap")));
+        assert_eq!(w("ironclad", "staff", "").spell, Some(by("fortify")));
+        assert_eq!(w("shaman", "wand", "").spell, Some(by("briar")));
+        assert_eq!(w("shade", "staff", "").spell, Some(by("blink")));
+        assert_eq!(w("blade", "sword", "").spell, None);
         let mut neutral = pack.build("blade").unwrap().clone();
         neutral.aspects = gm_core::matrix::Aspects::NONE;
         assert_eq!(

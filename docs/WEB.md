@@ -241,7 +241,8 @@ treats what it did as it treats the mouse and the keys (MODES.md 5.6 has the con
   swipe across a phone's width is half a turn at the default sensitivity.
 - **Buttons on the HUD**, drawn from the first finger seen: `menu` top right (Escape:
   the menu, or the target let go first in the RPG mode), and bottom right `jump` with the
-  secondary (`2`) in the action and gun modes, the secondary alone in the RPG mode; every
+  secondary (`2`) in the action and gun modes, the secondary alone in the RPG mode, and
+  `E` above them while a forge, the smith or a stall is in reach (ITEMS.md 6.6); every
   cell of the hotbar is a button for its key (`1`–`8`, Shift, C, the mouse buttons), held
   while the finger is, the item cells too (LOOK.md 3.2: `F`, `8`, `9`, `0`, a tap uses
   the cell's stack; a phone has no `F`). The look's pointer lock is never asked for by a finger, nor by a

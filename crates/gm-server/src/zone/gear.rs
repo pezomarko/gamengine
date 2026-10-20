@@ -1,42 +1,21 @@
-//! What a body wears and runs on: respecs, wearing, the game masters' tuning (GM.md).
+//! What a body wears and runs on: a team zone's respec, wearing, the game masters' tuning (GM.md).
 
 use super::*;
 
 impl Run {
-    /// `ClientEvent::Respec`.
+    /// `ClientEvent::Respec`: a build chosen in a team zone (the arena, the practice
+    /// ground: the arena's keys, a bot's counter-pick) is worn at the next respawn. In
+    /// the world a build is the character's from its creation (MATRIX.md 20, 2026-10-20:
+    /// no trainer, nothing redone) and the ask is refused in words.
     pub(super) fn on_respec(&mut self, id: EntityId, build: BuildChoice) {
-        // MATRIX.md 9.1: in a team zone (the arena, the practice ground) a new
-        // build is worn at the next respawn, as always; in the world it is
-        // worn at once, at the trainer, by a living body out of any fight.
         let result = resolve_build(&self.cfg, &self.zone, Some(&build)).and_then(|b| {
-            // A body is for keeps (BODIES.md 3.5): the trainer respecs everything but it.
-            if let Some(worn) = self.zone.player(id).map(|p| &p.sheet.build)
-                && worn.body.is_some()
-                && b.body != worn.body
-            {
-                return Err("a body is a new character: the trainer respecs the rest".into());
+            // (A body is for keeps in the world, BODIES.md 3.5, where every respec is
+            // refused; a team zone's presets are bodies since BODIES.md 7.5, and a bot's
+            // counter-pick from one to another is the body changing.)
+            if self.cfg.wild {
+                return Err("a build is set at creation: there is no trainer".into());
             }
-            if !self.cfg.wild {
-                return self.zone.request_respec(id, b).map_err(|e| e.to_string());
-            }
-            let p = self
-                .zone
-                .player(id)
-                .filter(|p| p.alive && !p.ghost)
-                .ok_or("not now")?;
-            let fight = self
-                .zone
-                .rate
-                .ms_to_ticks(self.cfg.gear_after_fight.as_millis() as u32);
-            if p.fought_within(self.zone.tick, fight) {
-                return Err("not in a fight: wait a moment".into());
-            }
-            // The trainer by its role (ITEMS.md 6.6: the smith is somebody nothing hurts too).
-            let at = p.mover.mv.origin;
-            if !self.npc_near(at, "trainer", TRAINER_REACH) {
-                return Err("stand by the trainer in the town".into());
-            }
-            self.zone.respec_now(id, b).map_err(|e| e.to_string())
+            self.zone.request_respec(id, b).map_err(|e| e.to_string())
         });
         // Under a hub the build it chose is saved at once, and the answer is
         // the save's: a build worn here that the hub does not hold would be

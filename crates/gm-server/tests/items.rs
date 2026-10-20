@@ -4,7 +4,7 @@
 //! and after, to the point. Needs `GM_TEST_DATABASE_URL` (a Postgres the test may wipe);
 //! without it the test is skipped. The gun mode's hand (MODES.md 3.7) is pinned here too:
 //! the weapon switched to is what everyone is told the body holds; and so is the build
-//! worn at the trainer (MATRIX.md 9.1): the hub holds it before the zone says so, and it
+//! chosen in a team zone (MATRIX.md 9.1): the hub holds it before the zone says so, and it
 //! is what the character wears when it enters again.
 
 use std::path::Path;
@@ -26,7 +26,7 @@ use gm_hub::protocol::{
 use gm_hub::{Db, HubClient, HubConfig, HubKey, IngestMode};
 use gm_net::PROTOCOL_VERSION;
 use gm_net::client::ClientState;
-use gm_net::control::{self, FromClient, FromZone, StallEntry, TRAINER_REACH};
+use gm_net::control::{self, FromClient, FromZone, StallEntry};
 use gm_net::transport::{Identity, SERVER_NAME, client_config, hub_server_config, server_config};
 use gm_server::{HubLink, HubLinkConfig, ZoneConfig, ZoneWorld};
 use quinn::rustls::pki_types::CertificateDer;
@@ -466,7 +466,7 @@ async fn add_zone(town: &Town, zone: &str, path: &str, wild: bool) -> Arc<ZoneWo
     world
 }
 
-/// `wild`: the town's creatures (the trainer, the dummies) stand on their posts and every
+/// `wild`: the town's creatures (the smith, the dummies) stand on their posts and every
 /// human is team 1 (COMPANIONS.md 3.1); else a team zone on the town's map.
 async fn stand_up(url: &str, wild: bool) -> Town {
     let db = Db::connect(url).await.expect("database");
@@ -981,12 +981,12 @@ async fn the_weapon_switched_to_is_what_everyone_sees_in_the_hand() {
     assert_eq!(said, 1, "one look for the switch back");
 }
 
-/// A build worn at the trainer is the character's (MATRIX.md 9.1): the hub holds it
-/// before the zone says "worn", it is what the character wears when it enters again,
-/// and the same for one chosen in a team zone and worn at the next respawn. Away from
-/// the trainer the zone says where to stand.
+/// A build is the character's from its creation (MATRIX.md 20): in the world a respec
+/// is refused in words and nothing is saved; in a team zone (the arena) a chosen build
+/// is saved at once and worn at the next respawn, and it is what the character wears
+/// when it enters the town again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_build_worn_at_the_trainer_is_the_character_s_when_it_enters_again() {
+async fn a_build_is_set_at_creation_and_a_team_zone_s_choice_is_kept() {
     let Ok(url) = std::env::var("GM_TEST_DATABASE_URL") else {
         eprintln!("SKIPPED: set GM_TEST_DATABASE_URL to a Postgres this test may wipe");
         return;
@@ -1002,88 +1002,33 @@ async fn a_build_worn_at_the_trainer_is_the_character_s_when_it_enters_again() {
     let _arena = add_zone(&town, "arena", ARENA, false).await;
     let content = gm_content::load_dir(Path::new(CONTENT), TickRate::COMBAT).expect("content");
     let blade = content.build("blade").unwrap().clone();
-    // What the director did: a point off STR and onto CON, by the trainer at the board.
+    assert!(
+        town.world
+            .creature_posts
+            .iter()
+            .all(|p| p.creature != "trainer"),
+        "the town posts no trainer"
+    );
     let mut chosen = blade.clone();
     chosen.attributes.str_ -= 1;
     chosen.attributes.con += 1;
     assert!(chosen.validate(&content).is_ok());
-    let trainer = town
-        .world
-        .creature_posts
-        .iter()
-        .find(|p| p.creature == "trainer")
-        .expect("the town posts a trainer")
-        .origin;
-    let up = Vec3::Z * (1.0 - Hull::Player.mins().z);
-    // A spawn of the town's within reach of the trainer, and one well out of it.
-    let near = town
-        .world
-        .spawns
-        .iter()
-        .map(|s| s.origin)
-        .find(|o| (*o - trainer).length() <= TRAINER_REACH * 0.5)
-        .expect("a spawn by the trainer");
-    let far_off = town
-        .world
-        .spawns
-        .iter()
-        .map(|s| s.origin)
-        .find(|o| (*o - trainer).length() > TRAINER_REACH * 3.0)
-        .expect("a spawn away from the trainer");
 
     let student = Someone::new(town.hub_addr, &town.hub_cert, "Student", "blade").await;
-    let far = Someone::new(town.hub_addr, &town.hub_cert, "Far", "blade").await;
-    assert!(
-        town.db
-            .place(student.character, "town", (near + up).into(), 0.0)
-            .await
-            .unwrap()
-    );
-    assert!(
-        town.db
-            .place(far.character, "town", (far_off + up).into(), 0.0)
-            .await
-            .unwrap()
-    );
     let hand = Hand::join(&student.ticket().await, "Student", 0.0, town.map.clone()).await;
-    let far_hand = Hand::join(&far.ticket().await, "Far", 0.0, town.map.clone()).await;
     assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&blade));
 
-    // Away from the trainer: refused, in words, and nothing is saved.
+    // In the world: refused, in words, and nothing is saved.
     assert_eq!(
-        far_hand
-            .ask(FromClient::Respec(BuildChoice::Custom(chosen.clone())))
+        hand.ask(FromClient::Respec(BuildChoice::Custom(chosen.clone())))
             .await,
-        Err("stand by the trainer in the town".into())
+        Err("a build is set at creation: there is no trainer".into())
     );
-    assert_eq!(far.stored_build(&town.db).await, blade);
-
-    // By the trainer: worn, and the hub holds it by the time the zone says so.
-    assert_eq!(
-        hand.ask_when_calm(FromClient::Respec(BuildChoice::Custom(chosen.clone())))
-            .await,
-        Ok(())
-    );
-    assert_eq!(student.stored_build(&town.db).await, chosen);
-    hand.until("the build applied", |s| {
-        s.heard
-            .iter()
-            .any(|m| matches!(m, FromZone::BuildApplied(b) if *b == chosen))
-    })
-    .await;
-
-    // Logged out and in again: the new build is what the zone gives the body.
-    hand.leave().await;
-    let hand = Hand::join(&student.ticket().await, "Student", 0.0, town.map.clone()).await;
-    assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&chosen));
+    assert_eq!(student.stored_build(&town.db).await, blade);
     hand.leave().await;
 
     // In a team zone the build is worn at the next respawn: chosen, saved, and worn on
     // entering the town again without ever having died in the arena.
-    let mut again = chosen.clone();
-    again.attributes.agi -= 1;
-    again.attributes.spr += 1;
-    assert!(again.validate(&content).is_ok());
     let world = ZoneWorld::load(Path::new(ARENA)).expect("arena.bsp is built");
     let arena_map = Arc::new(world.bsp.clone());
     let hand = Hand::join(
@@ -1093,20 +1038,18 @@ async fn a_build_worn_at_the_trainer_is_the_character_s_when_it_enters_again() {
         arena_map,
     )
     .await;
-    assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&chosen));
+    assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&blade));
     assert_eq!(
-        hand.ask(FromClient::Respec(BuildChoice::Custom(again.clone())))
+        hand.ask(FromClient::Respec(BuildChoice::Custom(chosen.clone())))
             .await,
         Ok(())
     );
-    assert_eq!(student.stored_build(&town.db).await, again);
+    assert_eq!(student.stored_build(&town.db).await, chosen);
     assert!(hand.shared.lock().unwrap().alive, "never died in the arena");
     hand.leave().await;
     let hand = Hand::join(&student.ticket().await, "Student", 0.0, town.map.clone()).await;
-    assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&again));
-    println!(
-        "respec: worn at the trainer and saved; chosen in the arena and saved; both worn again on entering"
-    );
+    assert_eq!(hand.shared.lock().unwrap().own.as_ref(), Some(&chosen));
+    println!("respec: refused in the town; chosen in the arena, saved, and worn again on entering");
 }
 
 /// The kit (MODES.md 11.3) over the real protocol: bought at a stall (the zone learns the

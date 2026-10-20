@@ -349,6 +349,133 @@ picked, what each does and is weak to on the pointer; the points start at the fl
 - The characters list says where a character is without naming its body again (the
   ribbon over it does).
 
-Not decided: whether a body's skill is the body's alone (today every aspectless active
-is on the trainer's list for every body).
+Decided 2026-10-20 (MATRIX.md 20): there is no trainer and nothing is bought, so a
+body's skill is the body's alone by construction; the groups (melee, magic, ranged), the
+weapons' spells and the stacking are section 7, the next job.
 
+
+## 7. The groups, the weapons' spells and the stacking (v2, 2026-10-20)
+
+The director, after the skills overview (MATRIX.md 20): "we should change character
+(body) attack types, lets group them into melee, magic, and ranged ... melee group would
+have fist attacks as base, magic would have some weak magical (elemental or neutral)
+blows as basic empty handed skill (staff gets it on the whole next level, changes base
+magical attack into more powerful one). Ranged group has knife as base, which actually
+makes them melee until they equip the gun (also makes melee if gun is out of ammo)."
+Then: "veteran and huntress are ranged, sorceress and elder are magical, other are
+melee, soldier can be melee or ranged, depending on game mode selected, FPS -> ranged,
+others melee"; the mode stays a separate switch; nothing is respecced ("we are past
+that testing phase"); and casting is the weapon's: "they don't cast unless they equip
+weapon with casting skill ... having fire elemental selection + fireball on staff should
+result in increased fireball base damage ... fire affinity + magical + int build = near
+max damage dealt by fireball".
+
+### 7.1 The group (built)
+
+| Body | Group | Empty hands |
+|---|---|---|
+| Brute, Whelp, Thief | melee | `fists` |
+| Veteran, Huntress | ranged | `knife_hands` |
+| Soldier | by the mode: FPS ranged, else melee | the knife in FPS, else the fists |
+| Sorceress, Elder | magic | `<element>_blow` of the first element held, else `force_blow` |
+
+- `group` on a body row (`melee`, `magic`, `ranged`, `by_mode`); `BodyDef.group:
+  BodyGroup`; `Build::group(pack)` is the body's in the build's mode, and for a build
+  without a body (a preset, a creature) the mode's: FPS ranged, RPG magic, action melee,
+  which is what the seven presets are. `Build::bare_hands(pack)` is what the group plays
+  in nothing; `ContentPack::bare_hands(group, aspects, mode)` picks it, and falls back to
+  the first plain primary of the mode in a pack without the rows.
+- **The magic blows**: seven rows appended, `force_blow` and one per element, each a
+  short bolt of 22 (force is blunt), 4 focus, 0.6 s, no status: the weak thing a caster
+  does with empty hands. The creation editor follows the element: pick Fire and the
+  hands are the fire blow. A staff is the next level (7.2).
+- **The fists hold in FPS** (`gun_melee = true`): a melee body in the FPS mode is
+  empty-handed until it takes a gun.
+- **Out of ammo, the knife**: `Mover::in_hand` plays the knife when the firearm in hand
+  has nothing in it and nothing to load, on the zone and in the prediction alike; the
+  weapon in hand comes back with a reload. (The bow has no ammo: its draw is stamina.)
+- The ribbon says the group (`Brute  |  colossus  |  melee  |  no aspect  |  action
+  mode`), the creation paragraph says how the body fights, the K page's line too.
+  Content v25, protocol v30 (the body's group rides with the pack).
+
+### 7.2 The weapon carries the spells (built)
+
+"They don't cast unless they equip weapon with casting skill": a spell is a weapon's
+now, as the bolt and the blast already were, and nothing is learned.
+
+| Element | Staff's bolt (primary) | Staff's blast (secondary) | Staff's spell (active 2) |
+|---|---|---|---|
+| Fire | firebolt | flame burst | fireball |
+| Water | ice shard | **chill wave** (new) | frost nova (a secondary until now) |
+| Grass | thorn | briar burst | briar |
+| Electric | spark | **static** (new) | thunderclap (a secondary until now) |
+| Ground | stone throw | stomp | fortify |
+| Air | shadow dart | gust | blink |
+| none | the staff's blow | staff sweep | nothing |
+
+- `spell_of = ["staff", "wand"]` on an active row (a looks field beside `prop` and
+  `secondary_of`); `Worn.spell` is the one the right hand's weapon brings, picked as
+  the second move is (the build's own among the holders, else the first of the body's
+  element, else none); `Build::kit_slots` puts it after the body skill. A caster with a
+  sword in hand has no spell; a Brute with a Fire staff throws fireballs, weakly (7.3).
+- The two new cones (30 of the element, 20 focus, 4 s) are the Water and Electric
+  staffs' second move; the frostweaver preset stores the chill wave as what plays in
+  nothing and the nova among its own actives, so the arena's frostweaver is what it was.
+- Not yet moved: vanish, poison cloud and entangle (nobody's but the presets'), war
+  standard, the four techniques: 7.5. Content v26, protocol v31 (`Worn.spell`).
+
+### 7.3 The stacking (built)
+
+"Fire affinity + magical + int build = near max damage dealt by fireball." Three
+multipliers on a spell, one on a blow, all a body's (a preset in nothing and a creature
+have the attribute alone, until 7.5 gives the arena's presets bodies):
+
+| Lever | On a spell | On a blow |
+|---|---|---|
+| INT / STR (MATRIX.md 6) | x0.72 at 3 to x1.6 at 25 | the same, by STR |
+| Affinity (`matrix::AFFINITY`): the spell's element is one of the body's | x1.25 | |
+| Group (`matrix::group_mult`): magic | x1.25 | x0.75 |
+| Group: melee | x0.75 | x1.25 |
+| Group: ranged | x0.75 | x1.0 |
+| The matrix against the target (MATRIX.md 5) | 0.75 / 1.25 | |
+
+Worked (`matrix::tests::affinity_and_group_stack_on_a_spell`): a Sorceress of Fire at
+INT 25 throws a staff's fireball at 1.6 x 1.25 x 1.25 = **x2.5** of the row; a Brute of
+no element at INT 3 with the same staff at 0.72 x 0.75 = **x0.54**: four and a half
+times apart before the target's element and gear. The Brute's fireball is a puff, and
+nothing forbids it; its fist is a quarter more than its STR makes it (added after the
+first arena run of 7.5: with the magic group's x1.56 on every spell and nothing for the
+blade, the frostweaver wiped the blade out, 13 : 43 on CI). `AttackerStats.affinity` and `.group` ride with the attacker's
+stats into every packet; a status's pulse takes neither, as it takes no gear
+(ITEMS.md 3.1). The numbers are the overview's proposal, **to tune at the dummy**.
+
+### 7.4 The hotbar (built)
+
+Four buttons in every mode, in one order, a fifth with a staff or a wand: the blow, the
+second move, the guard, the body skill, the weapon's spell (`LMB RMB C 1 2` in the
+action mode, `1 2 Shift 3 4` in the RPG mode, the three weapons then `4 5` in FPS).
+Nothing new on the HUD: the cells were the kit's already. What was wrong, and is fixed
+here: `hud_view::hotbar` read each cell's picture from the build's own lists, so with a
+body the body skill's cell was missing (the build buys no actives) and a worn weapon's
+cell showed the empty hands. Every cell is read from the kit now, by the ability's id,
+which is its row in the pack and one (gm-content numbers them so; the fixture pack
+numbers its rows the same since this change).
+
+### 7.5 The presets are bodies, and the orphan spells find a weapon (built)
+
+- **A preset is a body** (`body` on a `builds.toml` row): ironclad a Brute, blade and
+  musketeer a Soldier, frostweaver and shaman a Sorceress, shade a Thief, mender an
+  Elder, each with the weapon it fights with in nothing and its attributes on the
+  body's floors (the shade's INT 6 and STR 14, the shaman's SPR 6 and STR 12 moved a
+  point to sit on them). The body skill is the first active, so the blade's overhead
+  and the mender's sanctuary left their bought lists. The bots and the arena fight as
+  bodies, so 7.3's factors are measured; the sim tests' numbers moved with them (the
+  ironclad's stomp 25 -> 24, the frostweaver's nova 42 -> 66). A preset is still named
+  by its name (`Ironclad`), a player's build by its body.
+- **The orphan spells**: vanish is the dagger's spell (`spell_of = ["dagger"]`, an Air
+  body), poison cloud the bow's, entangle the hammer's, the warhammer's and the mace's
+  (a Grass body), the war standard the spear's (any body: it has no element). A
+  proposal, so that nothing in the catalogue is reachable by nobody; the director's to
+  keep or move.
+- The content README's table is complete again (every row since the techniques and the
+  bare hands). Content v27.

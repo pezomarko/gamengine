@@ -1,6 +1,6 @@
 //! The smithy (ITEMS.md 6.6): the smith's shop and the forge. The zone vouches for the
 //! place alone, as it does for a stall (ITEMS.md 5): the body is alive, in person, and
-//! stands by the smith (within `TRAINER_REACH` of a body of the `smith` role) or at a
+//! stands by the smith (within `NPC_REACH` of a body of the `smith` role) or at a
 //! forge (within `FORGE_REACH` of a `gm_forge` post); the hub checks the price, the fee,
 //! the coin, the room and the parts. A request is always answered: somebody is looking
 //! at a screen.
@@ -8,7 +8,7 @@
 use super::*;
 
 impl Run {
-    /// A body nothing hurts, of `role`, stands within `reach` of `at`: the trainer
+    /// A body nothing hurts, of `role`, stands within `reach` of `at`: the smith
     /// (MATRIX.md 9.1) or the smith (ITEMS.md 6.6), as the content names them.
     pub(super) fn npc_near(&self, at: Vec3, role: &str, reach: f32) -> bool {
         self.zone.players().any(|t| {
@@ -38,7 +38,7 @@ impl Run {
                 .player(id)
                 .filter(|p| p.alive && !p.ghost)
                 .ok_or("you cannot buy now")?;
-            if !self.npc_near(p.mover.mv.origin, "smith", TRAINER_REACH) {
+            if !self.npc_near(p.mover.mv.origin, "smith", NPC_REACH) {
                 return Err("walk up to the smith to buy");
             }
             Ok((link, slot.character))

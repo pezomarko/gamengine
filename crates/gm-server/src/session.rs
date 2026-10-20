@@ -658,7 +658,7 @@ pub fn player_state(p: &Player, own: bool) -> EntityState {
 /// The own block (PROTOCOL.md 5): resources and statuses relative to the acknowledged frame.
 pub fn own_state(p: &Player) -> OwnState {
     let now = p.last_input_tick;
-    let guns = (p.sheet.kit.mode == gm_core::vocab::Mode::Gun).then(|| GunsWire {
+    let guns = (p.sheet.kit.mode == gm_core::vocab::Mode::Fps).then(|| GunsWire {
         magazine: [p.mover.guns[0].magazine, p.mover.guns[1].magazine],
         reserve: [p.mover.guns[0].reserve, p.mover.guns[1].reserve],
         reloading: p.mover.reloading(now),

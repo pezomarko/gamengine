@@ -175,6 +175,11 @@ base   = amount
        × (A.Weaken ? 1 − weaken : 1)
 type   = kind_table[kind][D.armour_class]        physical
        | Π element_matrix[element][aspect]        elemental, over D's 1–2 aspects
+body   = group_mult(A.group, kind)               BODIES.md 7.3 (2026-10-20): magic ×1.25 on
+       × (elemental && element ∈ A.aspects ? 1.25 : 1)   spells and ×0.75 on blows, melee the
+                                                  reverse, ranged ×0.75 on spells; the caster's
+                                                  own element ×1.25; a body's, 1 for a creature
+                                                  and for a pulse
 layer  = physical  && !bypass ARMOR        ? 1 − D.armour            : 1
        × elemental && !bypass MAGIC_SHIELD ? 1 − D.ward              : 1
        × D.Fortify && !bypass MAGIC_SHIELD ? 1 − fortify             : 1
@@ -185,7 +190,7 @@ gear   = (2000 + A.dealt[t]) / (2000 + D.taken[t])              ITEMS.md 3.1: th
          each; 1 for the pulses of a status, and for two bodies in nothing
 zone   = the bolt is a firearm's and entered the hull within its top 12 u ? headshot : 1
          (the head band, MODES.md 3.5: before armour, on the amount)
-damage = max(1, round(base × type × layer × guard × gear × zone))
+damage = max(1, round(base × type × body × layer × guard × gear × zone))
 ```
 
 `Expose` on the defender grants every attacker `bypass ARMOR`. A parry inside its window
@@ -695,3 +700,53 @@ it). The director's numbers, from the review "Gear and Body Redesign": the eleme
   mirror 40 : 33. The cycle stands, the counter leg at half its old width: a Water
   caster still beats the Ground colossus, by play and by kiting now, not by the chart.
   The gate asks 1.2 on the two decided legs (1.3 before) and no domination on the third.
+
+## 20. v9 (2026-10-20): no kit points, no trainer
+
+The director, after the skills overview (the doc "Skills and Abilities Overview", with
+Gemini 3.1 Pro as judge): "get rid of that NPC and KIT stuff, no kit for skills or such,
+was idiotic in the first place, just wanted to do some tests with it." Decided with it:
+a character's attacks are grouped **melee, magic, ranged** by its body (the Soldier's by
+the mode: FPS ranged, else melee), with fists, a weak magical blow and the knife as the
+empty hands of each; casting is the weapon's (anyone throws a staff's fireball, weakly
+without INT); the element's affinity, the group and INT stack on a spell's damage; the
+gun mode is called **FPS**. This section is the first step, the tearing out; the groups,
+the weapons' spells and the stacking follow in BODIES.md 7.
+
+- **No kit points.** `AbilityDef.cost`, `BUDGET`, `SECOND_ASPECT_COST`, `Build::cost`
+  and `BuildError::Budget` are gone; `abilities.toml` rows carry no `cost`; the price
+  bands of section 10 and the budget of section 9 are history. A build is a body,
+  thirty attribute points, up to two elements and the mode; what it plays is the
+  gear's and the body's. A player's build has no bought actives; the presets of
+  `builds.toml` (the bots', the arena's, the creatures') keep theirs until BODIES.md 7
+  moves them onto the weapons.
+- **No trainer.** The creature is gone from `creatures.toml` and the town's map; the
+  world zone refuses `FromClient::Respec` in words (`a build is set at creation: there
+  is no trainer`); a team zone (the arena, the practice ground) still takes a preset
+  at the next respawn for the arena's keys, the bots' counter-pick and the gates. The
+  hub's `SetBuild` is gone (`HUB_VERSION` 22). The K page is a sheet, read (CLIENT.md
+  4.5); the creation screen places every point or does not create (BODIES.md 6.7's
+  "points in hand" is over: there is nobody to place them later). A character of
+  today is a new character, by the director's word; the DB is the test harness.
+- **FPS.** `Mode::Fps`, named `fps`; a stored or authored `gun` reads as it
+  (`PLAYER_VERSION` 16). `PROTOCOL_VERSION` 29 (the content on the wire lost the
+  cost), content v24.
+- Section 9.1 (the trainer, the respec) and the budget lines of 9 and 10 are
+  superseded by this section; the dummies and the arena rule stand.
+
+## 21. v10 (2026-10-20): the groups, the weapons' spells and the stacking, measured
+
+BODIES.md 7 as built in five steps after section 20: the attack group of the body
+(7.1), the weapon's spell (7.2), the affinity and the group in the pipeline (7.3, the
+`body` term of section 7), the hotbar from the kit (7.4), the presets as bodies (7.5).
+
+**Measured** (`gm-bot/tests/arena.rs`, three seeds × 60 s, 8 v 8, offline, the presets
+as bodies in nothing): ironclad : blade **47 : 21 (2.24)** (2.58 in v8); frostweaver :
+ironclad **40 : 23 (1.74)** (1.63); blade : frostweaver **17 : 36 (0.47)** (0.92 in v8,
+13 : 25 after the staff's second move); mirror 42 : 31. The gate passes: the two
+decided legs point the same way and the blade is not wiped out. What moved it: the
+frostweaver is a Sorceress now, so its shards and its nova are ×1.25 affinity × 1.25
+magic on top of INT 20, and the ironclad's stomp went to the staff while its bellow
+and fortify are ×0.75 as a melee body's spells. The blade's leg against the
+frostweaver is the one to tune, as it has been since v7: the director's numbers for
+`AFFINITY` and `group_mult`, or a Water blade with a spell of its own.

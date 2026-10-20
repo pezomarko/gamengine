@@ -406,16 +406,15 @@ pub fn generate() -> String {
             m.spawn(x, y, 40.0, 0, 0);
         }
     }
-    // The town's people (COMPANIONS.md 8.1, 2026-10-06): the trainer beside the board, where
-    // a build is redone (MATRIX.md 9.1), and three training dummies in the gated south
-    // street behind it, a triangle with its point towards the square, facing whoever
-    // walks in from it, to count one's damage on (the director, 2026-10-06: the one dummy
-    // on the green north of the market was out of the way).
+    // The town's people (COMPANIONS.md 8.1, 2026-10-06): three training dummies in the
+    // gated south street behind the board, a triangle with its point towards the square,
+    // facing whoever walks in from it, to count one's damage on (the director,
+    // 2026-10-06: the one dummy on the green north of the market was out of the way).
+    // The trainer stood beside the board until 2026-10-20 (MATRIX.md 20).
     // The smith stands north-east of his anvil, facing it, out of the forge's reach so
     // that E by him is his shop and E at the hearth the forge (ITEMS.md 6.6).
     for (creature, x, y, yaw) in [
-        ("trainer", -200.0f32, -560.0f32, 90),
-        ("dummy", 0.0, -830.0, 90),
+        ("dummy", 0.0f32, -830.0f32, 90),
         ("dummy", -90.0, -940.0, 90),
         ("dummy", 90.0, -940.0, 90),
         ("smith", 376.0, -616.0, 205),
@@ -452,7 +451,7 @@ mod tests {
         assert_eq!(text.matches("\"gm_stall_grid\"").count(), 1);
         assert!(text.matches("\"gm_spawn\"").count() >= 120);
         assert_eq!(text.matches("\"info_player_start\"").count(), 1);
-        assert_eq!(text.matches("\"gm_creature\"").count(), 5);
+        assert_eq!(text.matches("\"gm_creature\"").count(), 4);
         assert_eq!(text.matches("\"gm_forge\"").count(), 1);
         assert!(text.contains("\"creature\" \"smith\""));
         assert!(text.contains("\"_sunlight\" \"230\""));

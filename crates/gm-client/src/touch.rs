@@ -43,6 +43,9 @@ pub enum Button {
     Jump,
     Secondary,
     Menu,
+    /// `E`: the forge, the smith or the stall the body stands at (ITEMS.md 6.6); drawn
+    /// only while one is in reach.
+    Use,
     /// A cell of the hotbar, by its index.
     Hot(u8),
 }

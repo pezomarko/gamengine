@@ -325,6 +325,11 @@ impl App {
                 }
             }
             TouchButton::Jump => self.hold_key(KeyCode::Space, down),
+            TouchButton::Use => {
+                if down {
+                    self.ui_key(Key::Use);
+                }
+            }
             TouchButton::Secondary => {
                 if self.rpg_mode() {
                     if down {

@@ -81,20 +81,6 @@ impl Online {
         }
     }
 
-    /// Somebody nothing hurts stands in this zone: a trainer, where a build is worn at
-    /// once (MATRIX.md 9.1). The client is not told whether a zone is of the world: one
-    /// without a trainer (the arena) wears a build at the next respawn; the dungeon has
-    /// neither, and the zone says so when asked.
-    pub(super) fn has_trainer(&self) -> bool {
-        let Some(pack) = &self.pack else {
-            return false;
-        };
-        self.kinds.values().any(|k| {
-            matches!(k, BodyKind::Creature { def }
-                if pack.creatures.get(*def as usize).is_some_and(|d| d.npc && d.role == "trainer"))
-        })
-    }
-
     pub(super) fn build_name_of(
         &self,
         pack: &ContentPack,
@@ -921,7 +907,7 @@ impl App {
         }
     }
 
-    /// The zone applied a build (a respec, at a respawn or the trainer).
+    /// The zone applied a build (at a respawn, or a game master's hand).
     fn on_build_applied(&mut self, build: gm_core::build::Build) {
         let Some(o) = self.online.as_mut() else {
             return;
@@ -969,14 +955,13 @@ impl App {
         }
     }
 
-    /// The zone's word on a respec is the page's note and a line on the HUD, so that it
-    /// is read with the page up or closed (MATRIX.md 9.1).
+    /// The zone's word on a respec (a preset in a team zone: the arena's keys, the bots)
+    /// is a line on the HUD.
     fn on_respec_result(&mut self, result: Result<(), String>) {
         let Some(o) = self.online.as_mut() else {
             return;
         };
         let (note, colour) = match result {
-            Ok(()) if o.has_trainer() => ("worn, and saved".to_string(), hud::GREEN),
             Ok(()) => ("saved; worn at the next respawn".to_string(), hud::GREEN),
             Err(e) => (e, hud::ORANGE),
         };
@@ -1312,7 +1297,7 @@ impl App {
         let dodge = (c.sheet.kit.mode == gm_core::vocab::Mode::Action)
             .then(|| dodge_slot(&c.sheet.kit, &c.mover, c.tick))
             .flatten();
-        let gun = c.sheet.kit.mode == gm_core::vocab::Mode::Gun;
+        let gun = c.sheet.kit.mode == gm_core::vocab::Mode::Fps;
         let rpg = c.sheet.kit.mode == gm_core::vocab::Mode::Rpg;
         // The RPG mode's keys (MODES.md 5.3): with a target they ask for a target-action;
         // without one they press as the action mode does.

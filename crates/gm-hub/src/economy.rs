@@ -30,21 +30,26 @@ pub const CHEST_SLOTS: i32 = 48;
 pub const CONTRACT_TIMEOUT_MINUTES: i32 = 120;
 /// What every mover says to a worn item (ITEMS.md 2).
 pub const WORN: &str = "it is worn: take it off first";
-/// What decides whether a weapon fits a character's hands (`fits`): the mode of its build
-/// and the firearm models (`hub::firearm_props`).
+/// What decides whether a weapon fits a character's hands (`fits`): the mode of its build,
+/// the firearm models and the models that shoot (`hub::firearm_props`, `hub::shooter_props`).
 #[derive(Clone, Copy, Debug)]
 pub struct Holding<'a> {
     pub mode: Mode,
     pub firearms: &'a [String],
+    /// The models a primary that shoots holds (a firearm's among them): what an FPS build's
+    /// hands take (GEAR.md 5.1, 2026-10-20).
+    pub shooters: &'a [String],
 }
 
 /// Whether a character in `mode` may wear an item of `template` in `place` (GEAR.md 2 and
-/// 5): a weapon in either hand is the mode's business and nobody else's. A gun build's
-/// hands take a firearm (a template whose model a firearm ability holds: `firearms`,
-/// `hub::firearm_props`) and nothing else; an action or RPG build's take anything but a
-/// firearm. A shield, an armour, a part or a stack fits everyone. `Err` carries the words
-/// for the player. (Until 2026-10-16 a weapon wanted the build's hands, an ability of its
-/// kit holding the model, ITEMS.md 2; now the worn weapon brings its ability.)
+/// 5, 5.1): a weapon in either hand is the mode's business and nobody else's. An FPS
+/// build's hands take a weapon that shoots (a template whose model a firearm or a
+/// bolt-launching primary holds: `shooters`, `hub::shooter_props`; since 2026-10-20, the
+/// director: "fps can hold any ranged weapon") and nothing else; an action or RPG build's
+/// take anything but a firearm (`firearms`). A shield, an armour, a part or a stack fits
+/// everyone. `Err` carries the words for the player. (Until 2026-10-16 a weapon wanted
+/// the build's hands, an ability of its kit holding the model, ITEMS.md 2; now the worn
+/// weapon brings its ability.)
 pub fn fits(
     content: &ItemContent,
     holding: Holding<'_>,
@@ -58,11 +63,12 @@ pub fn fits(
     }
     let model = content.model(template).unwrap_or(template);
     let firearm = holding.firearms.iter().any(|f| f == model);
-    match (holding.mode == Mode::Gun, firearm) {
-        (true, false) => Err(format!(
-            "a gun build's hands are for a firearm: not a {template}"
+    let shoots = firearm || holding.shooters.iter().any(|f| f == model);
+    match (holding.mode == Mode::Fps, firearm, shoots) {
+        (true, _, false) => Err(format!(
+            "an FPS build's hands are for a weapon that shoots: not a {template}"
         )),
-        (false, true) => Err(format!(
+        (false, true, _) => Err(format!(
             "a {template} is a firearm: only a gun build holds one"
         )),
         _ => Ok(()),

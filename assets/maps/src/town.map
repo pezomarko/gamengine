@@ -1938,13 +1938,6 @@
 }
 {
 "classname" "gm_creature"
-"origin" "-200 -560 40"
-"angle" "90"
-"creature" "trainer"
-"encounter" "trainer"
-}
-{
-"classname" "gm_creature"
 "origin" "0 -830 40"
 "angle" "90"
 "creature" "dummy"

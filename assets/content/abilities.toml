@@ -1,8 +1,8 @@
 # gamengine v1 abilities (MATRIX.md 10). Authored in milliseconds and names; gm-content compiles
 # this against the zone tick rate and validates it against VOCABULARY.md 11 and MATRIX.md.
-# Price bands (MATRIX.md 10, v2): primaries 0-2 (a melee weapon or the ranged one: the range is
-# the weapon's, 2026-10-06), secondaries 2-4 (short utilities: a kick, a bash, a knife of 300 u,
-# a mend), guards 4-6, actives 6-12. The kit's budget is 40; attributes are not in it.
+# Nothing is priced (MATRIX.md 20, 2026-10-20: no kit points): a primary is a melee weapon or
+# the ranged one (the range is the weapon's, 2026-10-06), a secondary a short utility or the
+# weapon's second move, a guard the off hand's, an active a body's skill or a weapon's spell.
 # Damage types: slash pierce blunt (physical) | fire water grass electric ground air (elements).
 # An ability with an `aspect` needs that aspect in the build; its elemental packets are that element.
 
@@ -12,7 +12,6 @@
 key = "sword"
 name = "Sword"
 slot = "primary"
-cost = 2
 prop = "sword"
 cooldown_ms = 600
 move_scale = 0.6
@@ -28,7 +27,6 @@ melee_arc = { reach = 72, arc = 90, half_height = 40, windup_ms = 150, active_ms
 key = "hammer"
 name = "Hammer"
 slot = "primary"
-cost = 2
 prop = "hammer"
 cooldown_ms = 1000
 move_scale = 0.5
@@ -41,7 +39,6 @@ melee_arc = { reach = 76, arc = 80, half_height = 40, windup_ms = 300, active_ms
 key = "staff"
 name = "Staff"
 slot = "primary"
-cost = 0
 prop = "staff"
 cooldown_ms = 600
 move_scale = 0.7
@@ -54,7 +51,6 @@ melee_arc = { reach = 64, arc = 70, half_height = 40, windup_ms = 150, active_ms
 key = "dagger"
 name = "Dagger"
 slot = "primary"
-cost = 0
 prop = "dagger"
 cooldown_ms = 400
 move_scale = 0.8
@@ -70,9 +66,9 @@ melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms
 key = "crossbow"
 name = "Crossbow"
 slot = "primary"
-cost = 2
 prop = "crossbow"
 cooldown_ms = 1800
+stamina = 30                 # GEAR.md 11: bolts are unlimited, the span is the limit; 30 a 1.8 s span is the bow's 20 a 1.1 s draw per second
 move_scale = 0.7
 interrupt = "never"
 [[ability.step]]
@@ -83,7 +79,6 @@ projectile = { speed = 1800, gravity = 0.3, radius = 2, lifetime_ms = 3000, dama
 key = "firebolt"
 name = "Firebolt"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "fire"
 cooldown_ms = 1200
@@ -106,7 +101,6 @@ on_hit = [ { status = { status = "burn", duration_ms = 3000, magnitude = 12, max
 key = "ice_shard"
 name = "Ice shard"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "water"
 cooldown_ms = 1000
@@ -129,7 +123,6 @@ on_hit = [ { status = { status = "chill", duration_ms = 3000, magnitude = 0, max
 key = "stone_throw"
 name = "Stone throw"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "ground"
 cooldown_ms = 1800
@@ -144,7 +137,6 @@ projectile = { speed = 1100, gravity = 0.6, radius = 6, lifetime_ms = 3000, dama
 key = "shadow_dart"
 name = "Shadow dart"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "air"
 cooldown_ms = 800
@@ -159,7 +151,6 @@ projectile = { speed = 2000, gravity = 0.05, radius = 2, lifetime_ms = 3000, dam
 key = "spark"
 name = "Spark"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "electric"
 cooldown_ms = 1200
@@ -184,7 +175,6 @@ on_hit = [ { status = { status = "shock", duration_ms = 16, magnitude = 1, max_s
 key = "shield_wall"
 name = "Shield wall"
 slot = "guard"
-cost = 6
 prop = "shield"            # in the off hand (LOOK.md 6.5)
 [[ability.step]]
 guard = { block = { arc = 150, mitigation = 0.8, stamina_per_hit = 12, stops_projectiles = true, move_speed_scale = 0.5 } }
@@ -193,7 +183,6 @@ guard = { block = { arc = 150, mitigation = 0.8, stamina_per_hit = 12, stops_pro
 key = "parry"
 name = "Parry"
 slot = "guard"
-cost = 4
 cooldown_ms = 1000
 stamina = 10
 [[ability.step]]
@@ -210,7 +199,6 @@ on_success = [
 key = "brace"
 name = "Brace"
 slot = "guard"
-cost = 2
 [[ability.step]]
 guard = { block = { arc = 120, mitigation = 0.5, stamina_per_hit = 10, stops_projectiles = false, move_speed_scale = 0.7 } }
 
@@ -220,7 +208,6 @@ guard = { block = { arc = 120, mitigation = 0.5, stamina_per_hit = 10, stops_pro
 key = "dash"
 name = "Dash"
 slot = "active"
-cost = 6
 cooldown_ms = 1000
 stamina = 30
 [[ability.step]]
@@ -231,7 +218,6 @@ move_self = { dash = { speed = 900, duration_ms = 150 }, iframes_ms = 150, cance
 key = "leap"
 name = "Leap"
 slot = "active"
-cost = 6
 cooldown_ms = 1500
 stamina = 25
 [[ability.step]]
@@ -241,7 +227,6 @@ move_self = { leap = { forward = 400, up = 320 } }
 key = "charge"
 name = "Charge"
 slot = "active"
-cost = 6
 cooldown_ms = 4000
 stamina = 30
 [[ability.step]]
@@ -251,7 +236,7 @@ move_self = { charge = { speed = 700, duration_ms = 400, stop_on_hit = true } }
 key = "blink"
 name = "Blink"
 slot = "active"
-cost = 10
+spell_of = ["staff", "wand"]
 aspect = "air"
 cooldown_ms = 6000
 focus = 30
@@ -262,7 +247,6 @@ move_self = { blink = { distance = 256 } }
 key = "overhead"
 name = "Overhead"
 slot = "active"
-cost = 8
 cooldown_ms = 3000
 stamina = 20
 move_scale = 0.4
@@ -277,7 +261,6 @@ key = "stomp"
 name = "Stomp"
 slot = "secondary"
 secondary_of = ["staff", "wand"]
-cost = 10
 aspect = "ground"
 cooldown_ms = 8000
 focus = 25
@@ -299,7 +282,7 @@ exclude_actor = true
 key = "fortify"
 name = "Fortify"
 slot = "active"
-cost = 8
+spell_of = ["staff", "wand"]
 aspect = "ground"
 cooldown_ms = 15000
 focus = 30
@@ -311,9 +294,8 @@ apply_status = { status = "fortify", duration_ms = 5000, magnitude = 0.4, max_st
 [[ability]]
 key = "frost_nova"
 name = "Frost nova"
-slot = "secondary"
-secondary_of = ["staff", "wand"]
-cost = 10
+slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "water"
 cooldown_ms = 8000
 focus = 30
@@ -338,7 +320,6 @@ exclude_actor = true
 key = "haste"
 name = "Haste"
 slot = "active"
-cost = 8
 cooldown_ms = 12000
 focus = 20
 [[ability.step]]
@@ -349,9 +330,8 @@ apply_status = { status = "haste", duration_ms = 5000, magnitude = 0.25, max_sta
 [[ability]]
 key = "thunderclap"
 name = "Thunderclap"
-slot = "secondary"
-secondary_of = ["staff", "wand"]
-cost = 10
+slot = "active"
+spell_of = ["staff", "wand"]
 aspect = "electric"
 cooldown_ms = 7000
 focus = 30
@@ -373,7 +353,7 @@ exclude_actor = true
 key = "vanish"
 name = "Vanish"
 slot = "active"
-cost = 8
+spell_of = ["dagger"]
 aspect = "air"
 cooldown_ms = 14000
 focus = 25
@@ -386,7 +366,6 @@ apply_status = { status = "stealth", duration_ms = 6000, magnitude = 256, max_st
 key = "slip"
 name = "Slip"
 slot = "active"
-cost = 6
 cooldown_ms = 10000
 stamina = 20
 [[ability.step]]
@@ -396,7 +375,7 @@ apply_status = { status = "stealth", duration_ms = 3000, magnitude = 256, max_st
 key = "poison_cloud"
 name = "Poison cloud"
 slot = "active"
-cost = 8
+spell_of = ["bow"]
 aspect = "air"
 cooldown_ms = 10000
 focus = 25
@@ -418,7 +397,7 @@ exclude_actor = false
 key = "fireball"
 name = "Fireball"
 slot = "active"
-cost = 12
+spell_of = ["staff", "wand"]
 aspect = "fire"
 cooldown_ms = 5000
 focus = 35
@@ -452,7 +431,6 @@ exclude_actor = false
 key = "mend"
 name = "Mend"
 slot = "secondary"
-cost = 4
 cooldown_ms = 2000
 focus = 12
 move_scale = 0.7
@@ -475,7 +453,6 @@ on_hit = [ { status = { status = "regen", duration_ms = 3000, magnitude = 100, m
 key = "sanctuary"
 name = "Sanctuary"
 slot = "active"
-cost = 10
 cooldown_ms = 14000
 focus = 35
 move_scale = 0.5
@@ -497,7 +474,7 @@ exclude_actor = false
 key = "war_standard"
 name = "War standard"
 slot = "active"
-cost = 10
+spell_of = ["spear"]
 squad = 2
 cooldown_ms = 20000
 stamina = 20
@@ -519,7 +496,6 @@ exclude_actor = false
 key = "maul"
 name = "Maul"
 slot = "primary"
-cost = 0
 creature = true
 cooldown_ms = 2000
 move_scale = 0.4
@@ -532,7 +508,6 @@ melee_arc = { reach = 96, arc = 120, half_height = 48, windup_ms = 550, active_m
 key = "quake"
 name = "Quake"
 slot = "active"
-cost = 0
 creature = true
 aspect = "ground"
 cooldown_ms = 9000
@@ -557,7 +532,6 @@ exclude_actor = true
 key = "musket"
 name = "Musket"
 slot = "primary"
-cost = 2
 move_scale = 0.5
 interrupt = "never"
 prop = "musket"
@@ -574,7 +548,6 @@ projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, dam
 key = "kick"
 name = "Kick"
 slot = "secondary"
-cost = 2
 cooldown_ms = 1500
 move_scale = 0.6
 interrupt = "on_stagger"
@@ -586,7 +559,6 @@ melee_arc = { reach = 64, arc = 60, half_height = 40, windup_ms = 120, active_ms
 key = "shield_bash"
 name = "Shield bash"
 slot = "secondary"
-cost = 2
 cooldown_ms = 4000
 move_scale = 0.5
 interrupt = "on_stagger"
@@ -599,7 +571,6 @@ key = "throwing_knife"
 name = "Throwing knife"
 slot = "secondary"
 secondary_of = ["dagger"]
-cost = 3
 cooldown_ms = 2000
 move_scale = 0.8
 interrupt = "never"
@@ -616,7 +587,6 @@ projectile = { speed = 1200, gravity = 0.2, radius = 2, lifetime_ms = 250, damag
 key = "sword_2"
 name = "Sword II"
 slot = "extra"
-cost = 0
 prop = "sword"
 cooldown_ms = 600
 move_scale = 0.6
@@ -631,7 +601,6 @@ melee_arc = { reach = 76, arc = 110, half_height = 40, windup_ms = 120, active_m
 key = "sword_3"
 name = "Sword III"
 slot = "extra"
-cost = 0
 prop = "sword"
 cooldown_ms = 900
 move_scale = 0.4
@@ -648,7 +617,6 @@ apply_status = { status = "knockdown", duration_ms = 1200, magnitude = 1, target
 key = "dagger_2"
 name = "Dagger II"
 slot = "extra"
-cost = 0
 prop = "dagger"
 cooldown_ms = 400
 move_scale = 0.8
@@ -662,7 +630,6 @@ melee_arc = { reach = 58, arc = 80, half_height = 40, windup_ms = 80, active_ms 
 key = "dagger_3"
 name = "Dagger III"
 slot = "extra"
-cost = 0
 prop = "dagger"
 cooldown_ms = 800
 move_scale = 0.6
@@ -680,7 +647,6 @@ apply_status = { status = "launched", duration_ms = 900, magnitude = 300, target
 key = "knife"
 name = "Knife"
 slot = "extra"
-cost = 0
 prop = "dagger"
 cooldown_ms = 400
 move_scale = 1.0
@@ -695,7 +661,6 @@ melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms
 key = "pistol"
 name = "Pistol"
 slot = "secondary"
-cost = 3
 move_scale = 0.9
 interrupt = "never"
 prop = "pistol"
@@ -711,7 +676,6 @@ projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, dam
 key = "carbine"
 name = "Carbine"
 slot = "primary"
-cost = 2
 move_scale = 0.7
 interrupt = "never"
 prop = "musket"
@@ -733,7 +697,6 @@ projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, dam
 key = "greatsword"
 name = "Greatsword"
 slot = "primary"
-cost = 2
 prop = "greatsword"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
@@ -751,7 +714,6 @@ melee_arc = { reach = 96, arc = 120, half_height = 44, windup_ms = 320, active_m
 key = "bellow"
 name = "Bellow"
 slot = "active"
-cost = 8
 cooldown_ms = 12000
 focus = 20
 move_scale = 0.5
@@ -782,7 +744,6 @@ key = "slam"
 name = "Slam"
 slot = "secondary"
 secondary_of = ["hammer", "warhammer", "mace"]
-cost = 4
 cooldown_ms = 4000
 move_scale = 0.4
 interrupt = "on_stagger"
@@ -806,7 +767,7 @@ exclude_actor = true
 key = "briar"
 name = "Briar"
 slot = "active"
-cost = 10
+spell_of = ["staff", "wand"]
 aspect = "grass"
 cooldown_ms = 14000
 focus = 35
@@ -832,7 +793,7 @@ exclude_actor = false
 key = "entangle"
 name = "Entangle"
 slot = "active"
-cost = 10
+spell_of = ["hammer", "warhammer", "mace"]
 aspect = "grass"
 cooldown_ms = 14000
 focus = 25
@@ -861,7 +822,6 @@ exclude_actor = true
 key = "axe"
 name = "Axe"
 slot = "primary"
-cost = 2
 prop = "axe"
 cooldown_ms = 800
 move_scale = 0.55
@@ -876,7 +836,6 @@ melee_arc = { reach = 70, arc = 80, half_height = 40, windup_ms = 200, active_ms
 key = "spear"
 name = "Spear"
 slot = "primary"
-cost = 2
 prop = "spear"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 900
@@ -894,7 +853,6 @@ melee_arc = { reach = 100, arc = 24, half_height = 40, windup_ms = 220, active_m
 key = "bow"
 name = "Bow"
 slot = "primary"
-cost = 2
 prop = "bow"
 cooldown_ms = 1100
 stamina = 20                 # GEAR.md 11, step 7: drawing tires; a plate archer without it took 83% of its kills
@@ -911,7 +869,6 @@ projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, dama
 key = "wand"
 name = "Wand"
 slot = "primary"
-cost = 2
 prop = "wand"
 cooldown_ms = 700
 focus = 6
@@ -933,7 +890,6 @@ projectile = { speed = 2000, gravity = 0.05, radius = 3, lifetime_ms = 3000, dam
 key = "mace"
 name = "Mace"
 slot = "primary"
-cost = 2
 prop = "mace"
 cooldown_ms = 750
 move_scale = 0.6
@@ -947,7 +903,6 @@ melee_arc = { reach = 65, arc = 75, half_height = 40, windup_ms = 180, active_ms
 key = "katana"
 name = "Katana"
 slot = "primary"
-cost = 2
 prop = "katana"
 cooldown_ms = 520
 move_scale = 0.75
@@ -961,7 +916,6 @@ melee_arc = { reach = 72, arc = 70, half_height = 40, windup_ms = 120, active_ms
 key = "claymore"
 name = "Claymore"
 slot = "primary"
-cost = 2
 prop = "claymore"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1000
@@ -976,7 +930,6 @@ melee_arc = { reach = 90, arc = 110, half_height = 40, windup_ms = 280, active_m
 key = "greataxe"
 name = "Greataxe"
 slot = "primary"
-cost = 2
 prop = "greataxe"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
@@ -991,7 +944,6 @@ melee_arc = { reach = 80, arc = 90, half_height = 40, windup_ms = 300, active_ms
 key = "warhammer"
 name = "Warhammer"
 slot = "primary"
-cost = 2
 prop = "warhammer"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1200
@@ -1006,7 +958,6 @@ melee_arc = { reach = 85, arc = 100, half_height = 40, windup_ms = 320, active_m
 key = "scythe"
 name = "Scythe"
 slot = "primary"
-cost = 2
 prop = "scythe"
 heavy = true                 # GEAR.md 7: a blocker pays twice, a stagger does not stop the swing past its windup
 cooldown_ms = 1100
@@ -1025,7 +976,6 @@ melee_arc = { reach = 85, arc = 150, half_height = 40, windup_ms = 300, active_m
 key = "thorn"
 name = "Thorn"
 slot = "primary"
-cost = 2
 prop = "staff"
 aspect = "grass"
 cooldown_ms = 1000
@@ -1050,7 +1000,6 @@ key = "flame_burst"
 name = "Flame burst"
 slot = "secondary"
 secondary_of = ["staff", "wand"]
-cost = 8
 aspect = "fire"
 cooldown_ms = 2500
 focus = 15
@@ -1074,7 +1023,6 @@ key = "briar_burst"
 name = "Briar burst"
 slot = "secondary"
 secondary_of = ["staff", "wand"]
-cost = 8
 aspect = "grass"
 cooldown_ms = 6000
 focus = 25
@@ -1098,7 +1046,6 @@ key = "gust"
 name = "Gust"
 slot = "secondary"
 secondary_of = ["staff", "wand"]
-cost = 6
 aspect = "air"
 cooldown_ms = 3000
 focus = 12
@@ -1121,7 +1068,6 @@ key = "staff_sweep"
 name = "Sweep"
 slot = "secondary"
 secondary_of = ["staff", "wand"]
-cost = 2
 cooldown_ms = 2000
 move_scale = 0.6
 interrupt = "on_stagger"
@@ -1135,7 +1081,6 @@ key = "pommel"
 name = "Pommel"
 slot = "secondary"
 secondary_of = ["sword", "katana", "axe"]
-cost = 2
 cooldown_ms = 1500
 move_scale = 0.6
 interrupt = "on_stagger"
@@ -1152,7 +1097,6 @@ melee_arc = { reach = 56, arc = 60, half_height = 40, windup_ms = 100, active_ms
 key = "thrust"
 name = "Thrust"
 slot = "primary"
-cost = 2
 prop = "sword"
 cooldown_ms = 700
 move_scale = 0.6
@@ -1166,7 +1110,6 @@ melee_arc = { reach = 84, arc = 30, half_height = 40, windup_ms = 200, active_ms
 key = "hammer_sweep"
 name = "Hammer sweep"
 slot = "primary"
-cost = 2
 prop = "hammer"
 cooldown_ms = 1000
 move_scale = 0.5
@@ -1180,7 +1123,6 @@ melee_arc = { reach = 76, arc = 140, half_height = 40, windup_ms = 300, active_m
 key = "volley"
 name = "Volley"
 slot = "primary"
-cost = 2
 prop = "bow"
 cooldown_ms = 1300
 stamina = 35
@@ -1196,7 +1138,6 @@ projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, dama
 key = "backstab"
 name = "Backstab"
 slot = "primary"
-cost = 2
 prop = "dagger"
 cooldown_ms = 500
 move_scale = 0.7
@@ -1215,7 +1156,7 @@ melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms
 key = "fists"
 name = "Fists"
 slot = "primary"
-cost = 0
+gun_melee = true
 cooldown_ms = 450
 move_scale = 0.9
 interrupt = "on_stagger"
@@ -1228,7 +1169,6 @@ melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 90, active_ms 
 key = "fists_2"
 name = "Fists"
 slot = "extra"
-cost = 0
 cooldown_ms = 450
 move_scale = 0.9
 interrupt = "on_stagger"
@@ -1240,7 +1180,6 @@ melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 80, active_ms 
 key = "knife_hands"
 name = "Knife"
 slot = "primary"
-cost = 0
 prop = "dagger"
 gun_melee = true
 cooldown_ms = 400
@@ -1249,3 +1188,152 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 40, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# ---------- the magic group's empty hands (BODIES.md 7, 2026-10-20) ----------
+# A magic body (the sorceress, the elder) empty-handed throws a weak bolt: of force with no
+# element, of its first element with one. A staff is the next level: its bolt of the same
+# element in place of this. Held in the FPS mode too (`gun_melee`: the empty hands of a body
+# of any group, as the fists). Appended: builds name abilities by position.
+
+[[ability]]
+key = "force_blow"
+name = "Force blow"
+slot = "primary"
+gun_melee = true
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "blunt", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "fire_blow"
+name = "Fire blow"
+slot = "primary"
+gun_melee = true
+aspect = "fire"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "fire", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "water_blow"
+name = "Water blow"
+slot = "primary"
+gun_melee = true
+aspect = "water"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "water", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "grass_blow"
+name = "Grass blow"
+slot = "primary"
+gun_melee = true
+aspect = "grass"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "grass", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "electric_blow"
+name = "Electric blow"
+slot = "primary"
+gun_melee = true
+aspect = "electric"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "electric", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "ground_blow"
+name = "Ground blow"
+slot = "primary"
+gun_melee = true
+aspect = "ground"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "ground", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+[[ability]]
+key = "air_blow"
+name = "Air blow"
+slot = "primary"
+gun_melee = true
+aspect = "air"
+cooldown_ms = 600
+focus = 4
+move_scale = 0.9
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 100
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "air", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+
+# ---------- the staff's second move for Water and Electric (BODIES.md 7.2, 2026-10-20) ----------
+# The nova and the thunderclap are the staff's spells now (active 2, `spell_of`); these two
+# cones are its second move for a Water or an Electric body. Appended.
+
+[[ability]]
+key = "chill_wave"
+name = "Chill wave"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+aspect = "water"
+cooldown_ms = 4000
+focus = 20
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+[ability.step.area_effect]
+shape = { cone = { length = 200, half_angle = 35 } }
+origin = "self_feet"
+damage = { amount = 30, type = "water", knockback = 100, stagger = 10 }
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true
+
+[[ability]]
+key = "static"
+name = "Static"
+slot = "secondary"
+secondary_of = ["staff", "wand"]
+aspect = "electric"
+cooldown_ms = 4000
+focus = 20
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+[ability.step.area_effect]
+shape = { cone = { length = 200, half_angle = 35 } }
+origin = "self_feet"
+damage = { amount = 30, type = "electric", knockback = 100, stagger = 10 }
+falloff = "none"
+max_targets = 6
+requires_los = true
+exclude_actor = true

@@ -636,7 +636,7 @@ impl Director {
             if !zone.player(c.id).is_some_and(|p| p.alive) {
                 continue;
             }
-            // One that stands still (the dummy, the trainer) has no mind: an empty frame
+            // One that stands still (the dummy) has no mind: an empty frame
             // a tick, facing its post, so that it stands on the floor like everybody.
             if zone
                 .content

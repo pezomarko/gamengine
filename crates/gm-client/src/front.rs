@@ -1049,7 +1049,7 @@ impl Front {
         } else if !self.notice.is_empty() {
             self.notice.clone()
         } else if left > 0 {
-            format!("{left} points still to place (the trainer in town places them too)")
+            format!("{left} points still to place")
         } else {
             String::new()
         };
@@ -1069,15 +1069,18 @@ impl Front {
             &["Create", "Back"],
         );
         let free = !self.waiting();
+        // Every point is placed here or never (MATRIX.md 20: no trainer places them).
         let off = if !valid {
             Some(words.as_str())
+        } else if left > 0 {
+            Some("place every point first")
         } else if !free {
             Some(self.busy)
         } else {
             None
         };
-        let create =
-            ui.button_or(buttons[0], "Create", off) || (valid && free && ui.key(Key::Enter));
+        let create = ui.button_or(buttons[0], "Create", off)
+            || (valid && left == 0 && free && ui.key(Key::Enter));
         if ui.button_if(buttons[1], "Back", free) || ui.key(Key::Escape) {
             self.screen = Screen::NewCharacter;
             self.notice.clear();
@@ -1508,7 +1511,7 @@ mod tests {
         // The bodies with the content's words (BODIES.md 3.5), and no way back to an
         // empty list.
         assert!(run.says("brute"), "{:?}", run.said());
-        assert!(run.says("Brute  |  colossus  |  no aspect  |  action mode"));
+        assert!(run.says("Brute  |  colossus  |  melee  |  no aspect  |  action mode"));
         assert!(run.says(
             "A big man in his thirties. Takes and gives blows. Slow, and no head for magic."
         ));
@@ -1560,7 +1563,7 @@ mod tests {
         );
         assert!(!run.says("Haste  8"), "{:?}", run.said());
         assert!(
-            run.says("Empty-handed: Fists, Kick and Parry"),
+            run.says("Empty-handed: Force blow, Kick and Parry"),
             "{:?}",
             run.said()
         );
@@ -1579,6 +1582,18 @@ mod tests {
         // A third is refused: the box takes no click.
         run.click("Air: off");
         assert!(run.says("Air: off"), "{:?}", run.said());
+        // Every point is placed here or never (MATRIX.md 20): Create is off until then.
+        assert!(
+            run.says("Create (off: place every point first)"),
+            "{:?}",
+            run.said()
+        );
+        run.click("Suggested spread");
+        assert!(
+            run.says("attributes   0 of 30 points to place"),
+            "{:?}",
+            run.said()
+        );
         run.click("Create");
         run.settle();
         assert_eq!(run.front.screen, Screen::NewBuild);
@@ -1593,7 +1608,7 @@ mod tests {
             asked.last(),
             Some(PlayerRequest::CreateCharacter { session: S, name, build: BuildChoice::Body(c) })
                 if name == "Aldric" && c.body == "elder" && c.mode == Mode::Action
-                    && c.attributes == Attributes::new(4, 3, 4, 6, 9)
+                    && c.attributes.spent(Attributes::new(3, 3, 4, 6, 9)) == 30
                     && c.aspects == Aspects::two(Element::Fire, Element::Water)
                     && c.actives.is_empty()
         ));
@@ -1924,7 +1939,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         assert!(
-            run.says("Brute  |  colossus  |  no aspect  |  action mode"),
+            run.says("Brute  |  colossus  |  melee  |  no aspect  |  action mode"),
             "{:?}",
             run.said()
         );

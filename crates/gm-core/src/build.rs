@@ -1,5 +1,7 @@
-//! Point-buy builds and content packs (MATRIX.md 9 and 10): the budget, the slots, validation,
-//! and the runtime [`Kit`] a build compiles to.
+//! Builds and content packs (MATRIX.md 9 and 10): the slots, validation, and the runtime
+//! [`Kit`] a build compiles to. Nothing is priced in points since 2026-10-20 (MATRIX.md 20):
+//! a build is a body, thirty attribute points, its elements and its mode; what it plays is
+//! the gear's and the body's.
 
 use crate::matrix::{Aspects, Attributes, Derived, Element};
 use crate::tick::{Tick, TickRate};
@@ -7,13 +9,6 @@ use crate::vocab::{
     Ability, ArchetypeFrame, DamageType, Guard, Mode, MoveKind, MoveSelf, Riposte, Trigger, Verb,
 };
 
-/// The kit's budget (MATRIX.md 9): a second aspect and the abilities may cost at most this
-/// many points (40 until 2026-10-16, when the armour class, 0 to 12 of it, moved onto the
-/// chest piece, GEAR.md 3: 34 keeps every preset as it was). Attributes are not in it: they
-/// come from `Attributes::FREE_POINTS`.
-pub const BUDGET: u32 = 34;
-/// Second aspect cost (MATRIX.md 5).
-pub const SECOND_ASPECT_COST: u32 = 10;
 pub const MAX_ACTIVES: usize = 4;
 /// Companions a character commands without a leadership ability, and with every bonus
 /// (COMPANIONS.md 3.2).
@@ -37,7 +32,7 @@ pub enum Slot {
     Extra = 4,
 }
 
-/// An ability as content ships it: the verb script plus its price and gating.
+/// An ability as content ships it: the verb script plus its slot and gating.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
 pub struct AbilityDef {
@@ -45,16 +40,28 @@ pub struct AbilityDef {
     pub key: String,
     pub ability: Ability,
     pub slot: Slot,
-    pub cost: u8,
     /// Required aspect; also the element of every elemental packet in the script.
     pub aspect: Option<Element>,
     /// Squad slots the ability adds while slotted (COMPANIONS.md 3.2).
     pub squad: u8,
     /// Only a creature may slot it (COMPANIONS.md 8.1).
     pub creature: bool,
-    /// A melee primary a gun build may hold (MODES.md 2, BODIES.md 6.7): the knife, the
-    /// gun mode's bare hands. Everything else a gun build swings is a firearm.
+    /// A primary an FPS build may hold beside a firearm (MODES.md 2, BODIES.md 6.7 and
+    /// 7): the empty hands of a body (the knife, the fists, the magic blows).
     pub gun_melee: bool,
+}
+
+impl Mode {
+    /// Whether a build of this mode holds the ability `def` (MODES.md 2, GEAR.md 5.1): an
+    /// FPS build's hands take what shoots (a firearm, a crossbow, a bow, a bolt-throwing
+    /// wand) and the body's own melee (`gun_melee`); an action or RPG build's take
+    /// anything but a firearm.
+    pub fn holds(self, def: &AbilityDef) -> bool {
+        match self {
+            Mode::Fps => def.ability.shoots() || def.gun_melee,
+            Mode::Action | Mode::Rpg => def.ability.firearm.is_none(),
+        }
+    }
 }
 
 /// What a boss drops (COMPANIONS.md 10): `components` items per kill, drawn in order from
@@ -125,13 +132,83 @@ pub struct Build {
     pub attributes: Attributes,
     pub aspects: Aspects,
     /// What plays in nothing (GEAR.md 2): the worn weapon brings its own in place of it.
-    /// With a body these three cost no points and are the bare hands' (`bare_hands`).
+    /// With a body these three are the bare hands' (`bare_hands`).
     pub primary: u16,
     pub secondary: u16,
     pub guard: Option<u16>,
-    /// The actives bought with the budget. With a body the body skill stands before
-    /// them, free, so at most `MAX_ACTIVES - 1` here.
+    /// The actives beside the body skill, which stands before them with a body (so at
+    /// most `MAX_ACTIVES - 1` here). A player's body has none since 2026-10-20 (MATRIX.md
+    /// 20: nothing is bought); the presets of the bots and the creatures keep theirs.
     pub actives: Vec<u16>,
+}
+
+/// How a body attacks (BODIES.md 7, 2026-10-20): what its empty hands do, and what a
+/// weapon upgrades. The melee group's hands are fists, the magic group's a weak bolt of
+/// its element (force without one), the ranged group's the knife, until a weapon is
+/// held. Of a build without a body (a preset, a creature) it is the mode's: FPS ranged,
+/// RPG magic, action melee.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+pub enum Group {
+    Melee,
+    Magic,
+    Ranged,
+}
+
+impl Group {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Group::Melee => "melee",
+            Group::Magic => "magic",
+            Group::Ranged => "ranged",
+        }
+    }
+
+    /// A bodiless build's group: the mode's.
+    pub const fn of_mode(mode: Mode) -> Group {
+        match mode {
+            Mode::Fps => Group::Ranged,
+            Mode::Rpg => Group::Magic,
+            Mode::Action => Group::Melee,
+        }
+    }
+
+    pub fn from_name(s: &str) -> Option<Group> {
+        [Group::Melee, Group::Magic, Group::Ranged]
+            .into_iter()
+            .find(|g| g.name() == s)
+    }
+}
+
+/// A body's group (BODIES.md 7): its own, or `ByMode` (the Soldier: ranged in the FPS
+/// mode, melee in the others).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
+pub enum BodyGroup {
+    Fixed(Group),
+    ByMode,
+}
+
+impl BodyGroup {
+    pub const fn in_mode(self, mode: Mode) -> Group {
+        match self {
+            BodyGroup::Fixed(g) => g,
+            BodyGroup::ByMode => match mode {
+                Mode::Fps => Group::Ranged,
+                Mode::Action | Mode::Rpg => Group::Melee,
+            },
+        }
+    }
+
+    /// `melee`, `magic`, `ranged` or `by_mode`.
+    pub fn from_name(s: &str) -> Option<BodyGroup> {
+        if s == "by_mode" {
+            return Some(BodyGroup::ByMode);
+        }
+        Group::from_name(s).map(BodyGroup::Fixed)
+    }
 }
 
 /// A body (BODIES.md 3): who the character is. Its frame is the hitbox and the gait, its
@@ -145,6 +222,8 @@ pub struct BodyDef {
     pub key: String,
     pub name: String,
     pub frame: ArchetypeFrame,
+    /// How it attacks (BODIES.md 7): what its empty hands do.
+    pub group: BodyGroup,
     /// The five floors, each `Attributes::MIN..=MAX`, summing to `Attributes::FLOOR_SUM`.
     pub floors: Attributes,
     /// The body skill: an `active` of no aspect and no creature's, the first active of
@@ -176,6 +255,9 @@ pub struct Worn {
     /// The guard the thing in the left hand brings (a shield's wall, a focus's brace), in
     /// place of the build's; `None`: the build's guard, or none.
     pub guard: Option<u16>,
+    /// The spell the weapon in the right hand brings (BODIES.md 7.2): a staff's or a
+    /// wand's of the body's element, the active after the body skill; `None`: nothing.
+    pub spell: Option<u16>,
     /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
     /// holds its prop and the build may use, the one in `primary` among them; the K page
     /// offers them, and the build's stored primary picks one when it is one of them.
@@ -202,6 +284,7 @@ impl Worn {
         primary: None,
         secondary: None,
         guard: None,
+        spell: None,
         techniques: Vec::new(),
         armour: 0.0,
         ward: 0.0,
@@ -253,14 +336,11 @@ pub enum BuildError {
     },
     SharedCooldownGroup(u8),
     TooManyActives,
-    Budget {
-        spent: u32,
-    },
     CreatureOnly(u16),
     /// A chain stage or a mode's extra, slotted by hand (MODES.md 4.3).
     NotSlottable(u16),
-    /// A gun build's primary carries no firearm (MODES.md 2).
-    GunNeedsFirearm,
+    /// An FPS build's primary does not shoot (MODES.md 2, GEAR.md 5.1).
+    GunNeedsRanged,
     /// A firearm in a build of another mode.
     FirearmNeedsGun(u16),
     /// A gun build with a guard (MODES.md 3.7).
@@ -294,7 +374,9 @@ impl core::fmt::Display for BuildError {
                     "ability {i} comes with another and is not slotted by hand"
                 )
             }
-            BuildError::GunNeedsFirearm => write!(f, "a gun build's primary is a firearm"),
+            BuildError::GunNeedsRanged => {
+                write!(f, "an FPS build's primary shoots: a firearm or a bow")
+            }
             BuildError::FirearmNeedsGun(i) => {
                 write!(f, "ability {i} is a firearm: only a gun build holds one")
             }
@@ -306,7 +388,6 @@ impl core::fmt::Display for BuildError {
                 write!(f, "two abilities share cooldown group {g}")
             }
             BuildError::TooManyActives => write!(f, "at most {MAX_ACTIVES} actives"),
-            BuildError::Budget { spent } => write!(f, "kit costs {spent} of {BUDGET} points"),
             BuildError::AttributePoints { spent } => write!(
                 f,
                 "attributes take {spent} of {} points",
@@ -337,26 +418,6 @@ impl core::fmt::Display for ContentError {
 impl core::error::Error for ContentError {}
 
 impl Build {
-    /// Kit points spent (MATRIX.md 9): the second aspect and the abilities. (The armour
-    /// class cost 0 to 12 until 2026-10-16; it is the chest piece's now, GEAR.md 3, and
-    /// `armour` is what a body no hub dresses fights in.)
-    pub fn cost(&self, pack: &ContentPack) -> u32 {
-        let ability = |i: u16| pack.abilities.get(i as usize).map_or(0, |a| a.cost as u32);
-        let aspects = if self.aspects.count() >= 2 {
-            SECOND_ASPECT_COST
-        } else {
-            0
-        };
-        // With a body (BODIES.md 3.4) the hands are the gear's and the bare hands' and
-        // cost nothing; the budget buys spells and the second element.
-        let hands = if self.body.is_some() {
-            0
-        } else {
-            ability(self.primary) + ability(self.secondary) + self.guard.map_or(0, ability)
-        };
-        aspects + hands + self.actives.iter().map(|&i| ability(i)).sum::<u32>()
-    }
-
     /// Every slotted ability index in kit order: primary, secondary, actives, guard.
     pub fn slots(&self) -> Vec<(u16, Slot)> {
         self.kit_slots(&Worn::NONE)
@@ -370,6 +431,18 @@ impl Build {
     /// The body skill (BODIES.md 3.4): the first active of a build with a body.
     pub fn body_skill(&self, pack: &ContentPack) -> Option<u16> {
         self.body_def(pack).map(|b| b.skill)
+    }
+
+    /// How this build attacks (BODIES.md 7): the body's group in this mode, else the
+    /// mode's.
+    pub fn group(&self, pack: &ContentPack) -> Group {
+        self.body_def(pack)
+            .map_or(Group::of_mode(self.mode), |b| b.group.in_mode(self.mode))
+    }
+
+    /// The bare hands of this build (BODIES.md 7): what its group plays in nothing.
+    pub fn bare_hands(&self, pack: &ContentPack) -> (u16, u16, Option<u16>) {
+        pack.bare_hands(self.group(pack), self.aspects, self.mode)
     }
 
     /// Where the thirty points start: the body's floors, or five each without one.
@@ -423,6 +496,13 @@ impl Build {
             (worn.secondary.unwrap_or(self.secondary), Slot::Secondary),
         ];
         out.extend(skill.map(|i| (i, Slot::Active)));
+        // The weapon's spell (BODIES.md 7.2), after the body skill; a preset that holds
+        // it among its own actives (the arena's frostweaver, the nova) has it once.
+        out.extend(
+            worn.spell
+                .filter(|i| !self.actives.contains(i))
+                .map(|i| (i, Slot::Active)),
+        );
         out.extend(self.actives.iter().map(|&i| (i, Slot::Active)));
         if let Some(g) = worn.guard.or(self.guard) {
             out.push((g, Slot::Guard));
@@ -430,8 +510,8 @@ impl Build {
         out
     }
 
-    /// MATRIX.md 9: ranges, the free points, aspects, slots, gating, cooldown groups, the
-    /// kit's budget; with a body (BODIES.md 3.2), the body's frame, its floors and the
+    /// MATRIX.md 9: ranges, the free points, aspects, slots, gating, cooldown groups; with
+    /// a body (BODIES.md 3.2), the body's frame, its floors and the
     /// points above them.
     pub fn validate(&self, pack: &ContentPack) -> Result<(), BuildError> {
         if !self.attributes.in_range() {
@@ -456,12 +536,7 @@ impl Build {
         if points > Attributes::FREE_POINTS {
             return Err(BuildError::AttributePoints { spent: points });
         }
-        self.check_kit(pack, false)?;
-        let spent = self.cost(pack);
-        if spent > BUDGET {
-            return Err(BuildError::Budget { spent });
-        }
-        Ok(())
+        self.check_kit(pack, false)
     }
 
     /// A build of a body (BODIES.md 3.5): the body's frame, its floors lifted to where
@@ -479,7 +554,7 @@ impl Build {
             .bodies
             .get(body as usize)
             .ok_or(BuildError::UnknownBody(body))?;
-        let (primary, secondary, guard) = pack.bare_hands(mode);
+        let (primary, secondary, guard) = pack.bare_hands(def.group.in_mode(mode), aspects, mode);
         Ok(Build {
             mode,
             body: Some(body),
@@ -631,13 +706,12 @@ impl Build {
             // The mode and the firearm go together (MODES.md 2); a creature's mind holds
             // what content gives it.
             if !creature {
-                let firearm = def.ability.firearm.is_some();
                 match (self.mode, expected) {
-                    (Mode::Gun, Slot::Primary) if !firearm && !def.gun_melee => {
-                        return Err(BuildError::GunNeedsFirearm);
+                    (Mode::Fps, Slot::Primary) if !self.mode.holds(def) => {
+                        return Err(BuildError::GunNeedsRanged);
                     }
-                    (Mode::Gun, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
-                    (Mode::Action | Mode::Rpg, _) if firearm => {
+                    (Mode::Fps, Slot::Guard) => return Err(BuildError::GunHasNoGuard),
+                    (Mode::Action | Mode::Rpg, _) if !self.mode.holds(def) => {
                         return Err(BuildError::FirearmNeedsGun(index));
                     }
                     _ => {}
@@ -690,11 +764,17 @@ impl ContentPack {
             .map(|i| i as u16)
     }
 
-    /// What a body of `mode` plays in nothing (BODIES.md 3.4): the cheapest plain primary
-    /// the mode holds (a firearm for the gun, anything else otherwise), the kick or the
-    /// cheapest plain secondary, the parry or the cheapest plain guard (none for the
-    /// gun). Ties go to the first listed. The worn things bring their own over these.
-    pub fn bare_hands(&self, mode: Mode) -> (u16, u16, Option<u16>) {
+    /// What a body of `group` with `aspects` plays in nothing in `mode` (BODIES.md 7):
+    /// the fists (melee), the bolt of the first element it holds or of force (magic),
+    /// the knife (ranged); the kick; the parry (none in FPS). A pack without them (a
+    /// fixture) falls back to the first plain primary the mode holds (a firearm for FPS,
+    /// anything else otherwise). The worn things bring their own over these.
+    pub fn bare_hands(
+        &self,
+        group: Group,
+        aspects: Aspects,
+        mode: Mode,
+    ) -> (u16, u16, Option<u16>) {
         let plain = |slot: Slot, want_firearm: Option<bool>| -> Option<u16> {
             self.abilities
                 .iter()
@@ -703,15 +783,19 @@ impl ContentPack {
                 .filter(|(_, d)| {
                     want_firearm.is_none_or(|want| d.ability.firearm.is_some() == want)
                 })
-                .min_by_key(|(_, d)| d.cost)
                 .map(|(i, _)| i as u16)
+                .next()
         };
-        let gun = mode == Mode::Gun;
-        // The fists, or the knife held as the gun mode's weapon (BODIES.md 6.7); a pack without them (a
-        // fixture) falls back to its cheapest plain weapon of the mode.
-        let hands = if gun { "knife_hands" } else { "fists" };
-        let primary = self
-            .find(hands)
+        let gun = mode == Mode::Fps;
+        let hands = match group {
+            Group::Melee => self.find("fists"),
+            Group::Ranged => self.find("knife_hands"),
+            Group::Magic => aspects
+                .iter()
+                .find_map(|e| self.find(&format!("{}_blow", e.name())))
+                .or_else(|| self.find("force_blow")),
+        };
+        let primary = hands
             .or_else(|| plain(Slot::Primary, Some(gun)))
             .unwrap_or(0);
         let secondary = self
@@ -838,7 +922,7 @@ impl ContentPack {
             }
             // Every body makes a build of every mode: the bare hands exist and the body
             // validates with its floors and nothing bought.
-            for mode in [Mode::Action, Mode::Rpg, Mode::Gun] {
+            for mode in [Mode::Action, Mode::Rpg, Mode::Fps] {
                 let build =
                     Build::of_body(self, i as u16, mode, b.floors, Aspects::NONE, Vec::new())
                         .map_err(|e| err(e.to_string()))?;
@@ -1015,7 +1099,7 @@ impl Kit {
             }
             k += 1;
         }
-        if build.mode == Mode::Gun
+        if build.mode == Mode::Fps
             && kit.abilities.len() < crate::sim::MAX_ABILITIES
             && let Some(index) = pack.find("knife")
             && let Some(def) = pack.abilities.get(index as usize)
@@ -1112,6 +1196,9 @@ pub struct Sheet {
     pub worn: Worn,
     pub kit: Kit,
     pub derived: Derived,
+    /// The body's group (BODIES.md 7.3), for the damage pipeline's factor; `None`
+    /// without a body (a preset in nothing, a creature): no factor, and no affinity.
+    pub group: Option<Group>,
     /// Build points left after the kit; informational.
     pub team: u8,
 }
@@ -1128,6 +1215,7 @@ impl Sheet {
         Sheet {
             kit: Kit::from_build(&build, &worn, pack),
             derived: build.derived_wearing(&worn, pack),
+            group: build.body.map(|_| build.group(pack)),
             build,
             worn,
             team,
@@ -1153,12 +1241,37 @@ mod tests {
     use super::*;
     use crate::sim::test_content;
 
+    /// GEAR.md 5.1: an FPS build's hands take what shoots, a firearm or a bow, and the
+    /// body's own melee; an action or RPG build's take anything but a firearm.
     #[test]
-    fn presets_validate_within_the_budget_and_spend_all_their_points() {
+    fn the_fps_mode_holds_what_shoots() {
+        let pack = test_content::pack(TickRate::COMBAT);
+        let def = |key: &str| {
+            let i = pack.find(key).unwrap_or_else(|| panic!("no {key}"));
+            &pack.abilities[i as usize]
+        };
+        assert!(Mode::Fps.holds(def("musket")));
+        assert!(Mode::Fps.holds(def("crossbow")), "a crossbow shoots");
+        assert!(Mode::Fps.holds(def("bow")));
+        assert!(!Mode::Fps.holds(def("sword")));
+        assert!(Mode::Rpg.holds(def("crossbow")));
+        assert!(Mode::Rpg.holds(def("sword")));
+        assert!(!Mode::Action.holds(def("musket")), "a firearm is FPS only");
+        let mut musketeer = pack.build("musketeer").expect("musketeer").clone();
+        musketeer.primary = pack.find("crossbow").unwrap();
+        assert!(
+            !matches!(musketeer.validate(&pack), Err(BuildError::GunNeedsRanged)),
+            "an FPS build takes a crossbow as its primary"
+        );
+        musketeer.primary = pack.find("sword").unwrap();
+        assert_eq!(musketeer.validate(&pack), Err(BuildError::GunNeedsRanged));
+    }
+
+    #[test]
+    fn presets_validate_and_spend_all_their_points() {
         let pack = test_content::pack(TickRate::COMBAT);
         pack.validate(TickRate::COMBAT).unwrap();
         for nb in &pack.builds {
-            assert!(nb.build.cost(&pack) <= BUDGET, "{}", nb.name);
             assert_eq!(
                 nb.build.attributes.cost(),
                 Attributes::FREE_POINTS,
@@ -1306,7 +1419,8 @@ mod tests {
         // A kit the pack refuses: the preset with that primary, the attributes kept.
         let mut b = base.clone();
         b.secondary = pack.find("ice_shard").unwrap();
-        b.attributes = Attributes::new(25, 10, 5, 5, 5);
+        // (On the Soldier's floors, BODIES.md 7.5: the repair lifts nothing.)
+        b.attributes = Attributes::new(25, 10, 7, 3, 3);
         let r = b.repaired(&pack).expect("repairable");
         assert_eq!(r.attributes, b.attributes);
         assert_eq!(r.secondary, base.secondary);
@@ -1352,27 +1466,25 @@ mod tests {
             b.validate(&pack),
             Err(BuildError::DuplicateAbility(_))
         ));
-        // Fewer points than the free ones is a build; a kit past the budget is not.
+        // Fewer points than the free ones is a build; and since nothing is priced
+        // (MATRIX.md 20) a second aspect under four plain actives is one too.
         let mut b = base.clone();
         b.attributes.str_ -= 1;
         assert_eq!(b.validate(&pack), Ok(()));
-        // (The armour class is off the kit's bill since GEAR.md 3: a second aspect is
-        // what pushes four plain actives over.)
         let mut b = base.clone();
         b.aspects = Aspects::two(Element::Water, Element::Fire);
+        // (Three bought beside the body skill, BODIES.md 7.5: the blade is a Soldier.)
+        let skill = b.body_skill(&pack);
         b.actives = (0..pack.abilities.len() as u16)
             .filter(|&i| {
                 pack.abilities[i as usize].slot == Slot::Active
                     && pack.abilities[i as usize].aspect.is_none()
                     && !pack.abilities[i as usize].creature
+                    && skill != Some(i)
             })
-            .take(MAX_ACTIVES)
+            .take(MAX_ACTIVES - 1)
             .collect();
-        assert!(
-            matches!(b.validate(&pack), Err(BuildError::Budget { .. })),
-            "{:?}",
-            b.validate(&pack)
-        );
+        assert_eq!(b.validate(&pack), Ok(()), "{b:?}");
         // Fire content needs the Fire aspect (the firebolt is a primary; the blade is Water).
         let mut b = base.clone();
         b.primary = pack.find("firebolt").unwrap();

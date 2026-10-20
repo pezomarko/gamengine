@@ -85,6 +85,15 @@ const MATRIX: [[f32; Element::COUNT]; Element::COUNT] = [
 /// (MATRIX.md 5): one step either way, and a dual-aspect hole or wall is the square.
 pub const BEATS: f32 = 1.25;
 pub const RESISTED: f32 = 0.75;
+/// BODIES.md 7.3 (2026-10-20): a spell of one of the attacker's own elements deals this
+/// much more. A body's, like the group's factor; a preset in nothing has neither.
+pub const AFFINITY: f32 = 1.25;
+/// BODIES.md 7.3: the magic group's spells and the melee group's blows deal this much
+/// more; the magic group's blows and the melee and ranged groups' spells this much less.
+/// "Fire affinity + magical + INT build = near max damage dealt by fireball"; a Brute's
+/// fireball is a puff, and its fist is not.
+pub const GROUP_FAVOURED: f32 = 1.25;
+pub const GROUP_UNFAVOURED: f32 = 0.75;
 
 /// Damage multiplier of an `attack` element into one defending `aspect` (MATRIX.md 5).
 pub fn element_mult(attack: Element, aspect: Element) -> f32 {
@@ -447,6 +456,12 @@ pub fn gear_factor(dealt: &[u16; 9], taken: &[u16; 9], dtype: DamageType) -> f32
 pub struct AttackerStats {
     pub physical_mult: f32,
     pub elemental_mult: f32,
+    /// The attacker's own elements (BODIES.md 7.3): a spell of one of them deals
+    /// `AFFINITY` more. `NONE` for a body without, a preset in nothing, and a pulse.
+    pub affinity: Aspects,
+    /// The attacker's group (BODIES.md 7.3), with a body; `None` for a preset in
+    /// nothing, a creature, and a pulse: no factor.
+    pub group: Option<crate::build::Group>,
     pub knockback_dealt: f32,
     /// `Weaken` magnitude, 0 when absent.
     pub weaken: f32,
@@ -462,6 +477,8 @@ impl AttackerStats {
     pub const NEUTRAL: AttackerStats = AttackerStats {
         physical_mult: 1.0,
         elemental_mult: 1.0,
+        affinity: Aspects::NONE,
+        group: None,
         knockback_dealt: 1.0,
         on_hit: None,
         status_dealt: [100; 6],
@@ -469,10 +486,18 @@ impl AttackerStats {
         gear: [0; 9],
     };
 
-    pub fn from_derived(d: &Derived, weaken: f32, gear: &Gear) -> AttackerStats {
+    pub fn from_derived(
+        d: &Derived,
+        weaken: f32,
+        gear: &Gear,
+        affinity: Aspects,
+        group: Option<crate::build::Group>,
+    ) -> AttackerStats {
         AttackerStats {
             physical_mult: d.physical_mult,
             elemental_mult: d.elemental_mult,
+            affinity,
+            group,
             knockback_dealt: d.knockback_dealt,
             weaken,
             gear: gear.dealt,
@@ -501,6 +526,22 @@ pub struct DefenderStats {
     pub gear: [u16; 9],
 }
 
+/// BODIES.md 7.3: what a group's blows (`elemental` false) and spells (true) are
+/// multiplied by. Magic: spells `GROUP_FAVOURED`, blows `GROUP_UNFAVOURED`; melee: blows
+/// `GROUP_FAVOURED`, spells `GROUP_UNFAVOURED`; ranged: blows as they are (a bow, a gun:
+/// the range is the edge), spells `GROUP_UNFAVOURED`. No group: 1.
+pub fn group_mult(group: Option<crate::build::Group>, elemental: bool) -> f32 {
+    use crate::build::Group;
+    match (group, elemental) {
+        (None, _) => 1.0,
+        (Some(Group::Magic), true) | (Some(Group::Melee), false) => GROUP_FAVOURED,
+        (Some(Group::Magic), false) | (Some(Group::Melee | Group::Ranged), true) => {
+            GROUP_UNFAVOURED
+        }
+        (Some(Group::Ranged), false) => 1.0,
+    }
+}
+
 /// MATRIX.md 7, the gear factor included (ITEMS.md 3.1): the factor multiplies before the
 /// rounding, so its bounds are on the unrounded number. Never returns less than 1.
 pub fn resolve_damage(packet: &DamagePacket, a: &AttackerStats, d: &DefenderStats) -> i32 {
@@ -515,7 +556,7 @@ pub fn resolve_damage(packet: &DamagePacket, a: &AttackerStats, d: &DefenderStat
         // reads (`Gear::taken`); it multiplies nothing else since GEAR.md 12 (2026-10-17:
         // no armour class, no weapon triangle).
         Some(_) => {
-            x *= a.physical_mult;
+            x *= a.physical_mult * group_mult(a.group, false);
             if !bypass.contains(Bypass::ARMOR) {
                 x *= 1.0 - d.armour;
             }
@@ -526,6 +567,11 @@ pub fn resolve_damage(packet: &DamagePacket, a: &AttackerStats, d: &DefenderStat
                 .element()
                 .expect("non-physical types are elements");
             x *= a.elemental_mult * d.aspects.mult_against(element);
+            // BODIES.md 7.3: the caster's own element, and its group.
+            if a.affinity.contains(element) {
+                x *= AFFINITY;
+            }
+            x *= group_mult(a.group, true);
             if !bypass.contains(Bypass::MAGIC_SHIELD) {
                 x *= 1.0 - d.ward;
             }
@@ -842,11 +888,62 @@ mod tests {
         );
     }
 
+    /// BODIES.md 7.3: a Sorceress of Fire at INT 25 throws a staff's fireball at 1.6 x
+    /// 1.25 x 1.25 of its row; a Brute of no element at INT 3 with the same staff at
+    /// 0.72 x 0.75. The attribute, the affinity and the group multiply; a melee body's
+    /// blow is a quarter more than its STR makes it, a magic body's a quarter less.
+    #[test]
+    fn affinity_and_group_stack_on_a_spell() {
+        use crate::build::Group;
+        let d = DefenderStats {
+            aspects: Aspects::NONE,
+            armour: 0.0,
+            ward: 0.0,
+            evasion: 0.0,
+            fortify: 0.0,
+            evading: false,
+            exposed: false,
+            block: None,
+            gear: [0; 9],
+        };
+        let fire = packet(100, DamageType::Fire, Bypass::NONE);
+        let slash = packet(100, DamageType::Slash, Bypass::NONE);
+        let sorceress = AttackerStats {
+            elemental_mult: 1.6,
+            physical_mult: 0.72,
+            affinity: Aspects::one(Element::Fire),
+            group: Some(Group::Magic),
+            ..AttackerStats::NEUTRAL
+        };
+        let brute = AttackerStats {
+            elemental_mult: 0.72,
+            physical_mult: 0.88,
+            affinity: Aspects::NONE,
+            group: Some(Group::Melee),
+            ..AttackerStats::NEUTRAL
+        };
+        assert_eq!(resolve_damage(&fire, &sorceress, &d), 250);
+        assert_eq!(resolve_damage(&fire, &brute, &d), 54);
+        assert_eq!(resolve_damage(&slash, &sorceress, &d), 54);
+        assert_eq!(resolve_damage(&slash, &brute, &d), 110);
+        // Water with the Fire affinity: the affinity is the element's, not any spell's.
+        let water = packet(100, DamageType::Water, Bypass::NONE);
+        assert_eq!(resolve_damage(&water, &sorceress, &d), 200);
+        // A preset in nothing (no group, no affinity): the attribute alone.
+        let preset = AttackerStats {
+            elemental_mult: 1.6,
+            ..AttackerStats::NEUTRAL
+        };
+        assert_eq!(resolve_damage(&fire, &preset, &d), 160);
+    }
+
     #[test]
     fn pipeline_follows_the_document() {
         let a = AttackerStats {
             physical_mult: 1.1,
             elemental_mult: 1.2,
+            affinity: Aspects::NONE,
+            group: None,
             knockback_dealt: 1.0,
             weaken: 0.0,
             gear: [0; 9],

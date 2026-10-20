@@ -55,7 +55,8 @@ whose kit holds an ability with that `prop` (ITEMS.md 2, the director's rule of
 - **The weapon-fit rule becomes the mode's alone** (section 5): a gun build's right hand
   takes a firearm and nothing else, an action or RPG build's takes no firearm; everything
   else fits every hand. `economy::fits` keeps its shape and its words ("a gun build's
-  hands are for a firearm: not a mace"). The `hands:` line on a weapon (EQUIPMENT.md 2)
+  hands are for a firearm: not a mace"; since 2026-10-20 an FPS build takes any weapon
+  that shoots, 5.1). The `hands:` line on a weapon (EQUIPMENT.md 2)
   says the presets whose kits *prefer* it, as today, since it is still true and still
   useful; the dim icon and the refused drop stay for what the mode refuses.
 - **The build's `primary` keeps its slot on the K page**, renamed in words to what it is:
@@ -154,6 +155,24 @@ weapon, at some point."
   the director wants the weapon to carry it, a weapon's ability may list the modes that
   may hold it (`modes = ["gun"]`) and the derivation of section 2 picks the mode from the
   right hand. Not now.
+
+### 5.1 An FPS build holds any weapon that shoots (decided 2026-10-20)
+
+The director, after his huntress (an FPS build) was refused a crossbow: "we said any char
+can wear any weapon, no? ... loosen the rule, fps can hold any ranged weapon."
+
+- **The FPS hand's rule is "it shoots"**, not "it is a firearm": `Ability::shoots` is a
+  firearm or any step that launches a bolt, so the crossbow, the bow and the wand fit an
+  FPS build, and so does a staff by its elemental bolts (its plain blow is not picked
+  for one: `worn_of` takes only primaries the mode holds). `Mode::holds(def)` is the one
+  rule in `gm-core`, asked by `Build::validate`, by `worn_of` (the worn weapon brings
+  the primary the mode holds) and by the client's K page; the hub's `economy::fits`
+  asks `Holding.shooters` (`hub::shooter_props`), the models those primaries hold.
+- **The other way is unchanged**: a firearm still fits an FPS build only. A melee weapon
+  in an FPS build is refused as before, in new words ("an FPS build's hands are for a
+  weapon that shoots: not a mace").
+- The FPS view fires a crossbow or a bow through the primary as any mode does; there is
+  no magazine for it (no `firearm`), so the HUD's ammo block shows nothing to reload.
 
 ## 6. The layers do their promised jobs
 
@@ -365,7 +384,9 @@ plays every one before the next.
   numbers are the gun mode's), the helmets' difference (section 7 left them as looks).
 - **2026-10-17, the arrows are unlimited.** The director: "arrows we can make unlimited
   but rate limited by stamina, just like make them use stamina and that's it." The bow
-  names no `ammo`; its 20 stamina a draw is the limit, as a blow's is. The `arrow`
+  names no `ammo`; its 20 stamina a draw is the limit, as a blow's is. The crossbow is
+  the same rule (2026-10-20, the director's crossbow on the LAN spanned for free): 30 a
+  span, the bow's cost per second at its slower rate. The `arrow`
   template is gone from `items.toml` and the quartermaster's stock (`play.sh`), and
   migration 0019 retires every arrow a bag or a stall holds. `Ability.ammo` and the
   reserve it draws on stay in the engine, tested on a synthetic pack, for a thrown thing
