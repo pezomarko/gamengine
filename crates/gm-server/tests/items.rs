@@ -769,7 +769,7 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
         before - smith_hand.health()
     };
     let bare = hit(&buyer_hand).await;
-    assert!(bare >= 10, "a sword on plate: {bare}");
+    assert!(bare >= 5, "a sword on plate: {bare}");
     // The unrounded number is within half a point of `bare`: what a factor does to it.
     let moved = |factor: f32| {
         let (lo, hi) = (
@@ -901,8 +901,10 @@ async fn a_weapon_is_bought_at_a_stall_worn_and_felt_in_the_zone_s_hits() {
     let warded = hit(&buyer_hand).await;
     let edge = moved(1100.0 / 1199.0);
     let floor = *moved(1100.0 / 1199.0 * 0.84).start();
+    // (At a tenth of the numbers, MATRIX.md 22, a sword's edge and a cuirass's on a
+    // 6-point swing can round to the same point: a tie is allowed, a loss is not.)
     assert!(
-        warded <= *edge.end() && warded >= floor && warded < bare && both > warded,
+        warded <= *edge.end() && warded >= floor && warded < bare && both >= warded,
         "{bare} in nothing, {warded} against the cuirass, {both} with the sword too"
     );
     println!(
