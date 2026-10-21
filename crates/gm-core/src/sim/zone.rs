@@ -560,7 +560,7 @@ impl Zone {
         id
     }
 
-    /// Ticks between the pulses of a status at this zone's rate: four pulses a second
+    /// Ticks between the pulses of a status at this zone's rate: a pulse a second
     /// (`DOT_INTERVAL_TICKS` is this at 64 Hz; a zone at 20 Hz pulsed every 0.8 s by it,
     /// and its statuses did a third of what they say).
     fn dot_interval(&self) -> Tick {
@@ -1834,7 +1834,7 @@ impl Zone {
         }
     }
 
-    /// Bleed, Burn and Regen pulses (MATRIX.md 8), four per second.
+    /// Bleed, Burn and Regen pulses (MATRIX.md 8), once a second.
     fn pulse_dots(&mut self) {
         let ids: Vec<EntityId> = self.players.keys().copied().collect();
         for id in ids {
@@ -1845,9 +1845,9 @@ impl Zone {
                 continue;
             }
             let slots: Vec<_> = p.mover.statuses.active().copied().collect();
-            // Fractional magnitudes accumulate across the four pulses of a second so that a
+            // Fractional magnitudes accumulate across the pulses of a second so that a
             // magnitude of m deals exactly floor(m) per second, never 0 and never rounded up.
-            let pulse = (self.tick / self.dot_interval()) % DOT_PULSES_PER_S;
+            let pulse = (self.tick / self.dot_interval()).rem_euclid(DOT_PULSES_PER_S);
             for slot in slots {
                 let per = slot.magnitude / DOT_PULSES_PER_S as f32;
                 let amount =

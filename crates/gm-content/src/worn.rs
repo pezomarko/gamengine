@@ -408,7 +408,7 @@ mod tests {
                 status: Status::Burn,
                 chance: 20,
                 duration_ms: 2000,
-                magnitude_pm: 3000,
+                magnitude_pm: 1000,
             })
         );
         assert_eq!(sword.status_dealt[Element::Fire.slot()], 200);

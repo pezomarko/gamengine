@@ -401,7 +401,7 @@ id = "kit"                # used with F, in every mode
 kind = "stack"
 layers = []
 cap = 5
-heals = 300              # a third of a body of 1,000 (MATRIX.md: 500 + 40 × con)
+heals = 30               # a third of a body of 100 (MATRIX.md: 50 + 4 × con)
 
 # Every material carries `price`, what the smith sells it for in silver (ITEMS.md 6.6; the
 # ladder of GEAR.md 8: by edge, the bosses' two dear so the test shop has them too).
@@ -500,7 +500,7 @@ element = "fire"
 status = "burn"
 chance = 20
 duration_ms = 2000
-magnitude = 3.0
+magnitude = 1.0
 
 [[material]]
 id = "catalyst/rime"

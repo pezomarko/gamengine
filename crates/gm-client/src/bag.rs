@@ -2606,7 +2606,7 @@ mod tests {
         let hub = shop();
         {
             let mut shop = hub.0.borrow_mut();
-            let mut kit = item(7, "kit", &["heals 300, used with F"], &[]);
+            let mut kit = item(7, "kit", &["heals 30, used with F"], &[]);
             kit.template = "kit".into();
             kit.components.clear();
             kit.quantity = 3;
@@ -2627,7 +2627,7 @@ mod tests {
         assert_eq!(bag.bar().map(<[_]>::len), Some(4));
         // The kit onto the second cell: the hub is told, and the row shows it there.
         assert_eq!(
-            run.drag(&mut bag, "kit ×3  heals 300, used with F", "bar 8", &hub),
+            run.drag(&mut bag, "kit ×3  heals 30, used with F", "bar 8", &hub),
             BagAction::None
         );
         run.look(&mut bag, &hub);
@@ -2650,7 +2650,7 @@ mod tests {
         );
         // The stack from the grid onto another cell while it sits on F: it moves (a kind
         // sits on one cell).
-        run.drag(&mut bag, "kit ×3  heals 300, used with F", "bar 0", &hub);
+        run.drag(&mut bag, "kit ×3  heals 30, used with F", "bar 0", &hub);
         run.look(&mut bag, &hub);
         assert_eq!(
             hub.0.borrow().bar,

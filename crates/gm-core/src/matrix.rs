@@ -334,8 +334,9 @@ pub const FREEZE_MS: u32 = 1000;
 pub const CHILL_IMMUNITY_MS: u32 = 2000;
 /// Chill slows this much per stack.
 pub const CHILL_PER_STACK: f32 = 0.15;
-/// Damage- and heal-over-time pulses per second.
-pub const DOT_PULSES_PER_S: u32 = 4;
+/// Damage- and heal-over-time pulses per second: one, so a magnitude of 1 reads as a
+/// point a second (the numbers are a tenth of what they were, 2026-10-20).
+pub const DOT_PULSES_PER_S: u32 = 1;
 
 impl Derived {
     pub fn compute(attrs: Attributes, frame: ArchetypeFrame) -> Derived {
@@ -348,7 +349,7 @@ impl Derived {
             attrs.spr as f32,
         );
         Derived {
-            health: 500 + 40 * attrs.con as i32,
+            health: 50 + 4 * attrs.con as i32,
             stamina: 60.0 + 3.0 * (con + agi),
             stamina_regen: 10.0 + 0.6 * agi,
             focus: 40.0 + 5.0 * int + f.focus as f32,
@@ -719,7 +720,7 @@ mod tests {
     fn derived_bands_match_the_document() {
         let lo = Derived::compute(Attributes::flat(5), ArchetypeFrame::Striker);
         let hi = Derived::compute(Attributes::flat(25), ArchetypeFrame::Striker);
-        assert_eq!((lo.health, hi.health), (700, 1500));
+        assert_eq!((lo.health, hi.health), (70, 150));
         assert_eq!((lo.stamina, hi.stamina), (90.0, 210.0));
         assert!((lo.max_speed - 290.0).abs() < 1e-3 && (hi.max_speed - 330.0).abs() < 1e-3);
         assert!((lo.physical_mult - 0.8).abs() < 1e-6 && (hi.physical_mult - 1.6).abs() < 1e-6);

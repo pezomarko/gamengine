@@ -142,7 +142,7 @@ fn phase2_kit_validates_and_has_durations() {
     assert_eq!(kit.durations[sword], 10 + 4 + 20);
     assert_eq!(kit.durations[dash], 10);
     assert_eq!(kit.durations[crossbow], 8);
-    assert_eq!(sheet.derived.health, 900);
+    assert_eq!(sheet.derived.health, 90);
     assert_eq!(sheet.derived.stamina, 120.0);
 }
 
@@ -165,15 +165,15 @@ fn sword_hits_in_front_and_not_behind() {
         );
         let hp = zone.player(b).unwrap().health;
         if expect_hit {
-            // 60 slash x 1.0 (STR 10) x 0.80 (armour) = 48 (no armour class since
+            // 6 slash x 1.0 (STR 10) x 0.80 (armour) = 4.8 -> 5 (no armour class since
             // GEAR.md 12, 2026-10-17).
-            assert_eq!(hp, 900 - 48, "yaw {attacker_yaw}");
+            assert_eq!(hp, 90 - 5, "yaw {attacker_yaw}");
             assert!(zone.events.iter().any(|e| matches!(
                 e,
-                ZoneEvent::Hit { attacker, target, amount: 48, kind: HitKind::Melee, .. } if *attacker == a && *target == b
+                ZoneEvent::Hit { attacker, target, amount: 5, kind: HitKind::Melee, .. } if *attacker == a && *target == b
             )));
         } else {
-            assert_eq!(hp, 900, "yaw {attacker_yaw}");
+            assert_eq!(hp, 90, "yaw {attacker_yaw}");
         }
         // Holding the button does not re-trigger; one swing per press.
         assert_eq!(hits(&zone, HitKind::Melee), expect_hit as usize);
@@ -201,13 +201,13 @@ fn crossbow_bolt_hits_the_first_body_in_line_even_an_ally() {
         0,
     );
     run(&mut zone, &world, &[(a, idle), (b, idle), (c, idle)], 40);
-    // 80 pierce x 1.0 x 1.0 (cloth) x 0.80 = 64.
+    // 8 pierce x 1.0 x 1.0 (cloth) x 0.80 = 6.4 -> 6.
     assert_eq!(
         zone.player(b).unwrap().health,
-        900 - 64,
+        90 - 6,
         "the body in between takes the bolt"
     );
-    assert_eq!(zone.player(c).unwrap().health, 900);
+    assert_eq!(zone.player(c).unwrap().health, 90);
     assert!(
         zone.events
             .iter()
@@ -296,7 +296,7 @@ fn lag_compensation_rewinds_the_target() {
                 view,
             );
         }
-        let hit = zone.player(b).unwrap().health < 900;
+        let hit = zone.player(b).unwrap().health < 90;
         assert_eq!(hit, expect_hit, "rewind {rewind}: old {old_x} now {now_x}");
     }
 }
@@ -466,7 +466,7 @@ fn death_and_respawn() {
         "respawned {} ticks after {killed_at}",
         zone.tick - killed_at
     );
-    assert_eq!(p.health, 900);
+    assert_eq!(p.health, 90);
     assert!(
         zone.events
             .iter()
@@ -544,13 +544,13 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         );
         let p = zone.player(b).unwrap();
         let taken = p.max_health() - p.health;
-        // Sword 60 x 1.28 (STR 17) x 1.25 (the Soldier's melee blow, BODIES.md 7.3) x
-        // 0.6 (armour 0.40) = 57.6 -> 58 unblocked, x 0.2 blocked = 11.52 -> 12.
+        // Sword 6 x 1.28 (STR 17) x 1.25 (the Soldier's melee blow, BODIES.md 7.3) x
+        // 0.6 (armour 0.40) = 5.76 -> 6 unblocked, x 0.2 blocked = 1.15 -> 1.
         if expect_block {
-            assert_eq!(taken, 12, "facing {facing}");
+            assert_eq!(taken, 1, "facing {facing}");
             assert_eq!(stamina_before - p.mover.stamina, 12.0);
         } else {
-            assert_eq!(taken, 58, "facing {facing}");
+            assert_eq!(taken, 6, "facing {facing}");
         }
     }
     // Guard break: with less stamina than the block costs, the hit lands in full and staggers.
@@ -569,7 +569,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         13,
     );
     let p = zone.player(b).unwrap();
-    assert_eq!(p.max_health() - p.health, 58);
+    assert_eq!(p.max_health() - p.health, 6);
     assert_eq!(p.mover.stamina, 0.0);
     assert!(p.mover.statuses.has(Status::Stagger));
     assert!(
@@ -703,10 +703,10 @@ fn stomp_pulses_once_damages_and_slows_everyone_in_range() {
         20,
     );
     let pb = zone.player(b).unwrap();
-    // 35 ground x 0.8 (INT 5), Ground into Water is 1x, ward 0.02 * 5 = 0.10:
-    // 35 * 0.8 * 1 * 0.9 = 25.2; the Brute's Ground affinity x1.25 and the melee
-    // group's x0.75 on a spell (BODIES.md 7.3): 23.6 -> 24.
-    assert_eq!(pb.max_health() - pb.health, 24);
+    // 4 ground x 0.8 (INT 5), Ground into Water is 1x, ward 0.02 * 5 = 0.10:
+    // 4 * 0.8 * 1 * 0.9 = 2.88; the Brute's Ground affinity x1.25 and the melee
+    // group's x0.75 on a spell (BODIES.md 7.3): 2.7 -> 3.
+    assert_eq!(pb.max_health() - pb.health, 3);
     assert!(pb.mover.statuses.has(Status::Slow));
     assert!(
         (pb.mover.statuses.speed_scale() - 0.7).abs() < 1e-6,
@@ -760,10 +760,10 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
     let pb = zone.player(b).unwrap();
     assert_eq!(pb.mover.statuses.stacks(Status::Chill), 2);
     assert!((pb.mover.statuses.speed_scale() - 0.7).abs() < 1e-6);
-    // Water into Ground is 1.25x (MATRIX.md 19) and ignores plate: 30 * 1.4 (INT 20) *
-    // 1.25 * (1 - 0.2 ward) = 42; the Sorceress's Water affinity x1.25 and the magic
-    // group's x1.25 (BODIES.md 7.3): 65.6 -> 66.
-    assert_eq!(pb.max_health() - pb.health, 66);
+    // Water into Ground is 1.25x (MATRIX.md 19) and ignores plate: 3 * 1.4 (INT 20) *
+    // 1.25 * (1 - 0.2 ward) = 4.2; the Sorceress's Water affinity x1.25 and the magic
+    // group's x1.25 (BODIES.md 7.3): 6.56 -> 7.
+    assert_eq!(pb.max_health() - pb.health, 7);
     // The ice shard (the frostweaver's primary) adds the third stack: frozen (rooted),
     // chill cleared, immune after.
     tick(
@@ -789,7 +789,7 @@ fn frost_nova_chills_twice_and_a_shard_freezes() {
 }
 
 #[test]
-fn burn_ticks_four_times_a_second_and_kills_are_attributed() {
+fn burn_ticks_once_a_second_and_kills_are_attributed() {
     // A firebolt (a primary) into a shade.
     let pack = test_content::pack(RATE);
     let shade = pack.build("shade").unwrap().clone();
@@ -816,11 +816,16 @@ fn burn_ticks_four_times_a_second_and_kills_are_attributed() {
     assert_eq!(hits(&zone, HitKind::Projectile), 1);
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 64);
     let dots = hits(&zone, HitKind::Dot);
-    assert!((4..=5).contains(&dots), "{dots} burn pulses in a second");
+    assert!((1..=2).contains(&dots), "{dots} burn pulses in a second");
     assert!(zone.player(b).unwrap().health < after_hit);
     // Burn to death: attribution goes to the source.
     zone.player_mut(b).unwrap().health = 2;
-    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 20);
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, 0)), (b, idle)],
+        150,
+    );
     assert!(zone.events.iter().any(
         |e| matches!(e, ZoneEvent::Killed { victim, killer } if *victim == b && *killer == a)
     ));
@@ -939,9 +944,9 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         60,
     );
     let pb = zone.player(b).unwrap();
-    // Hammer 90 x 1.2 (STR 15) x 1.25 (the Brute's melee blow, BODIES.md 7.3) x 0.6
-    // (armour 0.40) = 81, fortify ignored.
-    assert_eq!(pb.max_health() - pb.health, 81);
+    // Hammer 9 x 1.2 (STR 15) x 1.25 (the Brute's melee blow, BODIES.md 7.3) x 0.6
+    // (armour 0.40) = 8.1 -> 8, fortify ignored.
+    assert_eq!(pb.max_health() - pb.health, 8);
     let before = pb.health;
     // c aims at b where the hammer's knockback left it.
     let to = pb.mover.mv.origin - zone.player(c).unwrap().mover.mv.origin;
@@ -963,11 +968,11 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         40,
     );
     let pb = zone.player(b).unwrap();
-    // Ice shard 50 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.6
-    // (fortify) = 42; x1.25 affinity x1.25 magic (BODIES.md 7.3) = 65.6 -> 66.
+    // Ice shard 5 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.6
+    // (fortify) = 4.2; x1.25 affinity x1.25 magic (BODIES.md 7.3) = 6.56 -> 7.
     assert_eq!(
         before - pb.health,
-        66,
+        7,
         "{}",
         hits(&zone, HitKind::Projectile)
     );
@@ -1016,7 +1021,7 @@ fn respec_applies_at_the_next_respawn() {
     assert_eq!(pb.sheet.build.frame, ArchetypeFrame::Caster);
     assert!(pb.sheet.build.aspects.contains(Element::Water));
     assert_eq!(pb.health, pb.sheet.derived.health);
-    assert_eq!(pb.health, 500 + 40 * 5);
+    assert_eq!(pb.health, 50 + 4 * 5);
     assert_eq!(
         pb.sheet.build.aspects,
         Aspects::two(Element::Water, Element::Air)
@@ -1165,8 +1170,8 @@ fn a_mend_dart_heals_whoever_it_hits_and_is_not_an_attack() {
     assert_eq!(hits(&zone, HitKind::Projectile), 0, "no damage event");
     assert_eq!(p.mover.stamina, full_stamina, "nothing was blocked");
     assert_eq!(p.mover.guard, GuardState::Block, "and nothing interrupted");
-    // 20/s in pulses of 5 for 3 s, neither shortened nor lengthened by the ironclad's SPR 10
-    // (x 1.0): twelve or thirteen pulses depending on where the dart landed in the pulse
+    // 10/s in a pulse a second for 3 s, neither shortened nor lengthened by the ironclad's SPR 10
+    // (x 1.0): three or four pulses depending on where the dart landed in the pulse
     // cycle, all credited to the healer.
     run(
         &mut zone,
@@ -1175,7 +1180,7 @@ fn a_mend_dart_heals_whoever_it_hits_and_is_not_an_attack() {
         200,
     );
     let healed = zone.player(tank).unwrap().health - hurt;
-    assert!(healed == 60 || healed == 65, "healed {healed}");
+    assert!(healed == 30 || healed == 40, "healed {healed}");
     let credited: i32 = zone
         .events
         .iter()
@@ -1199,7 +1204,7 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
         ("blade", Vec3::new(300.0, 0.0, REST_Z), 180.0),
     ]);
     let (healer, ally) = (ids[0], ids[1]);
-    zone.player_mut(ally).unwrap().health -= 250;
+    zone.player_mut(ally).unwrap().health -= 25;
     let idle = input(180.0, 0.0, 0);
     tick(
         &mut zone,
@@ -1219,17 +1224,16 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
         (o - Vec3::new(300.0, 0.0, 0.0)).length() < 1.0,
         "under the ally: {o:?}"
     );
-    // It heals who stands in it, 60/s while they stay.
+    // It heals who stands in it, 6/s while they stay.
     run(
         &mut zone,
         &world,
         &[(healer, input(0.0, 0.0, 0)), (ally, idle)],
         130,
     );
-    let healed =
-        zone.player(ally).unwrap().health - (zone.player(ally).unwrap().max_health() - 250);
+    let healed = zone.player(ally).unwrap().health - (zone.player(ally).unwrap().max_health() - 25);
     assert!(
-        (100..=150).contains(&healed),
+        (12..=18).contains(&healed),
         "healed {healed} in two seconds"
     );
 
@@ -1267,7 +1271,7 @@ fn a_quake_is_a_telegraph_you_can_walk_out_of() {
             .creature("warden")
             .expect("the fixture's Warden");
         let sheet = crate::build::Sheet::creature(def, &zone.content, crate::sim::TEAM_WILD);
-        assert_eq!(sheet.derived.health, 15000);
+        assert_eq!(sheet.derived.health, 1500);
         let warden = zone.add_body(sheet, Vec3::new(0.0, 0.0, REST_Z), 0.0, Driver::Mind);
         zone.set_party(warden, 0);
         zone.set_hold(warden, true);
@@ -1301,9 +1305,9 @@ fn a_quake_is_a_telegraph_you_can_walk_out_of() {
         }
         let p = zone.player(victim).unwrap();
         if stays {
-            // 70 ground x 1.16 (INT 14) x 2 (the Warden's might) x 1 (Ground into Water)
-            // x 0.9 (ward 0.10) = 146.2.
-            assert_eq!(p.max_health() - p.health, 146);
+            // 7 ground x 1.16 (INT 14) x 2 (the Warden's might) x 1 (Ground into Water)
+            // x 0.9 (ward 0.10) = 14.6 -> 15.
+            assert_eq!(p.max_health() - p.health, 15);
         } else {
             assert_eq!(p.health, p.max_health(), "at {:?}", p.mover.mv.origin);
         }
@@ -1445,7 +1449,7 @@ fn a_heavy_blow_costs_a_blocker_twice_and_stands_through_a_stagger() {
         let after = zone.player(b).unwrap().mover.stamina;
         let p = zone.player(b).unwrap();
         assert!(
-            p.health < 900,
+            p.health < 90,
             "the blow landed through the wall for something"
         );
         (full, raised, raised - after, per_hit(&zone, b))
@@ -1494,7 +1498,7 @@ fn a_heavy_blow_costs_a_blocker_twice_and_stands_through_a_stagger() {
             &[(a, input(0.0, 0.0, 0)), (b, input(180.0, 0.0, 0))],
             40,
         );
-        (kept, 900 - zone.player(b).unwrap().health)
+        (kept, 90 - zone.player(b).unwrap().health)
     };
     assert_eq!(staggered(false), (false, 0), "a plain swing is stopped");
     let (kept, dealt) = staggered(true);
@@ -1571,15 +1575,15 @@ fn a_catalyst_burns_a_landing_blow_and_the_wards_move_the_burn_s_length() {
         );
         let p = zone.player(b).unwrap();
         (
-            900 - p.health,
+            90 - p.health,
             p.mover.statuses.has(Status::Burn),
             p.mover.statuses.magnitude(Status::Burn),
         )
     };
-    assert_eq!(swing(Gear::NONE), (48, false, 0.0));
-    assert_eq!(swing(ember(0)), (48, false, 0.0));
+    assert_eq!(swing(Gear::NONE), (5, false, 0.0));
+    assert_eq!(swing(ember(0)), (5, false, 0.0));
     let (dealt, burning, magnitude) = swing(ember(100));
-    assert!(dealt >= 48 && burning, "{dealt} dealt, burning {burning}");
+    assert!(dealt >= 5 && burning, "{dealt} dealt, burning {burning}");
     assert!((magnitude - 3.0).abs() < 1e-6, "{magnitude}");
 
     // The wards (GEAR.md 6): the source's gems lengthen its element's status, the target's
@@ -1659,32 +1663,28 @@ fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
             assert!(p.fought_within(zone.tick, 640));
             assert!(!p.fought_within(zone.tick.wrapping_add(641), 640));
         }
-        900 - zone.player(b).unwrap().health
+        90 - zone.player(b).unwrap().health
     };
     let slash = DamageType::Slash as usize;
     let mut sword = Gear::NONE;
     sword.dealt[slash] = 220;
     let mut cuirass = Gear::NONE;
     cuirass.taken[slash] = 220;
-    // 60 slash x 0.80 (armour) = 48 in nothing (the test above); 220 per mille against
+    // 6 slash x 0.80 (armour) = 5 in nothing (the test above); 220 per mille against
     // `Gear::SCALE` 1100 (MATRIX.md 19) is a factor of 1.2.
-    assert_eq!(swing(Gear::NONE, Gear::NONE), 48);
-    assert_eq!(swing(sword, Gear::NONE), 58, "48 x 1.2");
-    assert_eq!(swing(Gear::NONE, cuirass), 40, "48 / 1.2");
-    assert_eq!(swing(sword, cuirass), 48, "a wash");
+    assert_eq!(swing(Gear::NONE, Gear::NONE), 5);
+    assert_eq!(swing(sword, Gear::NONE), 6, "5 x 1.2");
+    assert_eq!(swing(Gear::NONE, cuirass), 4, "5 / 1.2");
+    assert_eq!(swing(sword, cuirass), 5, "a wash");
     // An edge on another type is no edge on this one.
     let mut frost = Gear::NONE;
     frost.dealt[DamageType::Water as usize] = 250;
     frost.taken[DamageType::Water as usize] = 250;
-    assert_eq!(swing(frost, frost), 48);
+    assert_eq!(swing(frost, frost), 5);
     // What a zone is told is kept within the cap.
     let mut wild = Gear::NONE;
     wild.dealt[slash] = 60_000;
-    assert_eq!(
-        swing(wild, Gear::NONE),
-        59,
-        "48 x 1.227 (the cap), not x 55"
-    );
+    assert_eq!(swing(wild, Gear::NONE), 6, "5 x 1.227 (the cap), not x 55");
 
     // A bolt in flight keeps the edge it was loosed with: the weapon is taken off while it
     // flies, and it lands as it left.
@@ -1720,7 +1720,7 @@ fn worn_gear_moves_damage_by_its_own_type_and_at_once() {
         }
         run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 40);
         assert_eq!(hits(&zone, HitKind::Projectile), 1);
-        900 - zone.player(b).unwrap().health
+        90 - zone.player(b).unwrap().health
     };
     assert_eq!(bolt(250, true), bolt(250, false));
     assert!(bolt(250, false) > bolt(0, false));
@@ -1848,10 +1848,10 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         assert_eq!(hits(&zone, HitKind::Melee), 0, "still in the windup");
         zone.set_gear(a, during);
         run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 12);
-        900 - zone.player(b).unwrap().health
+        90 - zone.player(b).unwrap().health
     };
-    assert_eq!(swing(sword, Gear::NONE), 58, "taken off in the windup");
-    assert_eq!(swing(Gear::NONE, sword), 48, "put on in the windup");
+    assert_eq!(swing(sword, Gear::NONE), 6, "taken off in the windup");
+    assert_eq!(swing(Gear::NONE, sword), 5, "put on in the windup");
 
     // An area: the caster's edge on the area's kind, the edge of whoever stands in it.
     let stomp = |caster: Gear, target: Gear| {
@@ -1882,14 +1882,14 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
     let (mut hammer, mut robe) = (Gear::NONE, Gear::NONE);
     hammer.dealt[stone] = 250;
     robe.taken[stone] = 250;
-    // 25.2 x 0.9375 unrounded (the stomp test above): the Brute's Ground affinity x1.25
-    // and the melee group's x0.75 on a spell (BODIES.md 7.3).
-    assert_eq!(stomp(Gear::NONE, Gear::NONE), 24);
-    assert_eq!(stomp(hammer, Gear::NONE), 29, "23.6 x 1.227");
-    assert_eq!(stomp(Gear::NONE, robe), 19, "23.6 / 1.227");
+    // 2.88 x 0.9375 unrounded (the stomp test above): the Brute's Ground affinity x1.25
+    // and the melee group's x0.75 on a spell (BODIES.md 7.3): 2.7.
+    assert_eq!(stomp(Gear::NONE, Gear::NONE), 3);
+    assert_eq!(stomp(hammer, Gear::NONE), 3, "2.7 x 1.227 = 3.3");
+    assert_eq!(stomp(Gear::NONE, robe), 2, "2.7 / 1.227 = 2.2");
     assert_eq!(
         stomp(sword, Gear::NONE),
-        24,
+        3,
         "a sword's edge is not a stomp's"
     );
 
@@ -1938,7 +1938,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         pa.max_health() - pa.health
     };
     let plain = riposte(Gear::NONE, Gear::NONE);
-    assert!(plain > 10, "{plain}");
+    assert!(plain > 1, "{plain}");
     assert_eq!(
         riposte(sword, Gear::NONE),
         plain,
@@ -1963,7 +1963,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         let hard = ApplyStatus {
             status: Status::Burn,
             duration: zone.rate.ms_to_ticks(3000),
-            magnitude: 160.0,
+            magnitude: 16.0,
             max_stacks: 1,
             stacking: StackRule::Refresh,
             target: StatusTarget::Hit,
@@ -1971,7 +1971,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         };
         zone.apply_status(b, a, &hard);
         let idle = input(180.0, 0.0, 0);
-        run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 40);
+        run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, idle)], 70);
         // The burn's pulses are the fight: both are in it, though no blow was struck.
         for id in [a, b] {
             assert!(zone.player(id).unwrap().fought_within(zone.tick, 640));
@@ -2044,7 +2044,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
 /// a second at 64 Hz and at 20 Hz alike (it did 6 at 20 Hz while the interval was a count
 /// of 64 Hz ticks).
 #[test]
-fn a_status_pulses_four_times_a_second_at_any_rate() {
+fn a_status_pulses_once_a_second_at_any_rate() {
     use crate::vocab::{ApplyStatus, StackRule, StatusTarget};
     for hz in [64u32, 20] {
         let rate = TickRate::new(hz);
@@ -2064,7 +2064,7 @@ fn a_status_pulses_four_times_a_second_at_any_rate() {
         let burn = ApplyStatus {
             status: Status::Burn,
             duration: rate.ms_to_ticks(10_000),
-            magnitude: 40.0,
+            magnitude: 4.0,
             max_stacks: 1,
             stacking: StackRule::Refresh,
             target: StatusTarget::Hit,
@@ -2076,17 +2076,17 @@ fn a_status_pulses_four_times_a_second_at_any_rate() {
         run(&mut zone, &world, &idle, 2 * hz as usize);
         let pulses = hits(&zone, HitKind::Dot);
         assert!(
-            (7..=9).contains(&pulses),
+            (2..=3).contains(&pulses),
             "{hz} Hz: {pulses} pulses in two seconds"
         );
         let lost = before - zone.player(b).unwrap().health;
         // The same burn does the same in two seconds at either rate, to a pulse.
         let per_pulse = lost as f32 / pulses as f32;
         assert!(
-            (lost as f32 - 8.0 * per_pulse).abs() <= per_pulse + 0.5,
+            (lost as f32 - 2.0 * per_pulse).abs() <= per_pulse + 0.5,
             "{hz} Hz: {lost} in {pulses} pulses"
         );
-        assert!(lost >= 20, "{hz} Hz: {lost}");
+        assert!(lost >= 4, "{hz} Hz: {lost}");
     }
 }
 
@@ -2301,7 +2301,7 @@ fn a_dash_cuts_a_recovery_and_cannot_be_hit_in_its_first_150_ms() {
         .filter(|e| matches!(e, ZoneEvent::Hit { target, .. } if *target == a))
         .count();
     assert_eq!(on_a, 0, "the blow passed through the dodge");
-    assert_eq!(zone.player(a).unwrap().health, 900);
+    assert_eq!(zone.player(a).unwrap().health, 90);
     assert_eq!(
         hits(&zone, HitKind::Melee),
         1,

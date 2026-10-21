@@ -138,7 +138,7 @@ pools; multipliers stay f32. Bands are deliberately narrow.
 
 | Stat | Formula | Range (5 → 25) |
 |---|---|---|
-| Health | `500 + 40·CON` | 700 → 1,500 |
+| Health | `50 + 4·CON` | 70 → 150 (a tenth of v10's, section 22) |
 | Stamina | `60 + 3·(CON + AGI)` | 90 → 210 |
 | Stamina regen /s | `10 + 0.6·AGI` | 13 → 25 |
 | Focus | `40 + 5·INT + frame.focus` | 65 → 165 (+20 Caster) |
@@ -231,8 +231,8 @@ The initial set of VOCABULARY.md 5.4 with resolved semantics. `m` is the magnitu
 | Slow | move speed × (1 − m) | Refresh |
 | Haste | move speed × (1 + m) | Refresh |
 | Root | move speed 0; turning, abilities and guard still work | Refresh |
-| Bleed | m physical damage per second (as Pierce, bypass ARMOR), 4 pulses/s | Independent, max 5 |
-| Burn | m Flame damage per second through the matrix and ward, 4 pulses/s | Refresh |
+| Bleed | m physical damage per second (as Pierce, bypass ARMOR), 1 pulse/s | Independent, max 5 |
+| Burn | m Flame damage per second through the matrix and ward, 1 pulse/s | Refresh |
 | Chill | move speed × (1 − 0.15 per stack); at `max_stacks` it becomes Freeze: Root for 1 s, all stacks clear and the target is immune to Chill for 2 s | Extend, max 3 |
 | Shock | interrupts the running script and guard; lasts 1 tick | — |
 | Silence | elemental abilities cannot be activated | Refresh |
@@ -240,7 +240,7 @@ The initial set of VOCABULARY.md 5.4 with resolved semantics. `m` is the magnitu
 | Fortify | damage taken × (1 − m) unless bypass MAGIC_SHIELD | Refresh |
 | Weaken | damage dealt × (1 − m) | Refresh |
 | Expose | attackers gain bypass ARMOR | Refresh |
-| Regen | heals m health per second, 4 pulses/s; heals enemies too | Refresh |
+| Regen | heals m health per second, 1 pulse/s; heals enemies too | Refresh |
 | Stealth | included in snapshots only within `m` units (never past PVS) | Refresh |
 | Knockdown | on the ground (MODES.md 4.5): interrupts; no activation, guard or movement; hits land in full | Refresh |
 | Launched | as Knockdown, with a lift of `m` u/s straight up when it lands | Refresh |
@@ -311,7 +311,7 @@ lost when the character left before its respawn; the client never called the hub
 `SetBuild`, which is for a character that is offline (HUB.md 2), and never will from a
 zone: while a character plays, its zone is the only writer of it.
 
-Three **training dummies** (`dummy`: a creature marked `still`, 5,000 health, back after
+Three **training dummies** (`dummy`: a creature marked `still`, 500 health, back after
 5 s) stand in a triangle in the gated south street behind the trainer (2026-10-06; the one
 on the green north of the market was out of the way): each is hit like any body and the
 attacker reads what it dealt (LOOK.md 13.8). A `still` creature has no mind: it is driven an empty frame a tick.
@@ -747,3 +747,24 @@ magic on top of INT 20, and the ironclad's stomp went to the staff while its bel
 and fortify are ×0.75 as a melee body's spells. The blade's leg against the
 frostweaver is the one to tune, as it has been since v7: the director's numbers for
 `AFFINITY` and `group_mult`, or a Water blade with a spell of its own.
+
+## 22. v11 (2026-10-20): the numbers a tenth of what they were
+
+The director: "we have 700-1500 hp and dealing damage 30-200 ... if we cut it, would be
+70-150hp, damage 3-20, which is much better, easier to read and calculate." Everything
+that is a point of health is a tenth of v10, and nothing else moved:
+
+- health `50 + 4·CON` (70 → 150; the test sheet's 900 is 90); creatures a tenth (sentinel
+  120, Warden 1,500, dummy 500, pup 100; `MAX_CREATURE_HEALTH` 6,000);
+- every `damage.amount` a tenth, rounded, never below 1 (the sword 6, the hammer 9, the
+  musket 11, the dagger 4, the shaman's spores 1); the pipeline's `max(1, round(…))` is
+  unchanged, so a 5-point blow is 4.8 rounded, and the gear term moves it by a point;
+- the kit heals 30; the trials ask for 35 damage and 50 healing;
+- **the pulses are one a second** (`DOT_PULSES_PER_S` 1, was 4): a bleed or a burn of 1
+  is a point a second, where four pulses of a quarter would have been floored to nothing.
+  Bleed 1, burn 1 (the fireball's 12 and the catalyst's 3 both land on 1), Mend 10/s,
+  Sanctuary 6/s, the shaman's spores 3/s. A pulse still takes the matrix and the wards.
+
+Stamina, focus, stagger, knockback and the per-mille gear edges are what they were: they
+were never points of health.
+

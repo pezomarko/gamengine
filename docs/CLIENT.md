@@ -464,7 +464,7 @@ click "New character"         the button, row, box or grid cell with that text
 dclick "Aldric"               the same, twice
 hover "sword  slash +2.0%"    the pointer over it, and left there (a tooltip after 150 ms)
 drag "sword  slash +2.0%" weapon   a press on the first, moved over frames, let go on the second (LOOK.md 2.4)
-drag "kit ×3  heals 300, used with F" "bar 8"   the same onto a cell of the item bar (ITEMS.md 6.1)
+drag "kit ×3  heals 30, used with F" "bar 8"   the same onto a cell of the item bar (ITEMS.md 6.1)
 expect "Aldric"               some text on the screen contains it
 expect image item/sword       a picture by its key was drawn (an icon in a slot, a portrait)
 say at the characters         print `ui-script: at the characters`

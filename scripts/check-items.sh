@@ -196,7 +196,7 @@ provide() { # character
 # and finds it worn through the menu as well; then presses F, the first cell, now empty,
 # which uses nothing and says so (MODES.md 11.3). One line a step: each waits for what it
 # needs.
-KIT_ROW="kit ×3  heals 300, used with F"
+KIT_ROW="kit ×3  heals 30, used with F"
 purchase() {
   cat <<EOS
 wait screen game

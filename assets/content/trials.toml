@@ -29,7 +29,7 @@ encounter = "warden"
 time_limit_s = 300
 max_party_deaths = 1
 max_humans = 1
-role = { damage = 350 }
+role = { damage = 35 }
 
 [[trial]]
 key = "warden_mender"
@@ -39,4 +39,4 @@ encounter = "warden"
 time_limit_s = 300
 max_party_deaths = 0
 max_humans = 1
-role = { healing = 500 }
+role = { healing = 50 }
