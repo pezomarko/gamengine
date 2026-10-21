@@ -484,9 +484,9 @@ fn hud_tags(hud: &mut Hud, vp: glam::Mat4, tags: &[Tag], s: f32, cap: f32) {
 }
 
 /// The numbers (LOOK.md 13.8): in the title face over the head they belong to, what the
-/// own hand dealt the largest; each floats up as it fades, with a shade behind. The own
-/// hurts in the first person have no head in the frame: they fall from under the aim
-/// instead, where the eyes are.
+/// own hand dealt the largest, what others dealt and healed the smallest (13.13); each
+/// floats up as it fades, with a shade behind. The own hurts in the first person have no
+/// head in the frame: they fall from under the aim instead, where the eyes are.
 fn hud_pops(hud: &mut Hud, vp: glam::Mat4, pops: &[crate::fx::Pop], s: f32, first_person: bool) {
     use crate::fx::Blow;
     let (w, h) = hud.size;
@@ -510,6 +510,7 @@ fn hud_pops(hud: &mut Hud, vp: glam::Mat4, pops: &[crate::fx::Pop], s: f32, firs
             Blow::Dealt | Blow::Mended => s * 1.4,
             Blow::Taken | Blow::Healed => s,
             Blow::Blocked => (s * 0.6).max(1.0),
+            Blow::Seen | Blow::SeenHealed => (s * 0.7).max(1.0),
         };
         let tw = hud.width_in(face, print, &pop.text);
         let (tx, ty) = ((x - tw * 0.5).round(), (y - ascent * print).round());

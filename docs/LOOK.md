@@ -818,6 +818,7 @@ instant the windup ends, VOCABULARY.md 5.1) and never drawn. This section draws 
 | a body's health drops (where the frame knows it: the own, the party's, the squad's, a creature's) | a spark at its chest, the body lit for 0.14 s; the own: the frame's edge red for a third of a second, and the number lost (13.8) |
 | the zone says the own hand landed | the number dealt, in gold over the body hit (13.8) |
 | the zone says the own hand's Regen gave another body health back | the number, in green over the body healed (13.8) |
+| the zone says another's hand landed on another body, or another's Regen gave one health back (since v32) | a small, pale number where it landed or over the head, and the spark (13.13); nothing for a block |
 | the zone says the own hand landed, since v13 | the number and a spark **where the blow landed** (13.11), not over the head |
 | a bullet meets the world | a dark mark on the surface for twenty seconds (13.11, MODES.md 10.2) |
 | always | **the ring of its aspects** at a body's feet (one colour, or a half each) instead of v1's square plate |
@@ -908,16 +909,18 @@ units of screen), gone over the last 0.35 s, a shade behind for any wall.
 | what the own body got back | the own health going up from a living body (a respawn is not a healing) | green `+n`, the scale |
 | what the own hand gave another body back (a Regen's pulse) | the zone's word of it: `FromZone::Healed { target, amount }` to the healer (PROTOCOL.md 22) | green `+n`, the largest |
 | a blow of the own hand all taken by a block | `amount` 0 with `absorbed` over 0 | grey `blocked`, small |
+| what another's hand dealt another body (since v32, 13.13) | the same `Hit`, now to everyone, with `attacker` | pale gold at 0.7 alpha, the smallest (0.7 × the scale) |
+| what another's Regen gave another body (since v32, 13.13) | the same `Healed`, now to everyone, with `source` | pale green `+n` at 0.7 alpha, the smallest |
 
-A blow by somebody else on somebody else shows its spark and nothing more: what is dealt
-is told only to the one who dealt it, and the snapshot's health of a party member or a
-creature is not sent for the others, so a number from it would show for some bodies and
-not for others. The message goes to the attacker because the health of a stranger (an
+Until v32 a blow by somebody else on somebody else showed its spark and nothing more: what
+was dealt was told only to the one who dealt it, and the snapshot's health of a party member
+or a creature is not sent for the others, so a number from it would show for some bodies and
+not for others. The message went to the attacker because the health of a stranger (an
 enemy team, a sparring bot) is not on the wire at all (13.5): without it, no number would
-ever show over the body one is fighting. A healing is told the same way and for the same
+ever show over the body one is fighting. A healing was told the same way and for the same
 reason: a mender's dart lands on a teammate who is in no party, whose health the wire does
-not carry; the number is one a pulse (four a second) for the Regen's time, and a Regen the
-own hand put on the own body (a sanctuary stood in) is not told, the own health says it. The own hurts come from the own health and not
+not carry; the number is one a pulse (four a second) for the Regen's time. Since v32 both
+messages go to everyone in the zone (13.13). The own hurts come from the own health and not
 from a message, so that what is lost to a burn or a fall shows the same as a blow.
 
 In the first person the own head is not in the frame: the own numbers rise from under the
@@ -1015,6 +1018,26 @@ leaves a dark disc of 3.5 units on the surface, 0.6 off it, for twenty seconds, 
 four fading; 160 at most. Nothing marks a body yet: blood is the body's look (Phase 17).
 The effects table of 13 gains two rows by this.
 
+
+### 13.13 The others' numbers (2026-10-21, the director fought in the arena and the dungeon)
+
+"We need to see other players' damages and heals; right now, when fighting in the arena or
+the dungeon, I see numbers for the damage I deal myself, nothing for what others deal.
+Theirs should be smaller, less noticeable numbers than ours."
+
+The zone tells **everyone in the zone** each `Hit` and each `Healed`, with whose hand it was
+(`attacker`, `source`; PROTOCOL.md 22, v32). The client sorts them by its own id:
+
+| Whose | Shown as |
+|---|---|
+| the own hand's | as before: gold, the largest, where it landed; green `+n` the largest over the head; grey `blocked` |
+| on the own body | nothing from the message: the own health draws the red `-n` and the green `+n` already |
+| another's on another | `Blow::Seen`: the number alone in a pale gold at 0.7 alpha, 0.7 × the scale, where it landed, with the spark; a blow all blocked says nothing. `Blow::SeenHealed`: pale green `+n`, the same size, over the head |
+
+A number a hit for everyone in the zone: an arena of ten bodies at some blows a second
+each is some tens of small reliable messages a second a client, of no account beside the
+snapshots. The spark of a stranger's hit, which was never seen (its health is not on the
+wire), comes with the message now.
 
 ### 13.12 The font's character set (2026-10-08, the co-owner played in the browser)
 

@@ -42,7 +42,9 @@ pub(crate) struct Online {
     /// Blows the own hand landed, as the zone said (target, amount, absorbed): the
     /// numbers the next frame floats over the bodies it finds (LOOK.md 13.8).
     /// And what the own hand's Regen gave other bodies back (target, amount).
-    pub(super) heals: Vec<(u32, u16)>,
+    /// Healings the zone told of, waiting for the body's head in the frame: the body,
+    /// the amount, and whether the own hand gave it (LOOK.md 13.8, 13.13).
+    pub(super) heals: Vec<(u32, u16, bool)>,
     /// The hash of the map this connection plays on: the one loaded when it began, and
     /// from the zone's `Welcome` on the zone's (once that map is here).
     pub(super) map_hash: u64,
@@ -679,14 +681,22 @@ impl App {
             FromZone::TradeAsked { from } => self.on_trade_asked(from),
             FromZone::TradeOpened { trade, with } => self.on_trade_opened(trade, with),
             FromZone::Hit {
+                attacker,
                 target,
                 amount,
                 absorbed,
                 at,
-            } => self.on_hit(target, amount, absorbed, at),
-            FromZone::Healed { target, amount } => {
-                if let Some(o) = self.online.as_mut() {
-                    o.heals.push((target, amount));
+            } => self.on_hit(attacker, target, amount, absorbed, at),
+            FromZone::Healed {
+                source,
+                target,
+                amount,
+            } => {
+                if let Some(o) = self.online.as_mut()
+                    && let Some(c) = o.client.as_ref()
+                    && target != c.my_id
+                {
+                    o.heals.push((target, amount, source == c.my_id));
                 }
             }
             FromZone::Impact { at, normal } => {
@@ -1184,10 +1194,25 @@ impl App {
         }
     }
 
-    /// A blow the own hand landed: the number where it landed (LOOK.md 13.11), not over
-    /// the head (a headshot reads as one), and the combo counter (MODES.md 4.6).
-    fn on_hit(&mut self, target: u32, amount: u16, absorbed: u16, at: [f32; 3]) {
-        let _ = target;
+    /// A blow landed, the zone says. The own hand's: the number where it landed
+    /// (LOOK.md 13.11), not over the head (a headshot reads as one), and the combo
+    /// counter (MODES.md 4.6). Another's on another: a small number there (13.13). One
+    /// on the own body: nothing, the own health draws it.
+    fn on_hit(&mut self, attacker: u32, target: u32, amount: u16, absorbed: u16, at: [f32; 3]) {
+        let me = self
+            .online
+            .as_ref()
+            .and_then(|o| o.client.as_ref())
+            .map(|c| c.my_id);
+        if me == Some(target) {
+            return;
+        }
+        if me != Some(attacker) {
+            self.scene
+                .effects
+                .seen_hit(Vec3::from_array(at), amount as u32);
+            return;
+        }
         self.scene
             .effects
             .hit(Vec3::from_array(at), amount as u32, absorbed as u32);
@@ -1699,14 +1724,14 @@ impl App {
                 },
                 &mut self.scene.fx,
             );
-            // What the own hand did to it, as the zone said: a number over its head
-            // (LOOK.md 13.8).
+            // What a Regen gave it, as the zone said: a number over its head, large
+            // for the own hand's, small for another's (LOOK.md 13.8, 13.13).
             let over_head = e.pos + feet_under + Vec3::Z * 72.0;
-            o.heals.retain(|&(target, amount)| {
+            o.heals.retain(|&(target, amount, own)| {
                 if target != e.id {
                     return true;
                 }
-                self.scene.effects.healed(over_head, amount as u32);
+                self.scene.effects.healed(over_head, amount as u32, own);
                 false
             });
             Self::other_tag(

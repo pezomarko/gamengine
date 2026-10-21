@@ -514,10 +514,15 @@ pub enum FromZone {
     },
     // v10 (GM.md 2).
     Gm(GmNews),
-    /// v10 (LOOK.md 13.8): the own hand landed a blow. `amount` came off the target's
+    /// v10 (LOOK.md 13.8): a hand landed a blow. `amount` came off the target's
     /// health after its block took `absorbed`; the number the client floats over it.
-    /// The own hurts are read from the own health, which the snapshot carries.
+    /// Since v32 (LOOK.md 13.13) to everyone in the zone, with whose hand: the own
+    /// hand's blows are drawn large, another's small, and a blow on the own body not
+    /// at all, since the own hurts are read from the own health, which the snapshot
+    /// carries.
     Hit {
+        /// v32: whose hand (0 = the world).
+        attacker: u32,
         target: u32,
         amount: u16,
         absorbed: u16,
@@ -525,9 +530,12 @@ pub enum FromZone {
         /// drawn there, not over the head.
         at: [f32; 3],
     },
-    /// v10 (LOOK.md 13.8): a Regen the own hand put on another body gave it `amount`
-    /// health back this pulse. The own healings are read from the own health.
+    /// v10 (LOOK.md 13.8): a Regen gave `target` `amount` health back this pulse. Since
+    /// v32 (LOOK.md 13.13) to everyone in the zone, with whose Regen: the own hand's
+    /// large, another's small, the own body's not at all (the own health says it).
     Healed {
+        /// v32: whose Regen.
+        source: u32,
         target: u32,
         amount: u16,
     },
@@ -842,12 +850,14 @@ mod tests {
                 killer: 0,
             },
             FromZone::Hit {
+                attacker: 2,
                 target: 3,
                 amount: 40,
                 absorbed: 5,
                 at: [1.0, 2.0, 3.0],
             },
             FromZone::Healed {
+                source: 2,
                 target: 3,
                 amount: 25,
             },
