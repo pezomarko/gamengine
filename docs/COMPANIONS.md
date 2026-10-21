@@ -274,7 +274,7 @@ encounter, loot and trial messages.
 [[creature]]
 key, name
 frame, armour, aspects, attributes      # as a build: the body is read by the same rules
-health                                   # overrides 500 + 40·CON; 1..=60,000
+health                                   # overrides 50 + 4·CON; 1..=6,000
 stagger_threshold                        # optional override
 might = 1.0                              # multiplies its blows and spells (MATRIX.md v2: 1 = a player's)
 primary, secondary, guard, actives       # abilities, slot-typed like a build's; a ranged

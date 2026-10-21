@@ -13,7 +13,7 @@ name = "Sentinel"
 frame = "striker"
 aspects = ["water"]
 attributes = { str = 16, agi = 14, con = 16, int = 8, spr = 10 }
-health = 1200
+health = 120
 might = 1.0
 primary = "sword"
 secondary = "crossbow"
@@ -29,7 +29,7 @@ name = "The Warden"
 frame = "colossus"
 aspects = ["ground"]
 attributes = { str = 20, agi = 8, con = 20, int = 14, spr = 14 }
-health = 15000
+health = 1500
 might = 2.0
 stagger_threshold = 400
 primary = "maul"
@@ -53,7 +53,7 @@ name = "Training dummy"
 frame = "colossus"
 aspects = ["ground"]
 attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
-health = 5000
+health = 500
 stagger_threshold = 60000
 primary = "staff"
 secondary = "kick"
@@ -72,7 +72,7 @@ name = "Blacksmith"
 frame = "striker"
 aspects = ["fire"]
 attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
-health = 1000
+health = 100
 primary = "hammer"
 secondary = "kick"
 sight = 0

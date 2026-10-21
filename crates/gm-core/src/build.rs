@@ -15,7 +15,7 @@ pub const MAX_ACTIVES: usize = 4;
 pub const SQUAD_BASE: usize = 3;
 pub const SQUAD_MAX: usize = 5;
 /// The largest health a creature definition may override to (it rides the wire as a u16).
-pub const MAX_CREATURE_HEALTH: u16 = 60_000;
+pub const MAX_CREATURE_HEALTH: u16 = 6_000;
 
 /// What slot an ability may be put in (MATRIX.md 10).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -21,7 +21,7 @@ interrupt = "on_stagger"
 chain = { next = "sword_2", window_ms = 400 }
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 72, arc = 90, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 60, type = "slash", knockback = 150, stagger = 20 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 72, arc = 90, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 6, type = "slash", knockback = 150, stagger = 20 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 [[ability]]
 key = "hammer"
@@ -33,7 +33,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 76, arc = 80, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 90, type = "blunt", bypass = ["magic_shield"], knockback = 220, stagger = 35 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 76, arc = 80, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 9, type = "blunt", bypass = ["magic_shield"], knockback = 220, stagger = 35 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
 
 [[ability]]
 key = "staff"
@@ -45,7 +45,7 @@ move_scale = 0.7
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 64, arc = 70, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 40, type = "blunt", knockback = 120, stagger = 15 }, max_targets = 2, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 64, arc = 70, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 4, type = "blunt", knockback = 120, stagger = 15 }, max_targets = 2, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30 }
 
 [[ability]]
 key = "dagger"
@@ -58,7 +58,7 @@ interrupt = "on_stagger"
 chain = { next = "dagger_2", window_ms = 350 }
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 35, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 4, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 # ---------- ranged primaries (secondaries until 2026-10-06: the range is the weapon's) ----------
 
@@ -73,7 +73,7 @@ move_scale = 0.7
 interrupt = "never"
 [[ability.step]]
 at_ms = 125
-projectile = { speed = 1800, gravity = 0.3, radius = 2, lifetime_ms = 3000, damage = { amount = 80, type = "pierce", knockback = 100, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.3, radius = 2, lifetime_ms = 3000, damage = { amount = 8, type = "pierce", knockback = 100, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "firebolt"
@@ -92,10 +92,10 @@ speed = 1400
 gravity = 0.1
 radius = 4
 lifetime_ms = 3000
-damage = { amount = 55, type = "fire", knockback = 60, stagger = 10 }
+damage = { amount = 6, type = "fire", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "burn", duration_ms = 3000, magnitude = 12, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "burn", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 [[ability]]
 key = "ice_shard"
@@ -114,7 +114,7 @@ speed = 1500
 gravity = 0.15
 radius = 4
 lifetime_ms = 3000
-damage = { amount = 50, type = "water", knockback = 60, stagger = 10 }
+damage = { amount = 5, type = "water", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
 on_hit = [ { status = { status = "chill", duration_ms = 3000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "hit" } } ]
@@ -131,7 +131,7 @@ move_scale = 0.6
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 250
-projectile = { speed = 1100, gravity = 0.6, radius = 6, lifetime_ms = 3000, damage = { amount = 75, type = "ground", knockback = 250, stagger = 30 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3 }
+projectile = { speed = 1100, gravity = 0.6, radius = 6, lifetime_ms = 3000, damage = { amount = 8, type = "ground", knockback = 250, stagger = 30 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3 }
 
 [[ability]]
 key = "shadow_dart"
@@ -145,7 +145,7 @@ move_scale = 0.8
 interrupt = "never"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 2000, gravity = 0.05, radius = 2, lifetime_ms = 3000, damage = { amount = 40, type = "air", bypass = ["evasion"], knockback = 40, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3 }
+projectile = { speed = 2000, gravity = 0.05, radius = 2, lifetime_ms = 3000, damage = { amount = 4, type = "air", bypass = ["evasion"], knockback = 40, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3 }
 
 [[ability]]
 key = "spark"
@@ -164,7 +164,7 @@ speed = 2400
 gravity = 0
 radius = 3
 lifetime_ms = 3000
-damage = { amount = 50, type = "electric", knockback = 40, stagger = 10 }
+damage = { amount = 5, type = "electric", knockback = 40, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
 on_hit = [ { status = { status = "shock", duration_ms = 16, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
@@ -192,7 +192,7 @@ window_ms = 150
 whiff_recovery_ms = 400
 on_success = [
   { status = { status = "stagger", duration_ms = 600, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } },
-  { swing = { reach = 72, arc = 90, half_height = 40, windup_ms = 0, active_ms = 45, recovery_ms = 0, damage = { amount = 40, type = "slash", knockback = 120, stagger = 0 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 0 } },
+  { swing = { reach = 72, arc = 90, half_height = 40, windup_ms = 0, active_ms = 45, recovery_ms = 0, damage = { amount = 4, type = "slash", knockback = 120, stagger = 0 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 0 } },
 ]
 
 [[ability]]
@@ -252,7 +252,7 @@ stamina = 20
 move_scale = 0.4
 interrupt = "on_stagger"
 [[ability.step]]
-melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms = 60, recovery_ms = 500, damage = { amount = 70, type = "slash", knockback = 200, stagger = 40 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms = 60, recovery_ms = 500, damage = { amount = 7, type = "slash", knockback = 200, stagger = 40 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
 
 # The staff's second move of Ground (BODIES.md 3.6, 2026-10-19): a spell bought with
 # points until then; now what a caster weapon does, coloured by the body's element.
@@ -271,7 +271,7 @@ at_ms = 250
 [ability.step.area_effect]
 shape = { cylinder = { radius = 128, height = 96 } }
 origin = "self_feet"
-damage = { amount = 35, type = "ground", knockback = 200, stagger = 40 }
+damage = { amount = 4, type = "ground", knockback = 200, stagger = 40 }
 effects = [ { status = "slow", duration_ms = 2000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
@@ -306,7 +306,7 @@ at_ms = 300
 [ability.step.area_effect]
 shape = { sphere = { radius = 160 } }
 origin = "self_feet"
-damage = { amount = 30, type = "water", knockback = 60, stagger = 10 }
+damage = { amount = 3, type = "water", knockback = 60, stagger = 10 }
 effects = [
   { status = "chill", duration_ms = 4000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
   { status = "chill", duration_ms = 4000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
@@ -342,7 +342,7 @@ at_ms = 250
 [ability.step.area_effect]
 shape = { sphere = { radius = 140 } }
 origin = "self_feet"
-damage = { amount = 40, type = "electric", knockback = 80, stagger = 20 }
+damage = { amount = 4, type = "electric", knockback = 80, stagger = 20 }
 effects = [ { status = "shock", duration_ms = 16, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "linear"
 max_targets = 8
@@ -387,7 +387,7 @@ shape = { cylinder = { radius = 96, height = 80 } }
 origin = { weapon = [96, 0, -40] }
 duration_ms = 5000
 interval_ms = 1000
-effects = [ { status = "bleed", duration_ms = 3000, magnitude = 6, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "bleed", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -410,15 +410,15 @@ speed = 900
 gravity = 0
 radius = 6
 lifetime_ms = 3000
-damage = { amount = 20, type = "fire", knockback = 40, stagger = 10 }
+damage = { amount = 2, type = "fire", knockback = 40, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0
 [[ability.step.projectile.on_hit]]
 [ability.step.projectile.on_hit.area]
 shape = { sphere = { radius = 96 } }
 origin = "impact"
-damage = { amount = 30, type = "fire", knockback = 120, stagger = 15 }
-effects = [ { status = "burn", duration_ms = 3000, magnitude = 6, max_stacks = 1, stacking = "refresh", target = "area" } ]
+damage = { amount = 3, type = "fire", knockback = 120, stagger = 15 }
+effects = [ { status = "burn", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "linear"
 max_targets = 8
 requires_los = true
@@ -447,7 +447,7 @@ lifetime_ms = 3000
 damage = { amount = 0, type = "blunt" }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "regen", duration_ms = 3000, magnitude = 100, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "regen", duration_ms = 3000, magnitude = 10, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 [[ability]]
 key = "sanctuary"
@@ -464,7 +464,7 @@ shape = { cylinder = { radius = 140, height = 96 } }
 origin = { aim = 500 }
 duration_ms = 6000
 interval_ms = 1000
-effects = [ { status = "regen", duration_ms = 1500, magnitude = 60, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "regen", duration_ms = 1500, magnitude = 6, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -502,7 +502,7 @@ move_scale = 0.4
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 96, arc = 120, half_height = 48, windup_ms = 550, active_ms = 80, recovery_ms = 600, damage = { amount = 55, type = "blunt", bypass = ["magic_shield"], knockback = 260, stagger = 45 }, max_targets = 4, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40 }
+melee_arc = { reach = 96, arc = 120, half_height = 48, windup_ms = 550, active_ms = 80, recovery_ms = 600, damage = { amount = 6, type = "blunt", bypass = ["magic_shield"], knockback = 260, stagger = 45 }, max_targets = 4, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40 }
 
 [[ability]]
 key = "quake"
@@ -519,7 +519,7 @@ at_ms = 300
 shape = { cylinder = { radius = 150, height = 96 } }
 origin = { aim = 700 }
 delay_ms = 1300
-damage = { amount = 70, type = "ground", knockback = 300, stagger = 60 }
+damage = { amount = 7, type = "ground", knockback = 300, stagger = 60 }
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -539,7 +539,7 @@ range = 1500
 firearm = { magazine = 1, ammo = "ball", reload_ms = 2800, cycle_ms = 1200, fire = "bolt", headshot = 4.0, scope = 2, recoil = [[0.0, 2.4]], cone = { stand = 6.0, crouch = 5.0, scoped = 0.05, move = 4.0, air = 10.0, shot = 1.2, recover_ms = 400 } }
 [[ability.step]]
 at_ms = 0
-projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 110, type = "pierce", knockback = 160, stagger = 15 }, spawn = { weapon = [20, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
+projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 11, type = "pierce", knockback = 160, stagger = 15 }, spawn = { weapon = [20, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
 
 # ---------- the secondaries (2026-10-06): short utilities, no bolt for everybody ----------
 # The range is the weapon's: a melee primary has nothing that reaches past a knife's 300 u.
@@ -553,7 +553,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 64, arc = 60, half_height = 40, windup_ms = 120, active_ms = 50, recovery_ms = 250, damage = { amount = 25, type = "blunt", knockback = 320, stagger = 40 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 64, arc = 60, half_height = 40, windup_ms = 120, active_ms = 50, recovery_ms = 250, damage = { amount = 2, type = "blunt", knockback = 320, stagger = 40 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 [[ability]]
 key = "shield_bash"
@@ -564,7 +564,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 60, arc = 60, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 35, type = "blunt", knockback = 200, stagger = 70 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
+melee_arc = { reach = 60, arc = 60, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 4, type = "blunt", knockback = 200, stagger = 70 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
 
 [[ability]]
 key = "throwing_knife"
@@ -577,7 +577,7 @@ interrupt = "never"
 [[ability.step]]
 at_ms = 100
 # 1200 u/s for 250 ms: 300 units and gone.
-projectile = { speed = 1200, gravity = 0.2, radius = 2, lifetime_ms = 250, damage = { amount = 40, type = "pierce", knockback = 60, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1200, gravity = 0.2, radius = 2, lifetime_ms = 250, damage = { amount = 4, type = "pierce", knockback = 60, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 # ---------- the three modes (MODES.md, 2026-10-07) ----------
 # Appended: stored builds name abilities by their position in this file. The stages of a
@@ -595,7 +595,7 @@ chain = { next = "sword_3", window_ms = 400 }
 [[ability.step]]
 at_ms = 0
 # The cut back across, quicker and wider.
-melee_arc = { reach = 76, arc = 110, half_height = 40, windup_ms = 120, active_ms = 60, recovery_ms = 280, damage = { amount = 65, type = "slash", knockback = 60, stagger = 25 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 76, arc = 110, half_height = 40, windup_ms = 120, active_ms = 60, recovery_ms = 280, damage = { amount = 6, type = "slash", knockback = 60, stagger = 25 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 [[ability]]
 key = "sword_3"
@@ -608,7 +608,7 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 # The overhead that ends the chain: slow, heavy, and it puts the body on the ground.
-melee_arc = { reach = 80, arc = 70, half_height = 44, windup_ms = 260, active_ms = 70, recovery_ms = 450, damage = { amount = 85, type = "slash", knockback = 220, stagger = 40 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 40, assist = 30 }
+melee_arc = { reach = 80, arc = 70, half_height = 44, windup_ms = 260, active_ms = 70, recovery_ms = 450, damage = { amount = 8, type = "slash", knockback = 220, stagger = 40 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 40, assist = 30 }
 [[ability.step]]
 at_ms = 260
 apply_status = { status = "knockdown", duration_ms = 1200, magnitude = 1, target = "hit" }
@@ -624,7 +624,7 @@ interrupt = "on_stagger"
 chain = { next = "dagger_3", window_ms = 350 }
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 58, arc = 80, half_height = 40, windup_ms = 80, active_ms = 40, recovery_ms = 180, damage = { amount = 38, type = "slash", knockback = 70, stagger = 12 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 58, arc = 80, half_height = 40, windup_ms = 80, active_ms = 40, recovery_ms = 180, damage = { amount = 4, type = "slash", knockback = 70, stagger = 12 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 [[ability]]
 key = "dagger_3"
@@ -637,7 +637,7 @@ interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
 # The rising stab that ends the chain: it throws the body up, then down.
-melee_arc = { reach = 60, arc = 60, half_height = 44, windup_ms = 180, active_ms = 50, recovery_ms = 360, damage = { amount = 55, type = "pierce", knockback = 120, stagger = 30 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40, assist = 30 }
+melee_arc = { reach = 60, arc = 60, half_height = 44, windup_ms = 180, active_ms = 50, recovery_ms = 360, damage = { amount = 6, type = "pierce", knockback = 120, stagger = 30 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40, assist = 30 }
 [[ability.step]]
 at_ms = 180
 apply_status = { status = "launched", duration_ms = 900, magnitude = 300, target = "hit" }
@@ -653,7 +653,7 @@ move_scale = 1.0
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 40, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 4, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 # The pistol (MODES.md 3.7): the secondary of a gun build, a click a shot, a short cone
 # that opens fast.
@@ -668,7 +668,7 @@ range = 700
 firearm = { magazine = 8, ammo = "pistol_round", reload_ms = 1600, cycle_ms = 180, fire = "semi", headshot = 4.0, scope = 0, recoil = [[0.0, 0.8], [0.3, 1.5], [-0.4, 2.1], [0.5, 2.6], [-0.3, 3.0], [0.2, 3.3]], cone = { stand = 0.8, crouch = 0.5, move = 3.0, air = 8.0, shot = 0.8, recover_ms = 350 } }
 [[ability.step]]
 at_ms = 0
-projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 32, type = "pierce", knockback = 40, stagger = 6 }, spawn = { weapon = [16, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
+projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 3, type = "pierce", knockback = 40, stagger = 6 }, spawn = { weapon = [16, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
 
 # The carbine (MODES.md 3.2): held, it fires every 100 ms; the pattern climbs and then
 # wanders, as a spray does. Drawn as the musket until it has a model of its own.
@@ -683,7 +683,7 @@ range = 1200
 firearm = { magazine = 25, ammo = "carbine_round", reload_ms = 2400, cycle_ms = 100, fire = "auto", headshot = 4.0, scope = 0, recoil = [[0.0, 0.4], [0.0, 0.9], [0.1, 1.4], [0.1, 2.0], [0.2, 2.6], [0.3, 3.1], [0.5, 3.5], [0.8, 3.8], [1.1, 4.0], [1.3, 4.1], [1.2, 4.2], [0.8, 4.3], [0.3, 4.4], [-0.3, 4.4], [-0.9, 4.4], [-1.4, 4.3], [-1.7, 4.2], [-1.6, 4.2], [-1.2, 4.3], [-0.6, 4.4], [0.0, 4.5], [0.6, 4.5], [1.1, 4.5], [1.4, 4.5], [1.4, 4.5]], cone = { stand = 0.45, crouch = 0.3, move = 4.0, air = 10.0, shot = 0.35, recover_ms = 300 } }
 [[ability.step]]
 at_ms = 0
-projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 26, type = "pierce", knockback = 30, stagger = 4 }, spawn = { weapon = [20, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
+projectile = { speed = 20000, gravity = 0.02, radius = 2, lifetime_ms = 400, damage = { amount = 3, type = "pierce", knockback = 30, stagger = 4 }, spawn = { weapon = [20, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "slow", duration_ms = 1500, magnitude = 0.5, max_stacks = 1, stacking = "refresh", target = "hit" } } ] }
 
 # ---------- the colossus's arms (MATRIX.md 16, 2026-10-09) ----------
 # The director: "some oversized sword for our colossus class and also shield, so it looks a
@@ -704,7 +704,7 @@ move_scale = 0.45
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 96, arc = 120, half_height = 44, windup_ms = 320, active_ms = 90, recovery_ms = 520, damage = { amount = 95, type = "slash", knockback = 240, stagger = 35 }, max_targets = 4, cleave_falloff = 0.8, parryable = true, hit_stop_ms = 40, assist = 30 }
+melee_arc = { reach = 96, arc = 120, half_height = 44, windup_ms = 320, active_ms = 90, recovery_ms = 520, damage = { amount = 10, type = "slash", knockback = 240, stagger = 35 }, max_targets = 4, cleave_falloff = 0.8, parryable = true, hit_stop_ms = 40, assist = 30 }
 
 # The bellow: a roar that every enemy within 256 u answers. Taunted (MATRIX.md 8) for
 # 2.5 s, their bodies and views are turned to the roarer and held there, and a mind under
@@ -752,7 +752,7 @@ at_ms = 250
 [ability.step.area_effect]
 shape = { cylinder = { radius = 96, height = 64 } }
 origin = "self_feet"
-damage = { amount = 30, type = "blunt", knockback = 300, stagger = 40 }
+damage = { amount = 3, type = "blunt", knockback = 300, stagger = 40 }
 falloff = "none"
 max_targets = 6
 requires_los = true
@@ -780,8 +780,8 @@ shape = { cylinder = { radius = 140, height = 96 } }
 origin = { aim = 500 }
 duration_ms = 6000
 interval_ms = 1000
-damage = { amount = 8, type = "grass", knockback = 0, stagger = 0 }
-effects = [ { status = "regen", duration_ms = 1500, magnitude = 30, max_stacks = 1, stacking = "refresh", target = "allies" } ]
+damage = { amount = 1, type = "grass", knockback = 0, stagger = 0 }
+effects = [ { status = "regen", duration_ms = 1500, magnitude = 3, max_stacks = 1, stacking = "refresh", target = "allies" } ]
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -804,7 +804,7 @@ at_ms = 300
 [ability.step.area_effect]
 shape = { cylinder = { radius = 112, height = 96 } }
 origin = { aim = 500 }
-damage = { amount = 15, type = "grass", knockback = 0, stagger = 10 }
+damage = { amount = 2, type = "grass", knockback = 0, stagger = 10 }
 effects = [ { status = "root", duration_ms = 1500, magnitude = 0, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
@@ -828,7 +828,7 @@ move_scale = 0.55
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 70, arc = 80, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 70, type = "slash", knockback = 240, stagger = 30 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 70, arc = 80, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 7, type = "slash", knockback = 240, stagger = 30 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 # The spear: reach the matrix had no answer to, a line and not an arc (24 degrees, one
 # target, 100 units), a thrust. Both hands.
@@ -843,7 +843,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 100, arc = 24, half_height = 40, windup_ms = 220, active_ms = 60, recovery_ms = 380, damage = { amount = 65, type = "pierce", knockback = 140, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 20 }
+melee_arc = { reach = 100, arc = 24, half_height = 40, windup_ms = 220, active_ms = 60, recovery_ms = 380, damage = { amount = 6, type = "pierce", knockback = 140, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 20 }
 
 # The bow: a ranged action primary beside the gun mode, an arrow that drops; quicker and
 # lighter than the crossbow's bolt. Both hands. Arrows are unlimited (the director,
@@ -860,7 +860,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 150
-projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 75, type = "pierce", knockback = 80, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 8, type = "pierce", knockback = 80, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 # The wand: a caster's one-hand primary, a quick bolt of force (blunt, no aspect, so any
 # build may take it; the elemental bolts stay the staff's), with a focus in the left
@@ -876,7 +876,7 @@ move_scale = 0.8
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 120
-projectile = { speed = 2000, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 38, type = "blunt", knockback = 50, stagger = 8 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 2000, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 4, type = "blunt", knockback = 50, stagger = 8 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 # ---------- the second batch (2026-10-14, EQUIPMENT.md 10.7): six more primaries ----------
 # Appended, as every new ability is; a custom build's, like the four above. Two
@@ -896,7 +896,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 65, arc = 75, half_height = 40, windup_ms = 180, active_ms = 60, recovery_ms = 340, damage = { amount = 60, type = "blunt", knockback = 160, stagger = 55 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 65, arc = 75, half_height = 40, windup_ms = 180, active_ms = 60, recovery_ms = 340, damage = { amount = 6, type = "blunt", knockback = 160, stagger = 55 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 # The katana: the quickest blade, light.
 [[ability]]
@@ -909,7 +909,7 @@ move_scale = 0.75
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 72, arc = 70, half_height = 40, windup_ms = 120, active_ms = 50, recovery_ms = 260, damage = { amount = 50, type = "slash", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
+melee_arc = { reach = 72, arc = 70, half_height = 40, windup_ms = 120, active_ms = 50, recovery_ms = 260, damage = { amount = 5, type = "slash", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30, assist = 30 }
 
 # The claymore: a striker's great sword, both hands, a wide reaching swing.
 [[ability]]
@@ -923,7 +923,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 90, arc = 110, half_height = 40, windup_ms = 280, active_ms = 80, recovery_ms = 480, damage = { amount = 85, type = "slash", knockback = 200, stagger = 35 }, max_targets = 2, cleave_falloff = 0.75, parryable = true, hit_stop_ms = 30, assist = 25 }
+melee_arc = { reach = 90, arc = 110, half_height = 40, windup_ms = 280, active_ms = 80, recovery_ms = 480, damage = { amount = 8, type = "slash", knockback = 200, stagger = 35 }, max_targets = 2, cleave_falloff = 0.75, parryable = true, hit_stop_ms = 30, assist = 25 }
 
 # The greataxe: both hands, the axe's weight twice over.
 [[ability]]
@@ -937,7 +937,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 80, arc = 90, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 90, type = "slash", knockback = 300, stagger = 45 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
+melee_arc = { reach = 80, arc = 90, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 9, type = "slash", knockback = 300, stagger = 45 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
 
 # The warhammer: both hands, the heaviest blow, slow.
 [[ability]]
@@ -951,7 +951,7 @@ move_scale = 0.45
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 85, arc = 100, half_height = 40, windup_ms = 320, active_ms = 90, recovery_ms = 520, damage = { amount = 95, type = "blunt", knockback = 320, stagger = 70 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
+melee_arc = { reach = 85, arc = 100, half_height = 40, windup_ms = 320, active_ms = 90, recovery_ms = 520, damage = { amount = 10, type = "blunt", knockback = 320, stagger = 70 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30, assist = 25 }
 
 # The scythe: both hands, the widest sweep, three targets, for less each.
 [[ability]]
@@ -965,7 +965,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 85, arc = 150, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 75, type = "slash", knockback = 150, stagger = 25 }, max_targets = 3, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30, assist = 20 }
+melee_arc = { reach = 85, arc = 150, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 500, damage = { amount = 8, type = "slash", knockback = 150, stagger = 25 }, max_targets = 3, cleave_falloff = 0.6, parryable = true, hit_stop_ms = 30, assist = 20 }
 
 # ---------- the caster weapon's two moves (BODIES.md 3.6, 2026-10-19) ----------
 # A staff or a wand brings the bolt of the body's element as its blow and a blast of it
@@ -989,10 +989,10 @@ speed = 1500
 gravity = 0.15
 radius = 4
 lifetime_ms = 3000
-damage = { amount = 45, type = "grass", knockback = 60, stagger = 10 }
+damage = { amount = 4, type = "grass", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "bleed", duration_ms = 2000, magnitude = 8, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "bleed", duration_ms = 2000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 # The flame burst: Fire's blast, a cone of fire from the staff that burns.
 [[ability]]
@@ -1010,8 +1010,8 @@ at_ms = 200
 [ability.step.area_effect]
 shape = { cone = { length = 220, half_angle = 30 } }
 origin = "self_feet"
-damage = { amount = 60, type = "fire", knockback = 80, stagger = 15 }
-effects = [ { status = "burn", duration_ms = 2000, magnitude = 10, max_stacks = 1, stacking = "refresh", target = "area" } ]
+damage = { amount = 6, type = "fire", knockback = 80, stagger = 15 }
+effects = [ { status = "burn", duration_ms = 2000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 6
 requires_los = true
@@ -1033,7 +1033,7 @@ at_ms = 250
 [ability.step.area_effect]
 shape = { cylinder = { radius = 128, height = 96 } }
 origin = "self_feet"
-damage = { amount = 40, type = "grass", knockback = 60, stagger = 20 }
+damage = { amount = 4, type = "grass", knockback = 60, stagger = 20 }
 effects = [ { status = "root", duration_ms = 800, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
@@ -1056,7 +1056,7 @@ at_ms = 150
 [ability.step.area_effect]
 shape = { cone = { length = 200, half_angle = 35 } }
 origin = "self_feet"
-damage = { amount = 30, type = "air", knockback = 300, stagger = 10 }
+damage = { amount = 3, type = "air", knockback = 300, stagger = 10 }
 falloff = "none"
 max_targets = 6
 requires_los = true
@@ -1073,7 +1073,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 72, arc = 140, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 30, type = "blunt", knockback = 150, stagger = 40 }, max_targets = 3, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 72, arc = 140, half_height = 40, windup_ms = 150, active_ms = 60, recovery_ms = 300, damage = { amount = 3, type = "blunt", knockback = 150, stagger = 40 }, max_targets = 3, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 # The pommel: a sword's, a katana's and an axe's second move, the hilt in the face.
 [[ability]]
@@ -1086,7 +1086,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 56, arc = 60, half_height = 40, windup_ms = 100, active_ms = 50, recovery_ms = 250, damage = { amount = 25, type = "blunt", knockback = 120, stagger = 50 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 56, arc = 60, half_height = 40, windup_ms = 100, active_ms = 50, recovery_ms = 250, damage = { amount = 2, type = "blunt", knockback = 120, stagger = 50 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 # ---------- techniques (BODIES.md 3.8, 2026-10-19) ----------
 # A second primary per common weapon: the K page offers the primaries of the weapon in
@@ -1103,7 +1103,7 @@ move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 84, arc = 30, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 70, type = "pierce", knockback = 100, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 84, arc = 30, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 350, damage = { amount = 7, type = "pierce", knockback = 100, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 # The hammer's sweep: lighter and wider than the crush, for a crowd.
 [[ability]]
@@ -1116,7 +1116,7 @@ move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 76, arc = 140, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 450, damage = { amount = 55, type = "blunt", knockback = 200, stagger = 60 }, max_targets = 5, cleave_falloff = 0.8, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 76, arc = 140, half_height = 40, windup_ms = 300, active_ms = 80, recovery_ms = 450, damage = { amount = 6, type = "blunt", knockback = 200, stagger = 60 }, max_targets = 5, cleave_falloff = 0.8, parryable = true, hit_stop_ms = 30 }
 
 # The volley: three arrows for one draw, spread, for a crowd or a miss.
 [[ability]]
@@ -1130,7 +1130,7 @@ move_scale = 0.5
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 350
-projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 30, type = "pierce", knockback = 50, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 2.0, count = 3 }
+projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, damage = { amount = 3, type = "pierce", knockback = 50, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 2.0, count = 3 }
 
 # The backstab: the dagger's one heavy stab, no chain. (The review's "x3 from behind" is
 # not in the vocabulary: a blow does not know where it lands from.)
@@ -1144,7 +1144,7 @@ move_scale = 0.7
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 55, type = "pierce", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
+melee_arc = { reach = 56, arc = 40, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 6, type = "pierce", knockback = 60, stagger = 15 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
 
 # ---------- the bare hands (BODIES.md 6.7, 2026-10-19) ----------
 # Appended (stored builds name abilities by position). What a body fights with before it
@@ -1163,7 +1163,7 @@ interrupt = "on_stagger"
 chain = { next = "fists_2", window_ms = 300 }
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 90, active_ms = 40, recovery_ms = 220, damage = { amount = 18, type = "blunt", knockback = 80, stagger = 8 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 90, active_ms = 40, recovery_ms = 220, damage = { amount = 2, type = "blunt", knockback = 80, stagger = 8 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 [[ability]]
 key = "fists_2"
@@ -1174,7 +1174,7 @@ move_scale = 0.9
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 80, active_ms = 40, recovery_ms = 260, damage = { amount = 22, type = "blunt", knockback = 120, stagger = 12 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 48, arc = 60, half_height = 40, windup_ms = 80, active_ms = 40, recovery_ms = 260, damage = { amount = 2, type = "blunt", knockback = 120, stagger = 12 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 [[ability]]
 key = "knife_hands"
@@ -1187,7 +1187,7 @@ move_scale = 1.0
 interrupt = "on_stagger"
 [[ability.step]]
 at_ms = 0
-melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 40, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms = 40, recovery_ms = 200, damage = { amount = 4, type = "slash", knockback = 60, stagger = 10 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
 
 # ---------- the magic group's empty hands (BODIES.md 7, 2026-10-20) ----------
 # A magic body (the sorceress, the elder) empty-handed throws a weak bolt: of force with no
@@ -1206,7 +1206,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "blunt", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "blunt", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "fire_blow"
@@ -1220,7 +1220,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "fire", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "fire", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "water_blow"
@@ -1234,7 +1234,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "water", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "water", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "grass_blow"
@@ -1248,7 +1248,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "grass", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "grass", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "electric_blow"
@@ -1262,7 +1262,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "electric", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "electric", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "ground_blow"
@@ -1276,7 +1276,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "ground", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "ground", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 [[ability]]
 key = "air_blow"
@@ -1290,7 +1290,7 @@ move_scale = 0.9
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 100
-projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 22, type = "air", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
+projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, damage = { amount = 2, type = "air", knockback = 30, stagger = 5 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, count = 1 }
 
 # ---------- the staff's second move for Water and Electric (BODIES.md 7.2, 2026-10-20) ----------
 # The nova and the thunderclap are the staff's spells now (active 2, `spell_of`); these two
@@ -1311,7 +1311,7 @@ at_ms = 150
 [ability.step.area_effect]
 shape = { cone = { length = 200, half_angle = 35 } }
 origin = "self_feet"
-damage = { amount = 30, type = "water", knockback = 100, stagger = 10 }
+damage = { amount = 3, type = "water", knockback = 100, stagger = 10 }
 falloff = "none"
 max_targets = 6
 requires_los = true
@@ -1332,7 +1332,7 @@ at_ms = 150
 [ability.step.area_effect]
 shape = { cone = { length = 200, half_angle = 35 } }
 origin = "self_feet"
-damage = { amount = 30, type = "electric", knockback = 100, stagger = 10 }
+damage = { amount = 3, type = "electric", knockback = 100, stagger = 10 }
 falloff = "none"
 max_targets = 6
 requires_los = true

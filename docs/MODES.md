@@ -494,8 +494,8 @@ Built as section 3 says, with these readings:
     spent within seconds. What was missing was the word: a stack of rounds now says
     which gun it loads ("loads the Musket: carried is loaded, R reloads") in the
     inventory and at the stall. A stack of rounds for a gun that is not in the build
-    loads nothing, and says so. The kit heals 300 (a third of a body of about 1,000;
-    50 was nothing).
+    loads nothing, and says so. The kit heals 30 (a third of a body of about 100 since
+    MATRIX.md 22; it was 300 of 1,000, and 50 was nothing).
 - **The director played it a third time (2026-10-07, night)**: "using scope, from not
   that far, I always see the bullet mark to the upper right of crosshair ... CS 1.6 was
   great at this, spread was very dependant of fire rate and movement, when very still,
