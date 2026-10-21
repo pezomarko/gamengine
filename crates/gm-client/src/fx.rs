@@ -333,6 +333,10 @@ pub enum Blow {
     Mended,
     /// The own hand's blow was all taken by a block.
     Blocked,
+    /// Another's hand took this off another body (13.13): small.
+    Seen,
+    /// Another's Regen gave another body this back (13.13): small.
+    SeenHealed,
 }
 
 /// A number in the air: what a blow did, where, and for how long now.
@@ -482,15 +486,27 @@ impl Effects {
         });
     }
 
-    /// The zone says a Regen of the own hand gave the body whose head is at `head`
-    /// `amount` health back.
-    pub fn healed(&mut self, head: Vec3, amount: u32) {
-        self.number(head, amount, Blow::Mended);
+    /// The zone says another's hand landed on another body at `at`, `amount` off its
+    /// health: a small number there (LOOK.md 13.13), and the spark. A blow all blocked
+    /// says nothing; the fight is somebody else's.
+    pub fn seen_hit(&mut self, at: Vec3, amount: u32) {
+        self.sparks.push(Spark { at, age: 0.0 });
+        if amount > 0 {
+            self.number(at, amount, Blow::Seen);
+        }
+    }
+
+    /// The zone says a Regen gave the body whose head is at `head` `amount` health
+    /// back: the own hand's (`own`) large, another's small (LOOK.md 13.13).
+    pub fn healed(&mut self, head: Vec3, amount: u32, own: bool) {
+        let blow = if own { Blow::Mended } else { Blow::SeenHealed };
+        self.number(head, amount, blow);
     }
 
     /// The numbers in the air, as the HUD draws them (LOOK.md 13.8): what was dealt in
-    /// gold, what was taken in red, what was healed (either way) in green, a block in grey; each
-    /// floats up, quickly at first, and fades out at the end.
+    /// gold, what was taken in red, what was healed (either way) in green, a block in grey;
+    /// what others dealt or healed in paler, thinner inks (13.13); each floats up, quickly
+    /// at first, and fades out at the end.
     pub fn numbers(&self) -> Vec<Pop> {
         self.numbers
             .iter()
@@ -504,6 +520,8 @@ impl Effects {
                         (format!("+{}", n.amount), [0.45, 1.0, 0.50, 1.0])
                     }
                     Blow::Blocked => ("blocked".to_string(), [0.75, 0.78, 0.85, 1.0]),
+                    Blow::Seen => (n.amount.to_string(), [0.95, 0.90, 0.72, 0.7]),
+                    Blow::SeenHealed => (format!("+{}", n.amount), [0.70, 0.95, 0.72, 0.7]),
                 };
                 Pop {
                     at: n.at,
@@ -1119,5 +1137,22 @@ mod tests {
         assert!(p.ink[3] < 0.5 && p.ink[3] > 0.0, "{}", p.ink[3]);
         fx.begin(0.2);
         assert!(fx.numbers().is_empty());
+        // Somebody else's fight (13.13): small, pale, no word for a block; another's
+        // Regen on another body is a small "+", the own hand's the large one.
+        fx.begin(0.016);
+        fx.seen_hit(Vec3::new(100.0, 0.0, 70.0), 17);
+        fx.seen_hit(Vec3::new(100.0, 0.0, 70.0), 0);
+        fx.healed(Vec3::new(100.0, 0.0, 90.0), 8, false);
+        fx.healed(Vec3::new(100.0, 0.0, 90.0), 9, true);
+        let pops = fx.numbers();
+        let texts: Vec<&str> = pops.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(texts, ["17", "+8", "+9"]);
+        assert_eq!(pops[0].blow, Blow::Seen);
+        assert_eq!(pops[1].blow, Blow::SeenHealed);
+        assert_eq!(pops[2].blow, Blow::Mended);
+        assert!(
+            pops[0].ink[3] < 0.8 && pops[2].ink[3] > 0.99,
+            "another's is paler"
+        );
     }
 }

@@ -62,17 +62,21 @@ impl Run {
         {
             s.damage_dealt += amount;
             s.hits_landed += 1;
-            // The attacker is told what it did: the number over the body
-            // it hit (LOOK.md 13.8).
+        }
+        if let Some(s) = self.sessions.get_mut(&target) {
+            s.damage_taken += amount;
+        }
+        // Everyone is told what landed and whose hand it was: the attacker's number
+        // large over the body it hit, the others' small, the target's not at all
+        // (LOOK.md 13.8, 13.13).
+        for s in self.sessions.values() {
             s.send_control(FromZone::Hit {
+                attacker,
                 target,
                 amount: amount.min(u16::MAX as u64) as u16,
                 absorbed: absorbed.clamp(0, u16::MAX as i32) as u16,
                 at: at.to_array(),
             });
-        }
-        if let Some(s) = self.sessions.get_mut(&target) {
-            s.damage_taken += amount;
         }
     }
 
@@ -216,13 +220,16 @@ impl Run {
 
     /// `ZoneEvent::Healed`.
     pub(super) fn happened_healed(&mut self, target: EntityId, source: EntityId, amount: i32) {
-        // The healer is told what its Regen gave another body: the green
-        // number over it (LOOK.md 13.8). The own healings are read from the
-        // own health, like the own hurts.
-        if source != target
-            && let Some(s) = self.sessions.get_mut(&source)
-        {
+        // Everyone is told what the Regen gave and whose it was: the healer's green
+        // number large over the body, the others' small, the healed body's not at
+        // all, since its own health says it (LOOK.md 13.8, 13.13). A Regen on the own
+        // body is still told: the others see it.
+        if source == target && self.sessions.len() <= 1 {
+            return;
+        }
+        for s in self.sessions.values() {
             s.send_control(FromZone::Healed {
+                source,
                 target,
                 amount: amount.clamp(0, u16::MAX as i32) as u16,
             });

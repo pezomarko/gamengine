@@ -800,7 +800,8 @@ in the simulation's snapshots:
   off the target's health and what the target's block took. The number the client floats
   over the body (LOOK.md 13.8); nothing goes to anyone else, and the own hurts are read
   from the own health in the snapshot. A sparring fight is some blows a second a body:
-  bytes on the reliable stream of no account.
+  bytes on the reliable stream of no account. **Since v32** (section 39) to everyone in the
+  zone, with `attacker`.
 - `FromZone::Healed { target, amount }` (added 2026-10-06, likewise): to the healer, each
   pulse of a Regen its hand put on another body, with what the pulse gave back (nothing
   for a pulse at full health). Not sent when the healer is the target: the own health
@@ -958,6 +959,18 @@ than staying the zone's. The hub's reading grew the same way on its own wire
   and the shoulders are no longer places, so nothing is worn there to draw. Eight bytes
   fewer a `Look`; the version byte keeps a v21 client out, since it would read the roster
   long.
+
+## 39. Changes in v32 (the others' numbers, 2026-10-21)
+
+`PROTOCOL_VERSION` 32 (LOOK.md 13.13). Two messages of `FromZone` gain a field and an
+audience:
+
+- **`Hit { attacker, target, amount, absorbed, at }`**: `attacker` (0 = the world) leads.
+  Sent to **every session of the zone**, not the attacker alone; the client draws the own
+  hand's large, another's small, and one on the own body not at all.
+- **`Healed { source, target, amount }`**: `source` leads, sent to every session likewise
+  (a Regen on the own body too, when anyone else is in the zone). The version byte keeps
+  a v31 client out, since it would read both messages short.
 
 ## 38. Changes in v28 (bodies, 2026-10-19)
 
