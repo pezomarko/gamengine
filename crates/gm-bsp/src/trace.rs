@@ -8,10 +8,17 @@ use crate::{Bsp, ClipNode, Plane};
 
 const DIST_EPSILON: f32 = 0.03125;
 
+/// The bottom of Hexen II's crouching hull 3 under its own origin: (-16, -16, -12) to
+/// (16, 16, 16), the tree `gm-tools map crouch` merges into a map as hull 3.
+pub const CROUCH_TREE_MINS_Z: f32 = -12.0;
+
 struct HullRef<'a> {
     clipnodes: &'a [ClipNode],
     planes: &'a [Plane],
     first: i32,
+    /// Added to a point to put it into the tree's own frame: the crouched hull stands on
+    /// the player's feet (`Hull::Crouch`), Hexen II's 12 u over its origin.
+    shift: Vec3,
 }
 
 struct State {
@@ -123,24 +130,36 @@ fn recursive_check(
 }
 
 impl Bsp {
+    /// Whether the map carries the crouched hull (`Hull::Crouch`, hull 3): Quake's own
+    /// compiler leaves the slot at 0, the merge puts its root past hull 1's and 2's.
+    pub fn has_crouch_hull(&self) -> bool {
+        self.models[0].head_nodes[3] > 0
+    }
+
     fn hull_ref(&self, model: usize, hull: Hull) -> HullRef<'_> {
         let m = &self.models[model];
+        let tree = |first: i32, shift: Vec3| HullRef {
+            clipnodes: &self.clipnodes,
+            planes: &self.planes,
+            first,
+            shift,
+        };
         match hull {
             Hull::Point => HullRef {
                 clipnodes: &self.hull0,
                 planes: &self.planes,
                 first: m.head_nodes[0],
+                shift: Vec3::ZERO,
             },
-            Hull::Player => HullRef {
-                clipnodes: &self.clipnodes,
-                planes: &self.planes,
-                first: m.head_nodes[1],
-            },
-            Hull::Large => HullRef {
-                clipnodes: &self.clipnodes,
-                planes: &self.planes,
-                first: m.head_nodes[2],
-            },
+            Hull::Player => tree(m.head_nodes[1], Vec3::ZERO),
+            Hull::Large => tree(m.head_nodes[2], Vec3::ZERO),
+            Hull::Crouch if self.has_crouch_hull() => tree(
+                m.head_nodes[3],
+                Vec3::Z * (Hull::Crouch.mins().z - CROUCH_TREE_MINS_Z),
+            ),
+            // A map built before the crouched hull: a crouch is as tall as a stand to
+            // it (the zone refuses such a map; the client and the tools still read it).
+            Hull::Crouch => tree(m.head_nodes[1], Vec3::ZERO),
         }
     }
 
@@ -150,14 +169,15 @@ impl Bsp {
         contents_of(point_contents(
             &h,
             h.first,
-            point - self.models[model].origin,
+            point - self.models[model].origin + h.shift,
         ))
     }
 
     /// Sweep `hull` from `start` to `end` against `model`.
     pub fn trace_model(&self, model: usize, hull: Hull, start: Vec3, end: Vec3) -> Trace {
         let h = self.hull_ref(model, hull);
-        let origin = self.models[model].origin;
+        // Into the tree's frame: the model's origin out, the hull's shift in.
+        let origin = self.models[model].origin - h.shift;
         let (s, e) = (start - origin, end - origin);
         let mut st = State {
             fraction: 1.0,

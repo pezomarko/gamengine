@@ -54,7 +54,7 @@ from it; the zone reads it from the same build for the rules of sections 3 and 5
 | Camera | first person, the view model (LOOK.md 6.4) | over the shoulder, as today (110 u back) | orbit, far and high (240 u back, 90 up); right drag turns it, wheel zooms |
 | The body faces | the view | where it goes; the camera at a swing | where it goes, or its target |
 | Aim | the eye ray, through the cone of 3.4 | the camera ray re-aimed from the eyes (today's), plus the magnet of 4.2 | the zone's, at the target (5.3) |
-| Movement | WASD, crouch, jump; walk is quiet | WASD, dodge | WASD about the camera, or a click on the ground |
+| Movement | WASD, crouch, jump; walk is quiet | WASD, crouch, dodge | WASD about the camera, or a click on the ground; crouch |
 | Attack | hold or tap the mouse; reload | combos and cancels on the hotbar | a target, then actions that wait for range |
 | HUD | crosshair that opens, ammo, health | hotbar with cooldowns, combo counter | target frame, hotbar, the ground marker |
 | Presets | musketeer (new) | blade, ironclad, shade | frostweaver, mender |
@@ -130,9 +130,9 @@ the square of its count, a pause forgets it):
 base  +  move × share(speed / max speed)  +  air (while airborne)  +  shot × min((n / 4)², 4)
 ```
 
-- `base` is `stand`; `crouch` while the crouch button is held on the ground (the body
-  comes down `CROUCH_DROP` = 16 u: the eye, the top of its hitbox and the drawn body
-  alike, 3.5); `scoped`
+- `base` is `stand`; `crouch` while the body is crouched on the ground (the duck time
+  done, section 12: the body comes down `CROUCH_DROP` = 22 u, the eye, the top of its
+  hitbox and the drawn body alike, and its world hull is half as tall); `scoped`
   while the scope is up (the scope is what makes the shot: the musket's is 0.05°, its
   `stand` 6°, so a shot without the scope is the root's no-scope).
 - `share(s)` is 0 up to half the body's speed (Shift's walk, a crouched creep), 1 from
@@ -154,14 +154,15 @@ The hull is a cylinder (MATRIX.md 3); CS has hit groups, we have none. **The hea
 top 12 units of the hull** (a sixth of a striker). A bolt that enters the hull within the band
 is a headshot: the packet is multiplied by `headshot` **before** armour (MATRIX.md 7 gets a
 step: hit zone). Melee arcs and areas have no head. **Crouching shortens the hitbox**: the
-capsule loses `CROUCH_DROP` (16 u) off its top while the button is held on the ground, so
-the band moves down with the body and a shot at a standing head passes over a crouched one;
-the rewind of PROTOCOL.md 7.4 remembers the posture with the position, so the capsule a bolt
-or a blade is resolved against is as short as the body was when the shooter saw it. The
-world hull (32 × 32 × 56, MATRIX.md 3) does not change: a crouch does not fit under
-anything a stand does not. Everyone sees it: the body squats (the shared animation set lays
-the squat over any stance, MODELS.md 9) and its name and numbers come down with it; the
-`CROUCHED` flag of the entity record carries it (PROTOCOL.md 26).
+capsule loses `CROUCH_DROP` (22 u since 2026-10-22, 16 before) off its top while the body
+is crouched, so the band moves down with the body and a shot at a standing head passes over
+a crouched one; the rewind of PROTOCOL.md 7.4 remembers the posture with the position, so
+the capsule a bolt or a blade is resolved against is as short as the body was when the
+shooter saw it. Since 2026-10-22 the crouch is every mode's and has a world hull of its own,
+half the standing one, and a crouch in the air lifts the feet (the crouch-jump): section 12.
+Everyone sees it: the body squats (the shared animation set lays the squat over any stance,
+MODELS.md 9) and its name and numbers come down with it; the `CROUCHED` flag of the entity
+record carries it (PROTOCOL.md 26).
 
 ### 3.6 Bullets are bolts, fast
 
@@ -245,9 +246,10 @@ mark on the target so a gank is timed, not spammed.
 
 ### 4.6 Controls and HUD
 
-As today: the primary on the left button, the secondary on the right, the guard on `Shift`,
-the actives on `1`–`4`, the dodge on `Space` when the build has a dash (jump is the dash
-without one). The HUD keeps the hotbar with its cooldowns and gets a combo counter at the
+As today: the primary on the left button, the secondary on the right, the guard on `X`
+(Ctrl until 2026-10-22, when Ctrl became every mode's crouch, section 12), the first
+active on `Shift` and the actives on `1`–`4`, the dodge on `Space` when the build has a
+dash (jump is the dash without one, and Space with Ctrl held), the crouch on Ctrl. The HUD keeps the hotbar with its cooldowns and gets a combo counter at the
 right of the crosshair (hits in the current chain, fading two seconds after the last).
 
 ## 5. RPG: third person, mouse driven, target-actions (Ether Saga, Tales of Pirates)
@@ -325,7 +327,7 @@ Left button: target or move, and on the target the primary at it (the first clic
 the next attacks, as in Tales of Pirates and Ether Saga: the cursor is a crosshair over the
 target, a hand over another body, the cell while a key waits for its click, 5.3); right
 drag: the camera, a right tap on the target the secondary at it; wheel: 120–400 u; `Tab`, `Esc`; the hotbar on `1`–`8` (the primary and secondary join it: the root's bar is one bar); `Shift`
-guards; `Space` jumps. A ground marker where the body is going; the target frame top
+guards; `Space` jumps; Ctrl crouches (section 12). A ground marker where the body is going; the target frame top
 centre; a ring under the target (LOOK.md 13).
 
 ### 5.6 On a phone (2026-10-08)
@@ -834,3 +836,171 @@ Built as 11.1–11.5 say, with these readings:
   own motion (the reload's is borrowed); the stranger's `USE` stance drawn (it reads as
   idle until the body's look, Phase 17).
 
+## 12. The crouch in every mode, and the crouch-jump (2026-10-22)
+
+The director: "we need CTRL to make all character crouch, not only FPS and also make
+animations and hitboxes reflect that. Also should be possible to crouch while jumping, copy
+that from counter strike 1.6, allows for squeezing through tighter spaces and jumping
+'effectively' higher".
+
+### 12.1 The root, measured
+
+Counter-Strike 1.6 (ReGameDLL's `pm_shared`): the standing hull is 72 tall, the duck hull
+36, half; the eye 53 over the feet standing (`VEC_VIEW` 17 over a centre 36 up) and 30
+ducked (`VEC_DUCK_VIEW` 12 over a centre 18 up). On the ground a duck takes 0.4 s
+(`TIME_TO_DUCK`): the view sinks over it on a spline while the body still stands, and at its
+end the origin moves down so the feet stay. In the air the duck is done at once and the
+origin stays: the hull keeps its centre, the feet come up 18 and the head down 18, and a
+45 u jump clears about 63 (the crouch-jump). Getting up is at once: on the ground round the
+feet, in the air round the centre, and not at all while the standing hull would start in
+solid. A duck begun on the ground and not yet done when the body leaves it is done in the
+air: a crouch pressed with the jump, or a little before it, is a crouch-jump. Ducked, the
+body moves at a third of its pace.
+
+### 12.2 Ours
+
+- **Keys**: Ctrl crouches in every mode. `X` keeps its part in each: the FPS mode's crouch
+  beside Ctrl (a browser keeps Ctrl+W: WEB.md 3.4), the action mode's guard (its only key
+  now; Ctrl guarded until today), nothing in the RPG mode (Shift guards there). The action
+  mode's Space is the dodge while the kit's dash is ready (4.6); with Ctrl held it is a
+  jump, so Ctrl then Space (or both at once) is a crouch-jump there with the dash ready or
+  not. A phone has no crouch button yet.
+- **A hull half as tall**: `Hull::Crouch`, 32 × 32 × 28, standing on the player's feet
+  (mins −24, maxs +4 about the origin), so every "feet = origin + mins" stays true in both
+  postures and nothing new goes on the wire. qbsp builds the clip hulls a target game names
+  and no others; Quake's are a point, the player and the large hull, and Hexen II's hull 3
+  is a crouching player, (−16, −16, −12) to (16, 16, 16): 28 tall, half ours and as wide.
+  `gm-tools map build` compiles the map a second time with `-hexen2` and merges hull 3's
+  clip trees and their planes into the Quake map (`gm-tools map crouch MAP.map MAP.bsp`
+  does it to a built map): the clipnodes appended, a plane added only where the map has no
+  identical one, each model's fourth head node (which Quake leaves at 0) set. Every other
+  lump is byte for byte as it was; the four maps grew by 0.4–5.1 KB. The tracer reads the
+  tree 12 u up its origin (`gm_bsp::CROUCH_TREE_MINS_Z`) and gives the plane back in ours.
+  The zone refuses a map without the hull; the client and the tools fall back to the
+  standing tree on one.
+- **Down on the ground**: over `DUCK_SECS` = 0.4 s, the root's. The eye sinks over it on the
+  root's spline (`Mover::duck`, `duck_curve`), the body still stands (its hull, its hitbox,
+  its pace); at its end the hull is the crouched one where the feet are. A press let go
+  before then never crouches, and the next press starts the time again: a crouch spammed
+  faster than 0.4 s moves the eye and nothing else (the head band does not bob with it).
+- **Down in the air**: at once, round the hull's centre: the origin rises `CROUCH_TUCK`
+  (14 u, half of what the hull loses) so the feet come up 14 and the head down 14. A jump
+  that peaks at 45.6 u clears a ledge of about 59. A crouch under way on the ground when a
+  jump leaves it is done in the air the next frame, tucked; one done on the very frame a
+  jump leaves waits that frame, so a crouch pressed with the jump is a crouch-jump.
+- **Up**: when the button is let go, at once, if the standing hull is in open space where
+  it would stand: round the feet on the ground, round the centre in the air (the origin
+  goes back down the tuck). Else the body stays down and tries again every frame: under a
+  low ceiling it creeps on crouched until it is out; in the air with the ground nearer than
+  the tuck under its feet it lands crouched and stands on its feet there. Only a
+  player-sized body crouches. A staggered or downed body keeps the posture it was struck
+  in (it cannot jump either): no crouching down to shrink the hitbox while helpless, no
+  getting up.
+- **The eye**: 24 over the feet crouched, at the crouched origin (`Hull::Crouch.eye_height`
+  0), 4 under the crouched top as Quake 3 keeps its own (the near plane is 4 u): 22 lower
+  than standing. In the air the tuck lifts it 14 back, so a crouch there lowers the view 8.
+- **The hitbox and the body**: `CROUCH_DROP` 22 (16 until today): the capsule's top, the
+  head band with it, and the drawn head, never shorter than the capsule's width (a
+  colossus's 60 crouches to 38 over its radius of 18). The capsule stands on the hull's
+  feet, so in the air it follows the tuck: its bottom up 14, its top down 8. The drawn
+  body squats fully, as the root's crouch does: the thighs 95° forward, the knees folded
+  158°, the hips down `anim::SQUAT` (20.6 u of a striker) with the feet where they were,
+  the back upright but for a 10° lean that brings the head the last of the 22 down; in
+  the air the same fold is the tuck. A striker's head is at 34, its hull's top at 28: as
+  in the root, the crouched body is drawn a little taller than its hull, which nobody sees
+  from the eye. Names, health bars and numbers come down 22 with the head.
+- **The pace**: half while crouched, on the ground and in the air (the root's is a third;
+  ours was half since 15b, kept). The cone's `crouch` base counts once the crouch is done
+  and only on the ground.
+- **Bodies in each other's way**: the zone's boxes are each body's hull this tick, so a
+  crouched body is a shorter obstacle; the client predicts with the crouched box of a body
+  whose record says `CROUCHED`. Reconciliation adopts the zone's posture (and its hull)
+  before it nudges the rounded position, and a posture the zone saw a frame apart is a
+  soft correction (adopted and replayed).
+- **Drawing the tuck**: the origin moves 14 at once in the air. The own view and the own
+  body take that move back and let it go at the eye's pace (`View::lift`, from
+  `Mover::stance_lift`), so the camera sinks the 8 smoothly instead of rising 14 and
+  falling 22. Another body is interpolated between snapshots and its squat cross-fades over
+  0.12 s; it may bob a few units at a tuck. The own body in the third person squats from
+  the first frame of a crouch under way, as its eye begins to sink; everyone else sees it
+  stand until the crouch is done, as its hitbox does.
+
+- **The action mode walks along its camera**: its frame's yaw is the aim re-aimed through
+  the crosshair (4.1), and that yaw bent toward a near wall's point 24 u to the right of
+  the body (17° at 80 u, more nearer), so a walk straight at the crawl hole went into the
+  wall beside it, and every walk at a wall curved right. The client keeps the re-aimed
+  yaw for the aim and turns the keys' axes by the difference, so the keys walk where the
+  camera looks (nothing on the wire changes).
+- **Where to try it**: the town's north street, gated and empty, is the crouch yard
+  (`town::crouch_yard`): a garden wall across it, 104 u high, with a crawl hole 40 u high
+  near its west end that only a crouch goes through, and before the wall at its east end a
+  stack of crates 52 u high, which a jump (45.6 u) does not reach and a crouch-jump (59.6 u)
+  does; from the crates a crouch-jump clears the wall into the yard behind it. No other
+  map has anything only a crouch gets under or onto: the arena's low cover is 40 u (a jump
+  clears it), its base walls 96.
+
+### 12.3 Review (Gemini 3.1 Pro on the design, before coding)
+
+Six findings. Taken: (1) a crouch done on the frame a jump leaves the ground is a crouched
+jump with no tuck, while the root's duck time lets the jump go first: the duck time of
+12.2 copies the root's, and a crouch that would be done on a jump's frame waits it; (5) an
+instant crouch lets a player bob the head band 22 u every frame: the duck time again (the
+root added its own against the same). Already handled: (2) BSP29's 16-bit clip node
+children (the merge refuses past 32,767 and says to build the map as BSP2); (3) the merged
+nodes cut along the merged planes (renumbered); (4) the plane's distance given back in the
+engine's origin (the trace's shift is taken out of it); (6) the posture changes cannot put
+a body into solid (the crouched box lies inside the standing one, and getting up is tested).
+
+Gemini 3.1 Pro on the code, after: four findings. Taken: a staggered or downed body could
+crouch and get up, shrinking its hitbox while helpless: it keeps its posture now (12.2).
+Not taken: getting up in the air "through a thin floor" (the standing box round the same
+centre contains the whole crouched box, so its test covers everything between); a lift
+missed when a reconciliation replays a tuck (only when the zone corrects the posture,
+which snaps the position as any correction does); a remote body "snapping into the floor"
+at a tuck (the squat cross-fades over 0.12 s and keeps the feet at the hull's bottom: the
+few units of bob already noted).
+
+### 12.4 As built (2026-10-22)
+
+`gm-core`: `Hull::Crouch`, `CROUCH_DROP` 22, `CROUCH_TUCK`, `DUCK_SECS`, `crouch_step`
+(before the frame's movement; it reads the ground afresh, as the movement is about to: the
+flag of the last frame does not know a spawn), `Mover::duck` and `Mover::stance_lift`,
+`capsule_at` never shorter than its width, the cone's base from the posture.
+`gm-bsp`: the crouched tree and its shift, `Bsp::has_crouch_hull`. `gm-tools`: `map crouch`
+and the merge in `map build`; the four maps carry the hull; the town's crouch yard (the
+town rebuilt: qbsp, vis, light, the hull). `gm-server`: refuses a map
+without it. `gm-net`: the crouched box of a crouched body in prediction, the posture
+adopted at reconciliation. `gm-model`: the full squat. `gm-client`: Ctrl crouches in every
+mode, `X` guards in the action mode, the eye eased from the mover's with the tuck taken
+back, the HUD's cone from the posture, names and heal numbers lower over a crouched head.
+No protocol change: the record's `CROUCHED` now also means the crouched hull and is set in
+the air too; a client with the old maps is refused by the map's hash (PROTOCOL.md 8).
+
+Tests: `gm-core` `a_crouch_on_the_ground_takes_the_duck_time_and_the_eye_sinks_over_it`,
+`a_crouch_goes_under_what_a_stand_cannot_and_stays_down_under_it` (a slab 36 u up stops a
+standing body at its face and lets a crouched one under, keeps it down under it, lets it
+stand past it), `a_crouch_jump_lands_on_a_ledge_a_jump_cannot_reach` (a 52 u ledge: a plain
+jump falls back, a crouch pressed with the jump or 12 frames before it lands on top),
+`in_the_air_a_crouch_keeps_the_centre_and_getting_up_waits_for_room`,
+`a_helpless_body_keeps_the_posture_it_was_struck_in`, `every_mode_crouches`; `gm-client`
+`ctrl_crouches_in_every_mode_and_x_keeps_its_part` (and Space with Ctrl is a jump, not
+the dodge), `the_keys_walk_along_the_camera_whatever_the_aim`. **Run, not only tested**
+(2026-10-22, a private hub and town from the branch's release build, a real client at
+1080p on an Xvfb driven by xdotool, the positions the hub saved at a graceful logout): an
+action-mode soldier crouches at the crawl hole, goes through it into the yard (y 984), and
+crouch-jumps onto the crates (z 76, Ctrl then Space); an FPS soldier's plain jump stops at
+the crates' face (z 24), its crouch-jump (Space then Ctrl 40 ms later) landed on them once
+and fell short once on timing, as the root's does; the RPG soldier squats on Ctrl; the FPS
+eye drops to the hole.
+(the FPS, action and RPG presets), the two older crouch tests at the new numbers (a scoped
+shot aimed 3° down at 300 u is a headshot on a crouched blade); `gm-bsp`
+`the_crouched_hull_stands_on_the_same_feet_and_is_half_as_tall` (on the test room: floor,
+ceiling, walls, contents, the plane's distance) and
+`every_committed_map_carries_the_crouched_hull`; `gm-bsp` `tests/crouch_yard.rs` on the
+town itself (the hole stops a stand at the wall and lets a crouch through; a jump at the
+crates falls back off their face, a crouch-jump lands on top); `gm-model` the squat's head
+down 22 with the feet where they were, for every frame.
+
+Not built: a crouch button on a phone; a remote body's bob at a tuck smoothed away; the RPG
+mode's click-to-walk through a passage only a crouch fits (the nav grid is the standing
+hull's); the root's third of a pace (ours stays a half).

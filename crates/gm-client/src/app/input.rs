@@ -44,14 +44,18 @@ impl Input {
         }
     }
 
-    /// The frame's input. `dodge` is the active slot (1-based) Space plays instead of a
-    /// jump (MODES.md 4.6): the kit's dash, while it is ready. In the gun mode (MODES.md
-    /// 3.7) `1 2 3` take the gun, the pistol and the knife in hand, `4`–`7` are the
-    /// actives, Ctrl crouches, Shift walks, `R` reloads and the secondary button is the
+    /// The frame's input. `yaw` is the aim; `walk` the yaw the keys walk along, the
+    /// camera's (the action mode re-aims the frame through the crosshair, MODES.md 4.1).
+    /// `dodge` is the active slot (1-based) Space plays instead of a jump (MODES.md 4.6):
+    /// the kit's dash, while it is ready. Ctrl crouches in every mode (MODES.md 3.5). In the
+    /// gun mode (MODES.md 3.7) `1 2 3` take the gun, the pistol and the knife in hand,
+    /// `4`–`7` are the actives, Shift walks, `R` reloads and the secondary button is the
     /// scope.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn sim_input(
         &mut self,
         yaw: f32,
+        walk: f32,
         pitch: f32,
         dodge: Option<u8>,
         gun: bool,
@@ -59,22 +63,30 @@ impl Input {
     ) -> SimInput {
         // The item bar's keys (LOOK.md 3.2, MODES.md 11.3) use a cell in every mode: read
         // before the modes part. `F` is the first cell's, the kit's by default.
-        let (kit, use_slot) = match BAR_KEY_CODES
+        let (mut kit, use_slot) = match BAR_KEY_CODES
             .iter()
             .position(|k| self.just_pressed.contains(k))
         {
             Some(i) => (buttons::USE, i as u8 + 1),
             None => (0, 0),
         };
+        // Ctrl crouches in every mode since 2026-10-22 (MODES.md 3.5); a browser keeps
+        // Ctrl+W, so the page asks before it closes and fullscreen locks the keyboard
+        // (WEB.md 3.4), and the FPS mode keeps `X` beside it.
+        let ctrl = self.down(KeyCode::ControlLeft) || self.down(KeyCode::ControlRight);
+        if ctrl {
+            kit |= buttons::CROUCH;
+        }
         // `Insert` sits, as in Tales of Pirates; `Z` for keyboards without one (SKILLS.md 2).
-        let kit = if self.down(KeyCode::Insert) || self.down(KeyCode::KeyZ) {
-            kit | buttons::SIT
-        } else {
-            kit
-        };
+        if self.down(KeyCode::Insert) || self.down(KeyCode::KeyZ) {
+            kit |= buttons::SIT;
+        }
         if let Some(r) = rpg {
             return self.rpg_input(yaw, pitch, r, kit, use_slot);
         }
+        // A crouching body jumps on Space rather than dodging (MODES.md 12): Ctrl then
+        // Space is the action mode's crouch-jump, the dash ready or not.
+        let dodge = if ctrl { None } else { dodge };
         let (mut forward, mut side) = self.axes();
         let mut b = kit;
         let dodged = dodge.is_some() && self.just_pressed.contains(&KeyCode::Space);
@@ -87,20 +99,24 @@ impl Input {
         if self.mouse.contains(&MouseButton::Left) {
             b |= buttons::PRIMARY;
         }
-        // `X` holds beside Ctrl (the action mode's guard, the gun mode's crouch) since
-        // 2026-10-22, when `C` became the character sheet's key (MATRIX.md 23).
-        let ctrl = self.down(KeyCode::ControlLeft)
-            || self.down(KeyCode::ControlRight)
-            || self.down(KeyCode::KeyX);
+        // `X` holds what `C` held until 2026-10-22, when `C` became the character sheet's
+        // key (MATRIX.md 23): the action mode's guard, the gun mode's crouch beside Ctrl.
+        let x = self.down(KeyCode::KeyX);
         let shift = self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight);
         let mut ability = if gun {
-            self.gun_keys(&mut b, &mut forward, &mut side, ctrl, shift)
+            self.gun_keys(&mut b, &mut forward, &mut side, x, shift)
         } else {
-            self.action_keys(&mut b, ctrl, shift)
+            self.action_keys(&mut b, x, shift)
         };
         if dodged && let Some(d) = dodge {
             ability = d;
         }
+        // The keys walk along the camera, the frame's yaw being the aim: re-aimed through
+        // the crosshair it bends toward a near wall (24 u to the right of the body where
+        // the camera's ray meets it), and a walk straight at a crawl hole went into the
+        // wall beside it (MODES.md 12). The axes are turned by the difference.
+        let (sin, cos) = (walk - yaw).to_radians().sin_cos();
+        let (forward, side) = (forward * cos + side * sin, side * cos - forward * sin);
         self.just_pressed.clear();
         SimInput {
             buttons: b,
@@ -116,7 +132,8 @@ impl Input {
     }
 
     /// The RPG mode (MODES.md 5.5): `1` the primary, `2` the secondary, `3`–`6` the
-    /// actives, Shift guards, Space jumps; the axes are the walk's when none is held.
+    /// actives, Shift guards, Space jumps, Ctrl crouches (in `kit`); the axes are the
+    /// walk's when none is held.
     fn rpg_input(
         &mut self,
         yaw: f32,
@@ -147,14 +164,14 @@ impl Input {
     }
 
     /// The gun mode's keys (MODES.md 3.7): `1 2 3` take a weapon in hand (and drop the
-    /// scope), `4`–`7` are the actives, Ctrl crouches, Shift walks at half speed, the
-    /// scope stays up while toggled. Returns the active pressed.
+    /// scope), `4`–`7` are the actives, `X` crouches as Ctrl does, Shift walks at half
+    /// speed, the scope stays up while toggled. Returns the active pressed.
     fn gun_keys(
         &mut self,
         b: &mut u16,
         forward: &mut f32,
         side: &mut f32,
-        ctrl: bool,
+        x: bool,
         shift: bool,
     ) -> u8 {
         for (i, k) in [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3]
@@ -175,7 +192,7 @@ impl Input {
         .iter()
         .position(|k| self.just_pressed.contains(k))
         .map_or(0, |i| i as u8 + 1);
-        if ctrl {
+        if x {
             *b |= buttons::CROUCH;
         }
         if shift {
@@ -188,14 +205,14 @@ impl Input {
         ability
     }
 
-    /// The action mode's keys: the right button is the secondary, Ctrl (or C: a browser
-    /// keeps Ctrl+W for itself, WEB.md 3.4) guards, Shift is the first ability, `1`–`4`
-    /// the actives. Returns the active pressed.
-    fn action_keys(&mut self, b: &mut u16, ctrl: bool, shift: bool) -> u8 {
+    /// The action mode's keys: the right button is the secondary, `X` guards (Ctrl did
+    /// until 2026-10-22, when it became every mode's crouch, MODES.md 3.5), Shift is the
+    /// first ability, `1`–`4` the actives. Returns the active pressed.
+    fn action_keys(&mut self, b: &mut u16, x: bool, shift: bool) -> u8 {
         if self.mouse.contains(&MouseButton::Right) {
             *b |= buttons::SECONDARY;
         }
-        if ctrl {
+        if x {
             *b |= buttons::GUARD;
         }
         if shift {

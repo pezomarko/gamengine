@@ -216,7 +216,15 @@ impl Playback {
         let entities = self.replay.entities_at(self.time);
         let me = self.followed(&entities);
         let (eye, yaw, pitch) = match me {
-            Some(m) => (m.pos + Vec3::Z * Hull::Player.eye_height(), m.yaw, m.pitch),
+            Some(m) => {
+                // A crouched body's eye is the crouched hull's (MODES.md 12).
+                let hull = if m.flags & gm_net::snapshot::flags::CROUCHED != 0 {
+                    Hull::Crouch
+                } else {
+                    Hull::Player
+                };
+                (m.pos + Vec3::Z * hull.eye_height(), m.yaw, m.pitch)
+            }
             None => (Vec3::new(0.0, 0.0, 128.0), 0.0, 0.0),
         };
         for e in &entities {

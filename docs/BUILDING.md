@@ -29,9 +29,12 @@ cargo test --workspace
 cargo run --release -p gm-client -- --map assets/maps/built/test_room.bsp
 ```
 
-`map build` runs `qbsp -leaktest`, `vis` and `light -extra -lit`. The output is
-`assets/maps/built/<name>.bsp` plus `<name>.lit` (RGB lightmaps). Both are committed; the
-`.prt` portal file is not. `map gen-arena` regenerates `assets/maps/src/arena.map`, the 8v8
+`map build` runs `qbsp -leaktest`, `vis` and `light -extra -lit`, then compiles the map once
+more for Hexen II and merges that game's crouching hull (hull 3, 32 × 32 × 28) into the
+Quake map as the crouched hull (MODES.md 12; `map crouch <name>.map <name>.bsp` does only that
+to a built map, and `map info` says whether a map has it: the zone refuses one without). The
+output is `assets/maps/built/<name>.bsp` plus `<name>.lit` (RGB lightmaps). Both are
+committed; the `.prt` portal file is not. `map gen-arena` regenerates `assets/maps/src/arena.map`, the 8v8
 arena of Phase 3 (symmetric, two team bases, pillars, low cover, side walkways), and
 `map gen-town` regenerates `assets/maps/src/town.map`, the town of Phase 6 (a square under an
 open sky lit by the sun, houses, a market of 30 stall tiles, 128 spawns), and `map gen-dungeon`

@@ -1613,7 +1613,11 @@ root's shape (3.4: `scoped` in content, a walk as good as standing, the spray's 
 crouch seen (MODES.md 3.5, 10.2; protocol v14): the hitbox loses 16 u off its top while crouched, live and in
 the rewind, so the head band moves with the body; the drop is 16 u for the eye, the hitbox and the drawn body
 alike; every body carries a `CROUCHED` flag and is drawn squatting, its name and numbers lower; the world
-hull is unchanged.
+hull is unchanged. **2026-10-22**: the crouch in every mode, with a hull of its own and the crouch-jump
+(MODES.md 12): Ctrl crouches in every mode (`X` alone guards in the action mode); the crouched world hull is
+half the standing one (Hexen II's hull 3, merged into each map by `gm-tools map build`/`map crouch`), on the
+ground after the root's 0.4 s duck time, in the air at once round the hull's centre (the feet come up 14,
+a 45.6 u jump clears 59); the eye, the hitbox's top and the drawn squat come down 22.
 
 **2026-10-13, Phase 17's first body** (the director: "we currently only have fat stickman like figure as
 placeholder, pick one class, and do good model for it, also weapon"; CONTENT.md 3.2, 7 and 13): the

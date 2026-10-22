@@ -16,10 +16,11 @@ mod tests;
 
 pub use mover::Seat;
 pub use mover::{
-    Action, CAST_ANIM_NONE, CREEP_SPEED, CROUCH_DROP, Company, Dash, GuardState, GunState, Input,
-    ItemRefusal, Mover, Nearby, RUN_SPEED, SCOPED_CONE, Script, anim, bar_cell, buttons,
-    capsule_at, command_exit_ticks, cone_deg, item_refusal, kit_use_ticks, melee_hit_point,
-    move_share, sees, step_mover, view_dir, yaw_toward,
+    Action, CAST_ANIM_NONE, CREEP_SPEED, CROUCH_DROP, CROUCH_TUCK, Company, DUCK_SECS, Dash,
+    GuardState, GunState, Input, ItemRefusal, Mover, Nearby, RUN_SPEED, SCOPED_CONE, Script, anim,
+    bar_cell, buttons, capsule_at, command_exit_ticks, cone_deg, crouch_step, duck_curve,
+    item_refusal, kit_use_ticks, melee_hit_point, move_share, sees, step_mover, view_dir,
+    yaw_toward,
 };
 pub use zone::{
     Area, DOT_INTERVAL_TICKS, Driver, HEAD_BAND, History, HitKind, INSTANT_AREA_ECHO_MS,

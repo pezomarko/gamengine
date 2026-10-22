@@ -135,8 +135,9 @@ pub enum Viewport {
 }
 
 /// The view (CLIENT.md 2): the viewport, the camera's aim, the view model's motion
-/// (LOOK.md 6.4), the recoil's punch (MODES.md 3.3), the scope's zoom, the crouch's
-/// drop, and the yaw each body was drawn facing (LOOK.md 13.9).
+/// (LOOK.md 6.4), the recoil's punch (MODES.md 3.3), the scope's zoom, the eye's height
+/// and a crouch's lift in the air (MODES.md 3.5), and the yaw each body was drawn facing
+/// (LOOK.md 13.9).
 struct View {
     /// The view model's kick (1 at a launch, decaying) and stride phase (LOOK.md 6.4).
     kick: f32,
@@ -148,8 +149,12 @@ struct View {
     aim: (f32, f32),
     /// The recoil's punch on the view (MODES.md 3.3), (yaw, pitch) degrees, decaying.
     punch: (f32, f32),
-    /// How far the eye has sunk into a crouch (MODES.md 3.4), units, eased.
-    eye_drop: f32,
+    /// The eye over the drawn origin (MODES.md 3.4, 3.5), units, eased: the mover's, 22
+    /// standing, at the origin crouched, sinking over a crouch under way.
+    eye_height: f32,
+    /// A crouch or a rise in the air moved the origin by the tuck (MODES.md 3.5): the
+    /// drawn origin takes the move back, and lets it go at the eye's pace.
+    lift: f32,
     /// The scope's zoom this frame (1 without one): the field of view is divided by it
     /// and so is the mouse.
     zoom: f32,

@@ -1154,7 +1154,7 @@ mod kit_tests {
                 let mut input = Input::default();
                 input.keys.insert(*key);
                 input.just_pressed.insert(*key);
-                let first = input.sim_input(0.0, 0.0, None, gun, rpg);
+                let first = input.sim_input(0.0, 0.0, 0.0, None, gun, rpg);
                 assert!(
                     first.buttons & buttons::USE != 0,
                     "{mode}: {} just pressed is USE",
@@ -1167,13 +1167,81 @@ mod kit_tests {
                     BAR_KEYS[i]
                 );
                 // Held on, it is pressed once: the next tick carries it no more.
-                let second = input.sim_input(0.0, 0.0, None, gun, rpg);
+                let second = input.sim_input(0.0, 0.0, 0.0, None, gun, rpg);
                 assert!(
                     second.buttons & buttons::USE == 0 && second.use_slot == 0,
                     "{mode}: {} held is not pressed again",
                     BAR_KEYS[i]
                 );
             }
+        }
+    }
+
+    /// MODES.md 12: Ctrl crouches in every mode; `X` keeps its part in each (the FPS
+    /// mode's crouch beside Ctrl, the action mode's guard, nothing in the RPG mode); with
+    /// Ctrl held, Space is a jump in the action mode even while the dash is ready.
+    #[test]
+    fn ctrl_crouches_in_every_mode_and_x_keeps_its_part() {
+        let modes: [(&str, bool, Option<crate::rpg::RpgFrame>, u16); 3] = [
+            ("action", false, None, buttons::GUARD),
+            ("fps", true, None, buttons::CROUCH),
+            ("rpg", false, Some(crate::rpg::RpgFrame::default()), 0),
+        ];
+        for (mode, gun, rpg, x) in modes {
+            let mut input = Input::default();
+            input.keys.insert(KeyCode::ControlLeft);
+            let held = input.sim_input(0.0, 0.0, 0.0, None, gun, rpg);
+            assert!(held.buttons & buttons::CROUCH != 0, "{mode}: Ctrl crouches");
+            assert!(
+                held.buttons & buttons::GUARD == 0,
+                "{mode}: Ctrl guards no more"
+            );
+            let mut input = Input::default();
+            input.keys.insert(KeyCode::KeyX);
+            let held = input.sim_input(0.0, 0.0, 0.0, None, gun, rpg);
+            assert_eq!(
+                held.buttons & (buttons::CROUCH | buttons::GUARD),
+                x,
+                "{mode}: what X holds"
+            );
+        }
+        // The action mode's Space: the dash while it is ready, a jump with Ctrl held.
+        let space = |ctrl: bool| {
+            let mut input = Input::default();
+            input.keys.insert(KeyCode::Space);
+            input.just_pressed.insert(KeyCode::Space);
+            if ctrl {
+                input.keys.insert(KeyCode::ControlLeft);
+            }
+            input.sim_input(0.0, 0.0, 0.0, Some(2), false, None)
+        };
+        let dodge = space(false);
+        assert_eq!(dodge.ability, 2);
+        assert!(dodge.buttons & buttons::JUMP == 0);
+        let jump = space(true);
+        assert_eq!(jump.ability, 0);
+        assert!(jump.buttons & buttons::JUMP != 0 && jump.buttons & buttons::CROUCH != 0);
+    }
+
+    /// MODES.md 12: the action mode's keys walk along the camera, though the frame's yaw
+    /// is the aim re-aimed through the crosshair (toward a near wall's point 24 u to the
+    /// right of the body): a walk straight at a crawl hole goes into it.
+    #[test]
+    fn the_keys_walk_along_the_camera_whatever_the_aim() {
+        for (keys, want) in [
+            (vec![KeyCode::KeyW], glam::Vec3::Y),
+            (vec![KeyCode::KeyD], glam::Vec3::X),
+            (vec![KeyCode::KeyS], -glam::Vec3::Y),
+        ] {
+            let mut input = Input::default();
+            for k in keys {
+                input.keys.insert(k);
+            }
+            let f = input.sim_input(70.0, 90.0, 0.0, None, false, None);
+            assert_eq!(f.yaw, 70.0, "the aim stays the aim");
+            let (fwd, right) = gm_core::movement::yaw_vectors(f.yaw);
+            let dir = fwd * f.forward + right * f.side;
+            assert!((dir - want).length() < 1e-4, "{dir:?} for {want:?}");
         }
     }
 

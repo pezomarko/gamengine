@@ -4,6 +4,7 @@
 mod arena;
 mod budget;
 mod content;
+mod crouch;
 mod dungeon;
 mod glb;
 mod hubcli;
@@ -166,6 +167,16 @@ enum MapCmd {
         #[arg(long, default_value = "assets/maps/src/dungeon.map")]
         out: PathBuf,
     },
+    /// Merge the crouched hull (MODES.md 3.5) into a compiled .bsp: its source compiled
+    /// for Hexen II, whose hull 3 is the crouching player (`map build` does this itself).
+    Crouch {
+        map: PathBuf,
+        bsp: PathBuf,
+        #[arg(long, default_value = "assets/textures")]
+        wad_dir: PathBuf,
+        #[arg(long)]
+        tools_dir: Option<PathBuf>,
+    },
     /// Print statistics about a compiled .bsp.
     Info { bsp: PathBuf },
 }
@@ -232,6 +243,19 @@ fn main() -> Result<()> {
                 no_light,
             };
             let bsp = mapbuild::build(&map, &opts, &tools)?;
+            mapbuild::info(&bsp)
+        }
+        Cmd::Map {
+            cmd:
+                MapCmd::Crouch {
+                    map,
+                    bsp,
+                    wad_dir,
+                    tools_dir,
+                },
+        } => {
+            let tools = mapbuild::find_tools(tools_dir.as_deref())?;
+            crouch::add(&map, &bsp, &wad_dir, &tools)?;
             mapbuild::info(&bsp)
         }
         Cmd::Map {

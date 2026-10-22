@@ -196,6 +196,47 @@ fn smithy_entities(m: &mut Map, x: f32, y: f32) {
     ]);
 }
 
+/// The crouch yard (MODES.md 12, 2026-10-22), in the gated north street: a garden wall
+/// across it, `YARD_WALL` high, with a crawl hole 40 u high that only a crouch (28 u) goes
+/// through, and before the wall a stack of crates `YARD_CRATES` high, which a jump (45.6 u)
+/// does not reach and a crouch-jump (59.6 u) does; from the crates a crouch-jump clears
+/// the wall (52 u more).
+const YARD_WALL: f32 = 104.0;
+const YARD_CRATES: f32 = 52.0;
+
+fn crouch_yard(m: &mut Map) {
+    let (y0, y1) = (896.0f32, 912.0f32);
+    let (hole0, hole1, hole_top) = (-112.0f32, -48.0f32, 40.0f32);
+    m.boxb(
+        [-STREET, y0, 0.0],
+        [hole0, y1, YARD_WALL],
+        "wall_brick",
+        "floor_stone",
+        "wall_brick",
+    );
+    m.boxb(
+        [hole1, y0, 0.0],
+        [STREET, y1, YARD_WALL],
+        "wall_brick",
+        "floor_stone",
+        "wall_brick",
+    );
+    m.boxb(
+        [hole0, y0, hole_top],
+        [hole1, y1, YARD_WALL],
+        "wall_brick",
+        "floor_stone",
+        "trim_dark",
+    );
+    m.boxb(
+        [32.0, 784.0, 0.0],
+        [128.0, y0, YARD_CRATES],
+        "ramp_wood",
+        "ramp_wood",
+        "ramp_wood",
+    );
+}
+
 /// The town as `.map` text.
 pub fn generate() -> String {
     let mut m = Map::new();
@@ -325,6 +366,9 @@ pub fn generate() -> String {
         "roof_tile",
         "ramp_wood",
     );
+
+    // The crouch yard in the north street (MODES.md 12).
+    crouch_yard(&mut m);
 
     // The town board, by the market: two posts and the board between them.
     let (bx, by) = (-64.0f32, -560.0f32);

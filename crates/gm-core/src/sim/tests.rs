@@ -2914,7 +2914,7 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
             (a, held(0.0, 0.0, 0, 0)),
             (b, input(180.0, 0.0, buttons::CROUCH)),
         ],
-        4,
+        DOWN_TICKS,
     );
     let crouched = zone.player(b).unwrap().capsule();
     let top = |c: &Capsule| c.a.z.max(c.b.z) + c.radius;
@@ -2934,8 +2934,8 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
         "the history remembers the posture"
     );
     // A's eye is 46 u over the feet, B's standing band from 44 up and B's crouched top at
-    // 40: the level shot that was a headshot flies over the crouched body (the eye is
-    // level, so the bolt is at 46 u at 300 u, over a top of 40).
+    // 34: the level shot that was a headshot flies over the crouched body (the eye is
+    // level, so the bolt is at 46 u at 300 u, over a top of 34).
     let aim = Input {
         pitch: 0.0,
         ..held(0.0, 0.0, buttons::PRIMARY | buttons::SCOPE, 0)
@@ -2972,11 +2972,12 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
             (a, held(0.0, 0.0, 0, 0)),
             (b, input(180.0, 0.0, buttons::CROUCH)),
         ],
-        4,
+        DOWN_TICKS,
     );
-    // 46 - 300 tan(2.1°) = 35: inside the top 12 of a 40 u hull.
+    // 46 - 291 tan(3°) = 31 where it meets the round top: inside the top 12 of a 34 u
+    // hull.
     let aim = Input {
-        pitch: 2.1,
+        pitch: 3.0,
         ..held(0.0, 0.0, buttons::PRIMARY | buttons::SCOPE, 0)
     };
     tick(
@@ -2992,7 +2993,7 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
             (
                 a,
                 Input {
-                    pitch: 2.1,
+                    pitch: 3.0,
                     ..held(0.0, 0.0, buttons::SCOPE, 0)
                 },
             ),
@@ -3009,7 +3010,7 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
         })
         .unwrap_or(0);
     let body = {
-        // The same shot into a standing body enters at 35 u: under its band of 44.
+        // The same shot into a standing body enters at 31 u: under its band of 44.
         let (world, mut zone, a, b) = gun_duel(0.0, 300.0);
         run(
             &mut zone,
@@ -3024,7 +3025,7 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
                 (
                     a,
                     Input {
-                        pitch: 2.1,
+                        pitch: 3.0,
                         ..held(0.0, 0.0, buttons::PRIMARY | buttons::SCOPE, 0)
                     },
                 ),
@@ -3039,7 +3040,7 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
                 (
                     a,
                     Input {
-                        pitch: 2.1,
+                        pitch: 3.0,
                         ..held(0.0, 0.0, buttons::SCOPE, 0)
                     },
                 ),
@@ -3060,6 +3061,340 @@ fn a_crouched_body_is_shorter_and_a_shot_at_its_standing_head_passes_over() {
         hit >= body * 3,
         "the crouched band is where the crouched head is: {hit} against {body}"
     );
+}
+
+/// Frames of holding the crouch on the ground that see it done (`DUCK_SECS` at `RATE`).
+const DOWN_TICKS: usize = 27;
+
+/// One body of `build` at the origin's rest height facing +x, in `world`.
+fn alone_in(world: BoxWorld, build: &str) -> (BoxWorld, Zone, EntityId) {
+    let (_, zone, ids) = arena_builds(&[(build, Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
+    (world, zone, ids[0])
+}
+
+fn mover(zone: &Zone, id: EntityId) -> Mover {
+    zone.player(id).unwrap().mover
+}
+
+#[test]
+fn a_crouch_on_the_ground_takes_the_duck_time_and_the_eye_sinks_over_it() {
+    // MODES.md 3.5: the root's 0.4 s. The body stands (its hull, its hitbox, its pace)
+    // until the time is up; the eye goes down the whole way meanwhile.
+    let (world, mut zone, a) = alone_in(BoxWorld::floor(), "blade");
+    // Settled on the floor first (the zone runs a frame a tick after it is queued).
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 3);
+    let standing = (mover(&zone, a).eye(), zone.player(a).unwrap().capsule());
+    let mut eyes = Vec::new();
+    for _ in 0..DOWN_TICKS + 2 {
+        tick(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, buttons::CROUCH))],
+            0,
+        );
+        let m = mover(&zone, a);
+        eyes.push(m.eye().z);
+        if !m.crouched {
+            assert_eq!(m.mv.hull, Hull::Player);
+            assert_eq!(zone.player(a).unwrap().capsule(), standing.1);
+        }
+    }
+    let first = eyes
+        .iter()
+        .position(|z| *z < standing.0.z - 0.001)
+        .expect("the eye began to sink");
+    let done = eyes
+        .iter()
+        .position(|z| (standing.0.z - z - CROUCH_DROP).abs() < 0.01)
+        .expect("the eye got down");
+    // Frames 1 to n of the crouch sink the eye; frame n is the one that reaches 0.4 s.
+    let secs = (done - first + 1) as f32 * RATE.dt();
+    assert!(
+        (secs - DUCK_SECS).abs() <= RATE.dt() * 1.01,
+        "down after {secs} s"
+    );
+    assert!(
+        eyes.windows(2).all(|w| w[1] <= w[0]),
+        "the eye only sinks: {eyes:?}"
+    );
+    let half = eyes[(first + done) / 2];
+    assert!(
+        half < standing.0.z - 5.0 && half > standing.0.z - CROUCH_DROP + 5.0,
+        "half way it is half way: {eyes:?}"
+    );
+    let m = mover(&zone, a);
+    assert!(m.crouched && m.mv.hull == Hull::Crouch);
+    assert_eq!(m.mv.origin.z, REST_Z, "the feet stayed where they were");
+    // Up at once (the release runs the tick after it is queued).
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 2);
+    let m = mover(&zone, a);
+    assert!(!m.crouched && (m.eye().z - standing.0.z).abs() < 0.01);
+    // A press let go before the time is up never crouches.
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        10,
+    );
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 1);
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        10,
+    );
+    assert!(
+        !mover(&zone, a).crouched,
+        "the time starts again with every press"
+    );
+}
+
+#[test]
+fn a_crouch_goes_under_what_a_stand_cannot_and_stays_down_under_it() {
+    // A slab whose underside is 36 u over the floor, from x = 100 on: the standing hull's
+    // 56 does not go under it, the crouched 28 does.
+    let mut world = BoxWorld::floor();
+    world.push(
+        Vec3::new(100.0, -400.0, 36.0),
+        Vec3::new(400.0, 400.0, 120.0),
+    );
+    let (world, mut zone, a) = alone_in(world, "blade");
+    run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 120);
+    let x = mover(&zone, a).mv.origin.x;
+    assert!(
+        (x - 84.0).abs() < 1.0,
+        "standing it stops at the slab's face: {x}"
+    );
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 1.0, buttons::CROUCH))],
+        64,
+    );
+    let m = mover(&zone, a);
+    assert!(
+        m.crouched && m.mv.origin.x > 150.0,
+        "crouched it went under: {:?}",
+        m.mv.origin
+    );
+    // Let go under the slab: there is no room to stand, so it stays down, and walks on.
+    run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 20);
+    let m = mover(&zone, a);
+    assert!(m.crouched, "no room to stand under the slab");
+    // On the floor: a step against the face left it a hair over it.
+    assert!((m.mv.origin.z - REST_Z).abs() < 0.1, "{:?}", m.mv.origin);
+    // Out the far side it stands by itself.
+    run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 200);
+    let m = mover(&zone, a);
+    assert!(m.mv.origin.x > 420.0, "{:?}", m.mv.origin);
+    assert!(!m.crouched && m.mv.hull == Hull::Player);
+}
+
+/// Run at a 52 u ledge from x = 60 on and jump when the body is `before` units short of
+/// its face, crouching `crouch_lead` frames before the jump (`None`: never); the height the
+/// body ends at.
+fn jump_at_the_ledge(crouch_lead: Option<i32>) -> f32 {
+    let mut world = BoxWorld::floor();
+    world.push(Vec3::new(60.0, -400.0, 0.0), Vec3::new(600.0, 400.0, 52.0));
+    let (_, mut zone, ids) = arena_builds(&[("blade", Vec3::new(-400.0, 0.0, REST_Z), 0.0)]);
+    let a = ids[0];
+    // The run up: full speed before the jump.
+    run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 40);
+    let speed = mover(&zone, a).mv.velocity.x;
+    // Jump where the face is reached 0.34 s into the jump: high on the arc.
+    let take_off = 60.0 - 16.0 - speed * 0.34;
+    let mut jumped = false;
+    for _ in 0..200 {
+        let m = mover(&zone, a);
+        let at = m.mv.origin.x;
+        let jump_now = !jumped && at + speed * RATE.dt() >= take_off;
+        jumped |= jump_now;
+        let ticks_to_jump = ((take_off - at) / (speed * RATE.dt())).ceil() as i32;
+        let crouch = match crouch_lead {
+            Some(_) if jumped => true,
+            Some(lead) => ticks_to_jump <= lead,
+            None => false,
+        };
+        let mut b = if crouch { buttons::CROUCH } else { 0 };
+        if jump_now {
+            b |= buttons::JUMP;
+        }
+        tick(&mut zone, &world, &[(a, input(0.0, 1.0, b))], 0);
+    }
+    mover(&zone, a).mv.origin.z
+}
+
+#[test]
+fn a_crouch_jump_lands_on_a_ledge_a_jump_cannot_reach() {
+    // The root's crouch-jump (MODES.md 3.5): crouched in the air the hull keeps its centre,
+    // the feet come up CROUCH_TUCK, and a jump that peaks at 45.6 u clears 52.
+    let on_top = 52.0 + REST_Z;
+    let plain = jump_at_the_ledge(None);
+    assert!(
+        (plain - REST_Z).abs() < 0.5,
+        "a plain jump falls back off the face: {plain}"
+    );
+    let with = jump_at_the_ledge(Some(0));
+    assert!(
+        (with - on_top).abs() < 0.5,
+        "the crouch pressed with the jump tucks and lands on top: {with}"
+    );
+    // Pressed a few frames before the jump the crouch is still under way when the body
+    // leaves the ground, and is done in the air: a crouch-jump too, as in the root.
+    let early = jump_at_the_ledge(Some(12));
+    assert!(
+        (early - on_top).abs() < 0.5,
+        "a crouch begun just before the jump tucks in the air: {early}"
+    );
+    assert_eq!(CROUCH_TUCK, 14.0);
+}
+
+#[test]
+fn in_the_air_a_crouch_keeps_the_centre_and_getting_up_waits_for_room() {
+    let (world, mut zone, a) = alone_in(BoxWorld::floor(), "blade");
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 3);
+    tick(&mut zone, &world, &[(a, input(0.0, 0.0, buttons::JUMP))], 0);
+    // The jump runs the tick after it is queued, the crouch the tick after that.
+    tick(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        0,
+    );
+    let before = mover(&zone, a);
+    assert!(!before.mv.on_ground && !before.crouched, "{before:?}");
+    tick(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        0,
+    );
+    let m = mover(&zone, a);
+    assert!(m.crouched && m.stance_lift == CROUCH_TUCK, "{m:?}");
+    let centre = |m: &Mover| m.aabb().center().z;
+    // The frame's flight, under gravity's pull over it.
+    let rise = (before.mv.velocity.z + m.mv.velocity.z) * 0.5 * RATE.dt();
+    assert!(
+        (centre(&m) - centre(&before) - rise).abs() < 0.5,
+        "the box kept its centre: {} then {} (the flight {rise})",
+        centre(&before),
+        centre(&m)
+    );
+    // Up near the top of the jump: room enough, the feet go back down the tuck.
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        12,
+    );
+    tick(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 0);
+    let up_from = mover(&zone, a);
+    assert!(up_from.crouched && !up_from.mv.on_ground, "{up_from:?}");
+    tick(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 0);
+    let m = mover(&zone, a);
+    assert!(!m.crouched && m.stance_lift == -CROUCH_TUCK, "{m:?}");
+    let flight = (up_from.mv.velocity.z + m.mv.velocity.z) * 0.5 * RATE.dt();
+    assert!(
+        (m.mv.origin.z - (up_from.mv.origin.z - CROUCH_TUCK + flight)).abs() < 0.5,
+        "the feet went down the tuck: {} then {} (the flight {flight})",
+        up_from.mv.origin.z,
+        m.mv.origin.z
+    );
+    // Down again, and let go when the tucked feet are nearer the floor than the tuck: no
+    // room to stand round the centre, so it lands crouched and stands on its feet there.
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        2,
+    );
+    assert!(mover(&zone, a).crouched);
+    let mut stayed = false;
+    for _ in 0..120 {
+        let m = mover(&zone, a);
+        let feet = m.mv.origin.z - 24.0;
+        // Hold it until the feet are nearer the floor than the tuck (the release runs a
+        // tick later, a few units lower still), then let go.
+        let hold = !m.mv.on_ground && feet > 12.0;
+        let b = if hold { buttons::CROUCH } else { 0 };
+        tick(&mut zone, &world, &[(a, input(0.0, 0.0, b))], 0);
+        let n = mover(&zone, a);
+        if !hold && !n.mv.on_ground && n.crouched {
+            stayed = true;
+        }
+        if n.mv.on_ground && !n.crouched {
+            break;
+        }
+    }
+    assert!(
+        stayed,
+        "the ground too near under the tucked feet kept it down"
+    );
+    let m = mover(&zone, a);
+    assert!(m.mv.on_ground && !m.crouched, "{m:?}");
+    assert!((m.mv.origin.z - REST_Z).abs() < 0.1, "{m:?}");
+}
+
+#[test]
+fn a_helpless_body_keeps_the_posture_it_was_struck_in() {
+    // A stagger or a knockdown (MATRIX.md 8, MODES.md 4.5): no crouching down to shrink the
+    // hitbox, no getting up either, until it is over.
+    let (world, mut zone, a) = alone_in(BoxWorld::floor(), "blade");
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 3);
+    let down = crate::vocab::ApplyStatus {
+        status: Status::Knockdown,
+        duration: 40,
+        magnitude: 0.0,
+        max_stacks: 1,
+        stacking: crate::vocab::StackRule::Refresh,
+        target: crate::vocab::StatusTarget::Hit,
+        dispellable: true,
+    };
+    zone.apply_status(a, a, &down);
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        DOWN_TICKS,
+    );
+    let m = mover(&zone, a);
+    assert!(m.statuses.downed() && !m.crouched && m.duck == 0.0, "{m:?}");
+    // Up again, the crouch held all along is a crouch.
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::CROUCH))],
+        40 + DOWN_TICKS,
+    );
+    assert!(mover(&zone, a).crouched);
+    // And struck down crouched it stays crouched, the button let go.
+    zone.apply_status(a, a, &down);
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 10);
+    let m = mover(&zone, a);
+    assert!(m.statuses.downed() && m.crouched, "{m:?}");
+}
+
+#[test]
+fn every_mode_crouches() {
+    // Ctrl crouches in every mode since 2026-10-22 (MODES.md 3.5): the zone never asked
+    // which mode a body plays; the hull, the hitbox and the eye are the same in each.
+    for build in ["musketeer", "blade", "frostweaver"] {
+        let (world, mut zone, a) = alone_in(BoxWorld::floor(), build);
+        let standing = zone.player(a).unwrap().capsule();
+        run(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, buttons::CROUCH))],
+            DOWN_TICKS,
+        );
+        let p = zone.player(a).unwrap();
+        assert!(
+            p.mover.crouched && p.mover.mv.hull == Hull::Crouch,
+            "{build}"
+        );
+        let top = |c: &Capsule| c.a.z.max(c.b.z) + c.radius;
+        assert!(top(&p.capsule()) < top(&standing) - 10.0, "{build}");
+    }
 }
 
 #[test]

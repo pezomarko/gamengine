@@ -205,7 +205,8 @@ impl Status {
 pub struct AbilityId(pub u16);
 
 /// Archetype frames decide the hitbox capsule and the animation rig, never the mesh.
-/// World collision uses [`crate::trace::Hull::Player`] for all of them.
+/// World collision uses [`crate::trace::Hull::Player`] for all of them standing, and
+/// [`crate::trace::Hull::Crouch`] crouched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "bitcode", derive(bitcode::Encode, bitcode::Decode))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
