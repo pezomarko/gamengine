@@ -1013,6 +1013,7 @@ fn turn_between(a: f32, b: f32) -> f32 {
 }
 
 /// Start the pressed slot's ability, or what its chain or its target make of it.
+#[allow(clippy::too_many_arguments)]
 fn try_activate<W: CollisionWorld + ?Sized>(
     world: &W,
     sheet: &Sheet,
