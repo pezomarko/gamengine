@@ -22,6 +22,9 @@ pub const AIM_ERROR_DEG: f32 = 1.5;
 const LOS_EVERY: Tick = 4;
 /// A hostile this close in a windup is a threat to guard against.
 const THREAT_REACH: f32 = 130.0;
+/// A shield that waits for an opening swings into the target's guard after this long: two
+/// shields face to face would wait for ever.
+const PATIENCE_MS: u32 = 2000;
 
 /// How to fight one target.
 pub struct Engage<'a> {
@@ -71,6 +74,8 @@ pub struct Fighter {
     /// Line of sight to a body, as last looked at.
     los: Option<(EntityId, Tick, bool)>,
     guard_until: Tick,
+    /// Since when the shield has waited for an opening.
+    waiting: Option<Tick>,
     /// The body being walked round, on which side (1 = to its right), and until when that
     /// choice stands.
     round: Option<(EntityId, f32, Tick)>,
@@ -115,6 +120,7 @@ impl Fighter {
             error: (0.0, 0.0),
             los: None,
             guard_until: 0,
+            waiting: None,
             round: None,
         }
     }
@@ -397,6 +403,16 @@ impl Fighter {
         self.finish(s, f)
     }
 
+    /// Sit, or stay seated (SKILLS.md 2): a standing body presses to sit; a seated one
+    /// presses nothing, since a press would stand it up.
+    pub fn sit(&mut self, s: &Senses<'_>) -> Input {
+        let f = Frame {
+            buttons: if s.me.seated() { 0 } else { buttons::SIT },
+            ..Frame::default()
+        };
+        self.finish(s, f)
+    }
+
     /// Walk to `goal` (within `arrive`), looking where it goes. Returns the frame and
     /// whether it has arrived.
     pub fn go(&mut self, s: &Senses<'_>, goal: Vec3, arrive: f32) -> (Input, bool) {
@@ -576,7 +592,8 @@ impl Fighter {
         // A body with a shield does not open itself while a blow it could block is on its
         // way: it starts nothing until the swing has landed (and answers in the recovery).
         // The same body swings only into an opening: while the target faces it within
-        // reach and is not recovering, casting or staggered, it waits behind its shield.
+        // reach and is not recovering, casting or staggered, it waits behind its shield, for
+        // `PATIENCE_MS` at most.
         let shield = matches!(self.plan.guard, GuardPlan::Block { .. });
         let facing_me = t.facing().truncate().dot(-to.normalize_or_zero()) >= 0.3;
         let opening = !facing_me
@@ -585,7 +602,14 @@ impl Fighter {
                 t.anim,
                 anim::RECOVER | anim::CAST | anim::STAGGER | anim::DEAD
             );
-        let hold_back = shield && (self.blow_coming(s, e.hostile) || !opening);
+        let waited = if shield && !opening && !busy {
+            tick_delta(s.tick, *self.waiting.get_or_insert(s.tick))
+        } else {
+            self.waiting = None;
+            0
+        };
+        let patient = waited < s.ticks(PATIENCE_MS) as i32;
+        let hold_back = shield && (self.blow_coming(s, e.hostile) || (!opening && patient));
 
         // ---- a script already running: keep it on target ----
         if busy {

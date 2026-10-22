@@ -340,6 +340,9 @@ pub enum FromClient {
     Infuse {
         fee: i64,
     },
+    /// Kneel at the shrine the player stands at: every harmful status is washed off the body;
+    /// answered by a line, always (SKILLS.md 5). v36.
+    Shrine,
 }
 
 /// What a game master may do to a running zone (GM.md 2): tune its timings, make a body

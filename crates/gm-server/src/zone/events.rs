@@ -65,6 +65,7 @@ impl Run {
                 result,
             } => self.on_smith_bought(id, material, result),
             ClientEvent::Infuse { id, fee } => self.on_infuse(id, fee),
+            ClientEvent::Shrine { id } => self.on_shrine(id),
             ClientEvent::Infused {
                 id,
                 character,

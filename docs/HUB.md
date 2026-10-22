@@ -391,6 +391,12 @@ it does not know goes on to the next: one stream, one notice.
   there (no second finger); migration 0016 takes off what was worn on the places that
   went and makes a worn ring or cape the accessory.
 
+- **The ladder** (SKILLS.md 5; `HUB_VERSION` 24, protocol v36, migration 0021,
+  2026-10-22): `GearReading.locked` holds the kit's cells whose trial is not passed
+  (`LADDER`: `yard` opens the second move, `gate` the trick, `hall` the spell). A pass of a
+  ladder trial tells the character's zone, which rearms the body. Migration 0021 gives every
+  character made before it the three passes.
+
 - **The Essence** (SKILLS.md 4; `HUB_VERSION` 23, protocol v35, migration 0020,
   2026-10-22): `characters.essence_form` and `essence_item`. The first pass of the `rite`
   trial wakes it in the weapon in hand, in the form `essence_of` gives that weapon's prop;

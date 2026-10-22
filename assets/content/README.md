@@ -108,14 +108,20 @@ with `gm_creature` entities.
 
 | Key | Body | Health | Kit | Sight / leash | Back after | Drops |
 |---|---|---|---|---|---|---|
-| sentinel | striker, mail, water | 1,200 | sword, crossbow, parry; overhead, dash | 700 / 900 | 600 s | nothing |
-| warden (boss) | colossus, plate, ground | 15,000 (stagger 400) | maul, stone_throw; quake, stomp | 900 / 1,100 | 120 s | 3 components (standard: core/iron, frame/ash, catalyst/basalt; top: core/dragonbone, shard/boss_scale, catalyst/basalt), 30 silver |
-| dummy (`still`) | colossus, leather, ground | 5,000 (never staggers) | nothing it uses | — | 5 s | nothing |
+| sentinel | striker, water | 120 | sword, crossbow, parry; overhead, dash | 700 / 900 | 600 s | nothing |
+| warden (boss) | colossus, ground | 1,500 (stagger 400) | maul, stone_throw; quake, stomp | 900 / 1,100 | 120 s | 3 components (standard: core/iron, frame/ash, catalyst/basalt; top: core/dragonbone, frame/whalebone, catalyst/basalt), 30 silver |
+| dummy (`still`) | colossus, ground | 500 | nothing it uses | — | 5 s | nothing |
+| yard_master | striker | 30 | drill, kick | 220 / 320 | 5 s | nothing |
+| shieldbearer | striker, ground | 160 | mace, shield_bash, shield_wall | 400 / 700 | 600 s | nothing |
+| cutthroat | infiltrator, air | 60 | dagger, throwing_knife; dash | 520 / 400 | 600 s | nothing |
+| venomer | caster, grass | 50 | venom_thorn, kick | 420 / 640 | 600 s | nothing |
 
 `trials.toml` (COMPANIONS.md 11): an encounter of a map judged through a lens. The four of
 the tutorial are on the Warden, 300 s, one human: `warden_leader` (500‰ of the party's damage
 under the candidate's orders, at most one party death), `warden_vanguard` (500‰ of the blows),
-`warden_striker` (350‰ of the damage), `warden_mender` (500‰ of the healing, no death).
+`warden_striker` (350‰ of the damage), `warden_mender` (500‰ of the healing, no death). The
+ladder's (SKILLS.md 5) are passed by clearing: `yard` in the town, `gate`, `hall` and
+`antechamber` in the dungeon, and `rite`, the Warden, which wakes the Essence.
 
 ## Looks (Phase 14, CONTENT.md 3)
 

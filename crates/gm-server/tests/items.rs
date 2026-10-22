@@ -940,6 +940,14 @@ async fn the_weapon_switched_to_is_what_everyone_sees_in_the_hand() {
 
     let gunner = Someone::new(town.hub_addr, &town.hub_cert, "Gunner", "musketeer").await;
     let watcher = Someone::new(town.hub_addr, &town.hub_cert, "Watcher", "blade").await;
+    // The pistol is the musketeer's second move, the ladder's to open (SKILLS.md 5).
+    for (step, _) in gm_hub_proto::protocol::LADDER {
+        let zone = "town".to_string();
+        town.db
+            .trial_pass(gunner.character, step, &zone, 0)
+            .await
+            .unwrap();
+    }
     let g = Hand::join(&gunner.ticket().await, "Gunner", 0.0, town.map.clone()).await;
     let w = Hand::join(&watcher.ticket().await, "Watcher", 0.0, town.map.clone()).await;
     let gunner_id = g.shared.lock().unwrap().id;

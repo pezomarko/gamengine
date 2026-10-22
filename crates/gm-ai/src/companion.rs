@@ -4,7 +4,7 @@
 use glam::Vec3;
 use gm_core::build::Sheet;
 use gm_core::movement::yaw_vectors;
-use gm_core::sim::{Input, tick_delta};
+use gm_core::sim::{Input, anim, tick_delta};
 use gm_core::tick::Tick;
 use gm_core::vocab::EntityId;
 
@@ -351,6 +351,9 @@ impl Companion {
                     let far = (place - me).truncate().length();
                     if far > 70.0 {
                         self.fighter.go(s, place, 36.0).0
+                    } else if c.anim == anim::SIT {
+                        // The commander rests, and its squad with it (SKILLS.md 2).
+                        self.fighter.sit(s)
                     } else {
                         self.fighter.idle(s, Some(s.eye() + c.facing() * 200.0))
                     }
@@ -358,5 +361,51 @@ impl Companion {
                 None => self.fighter.idle(s, None),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nav::NavGrid;
+    use crate::view::ZoneView;
+    use gm_core::collide::BoxWorld;
+    use gm_core::sim::{Zone, buttons, test_content};
+    use gm_core::tick::TickRate;
+
+    #[test]
+    fn a_squad_sits_when_its_commander_does() {
+        let rate = TickRate::COMBAT;
+        let world = BoxWorld::floor();
+        let mut zone = Zone::new(rate, 1, vec![], test_content::pack(rate));
+        let build = zone.content.build("blade").unwrap().clone();
+        let at = |x: f32| Vec3::new(x, 0.0, 24.0);
+        let leader = zone.add_player_at(build.clone(), 0, at(0.0), 0.0);
+        let me = zone.add_player_at(build, 0, at(-50.0), 0.0);
+        let sheet = zone.player(me).unwrap().sheet.clone();
+        let mut mind = Companion::new(1, &sheet, 0.0, 2);
+        let nav = NavGrid::build(&world, &[at(0.0)]);
+        for t in 1..=96 {
+            let sit = Input {
+                buttons: if t == 8 { buttons::SIT } else { 0 },
+                ..Input::default()
+            };
+            zone.queue_input(leader, t, sit, 0);
+            let view = ZoneView::of(&zone, &|_| None);
+            let s = view.senses(&zone, me, &world, &nav).unwrap();
+            let commander = s.body(leader).copied();
+            let squad = Squad {
+                commander: commander.as_ref(),
+                foes: &[],
+            };
+            let input = mind.think(&s, &squad);
+            zone.queue_input(me, t, input, 0);
+            zone.step(&world);
+        }
+        assert!(zone.player(leader).unwrap().mover.seated());
+        assert!(
+            zone.player(me).unwrap().mover.seated(),
+            "it sat with its commander"
+        );
     }
 }

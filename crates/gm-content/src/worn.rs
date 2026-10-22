@@ -291,6 +291,37 @@ mod tests {
     }
 
     #[test]
+    fn the_ladder_locks_the_cells_not_earned() {
+        use gm_core::build::{Kit, locked};
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let worn = |bits| Worn {
+            locked: bits,
+            ..worn_of(&looks, &pack, &blade, &six("sword", ""))
+        };
+        let all = Kit::from_build(&blade, &worn(0), &pack);
+        assert!(all.secondary.is_some() && all.actives[0].is_some());
+        let none = Kit::from_build(
+            &blade,
+            &worn(locked::SECOND | locked::TRICK | locked::SPELL),
+            &pack,
+        );
+        assert!(none.primary.is_some() && none.secondary.is_none());
+        let names = |k: &Kit| {
+            k.actives
+                .iter()
+                .flatten()
+                .map(|&i| k.abilities[i as usize].id.0 - 1)
+                .collect::<Vec<_>>()
+        };
+        let skill = pack.find("overhead").unwrap();
+        let spell = pack.find("illusion_slash").unwrap();
+        assert!(!names(&none).contains(&skill) && !names(&none).contains(&spell));
+        let trick = Kit::from_build(&blade, &worn(locked::SPELL), &pack);
+        assert!(names(&trick).contains(&skill) && !names(&trick).contains(&spell));
+    }
+
+    #[test]
     fn a_retired_row_is_offered_by_no_weapon() {
         let (looks, pack) = load();
         let blade = pack.build("blade").unwrap().clone();

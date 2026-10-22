@@ -262,6 +262,8 @@ pub struct Worn {
     pub essence: Option<u16>,
     /// The form, when the weapon in the right hand holds the Essence: the signature.
     pub signature: Option<u16>,
+    /// The cells not yet earned on the ladder (SKILLS.md 5), bits of `locked`.
+    pub locked: u8,
     /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
     /// holds its prop and the build may use, the one in `primary` among them; the K page
     /// offers them, and the build's stored primary picks one when it is one of them.
@@ -291,6 +293,7 @@ impl Worn {
         spell: None,
         essence: None,
         signature: None,
+        locked: 0,
         techniques: Vec::new(),
         armour: 0.0,
         ward: 0.0,
@@ -300,6 +303,15 @@ impl Worn {
         stamina_block: 100,
         block: None,
     };
+}
+
+/// The cells a character earns on the ladder (SKILLS.md 5), as bits of `Worn.locked`: the
+/// second move at the yard, the body's trick at the dungeon's gate, the weapon's spell in its
+/// hall. The signature needs the Essence.
+pub mod locked {
+    pub const SECOND: u8 = 1;
+    pub const TRICK: u8 = 2;
+    pub const SPELL: u8 = 4;
 }
 
 /// A build with the name content gave it.
@@ -499,15 +511,20 @@ impl Build {
     }
 
     fn kit_slots_with(&self, worn: &Worn, skill: Option<u16>) -> Vec<(u16, Slot)> {
-        let mut out = vec![
-            (worn.primary.unwrap_or(self.primary), Slot::Primary),
-            (worn.secondary.unwrap_or(self.secondary), Slot::Secondary),
-        ];
-        out.extend(skill.map(|i| (i, Slot::Active)));
+        let open = |cell| worn.locked & cell == 0;
+        let mut out = vec![(worn.primary.unwrap_or(self.primary), Slot::Primary)];
+        if open(locked::SECOND) {
+            out.push((worn.secondary.unwrap_or(self.secondary), Slot::Secondary));
+        }
+        out.extend(
+            skill
+                .filter(|_| open(locked::TRICK))
+                .map(|i| (i, Slot::Active)),
+        );
         // The weapon's spell (BODIES.md 7.2), after the body skill; a preset that holds
         // it among its own actives (the arena's frostweaver, the nova) has it once.
         out.extend(
-            [worn.spell, worn.signature]
+            [worn.spell.filter(|_| open(locked::SPELL)), worn.signature]
                 .into_iter()
                 .flatten()
                 .filter(|i| !self.actives.contains(i))

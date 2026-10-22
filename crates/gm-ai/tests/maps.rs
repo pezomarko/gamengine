@@ -81,17 +81,17 @@ fn the_dungeon_is_walkable_from_the_entry_to_the_warden() {
     let took = t0.elapsed();
     println!("dungeon: {} nodes in {took:?}", grid.len());
     let entry = Vec3::new(-1900.0, 0.0, 24.0);
-    let gate = Vec3::new(96.0, 480.0, 24.0);
+    let hall = Vec3::new(96.0, 480.0, 24.0);
     let warden = Vec3::new(1600.0, 352.0, 88.0);
-    let to_gate = grid.path_between(entry, gate).expect("the passage");
+    let to_hall = grid.path_between(entry, hall).expect("the passage");
     let to_warden = grid.path_between(entry, warden).expect("the stair");
     println!(
-        "entry to gate {:.0} u, entry to the Warden {:.0} u",
-        length(&to_gate),
+        "entry to the hall {:.0} u, entry to the Warden {:.0} u",
+        length(&to_hall),
         length(&to_warden)
     );
     // Through the passage with its two turns, not through rock: well over the straight line.
-    assert!(length(&to_gate) > 2300.0, "{}", length(&to_gate));
+    assert!(length(&to_hall) > 2300.0, "{}", length(&to_hall));
     assert!(
         (3800.0..5200.0).contains(&length(&to_warden)),
         "{}",

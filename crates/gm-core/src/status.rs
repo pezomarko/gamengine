@@ -92,13 +92,20 @@ impl Statuses {
         *self = Statuses::default();
     }
 
-    fn drop_where(&mut self, drop: impl Fn(Status) -> bool) -> Applied {
+    fn drop_where(&mut self, drop: impl Fn(Status) -> bool) -> bool {
+        let mut any = false;
         for slot in &mut self.slots {
             if slot.status.is_some_and(&drop) {
                 *slot = StatusSlot::default();
+                any = true;
             }
         }
-        Applied::Applied
+        any
+    }
+
+    /// Drop every harmful status (Cleanse, the shrine: SKILLS.md 3, 5); whether any was on.
+    pub fn cleanse(&mut self) -> bool {
+        self.drop_where(|st| !st.is_boon())
     }
 
     pub fn remove(&mut self, status: Status) {
@@ -129,8 +136,14 @@ impl Statuses {
         dt: f32,
     ) -> Applied {
         match verb.status {
-            Status::Cleanse => return self.drop_where(|st| !st.is_boon()),
-            Status::Dispel => return self.drop_where(Status::is_boon),
+            Status::Cleanse => {
+                self.cleanse();
+                return Applied::Applied;
+            }
+            Status::Dispel => {
+                self.drop_where(Status::is_boon);
+                return Applied::Applied;
+            }
             _ => {}
         }
         let duration = duration.max(1);
@@ -295,6 +308,16 @@ mod tests {
             DT,
         );
         assert_eq!(st.active().count(), 0);
+        // The shrine says whether there was anything to wash off (SKILLS.md 5).
+        assert!(!st.cleanse());
+        st.apply(
+            &verb(Status::Bleed, StackRule::Refresh, 1, 1.0),
+            64,
+            4,
+            1,
+            DT,
+        );
+        assert!(st.cleanse() && !st.has(Status::Bleed));
     }
 
     #[test]

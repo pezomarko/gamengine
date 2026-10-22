@@ -383,6 +383,23 @@ pub(crate) fn build_hud(hud: &mut Hud, online: Option<&Online>, vp: glam::Mat4, 
     hud_target_and_messages(hud, o, target, s, line, w);
 }
 
+/// What the ladder asks next (SKILLS.md 5), until the Essence wakes.
+fn next_step(o: &Online) -> Option<&'static str> {
+    use gm_core::build::locked;
+    let l = o.worn.locked;
+    Some(if l & locked::SECOND != 0 {
+        "Next: beat the sparring master, in the street south of the square"
+    } else if l & locked::TRICK != 0 {
+        "Next: break the shield-bearer at the dungeon's gate"
+    } else if l & locked::SPELL != 0 {
+        "Next: clear the dungeon's hall"
+    } else if o.worn.essence.is_none() {
+        "Next: the Warden, at the dungeon's end: the rite wakes your Essence"
+    } else {
+        return None;
+    })
+}
+
 /// As much of `text` as fits in `room` pixels.
 fn fit(hud: &Hud, s: f32, text: &str, room: f32) -> String {
     let mut out = String::new();
@@ -633,7 +650,7 @@ fn hud_own(
 ) -> f32 {
     let (_, h) = hud.size;
     let max_health = c.sheet.derived.health.max(1) as f32;
-    let rows: [(&str, f32, f32, [f32; 4]); 3] = [
+    let mut rows: Vec<(&str, f32, f32, [f32; 4])> = vec![
         ("HP", c.own_health.max(0) as f32, max_health, hud::RED),
         (
             "ST",
@@ -641,13 +658,16 @@ fn hud_own(
             c.sheet.derived.stamina.max(1.0),
             hud::YELLOW,
         ),
-        (
+    ];
+    // MP shows from the second move on: the first thing that spends it (SKILLS.md 5).
+    if o.worn.locked & gm_core::build::locked::SECOND == 0 {
+        rows.push((
             "MP",
             c.mover.focus,
             c.sheet.derived.focus.max(1.0),
             hud::BLUE,
-        ),
-    ];
+        ));
+    }
     let mut y = if skinned {
         16.0
     } else {
@@ -1091,6 +1111,12 @@ fn hud_target_and_messages(
     w: f32,
 ) {
     let mut y = 16.0;
+    if let Some(next) = next_step(o) {
+        let shown = fit(hud, s, next, w - 40.0);
+        let tw = hud.width(s, &shown);
+        hud.label((w - tw) * 0.5, y, s, [0.92, 0.92, 0.88, 0.7], &shown);
+        y += line;
+    }
     if let Some((name, health, max)) = target {
         let tw = hud.width(s, name);
         hud.label((w - tw) * 0.5, y, s, hud::WHITE, name);

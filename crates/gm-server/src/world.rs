@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use glam::Vec3;
 use gm_bsp::{Bsp, CreaturePost, ForgePost, StallGrid};
 use gm_core::sim::Spawn;
 use gm_net::transport::fnv1a64;
@@ -20,6 +21,8 @@ pub struct ZoneWorld {
     pub creature_posts: Vec<CreaturePost>,
     /// The forges (ITEMS.md 6.6): where a craft is made.
     pub forges: Vec<ForgePost>,
+    /// Where `E` washes a body clean (SKILLS.md 5).
+    pub shrines: Vec<Vec3>,
 }
 
 impl ZoneWorld {
@@ -62,6 +65,7 @@ impl ZoneWorld {
             stall_grids: bsp.stall_grids(),
             creature_posts: bsp.creature_posts(),
             forges: bsp.forge_posts(),
+            shrines: bsp.points("gm_shrine"),
             bsp,
             name: name.to_string(),
             hash,

@@ -186,6 +186,10 @@ pub enum ClientEvent {
         character: CharacterId,
         result: Result<GearReading, String>,
     },
+    /// `E` at a shrine (SKILLS.md 5).
+    Shrine {
+        id: EntityId,
+    },
     Forge {
         id: EntityId,
         template: String,
@@ -839,6 +843,7 @@ impl Client {
             | FromClient::StallBuy { .. }
             | FromClient::SmithBuy { .. }
             | FromClient::Infuse { .. }
+            | FromClient::Shrine
             | FromClient::Forge { .. }
             | FromClient::Wear { .. }
             | FromClient::WearIn { .. }
@@ -956,6 +961,7 @@ fn asked(id: EntityId, msg: FromClient) -> ClientEvent {
             price,
         },
         FromClient::Infuse { fee } => ClientEvent::Infuse { id, fee },
+        FromClient::Shrine => ClientEvent::Shrine { id },
         FromClient::Forge {
             template,
             components,

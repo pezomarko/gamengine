@@ -108,6 +108,16 @@ refusals; the kit; rearm.
 
 Tests: the kit by passes; the arena's refusal; the gm-ai map tests moved with the rooms.
 
+As built: the shield-bearer keeps the passage's first leg and the pack of three stands in the
+hall, leashed to it, so the steps come in their order on the walk; `antechamber` passes a
+trial and opens nothing. Venom Thorn bleeds 1 a second for 12 s, three deep; the shrine's altar stands at the
+stair's foot out of the venomers' sight; the campfire is in the entry hall, its fire drawn by
+the client as a forge's is. The arena's refusal is the zone gate the companions test proves
+(`requires`); play.sh passes its bots (`pass_bots`) and has `rite NAME FORM` for trying a
+signature. Minds: a shield that waits for an opening swings after 2 s; the raider counts a
+creature at the post nearest to it; after a post the raider sits 15–60 s, and a companion
+sits when its commander does (MATRIX.md 24).
+
 ## Not built
 
 MP draughts and the respawn's half pools (the director's to decide); the premium NPC that
@@ -130,6 +140,13 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of step 5. Taken: a step opens its cell only when the steps
+before it have passed (a hall cleared by running past the gate opens nothing until the gate
+falls); play.sh registers its sparring bots before it passes them. Not taken: "the client
+never copies `locked`" (it gets the whole `Worn` from the zone); "no shrine in a fight"
+(it stands out of the venomers' sight: stepping back to it is the lesson); "the raider waits
+on dead companions" (it looks only at the living); "the hand's place is not `weapon`" (it is).
 
 Gemini 3.1 Pro on the code of step 4. Taken: an ability that leaves the kit while cooling
 waits aside (`Mover.away`) and comes back as it was, so swapping weapons away and back

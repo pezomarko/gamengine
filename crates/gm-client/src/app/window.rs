@@ -303,6 +303,8 @@ impl App {
         }
         self.sim = Sim::new(&bsp);
         self.forges = bsp.forge_posts();
+        self.shrines = bsp.points("gm_shrine");
+        self.campfires = bsp.points("gm_campfire");
         self.bsp = bsp;
         log::info!(
             "switched map ({} faces, {} leaves)",

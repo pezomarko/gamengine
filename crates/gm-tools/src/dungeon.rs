@@ -1,7 +1,9 @@
-//! Generator for the tutorial dungeon (PLAN.md 11.8 Phase 7, COMPANIONS.md 12): an entry
-//! hall, a passage with two turns (the PVS must cut), the gate room with its two sentinels,
-//! a short stair and the Warden's hall. Rooms are rectangles cut out of rock on a 64-unit
-//! grid; everything that is not a room is solid.
+//! Generator for the tutorial dungeon (PLAN.md 11.8 Phase 7, COMPANIONS.md 12) and its
+//! steps (SKILLS.md 5): an entry hall with a campfire, a passage with two turns (the PVS
+//! must cut) whose first leg a shield-bearer keeps (the gate), the hall and its pack of three,
+//! a short stair two venomers hold above a shrine (the antechamber), and the Warden's hall.
+//! Rooms are rectangles cut out of rock on a 64-unit grid; everything that is not a room is
+//! solid.
 
 use crate::mapgen::{Map, fix_worldspawn_closure};
 
@@ -37,7 +39,7 @@ const fn room(x0: i32, y0: i32, x1: i32, y1: i32, ceiling: f32) -> Room {
     }
 }
 
-/// Entry hall, three passage legs, gate room, stair, the Warden's hall (in cells of 64 u).
+/// Entry hall, three passage legs, the hall, stair, the Warden's hall (in cells of 64 u).
 const ROOMS: [Room; 7] = [
     room(-31, -7, -21, 7, 288.0),
     room(-21, -1, -14, 2, 160.0),
@@ -54,12 +56,35 @@ fn open(x: i32, y: i32) -> bool {
         .any(|r| (r.x0..r.x1).contains(&x) && (r.y0..r.y1).contains(&y))
 }
 
-/// Posts of the creatures: `(creature, encounter, x, y, z, yaw)`.
-pub const POSTS: [(&str, &str, f32, f32, f32, i32); 3] = [
-    ("sentinel", "gate", 96.0, 480.0, 25.0, 180),
-    ("sentinel", "gate", 96.0, 608.0, 25.0, 180),
+/// Posts of the creatures: `(creature, encounter, x, y, z, yaw)`, the Warden last.
+pub const POSTS: [(&str, &str, f32, f32, f32, i32); 7] = [
+    ("shieldbearer", "gate", -1216.0, 32.0, 25.0, 180),
+    ("cutthroat", "hall", -352.0, 448.0, 25.0, 180),
+    ("cutthroat", "hall", -352.0, 640.0, 25.0, 180),
+    ("cutthroat", "hall", -160.0, 544.0, 25.0, 180),
+    (
+        "venomer",
+        "antechamber",
+        512.0,
+        480.0,
+        HALL_FLOOR + 25.0,
+        180,
+    ),
+    (
+        "venomer",
+        "antechamber",
+        512.0,
+        608.0,
+        HALL_FLOOR + 25.0,
+        180,
+    ),
     ("warden", "warden", 1600.0, 352.0, HALL_FLOOR + 25.0, 180),
 ];
+
+/// Where a body stands to use the shrine, before its altar at the stair's foot, out of the
+/// venomers' sight; and the campfire in the entry hall (SKILLS.md 5).
+const SHRINE: (f32, f32) = (112.0, 736.0);
+const CAMPFIRE: (f32, f32) = (-1728.0, 320.0);
 
 /// The dungeon as `.map` text.
 pub fn generate() -> String {
@@ -187,7 +212,15 @@ pub fn generate() -> String {
         "rune_stone",
         "trim_dark",
     );
-    // The gate room: two blocks of waist-high cover between its doors.
+    // The hall: two blocks of waist-high cover between its doors; the shrine's altar
+    // against its east wall, beside the stair.
+    m.boxb(
+        [SHRINE.0 + 24.0, SHRINE.1 - 32.0, 0.0],
+        [SHRINE.0 + 80.0, SHRINE.1 + 32.0, 40.0],
+        "rune_stone",
+        "rune_stone",
+        "rune_stone",
+    );
     for y in [320.0, 640.0] {
         m.boxb(
             [-256.0, y, 0.0],
@@ -230,6 +263,8 @@ pub fn generate() -> String {
         m.light(x, y, 300.0, 360, cold);
     }
     m.light(1856.0, 352.0, 150.0, 400, [255, 90, 50]);
+    m.light(SHRINE.0 + 48.0, SHRINE.1, 120.0, 220, [120, 230, 210]);
+    m.light(CAMPFIRE.0, CAMPFIRE.1, 48.0, 200, [255, 150, 60]);
 
     // Arrivals in the entry hall, facing the passage.
     for iy in 0..3 {
@@ -257,6 +292,12 @@ pub fn generate() -> String {
             ("encounter", encounter.into()),
         ]);
     }
+    for (class, (x, y)) in [("gm_shrine", SHRINE), ("gm_campfire", CAMPFIRE)] {
+        m.entity(&[
+            ("classname", class.into()),
+            ("origin", format!("{x} {y} 0")),
+        ]);
+    }
     m.out.push_str("}\n");
     fix_worldspawn_closure(m.out)
 }
@@ -269,9 +310,18 @@ mod tests {
     fn the_dungeon_has_its_rooms_its_posts_and_balanced_blocks() {
         let text = generate();
         assert_eq!(text.matches("{\n").count(), text.matches("}\n").count());
-        assert_eq!(text.matches("\"gm_creature\"").count(), 3);
-        assert_eq!(text.matches("\"creature\" \"sentinel\"").count(), 2);
-        assert_eq!(text.matches("\"creature\" \"warden\"").count(), 1);
+        assert_eq!(text.matches("\"gm_creature\"").count(), 7);
+        for (creature, n) in [
+            ("shieldbearer", 1),
+            ("cutthroat", 3),
+            ("venomer", 2),
+            ("warden", 1),
+        ] {
+            let key = format!("\"creature\" \"{creature}\"");
+            assert_eq!(text.matches(&key).count(), n, "{creature}");
+        }
+        assert_eq!(text.matches("\"gm_shrine\"").count(), 1);
+        assert_eq!(text.matches("\"gm_campfire\"").count(), 1);
         assert_eq!(text.matches("\"gm_spawn\"").count(), 9);
         assert_eq!(text.matches("\"info_player_start\"").count(), 1);
         let ws = text.find("\"classname\" \"worldspawn\"").unwrap();
@@ -293,6 +343,9 @@ mod tests {
         let cell = |v: f32| (v / CELL).floor() as i32;
         for (_, _, x, y, _, _) in POSTS {
             assert!(open(cell(x), cell(y)), "a post is in rock: {x} {y}");
+        }
+        for (x, y) in [SHRINE, CAMPFIRE] {
+            assert!(open(cell(x), cell(y)), "a point is in rock: {x} {y}");
         }
         assert!(open(cell(-1900.0), cell(0.0)));
         // Nothing but the first and the last room touches the outside of the grid.

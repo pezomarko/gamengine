@@ -853,3 +853,17 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   35 s), Venom Bolt (crossbow: Bleed 2 and Slow for 15 s; 30 s), Seal of Silence (staff:
   Silence 8 s in 128 u; 35 s, MP), Healing Spring (wand: Regen 4 and a cleanse a pulse for
   10 s; 40 s, MP). A rearm keeps the cooldown of whatever stays in the kit.
+- **Step 5, the ladder.** The sparring master: 30 HP, a 1-point Drill after a 700 ms
+  windup. The dungeon's steps: the shield-bearer (160 HP; mace, Shield Bash, Shield wall),
+  three cutthroats (60 HP; dagger, Throwing Knife, Dash; leashed at 400, so the pack holds
+  its hall: at 800 a body that walked back down the passage never left the fight), two
+  venomers (50 HP; Venom Thorn: 2 and a bleed of 1 a second for 12 s, three deep). The
+  reference squad clears all four encounters on 8 seeds of 8: the gate in 20–26 s, the hall
+  in 15–24 s, the antechamber in 8–11 s, the Warden in 143–178 s; 268–574 s for the run
+  with its rests. Three things in the minds made that so. Two shields face to face waited on each other until the
+  encounter reset: a shield that waits for an opening now swings after 2 s. The raider took
+  any creature within 1,400 u for the post's, and the hall's pack stood 960 u from the gate:
+  a creature is now the post's nearest it. And with HP and MP back only seated, the squad
+  rests after each post (the raider until the wounds it sees close, 15–60 s; a companion
+  whenever its commander sits). The Warden margin stands: 24 of 24 seeds, and 12 of 12
+  against a Warden of 1,800.

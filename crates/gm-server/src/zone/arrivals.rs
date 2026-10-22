@@ -111,6 +111,7 @@ impl Run {
                 stacks: slot.stacks.clone(),
                 bar: slot.bar.clone(),
                 essence: slot.essence.clone(),
+                locked: slot.locked,
             };
             self.gear_kept.insert(character, (reading, Instant::now()));
         }
@@ -208,6 +209,7 @@ impl Run {
                 stacks: reading.stacks.clone(),
                 bar: reading.bar.clone(),
                 essence: reading.essence.clone(),
+                locked: reading.locked,
                 character: h.character,
                 joined: Instant::now(),
                 play_seconds_before: h.play_seconds,

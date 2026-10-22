@@ -99,6 +99,8 @@ pub(super) fn app(opts: Options, bsp: Bsp, palette: world::Palette, sim: Sim, st
         opts,
         window: None,
         forges: bsp.forge_posts(),
+        shrines: bsp.points("gm_shrine"),
+        campfires: bsp.points("gm_campfire"),
         bsp,
         active: None,
         view: View {

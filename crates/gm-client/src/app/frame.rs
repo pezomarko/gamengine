@@ -1019,6 +1019,8 @@ impl App {
                 ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
                 if let Some(look) = self.use_hint() {
                     ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, &look);
+                } else if let Some(rest) = self.rest_hint() {
+                    ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, rest);
                 }
             }
             None => {}

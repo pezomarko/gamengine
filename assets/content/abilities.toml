@@ -1623,3 +1623,33 @@ falloff = "none"
 max_targets = 8
 requires_los = true
 exclude_actor = true
+
+# ---------- the ladder (SKILLS.md 5) ----------
+
+# The sparring master's swing: slow, telegraphed, parryable, a point.
+[[ability]]
+key = "drill"
+name = "Drill"
+slot = "primary"
+creature = true
+cooldown_ms = 2500
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 76, arc = 90, half_height = 40, windup_ms = 700, active_ms = 80, recovery_ms = 500, damage = { amount = 1, type = "blunt", knockback = 100, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 30 }
+
+# The venomer's thorn: a bleed three deep, which the shrine at the stair's foot washes off.
+[[ability]]
+key = "venom_thorn"
+name = "Venom Thorn"
+slot = "primary"
+creature = true
+prop = "staff"
+aspect = "grass"
+cooldown_ms = 1600
+move_scale = 0.7
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 300
+projectile = { speed = 1300, gravity = 0.15, radius = 4, lifetime_ms = 3000, damage = { amount = 2, type = "grass", knockback = 40, stagger = 10 }, spawn = { weapon = [16, 4, -2] }, spread = 0.3, on_hit = [{ status = { status = "bleed", duration_ms = 12000, magnitude = 1, max_stacks = 3, stacking = "independent", target = "hit" } }] }

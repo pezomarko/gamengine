@@ -210,9 +210,9 @@ async fn statistics_replays_reports_reputation_and_bans() {
             true,
         ),
     ];
-    let mut flows = Vec::new();
+    let mut configs = Vec::new();
     for (i, (email, name, aim, preset, report_after, travels)) in players.into_iter().enumerate() {
-        flows.push(tokio::spawn(run_hub_flow(HubFlowConfig {
+        configs.push(HubFlowConfig {
             hub: hub_addr,
             hub_cert_der: hub_cert.clone(),
             email: email.into(),
@@ -250,8 +250,36 @@ async fn statistics_replays_reports_reputation_and_bans() {
             sell_at: None,
             trade_for: None,
             hire: 0,
-        })));
+        });
     }
+    // The shades are judged on their knife, the second move the ladder opens (SKILLS.md 5):
+    // every character is made first and passes the ladder's steps.
+    for cfg in &configs {
+        let made = HubFlowConfig {
+            play: Duration::ZERO,
+            ..cfg.clone()
+        };
+        run_hub_flow(made).await.expect("the character is made");
+    }
+    let steps: Vec<&str> = gm_hub_proto::protocol::LADDER
+        .iter()
+        .map(|(step, _)| *step)
+        .collect();
+    let names: Vec<String> = configs.iter().map(|c| c.character.clone()).collect();
+    sqlx::query(
+        "insert into trials (character_id, trial, zone, secs) \
+         select c.id, t.step, 'test', 0 from characters c cross join unnest($1::text[]) as t (step) \
+         where c.name = any($2) on conflict do nothing",
+    )
+    .bind(&steps)
+    .bind(&names)
+    .execute(db.pool())
+    .await
+    .unwrap();
+    let flows: Vec<_> = configs
+        .into_iter()
+        .map(|cfg| tokio::spawn(run_hub_flow(cfg)))
+        .collect();
     let mut reported = false;
     for f in flows {
         let report = f.await.unwrap().expect("hub flow");

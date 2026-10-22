@@ -2086,17 +2086,26 @@ impl App {
         }
     }
 
-    /// The fire in every forge of the map (ITEMS.md 6.6): the coals' glow over the hearth's
-    /// bed, flickering, and embers rising out of the mouth and dying as they go; drawn
-    /// every frame like the rest of the effects (LOOK.md 13.1: nothing is kept).
-    fn forge_fire(&mut self, eye: Vec3) {
+    /// The fires of the map: in every forge (ITEMS.md 6.6) and on every campfire (SKILLS.md
+    /// 5), the coals' glow, flickering, and embers rising and dying as they go; drawn every
+    /// frame like the rest of the effects (LOOK.md 13.1: nothing is kept).
+    fn fires(&mut self, eye: Vec3) {
         let t = self.clock.started.elapsed().as_secs_f32();
-        for (n, forge) in self.forges.iter().enumerate() {
-            let yaw = forge.yaw.to_radians();
+        // A forge's bed of coals lies behind the mouth, a hand above the hearth's floor, as
+        // wide as the hearth; a campfire's is on the ground, a third as wide.
+        let forges = self.forges.iter().map(|f| {
+            let yaw = f.yaw.to_radians();
+            let facing = Vec3::new(yaw.cos(), yaw.sin(), 0.0);
+            (f.origin - facing * 40.0 + Vec3::Z * 20.0, yaw, 9.0)
+        });
+        let camps = self
+            .campfires
+            .iter()
+            .map(|&c| (c + Vec3::Z * 4.0, 0.0, 3.0));
+        let beds: Vec<(Vec3, f32, f32)> = forges.chain(camps).collect();
+        for (n, (bed, yaw, spread)) in beds.into_iter().enumerate() {
             let facing = Vec3::new(yaw.cos(), yaw.sin(), 0.0);
             let across = Vec3::new(-yaw.sin(), yaw.cos(), 0.0);
-            // The bed of coals lies behind the mouth, a hand above the hearth's floor.
-            let bed = forge.origin - facing * 40.0 + Vec3::Z * 20.0;
             if (bed - eye).length() > 1600.0 {
                 continue;
             }
@@ -2104,8 +2113,9 @@ impl App {
             for k in 0..7 {
                 let kf = k as f32;
                 let flicker = 0.6 + 0.4 * (t * (5.0 + kf * 0.7) + kf * 1.9 + seed).sin();
-                let at =
-                    bed + across * ((kf - 3.0) * 9.0) + facing * (((kf * 2.1 + seed).sin()) * 12.0);
+                let at = bed
+                    + across * ((kf - 3.0) * spread)
+                    + facing * (((kf * 2.1 + seed).sin()) * spread * 1.3);
                 self.scene.fx.glint(
                     at,
                     7.0 + 5.0 * flicker,
@@ -2120,8 +2130,8 @@ impl App {
                 let rise = 70.0 * phase;
                 let sway = 6.0 * (t * 2.3 + kf * 2.7 + seed).sin();
                 let at = bed
-                    + across * ((kf - 2.5) * 7.0 + sway)
-                    + facing * (8.0 + 14.0 * phase)
+                    + across * ((kf - 2.5) * spread * 0.8 + sway)
+                    + facing * (spread + 14.0 * phase)
                     + Vec3::Z * (6.0 + rise);
                 let life = (1.0 - phase).powi(2);
                 self.scene.fx.streak(
@@ -2170,7 +2180,7 @@ impl App {
             o.heals.clear();
         }
         self.scene.effects.draw(seen.camera, &mut self.scene.fx);
-        self.forge_fire(seen.camera);
+        self.fires(seen.camera);
         if predicted.rpg {
             if let Some(goal) = self.rpg.walk {
                 let feet = goal + Vec3::Z * Hull::Player.mins().z;
