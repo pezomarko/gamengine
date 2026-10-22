@@ -240,7 +240,7 @@ name = "Blink"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "air"
-cooldown_ms = 8000
+cooldown_ms = 6000
 focus = 3
 [[ability.step]]
 move_self = { blink = { distance = 256 } }
@@ -299,8 +299,8 @@ name = "Frost Nova"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "water"
-cooldown_ms = 10000
-focus = 4
+cooldown_ms = 8000
+focus = 3
 move_scale = 0.3
 interrupt = "on_damage"
 [[ability.step]]

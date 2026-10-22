@@ -833,9 +833,12 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   page's 2 MP and 4: measured on the reference squad against the Warden (six seeds), at 2 MP
   the mender runs dry and the squad leaves the Warden at 82–1,491 health on every seed, even
   at 6 a second; at 1 MP and 4 a second one seed of six misses by 96; at 1 MP and 5 all six
-  clear, and the dungeon and party gates pass. The arena (3 seeds × 60 s, 8 v 8):
-  ironclad : blade 58 : 21 (2.76, was 2.24), frostweaver : ironclad 38 : 26 (1.46, was 1.74),
-  blade : frostweaver 22 : 34 (0.65, was 0.47), mirror 42 : 44.
+  clear, and the dungeon and party gates pass. **Frost Nova stays at 8 s and 3 MP and Blink
+  at 6 s**, not the page's 10 s, 4 MP and 8 s: with the page's the frostweaver's edge on the
+  ironclad fell to 1.47 (12 seeds × 60 s; 1.83 with these), and the counter-pick over the
+  wire (gm-server `counterpick`, two cores) failed two runs of five, main none. The arena
+  (3 seeds × 60 s, 8 v 8): ironclad : blade 58 : 21 (2.76, was 2.24), frostweaver : ironclad
+  40 : 21 (1.90, was 1.74), blade : frostweaver 21 : 38 (0.55, was 0.47), mirror 42 : 44.
   A mind that blocks keeps half its ST for the guard (gm-ai `Senses::ready`): with the
   blows and the block on one purse, the reference squad's tank spent its block on Bull Rush
   and Ground Slam and the squad wiped on one seed of 24 here and one of six on CI. With the

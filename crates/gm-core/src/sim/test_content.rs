@@ -766,7 +766,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ability(
                 33,
                 "Blink",
-                8000,
+                6000,
                 0,
                 3,
                 1.0,
@@ -889,9 +889,9 @@ pub fn pack(rate: TickRate) -> ContentPack {
             ability(
                 37,
                 "Frost nova",
-                10000,
+                8000,
                 0,
-                4,
+                3,
                 0.3,
                 Interrupt::OnDamage,
                 vec![(

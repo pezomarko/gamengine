@@ -58,8 +58,9 @@ Content (keys and row order stay; new rows are appended):
 - the page's costs, cooldowns and durations: ST for physical second moves, tricks and
   weapon spells, MP for the rest;
 - the fifteen names; Mend 5 a second for 8 s at 1 MP (measured: at 2 MP a healer runs dry
-  and the squad loses to the Warden, MATRIX.md 24); the staff's blasts are the staff's alone
-  and the wand's second move is Dispel;
+  and the squad loses to the Warden, MATRIX.md 24); Frost Nova 8 s at 3 MP and Blink 6 s
+  (measured: at the page's the frostweaver no longer counters the ironclad); the staff's
+  blasts are the staff's alone and the wand's second move is Dispel;
 - new: Illusion Slash (sword, katana: a 450 u bolt through three bodies), Tiger Roar (axes),
   Whirlwind (big blades), Deadeye (crossbow), Dispel (wand), Purify (the Elder's skill in
   place of Sanctuary);
