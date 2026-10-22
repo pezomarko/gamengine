@@ -81,9 +81,11 @@ impl Input {
         if self.mouse.contains(&MouseButton::Left) {
             b |= buttons::PRIMARY;
         }
+        // `X` holds beside Ctrl (the action mode's guard, the gun mode's crouch) since
+        // 2026-10-22, when `C` became the character sheet's key (MATRIX.md 23).
         let ctrl = self.down(KeyCode::ControlLeft)
             || self.down(KeyCode::ControlRight)
-            || self.down(KeyCode::KeyC);
+            || self.down(KeyCode::KeyX);
         let shift = self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight);
         let mut ability = if gun {
             self.gun_keys(&mut b, &mut forward, &mut side, ctrl, shift)
@@ -348,7 +350,7 @@ impl App {
                     .and_then(|o| hotbar(o).get(i as usize).map(|c| c.key));
                 match key {
                     Some("Shift") => self.hold_key(KeyCode::ShiftLeft, down),
-                    Some("C") => self.hold_key(KeyCode::KeyC, down),
+                    Some("X") => self.hold_key(KeyCode::KeyX, down),
                     Some("LMB") if down => self.press_in_game(MouseButton::Left),
                     Some("LMB") => {
                         self.input.mouse.remove(&MouseButton::Left);
@@ -697,8 +699,26 @@ impl App {
             // With Ctrl held a key is a shortcut, not a letter (and a key that has no
             // place on this keyboard's map still has its text: a program that types for
             // a person sends such).
-            (None, Some(text)) if !self.pointer.command => self.ui_text(text),
+            (None, Some(text)) if !self.pointer.command => match self.panel_key(text) {
+                Some(key) => self.ui_key(key),
+                None => self.ui_text(text),
+            },
             _ => {}
+        }
+    }
+
+    /// A letter typed with the inventory up (EQUIPMENT.md 4.3 and 4.6): `I`, `O` and `C`
+    /// are its panels' keys there, where no field takes letters.
+    fn panel_key(&self, text: &str) -> Option<Key> {
+        let bag = self.screens.bag.as_ref()?;
+        if bag.page != crate::bag::Page::Inventory || self.screens.menu.is_some() {
+            return None;
+        }
+        match text {
+            "i" | "I" => Some(Key::Inventory),
+            "o" | "O" => Some(Key::Equipment),
+            "c" | "C" => Some(Key::Sheet),
+            _ => None,
         }
     }
 
@@ -725,6 +745,7 @@ impl App {
             KeyCode::KeyP => self.ui_key(Key::People),
             KeyCode::KeyG => self.ui_key(Key::Gm),
             KeyCode::KeyK => self.ui_key(Key::Character),
+            KeyCode::KeyC => self.ui_key(Key::Sheet),
             KeyCode::Tab => self.ui_key(Key::Tab),
             KeyCode::KeyV if self.online.is_none() => {
                 self.view.viewport = match self.view.viewport {

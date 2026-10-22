@@ -231,6 +231,9 @@ pub enum Key {
     Character,
     /// And `O`: the equipment (EQUIPMENT.md 4): what the body wears, beside the bag.
     Equipment,
+    /// And `C`: the character sheet (EQUIPMENT.md 4.6, since 2026-10-22): the equipment
+    /// with every stat beside it. (`X` took over what `C` held: the guard, the crouch.)
+    Sheet,
     /// And `G`: the game master's page (GM.md 4), for whom the zone granted it.
     Gm,
     /// And `F`: the kit (MODES.md 11.3), the one key of the game itself a script presses.
@@ -260,6 +263,7 @@ impl Key {
             "P" => Key::People,
             "K" => Key::Character,
             "O" => Key::Equipment,
+            "C" => Key::Sheet,
             "G" => Key::Gm,
             "F" => Key::Kit,
             _ => return None,

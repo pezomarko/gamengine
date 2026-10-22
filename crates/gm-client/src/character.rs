@@ -331,7 +331,7 @@ fn body_column<C: Canvas>(
     let buys = [
         format!("blows x{:.2}", d.physical_mult),
         format!("speed {:.0} u/s", d.max_speed),
-        format!("health {}", d.health),
+        format!("HP {} DEF {:.0}%", d.health, d.armour * 100.0),
         format!("spells x{:.2}", d.elemental_mult),
         format!("ward {:.0}%", d.ward * 100.0),
     ];
@@ -1072,10 +1072,10 @@ pub fn words_of(def: &AbilityDef, rate: TickRate) -> String {
     };
     let mut parts = vec![format!("{}: {slot}", a.name)];
     if a.cost.stamina > 0 {
-        parts.push(format!("{} stamina", a.cost.stamina));
+        parts.push(format!("{} ST", a.cost.stamina));
     }
     if a.cost.focus > 0 {
-        parts.push(format!("{} focus", a.cost.focus));
+        parts.push(format!("{} MP", a.cost.focus));
     }
     if a.cooldown.ticks > 0 {
         parts.push(format!("{} cooldown", secs(rate, a.cooldown.ticks)));
@@ -1170,7 +1170,7 @@ pub fn words_of(def: &AbilityDef, rate: TickRate) -> String {
                 MoveKind::Blink { distance } => format!("a blink of {distance:.0} u"),
             }),
             Verb::Guard(Guard::Block(bl)) => does.push(format!(
-                "a block: {:.0}% less from the front, {} stamina a hit",
+                "a block: {:.0}% less from the front, {} ST a hit",
                 bl.mitigation * 100.0,
                 bl.stamina_per_hit
             )),
@@ -1277,6 +1277,40 @@ impl CharacterPage {
         }
         CharacterAction::None
     }
+}
+
+/// The character sheet's rows (EQUIPMENT.md 4.6): the five attributes, then everything
+/// the body comes to with its gear on (MATRIX.md 6 and 23), name and value. `d` is the
+/// sheet as the zone computed it, the worn pieces in it.
+pub fn stat_rows(b: &Build, d: &gm_core::matrix::Derived) -> Vec<(String, String)> {
+    const NAMES: [&str; 5] = ["STR", "AGI", "CON", "INT", "SPR"];
+    let attrs = b.attributes.as_array();
+    let mut rows: Vec<(String, String)> = NAMES
+        .iter()
+        .zip(attrs)
+        .map(|(n, v)| (n.to_string(), v.to_string()))
+        .collect();
+    let pct = |v: f32| format!("{:.0}%", v * 100.0);
+    rows.extend(
+        [
+            ("HP", d.health.to_string()),
+            ("ST", format!("{:.0}  +{:.1}/s", d.stamina, d.stamina_regen)),
+            ("MP", format!("{:.0}  +{:.1}/s", d.focus, d.focus_regen)),
+            ("DEF", pct(d.armour)),
+            ("ward", pct(d.ward)),
+            ("evasion", pct(d.evasion)),
+            ("blows", format!("x{:.2}", d.physical_mult)),
+            ("spells", format!("x{:.2}", d.elemental_mult)),
+            ("speed", format!("{:.0} u/s", d.max_speed)),
+            ("stagger at", format!("{:.0}", d.stagger_threshold)),
+            ("knockback in", format!("x{:.2}", d.knockback_taken)),
+            ("knockback out", format!("x{:.2}", d.knockback_dealt)),
+            ("status time", format!("x{:.2}", d.status_duration)),
+        ]
+        .into_iter()
+        .map(|(n, v)| (n.to_string(), v)),
+    );
+    rows
 }
 
 /// What the sheet's column takes: the body's line, the elements' line, the attributes'

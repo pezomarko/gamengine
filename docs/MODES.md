@@ -440,7 +440,8 @@ Built as section 3 says, with these readings:
   before it rolls the cone. The frames sent carry the mouse's aim, never the punch.
 - **The cone** (`gm_core::sim::cone_deg`) is the same function on both sides: the HUD's
   crosshair opens by it, the zone rolls in it, added to the bolt's own spread. A crouch
-  is the button held on the ground (Ctrl or C): the body comes down 16 u (`CROUCH_DROP`,
+  is the button held on the ground (Ctrl or X; X was C until 2026-10-22, when C became the
+  character sheet's key, MATRIX.md 23): the body comes down 16 u (`CROUCH_DROP`,
   `Mover::crouched`: the eye, the hitbox's top and the drawn body; the own camera eases
   to it) and creeps at half speed; the head band moves down with the hitbox (3.5, since
   2026-10-08). Walking is Shift at half the axes.

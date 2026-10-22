@@ -426,7 +426,7 @@ impl App {
             crouched: self.sim.curr.on_ground
                 && (self.input.down(KeyCode::ControlLeft)
                     || self.input.down(KeyCode::ControlRight)
-                    || self.input.down(KeyCode::KeyC)),
+                    || self.input.down(KeyCode::KeyX)),
             frame: 1,
             aspects: 0,
             status: 0,
@@ -665,7 +665,7 @@ impl App {
                     ),
                     crouched: self.input.down(KeyCode::ControlLeft)
                         || self.input.down(KeyCode::ControlRight)
-                        || self.input.down(KeyCode::KeyC),
+                        || self.input.down(KeyCode::KeyX),
                     zoom: self.view.zoom,
                     scoped: self.input.scoped,
                     touch: TouchHud {
@@ -823,10 +823,17 @@ impl App {
             let looks = crate::bag::ItemLooks {
                 manifest: self.content.manifest.as_ref(),
             };
+            let stats = self
+                .online
+                .as_ref()
+                .and_then(|o| o.client.as_ref())
+                .map(|c| crate::character::stat_rows(&c.sheet.build, &c.sheet.derived))
+                .unwrap_or_default();
             let wearer = crate::bag::Wearer {
                 name: me,
                 ribbon: &ribbon,
                 class: &class,
+                stats: &stats,
             };
             actions.bag = bag.frame_with(ui, hub, keeps_stall, Instant::now(), looks, wearer);
         }

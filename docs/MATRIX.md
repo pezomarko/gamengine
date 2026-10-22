@@ -141,11 +141,11 @@ Bands are deliberately narrow.
 
 | Stat | Formula | Range (5 → 25) |
 |---|---|---|
-| Health | `50 + 4·CON` | 70 → 150 (a tenth of v10's, section 22) |
-| Stamina | `60 + 3·(CON + AGI)` | 90 → 210 |
-| Stamina regen /s | `10 + 0.6·AGI` | 13 → 25 |
-| Focus | `40 + 5·INT + frame.focus` | 65 → 165 (+20 Caster) |
-| Focus regen /s | `5 + 0.6·SPR` | 8 → 20 |
+| HP (health) | `50 + 4·CON` | 70 → 150 (a tenth of v10's, section 22) |
+| ST (stamina) | `6 + 0.3·(CON + AGI)` | 9 → 21 (a tenth, section 23) |
+| ST regen /s | `1 + 0.06·AGI` | 1.3 → 2.5 |
+| MP (magic points; `focus` in the code) | `4 + 0.5·INT + frame.focus` | 6.5 → 16.5 (+2 Caster) |
+| MP regen /s | `0.5 + 0.06·SPR` | 0.8 → 2.0 |
 | Move speed (u/s) | `(280 + 2·AGI) · frame.mobility` | 290 → 330 before the frame |
 | Physical damage × | `0.60 + 0.04·STR` | 0.80 → 1.60 |
 | Elemental damage × | `0.60 + 0.04·INT` | 0.80 → 1.60 |
@@ -158,7 +158,10 @@ Bands are deliberately narrow.
 | Stagger threshold | `40 + 3·CON` | 55 → 115 |
 
 Max speed feeds `MoveVars.max_speed`; jump velocity and acceleration are not attribute-scaled
-(movement skill is movement skill). Stamina regen pauses for 1 s after any stamina spend.
+(movement skill is movement skill). ST regen pauses for 1 s after any ST spend. Since
+2026-10-22 (section 23) the three pools are named HP, MP and ST everywhere a player reads
+them; the primary costs nothing, every other skill costs MP, and ST is the guard's (a block's
+`stamina_per_hit`, a parry). CON buys HP and DEF (the armour) both.
 
 Evasion is positional and readable: it applies only while the defender is **evading**, i.e.
 inside a `MoveSelf` (dash, leap, charge, blink) or for 2 ticks after one ends. Running or
@@ -771,3 +774,40 @@ that is a point of health is a tenth of v10, and nothing else moved:
 Stamina, focus, stagger, knockback and the per-mille gear edges are what they were: they
 were never points of health.
 
+## 23. v12 (2026-10-22): HP, MP and ST, and only the primary is free
+
+The director, the morning after v11: "we reduced HP by factor of 10, but now we have more
+stamina and MP than HP, so we need to reduce them as well. Then we make sure that our
+non-primary/secondary skills use MANA, or MP, only primary is infinite... let's clearly call
+it HP (health points), MP (magic points), and ST (Stamina). Also make sure CON stat increases
+both HP and DEF. Pressing button C should open character sheet where we see equipment and all
+stats."
+
+- **The pools a tenth**: ST `6 + 0.3·(CON + AGI)` (9 → 21), regen `1 + 0.06·AGI`; MP
+  `4 + 0.5·INT + frame` (6.5 → 16.5, the Caster's frame +2), regen `0.5 + 0.06·SPR`. The
+  guard's `stamina_per_hit` a tenth (the shield wall 1, the brace 1), the parry 1 ST. The
+  frames' percents (GEAR.md 6: a whalebone frame's blows at 75%) stand, on the block alone
+  now.
+- **Only the primary is free**: every primary's cost is gone (the crossbow's 30 ST a span
+  and the bow's 20 a draw of GEAR.md 11 included: the director's word was "only primary is
+  infinite"; their spans stay the limit). Every secondary, active and weapon spell costs MP,
+  a tenth of what it cost, rounded, never below 1: a dash 3 (was 30 ST), a leap 2, a charge
+  3, a blink 3, a fireball 4, Mend 1, the shaman's briar 4, a flame burst 2. The body's
+  tricks (dash, slip, overhead, the war standard) moved from ST to MP with the rest. What
+  this does to a low-INT body's dashes (an MP of 8 is two dashes, then a wait of a second
+  and a half each) is the director's to play and re-tune; the ratios between the skills are
+  what they were.
+- **ST is the guard's**: it is spent by a block's hit and a parry and nothing else. A
+  `Cost.stamina` on a non-guard ability is not refused by the loader, so a future skill may
+  still tire the body; none does today.
+- **The names**: the HUD's bars say `HP`, `ST`, `MP`; the K page's and the selector's words
+  say `3 MP`, `1 ST a hit`; the attribute rows say what CON buys as `HP 86 DEF 23%` (the
+  armour is DEF to a player; `armour` in the code and the matrix above). The code keeps
+  `focus` for MP and `stamina` for ST: a rename across the content, the protocol and the hub
+  would move the versions for words.
+- **CON buys HP and DEF**: it always did (`armour = 0.015·CON + frame`); now the row says
+  so.
+- **The character sheet, `C`** (EQUIPMENT.md 4.6): the equipment with every stat beside it,
+  in every mode. `C` was the key held beside Ctrl (the action mode's guard, the gun mode's
+  crouch; WEB.md 3.4: a browser keeps Ctrl+W): **`X`** is that key now, on the hotbar's
+  guard cell and the touch hotbar too. `K` still opens the build's page.

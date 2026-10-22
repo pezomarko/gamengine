@@ -52,7 +52,8 @@ wins and the code is wrong. Changes to either require changing both in the same 
 
 - **Timing** `{ windup, active, recovery }` in ticks. The verb resolves during `active`.
   `recovery` is the vulnerable window; whether it can be cancelled is an ability property.
-- **Cost** `{ stamina, focus }`.
+- **Cost** `{ stamina, focus }`: ST and MP (MATRIX.md 23). Since 2026-10-22 a primary costs
+  nothing, every other skill costs MP, and ST is spent by the guard alone.
 - **Cooldown** `{ ticks, group }`; abilities in the same group share one cooldown.
 - **DamagePacket** `{ amount, type, bypass, knockback, stagger }`. `type` is one of the three
   physical kinds (Slash, Pierce, Blunt) or the six elements (Fire, Water, Grass, Electric,

@@ -192,7 +192,7 @@ impl GameMenu {
             ("mouse", "look around"),
             ("left button", "the primary attack"),
             ("right button", "the secondary"),
-            ("C or Ctrl", "guard"),
+            ("X or Ctrl", "guard"),
             ("1 2 3 4", "the actives (Shift is 1)"),
             ("Space", "dodge, while the dash is ready"),
             ("R", "reload (gun)"),
