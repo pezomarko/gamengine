@@ -194,7 +194,7 @@ most four.
 ### 3.2 Bottom centre: the hotbar
 
 One cell per ability of the kit in the order a hand finds them: `LMB` primary, `RMB`
-secondary, `C` guard, `1`–`4` the actives (Shift is also 1: `sim_input`); `app::hotbar`
+secondary, `X` guard (`C` until 2026-10-22), `1`–`4` the actives (Shift is also 1: `sim_input`); `app::hotbar`
 makes the cells, and `--report` prints them (`hotbar=LMB:sword:ready:1.00,...`: key,
 ability, state, how ready). Each cell: the
 ability's icon (CONTENT.md 3), its key in a `hotbar_key` tab, and its state, read from the

@@ -143,7 +143,7 @@ fn phase2_kit_validates_and_has_durations() {
     assert_eq!(kit.durations[dash], 10);
     assert_eq!(kit.durations[crossbow], 8);
     assert_eq!(sheet.derived.health, 90);
-    assert_eq!(sheet.derived.stamina, 120.0);
+    assert_eq!(sheet.derived.stamina, 12.0);
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn crossbow_bolt_hits_the_first_body_in_line_even_an_ally() {
 }
 
 #[test]
-fn dash_moves_fast_costs_stamina_and_pauses_regen() {
+fn dash_moves_fast_and_costs_mp() {
     let (world, mut zone, ids) = arena(&[(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
     let a = ids[0];
     tick(
@@ -240,17 +240,26 @@ fn dash_moves_fast_costs_stamina_and_pauses_regen() {
         "{:?}",
         p.mover.mv.origin
     );
-    assert_eq!(
-        p.mover.stamina, 90.0,
-        "regen pauses for a second after a spend"
+    // ST is the guard's alone since 2026-10-22 (MATRIX.md 23): a dash takes 3 MP.
+    assert_eq!(p.mover.stamina, p.sheet.derived.stamina);
+    let spent = p.sheet.derived.focus - p.mover.focus;
+    assert!(
+        spent > 2.5 && spent <= 3.0,
+        "spent {spent} MP, regenerating"
     );
     assert_eq!(p.anim, anim::DASH);
     assert!(p.mover.evading(p.last_input_tick));
     run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 2);
-    assert!(zone.player(a).unwrap().mover.dash.is_none());
+    let p = zone.player(a).unwrap();
+    assert!(p.mover.dash.is_none());
+    let focus = p.mover.focus;
     run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 64);
     let p = zone.player(a).unwrap();
-    assert!(p.mover.stamina > 90.5, "regen resumed: {}", p.mover.stamina);
+    assert!(
+        p.mover.focus > focus + 0.5,
+        "MP regenerates: {} from {focus}",
+        p.mover.focus
+    );
     assert!(!p.mover.evading(p.last_input_tick));
 }
 
@@ -548,7 +557,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         // 0.6 (armour 0.40) = 5.76 -> 6 unblocked, x 0.2 blocked = 1.15 -> 1.
         if expect_block {
             assert_eq!(taken, 1, "facing {facing}");
-            assert_eq!(stamina_before - p.mover.stamina, 12.0);
+            assert_eq!(stamina_before - p.mover.stamina, 1.0);
         } else {
             assert_eq!(taken, 6, "facing {facing}");
         }
@@ -559,7 +568,7 @@ fn shield_wall_blocks_from_the_front_costs_stamina_and_breaks() {
         ("ironclad", Vec3::new(50.0, 0.0, REST_Z), 180.0),
     ]);
     let (a, b) = (ids[0], ids[1]);
-    zone.player_mut(b).unwrap().mover.stamina = 5.0;
+    zone.player_mut(b).unwrap().mover.stamina = 0.5;
     let hold = input(180.0, 0.0, buttons::GUARD);
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0)), (b, hold)], 3);
     run(
@@ -849,7 +858,7 @@ fn blink_teleports_along_the_facing_and_stops_at_walls() {
     let x = zone.player(a).unwrap().mover.mv.origin.x;
     assert!(x > 130.0 && x <= 134.0 + 1e-3, "x = {x}");
     let focus = zone.player(a).unwrap().mover.focus;
-    assert!(focus < zone.player(a).unwrap().sheet.derived.focus - 29.0);
+    assert!(focus < zone.player(a).unwrap().sheet.derived.focus - 2.9);
     // Facing away from the wall, the full distance.
     let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 180.0)]);
     let shade = zone.content.build("shade").unwrap().clone();

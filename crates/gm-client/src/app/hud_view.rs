@@ -160,7 +160,7 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
     let keys: [&'static str; 7] = if rpg {
         ["1", "2", "Shift", "3", "4", "5", "6"]
     } else {
-        ["LMB", "RMB", "C", "1", "2", "3", "4"]
+        ["LMB", "RMB", "X", "1", "2", "3", "4"]
     };
     cell(keys[0], kit.primary);
     cell(keys[1], kit.secondary);
@@ -217,7 +217,7 @@ fn hotbar_cell(
         .script
         .as_ref()
         .is_some_and(|s| s.ability as usize == slot)
-        || (key == "C" && c.mover.guard != gm_core::sim::GuardState::None);
+        || (key == "X" && c.mover.guard != gm_core::sim::GuardState::None);
     let state = if running {
         "active"
     } else if elemental && c.mover.statuses.silenced() {
@@ -629,15 +629,15 @@ fn hud_own(
     let (_, h) = hud.size;
     let max_health = c.sheet.derived.health.max(1) as f32;
     let rows: [(&str, f32, f32, [f32; 4]); 3] = [
-        ("hp", c.own_health.max(0) as f32, max_health, hud::RED),
+        ("HP", c.own_health.max(0) as f32, max_health, hud::RED),
         (
-            "st",
+            "ST",
             c.mover.stamina,
             c.sheet.derived.stamina.max(1.0),
             hud::YELLOW,
         ),
         (
-            "fo",
+            "MP",
             c.mover.focus,
             c.sheet.derived.focus.max(1.0),
             hud::BLUE,
@@ -659,7 +659,7 @@ fn hud_own(
     if !skinned {
         for (name, have, max, colour) in rows {
             hud.label(16.0, y, s, hud::WHITE, name);
-            let x = 16.0 + hud.width(s, "hp ") + 4.0 * s;
+            let x = 16.0 + hud.width(s, "HP ") + 4.0 * s;
             hud.bar(x, y + s, 180.0, cap * s - 2.0 * s, have / max, colour);
             hud.label(
                 x + 188.0,

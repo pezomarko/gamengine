@@ -202,6 +202,27 @@ impl App {
         }
     }
 
+    /// `C`: the character sheet (EQUIPMENT.md 4.6): the equipment with every stat beside
+    /// it; with the inventory up already, the stats shown or hidden beside it.
+    pub(super) fn open_sheet(&mut self) {
+        if let Some(bag) = &mut self.screens.bag
+            && bag.page == crate::bag::Page::Inventory
+        {
+            if !bag.toggle_stats() {
+                self.screens.bag = None;
+            }
+            return;
+        }
+        match self.owner() {
+            Some((hub, session, character)) => {
+                self.screens.bag = Some(Bag::sheet(hub, session, character, Instant::now()));
+                self.screens.menu = None;
+                self.release_keys();
+            }
+            None => self.note("there is no character sheet without a hub"),
+        }
+    }
+
     /// `P`: the people here and of the party. (Without a hub there are no parties, and
     /// the zone says so to whoever asks.)
     pub(super) fn open_people(&mut self) {
@@ -347,6 +368,23 @@ impl App {
 
     /// A key the screens act on was pressed, by a person or by a script (CLIENT.md 6).
     pub(super) fn ui_key(&mut self, key: Key) {
+        // The inventory's own keys while it is up (EQUIPMENT.md 4.3 and 4.6): `I`, `O`
+        // and `C` show or hide its panels.
+        if matches!(key, Key::Inventory | Key::Equipment | Key::Sheet)
+            && self
+                .screens
+                .bag
+                .as_ref()
+                .is_some_and(|b| b.page == crate::bag::Page::Inventory)
+            && self.screens.menu.is_none()
+        {
+            match key {
+                Key::Inventory => self.open_inventory(),
+                Key::Equipment => self.open_equipment(),
+                _ => self.open_sheet(),
+            }
+            return;
+        }
         if self.capturing() {
             self.screens.ui_input.keys.push(key);
             return;
@@ -368,6 +406,7 @@ impl App {
             Key::Tab if self.rpg_mode() => self.rpg_cycle(),
             Key::Inventory => self.open_inventory(),
             Key::Equipment => self.open_equipment(),
+            Key::Sheet => self.open_sheet(),
             Key::People => self.open_people(),
             Key::Use => self.open_use(),
             Key::Gm => self.open_gm(),

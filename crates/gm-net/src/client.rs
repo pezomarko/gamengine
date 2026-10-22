@@ -893,11 +893,11 @@ mod tests {
         let mut s = Snapshot::new(tick);
         s.baseline_tick = baseline;
         s.last_input_tick = last_input;
-        // The Phase 2 test character's full pools (MATRIX.md 6 v2 on flat attributes of
-        // 10: stamina 60 + 3·20, focus 40 + 5·10).
+        // The Phase 2 test character's full pools (MATRIX.md 6 v12 on flat attributes of
+        // 10: ST 6 + 0.3·20, MP 4 + 0.5·10; a tenth of v2's since MATRIX.md 23).
         s.own = OwnState {
-            stamina: 120,
-            focus: 90,
+            stamina: 12,
+            focus: 9,
             statuses: Vec::new(),
             guns: None,
             bar: [0; gm_core::sim::BAR_CELLS],

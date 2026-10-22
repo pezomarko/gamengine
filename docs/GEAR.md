@@ -430,6 +430,11 @@ plays every one before the next.
   blade's win over the frostweaver was the triangle's (slash on cloth); the leg is even
   now (MATRIX.md 18), the director's to re-tune.
 
+- **2026-10-22, the draw costs nothing** (MATRIX.md 23): the director's word was that only
+  the primary is free, so the bow's 20 ST a draw and the crossbow's 30 a span (step 7 above,
+  and the 2026-10-20 note) are gone with every other primary's cost; the span and the draw
+  stay the limit. ST is the guard's alone; every other skill costs MP, a tenth of before.
+
 ## 12. No classes (decided and built 2026-10-17)
 
 The director: "we can actually completely get rid of the classes, model is independant of

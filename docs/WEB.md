@@ -206,7 +206,8 @@ resynchronises from the next snapshot; after it, it shows the kick.
 ### 3.4 Keys the browser keeps for itself
 
 `Ctrl+W` closes a tab and cannot be prevented by a page, and guard is on `Ctrl` while `W` runs
-forward. So: guard is also on `C` on every platform; the page asks before unloading while the
+forward. So: guard is also on `X` on every platform (`C` until 2026-10-22, when `C` became
+the character sheet's key, MATRIX.md 23); the page asks before unloading while the
 client runs (`beforeunload`); and the page's "fullscreen" control requests fullscreen and,
 where the browser has it (Chromium), the Keyboard Lock API, under which `Ctrl+W`, `Tab` and
 `Esc` reach the game (leaving fullscreen is then a long press of `Esc`). A browser gives the

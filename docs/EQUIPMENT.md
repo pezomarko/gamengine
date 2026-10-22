@@ -218,6 +218,22 @@ Every name a script finds today stays (`weapon: sword`, `off: nothing`, `armour:
 `character` and `inventory`. `scripts/check-screens.sh` and the items gate run unchanged
 but for the page a script opens first.
 
+### 4.6 The character sheet (`C`), as built 2026-10-22
+
+MATRIX.md 23: the director asked that `C` "open character sheet where we see equipment and
+all stats". It is the inventory screen (4.3) with a third panel: `Bag::sheet` opens the
+equipment (4.1) with the **stats** beside it and the bag's grid hidden; the panels stand
+equipment, stats, bag across the middle, each shown or hidden alone (`I` the grid, `O` the
+equipment, `C` the stats; the last one closed closes the screen, `Escape` closes it whole).
+The stats panel (`STATS_UNITS` 200 wide) lists `character::stat_rows`: the five attributes,
+then HP, ST and MP with their regen, DEF (the armour), ward, evasion, blows and spells
+multipliers, speed, the stagger threshold, knockback taken and dealt, and the status time,
+from the sheet the zone computed with the worn pieces in it; as many rows as the panel holds,
+and **Close**. Three panels that do not fit across the frame (a phone at 780 units: 300 +
+200 + 300 do not) set the grid aside and show the sheet. The UI scripts find the page as
+`sheet`; `equipment` and `inventory` are what they were. `C` held the action mode's guard
+and the gun mode's crouch beside Ctrl (WEB.md 3.4): `X` holds them now, in every mode.
+
 ## 5. All the equipment types
 
 > **Superseded in part by 10.8 (2026-10-14):** the director cut the twelve places to six:

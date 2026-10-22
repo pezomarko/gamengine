@@ -373,7 +373,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 10,
                 "Crossbow",
                 1800,
-                30, // GEAR.md 11: the span tires, as the bow's draw does (2026-10-20)
+                0, // GEAR.md 11: the span tires, as the bow's draw does (2026-10-20)
                 0,
                 0.7,
                 Interrupt::Never,
@@ -393,7 +393,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Firebolt",
                 1200,
                 0,
-                10,
+                0,
                 0.7,
                 Interrupt::OnDamage,
                 vec![(
@@ -427,7 +427,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Ice shard",
                 1000,
                 0,
-                8,
+                0,
                 0.7,
                 Interrupt::OnDamage,
                 vec![(
@@ -461,7 +461,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Stone throw",
                 1800,
                 0,
-                8,
+                0,
                 0.6,
                 Interrupt::OnDamage,
                 vec![(
@@ -480,7 +480,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Shadow dart",
                 800,
                 0,
-                6,
+                0,
                 0.8,
                 Interrupt::Never,
                 vec![(
@@ -509,7 +509,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Spark",
                 1200,
                 0,
-                10,
+                0,
                 0.7,
                 Interrupt::OnDamage,
                 vec![(
@@ -552,7 +552,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                     Verb::Guard(crate::vocab::Guard::Block(Block {
                         arc_deg: 150.0,
                         mitigation: 0.8,
-                        stamina_per_hit: 12,
+                        stamina_per_hit: 1,
                         stops_projectiles: true,
                         move_speed_scale: 0.5,
                     })),
@@ -568,7 +568,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 21,
                 "Parry",
                 1000,
-                10,
+                1,
                 0,
                 1.0,
                 Interrupt::Never,
@@ -627,7 +627,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                     Verb::Guard(crate::vocab::Guard::Block(Block {
                         arc_deg: 120.0,
                         mitigation: 0.5,
-                        stamina_per_hit: 10,
+                        stamina_per_hit: 1,
                         stops_projectiles: false,
                         move_speed_scale: 0.7,
                     })),
@@ -644,8 +644,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 30,
                 "Dash",
                 1000,
-                30,
                 0,
+                3,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -673,8 +673,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 31,
                 "Leap",
                 1500,
-                25,
                 0,
+                2,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -701,8 +701,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 32,
                 "Charge",
                 4000,
-                30,
                 0,
+                3,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -731,7 +731,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Blink",
                 6000,
                 0,
-                30,
+                3,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -755,8 +755,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 34,
                 "Overhead",
                 3000,
-                20,
                 0,
+                2,
                 0.4,
                 Interrupt::OnStagger,
                 vec![(
@@ -785,7 +785,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Stomp",
                 8000,
                 0,
-                25,
+                2,
                 0.3,
                 Interrupt::OnStagger,
                 vec![(
@@ -827,7 +827,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Fortify",
                 15000,
                 0,
-                30,
+                3,
                 0.8,
                 Interrupt::Never,
                 vec![(
@@ -854,7 +854,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Frost nova",
                 8000,
                 0,
-                30,
+                3,
                 0.3,
                 Interrupt::OnDamage,
                 vec![(
@@ -904,7 +904,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Haste",
                 12000,
                 0,
-                20,
+                2,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -931,7 +931,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Thunderclap",
                 7000,
                 0,
-                30,
+                3,
                 0.3,
                 Interrupt::OnDamage,
                 vec![(
@@ -970,7 +970,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Vanish",
                 14000,
                 0,
-                25,
+                2,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -996,8 +996,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 40,
                 "Slip",
                 10000,
-                20,
                 0,
+                2,
                 1.0,
                 Interrupt::Never,
                 vec![(
@@ -1024,7 +1024,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Poison cloud",
                 10000,
                 0,
-                25,
+                2,
                 0.6,
                 Interrupt::Never,
                 vec![(
@@ -1068,7 +1068,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Fireball",
                 5000,
                 0,
-                35,
+                4,
                 0.5,
                 Interrupt::OnDamage,
                 vec![(
@@ -1125,7 +1125,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Mend",
                 2000,
                 0,
-                12,
+                1,
                 0.7,
                 Interrupt::OnDamage,
                 vec![(
@@ -1170,7 +1170,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Sanctuary",
                 14000,
                 0,
-                35,
+                4,
                 0.5,
                 Interrupt::OnDamage,
                 vec![(
@@ -1213,8 +1213,8 @@ pub fn pack(rate: TickRate) -> ContentPack {
                     45,
                     "War standard",
                     20000,
-                    20,
                     0,
+                    2,
                     0.8,
                     Interrupt::Never,
                     vec![(
@@ -1790,7 +1790,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Bellow",
                 12000,
                 0,
-                20,
+                2,
                 0.5,
                 Interrupt::OnStagger,
                 vec![
@@ -1881,7 +1881,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Briar",
                 14000,
                 0,
-                35,
+                4,
                 0.5,
                 Interrupt::OnDamage,
                 vec![(
@@ -1923,7 +1923,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Entangle",
                 14000,
                 0,
-                25,
+                2,
                 0.3,
                 Interrupt::OnDamage,
                 vec![(
@@ -2029,7 +2029,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 57,
                 "Bow",
                 1100,
-                20,
+                0,
                 0,
                 0.6,
                 Interrupt::OnStagger,
@@ -2049,7 +2049,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Wand",
                 700,
                 0,
-                6,
+                0,
                 0.8,
                 Interrupt::OnDamage,
                 vec![(
@@ -2263,7 +2263,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Thorn",
                 1000,
                 0,
-                8,
+                0,
                 0.7,
                 Interrupt::OnDamage,
                 vec![(
@@ -2297,7 +2297,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Flame burst",
                 2500,
                 0,
-                15,
+                2,
                 0.5,
                 Interrupt::OnStagger,
                 vec![(
@@ -2339,7 +2339,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Briar burst",
                 6000,
                 0,
-                25,
+                2,
                 0.3,
                 Interrupt::OnStagger,
                 vec![(
@@ -2381,7 +2381,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Gust",
                 3000,
                 0,
-                12,
+                1,
                 0.6,
                 Interrupt::OnStagger,
                 vec![(
@@ -2530,7 +2530,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 73,
                 "Volley",
                 1300,
-                35,
+                0,
                 0,
                 0.5,
                 Interrupt::OnDamage,
@@ -2686,7 +2686,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Force blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2705,7 +2705,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Fire blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2724,7 +2724,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Water blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2743,7 +2743,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Grass blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2762,7 +2762,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Electric blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2781,7 +2781,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Ground blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2800,7 +2800,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Air blow",
                 600,
                 0,
-                4,
+                0,
                 0.9,
                 Interrupt::OnDamage,
                 vec![(
@@ -2820,7 +2820,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Chill wave",
                 4000,
                 0,
-                20,
+                2,
                 0.6,
                 Interrupt::OnStagger,
                 vec![(
@@ -2854,7 +2854,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 "Static",
                 4000,
                 0,
-                20,
+                2,
                 0.6,
                 Interrupt::OnStagger,
                 vec![(

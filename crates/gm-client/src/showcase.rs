@@ -391,7 +391,7 @@ pub fn selector<C: Canvas>(
     let buys = [
         format!("blows x{:.2}", d.physical_mult),
         format!("speed {:.0} u/s", d.max_speed),
-        format!("health {}", d.health),
+        format!("HP {} DEF {:.0}%", d.health, d.armour * 100.0),
         format!("spells x{:.2}", d.elemental_mult),
         format!("ward {:.0}%", d.ward * 100.0),
     ];
@@ -435,11 +435,11 @@ pub fn selector<C: Canvas>(
     // left, number on the right; as many as there is room for.
     let derived: [(&str, String); 4] = [
         (
-            "stamina",
-            format!("{:.0} (+{:.0}/s)", d.stamina, d.stamina_regen),
+            "ST",
+            format!("{:.0} (+{:.1}/s)", d.stamina, d.stamina_regen),
         ),
-        ("focus", format!("{:.0} (+{:.0}/s)", d.focus, d.focus_regen)),
-        ("armour", format!("{:.0}%", d.armour * 100.0)),
+        ("MP", format!("{:.0} (+{:.1}/s)", d.focus, d.focus_regen)),
+        ("DEF", format!("{:.0}%", d.armour * 100.0)),
         ("evasion", format!("{:.0}%", d.evasion * 100.0)),
     ];
     for (name, value) in derived {

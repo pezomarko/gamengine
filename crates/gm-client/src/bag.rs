@@ -115,6 +115,8 @@ const PRICE_CHARS: usize = 14;
 /// equipment with the body between two columns of places, `EQUIP_ROWS` slots tall.
 pub const BAG_UNITS: f32 = 300.0;
 pub const EQUIP_UNITS: f32 = 300.0;
+/// The character sheet's stats panel (EQUIPMENT.md 4.6), beside the equipment.
+pub const STATS_UNITS: f32 = 200.0;
 const EQUIP_ROWS: f32 = 6.0;
 
 /// Who wears it (EQUIPMENT.md 4.1): the name over the body, the class line under it
@@ -125,6 +127,10 @@ pub struct Wearer<'a> {
     pub name: &'a str,
     pub ribbon: &'a str,
     pub class: &'a str,
+    /// The character sheet's rows (EQUIPMENT.md 4.6): name and value, the attributes
+    /// then everything they come to, as `character::stat_rows` lists them; empty where
+    /// nothing is known.
+    pub stats: &'a [(String, String)],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -253,6 +259,8 @@ pub struct Bag {
     /// each shown or hidden on its own; neither shown, the screen closes.
     pub show_grid: bool,
     pub show_equip: bool,
+    /// The character sheet's stats (EQUIPMENT.md 4.6), a third panel beside the equipment.
+    pub show_stats: bool,
     session: SessionId,
     character: CharacterId,
     /// `None` until the hub has said.
@@ -411,6 +419,7 @@ impl Bag {
             page,
             show_grid: true,
             show_equip: false,
+            show_stats: false,
             session,
             character,
             coin: None,
@@ -467,26 +476,52 @@ impl Bag {
         bag
     }
 
-    /// The name a UI script waits for (CLIENT.md 9): the page's, or `equipment` for the
-    /// inventory with the bag's grid hidden.
+    /// The character sheet (EQUIPMENT.md 4.6): the equipment with every stat beside it,
+    /// the bag's grid hidden.
+    pub fn sheet(
+        hub: &dyn HubApi,
+        session: SessionId,
+        character: CharacterId,
+        now: Instant,
+    ) -> Bag {
+        let mut bag = Bag::equipment(hub, session, character, now);
+        bag.show_stats = true;
+        bag
+    }
+
+    /// The name a UI script waits for (CLIENT.md 9): the page's, `sheet` for the
+    /// inventory with the stats up and the bag's grid hidden, else `equipment` for the
+    /// inventory with the grid hidden.
     pub fn name(&self) -> &'static str {
         match self.page {
+            Page::Inventory if !self.show_grid && self.show_stats => "sheet",
             Page::Inventory if !self.show_grid => "equipment",
             page => page.name(),
         }
+    }
+
+    /// Something is still shown: the screen stays.
+    fn shows(&self) -> bool {
+        self.show_grid || self.show_equip || self.show_stats
+    }
+
+    /// `C` while the inventory is up: the stats shown or hidden; as `toggle_grid`.
+    pub fn toggle_stats(&mut self) -> bool {
+        self.show_stats = !self.show_stats;
+        self.shows()
     }
 
     /// `I` while the inventory is up: the bag's grid shown or hidden. `false`: nothing
     /// is shown any more, and the screen should close.
     pub fn toggle_grid(&mut self) -> bool {
         self.show_grid = !self.show_grid;
-        self.show_grid || self.show_equip
+        self.shows()
     }
 
     /// `O` while the inventory is up: the equipment shown or hidden; as `toggle_grid`.
     pub fn toggle_equip(&mut self) -> bool {
         self.show_equip = !self.show_equip;
-        self.show_grid || self.show_equip
+        self.shows()
     }
 
     /// The stall the body stands at.
@@ -933,15 +968,25 @@ impl Bag {
         {
             self.show_equip = true;
         }
-        if !self.show_grid && !self.show_equip {
+        if !self.shows() {
             return BagAction::Close;
         }
-        // Where the two panels stand: side by side in the middle of the frame, or the
-        // one shown alone there.
+        // Where the panels stand: side by side in the middle of the frame (the
+        // equipment, the stats, the bag), or the ones shown there.
         let (fw, fh) = ui.size();
         let bag_w = BAG_UNITS * s;
         let equip_w = EQUIP_UNITS * s;
+        let stats_w = STATS_UNITS * s;
         let between = 10.0 * s;
+        // Three panels that do not fit across the frame: the sheet wins and the bag's
+        // grid is set aside (EQUIPMENT.md 4.6); `I` brings it back.
+        if self.show_stats
+            && self.show_grid
+            && self.show_equip
+            && equip_w + stats_w + bag_w + 2.0 * between > fw
+        {
+            self.show_grid = false;
+        }
         let bag_inner =
             line + gap + grid_h + gap + bar_h + gap + 3.0 * line + gap + 2.0 * line + gap + h;
         let bag_h = ui.panel_height(bag_inner, true);
@@ -956,17 +1001,31 @@ impl Bag {
             equip_inner += 2.0 * line + egap;
         }
         let equip_h = ui.panel_height(equip_inner, true);
-        let total = match (self.show_equip, self.show_grid) {
-            (true, true) => equip_w + between + bag_w,
-            (true, false) => equip_w,
-            _ => bag_w,
+        let widths = [
+            (self.show_equip, equip_w),
+            (self.show_stats, stats_w),
+            (self.show_grid, bag_w),
+        ];
+        let across = |widths: &[(bool, f32)]| {
+            let shown: Vec<f32> = widths
+                .iter()
+                .filter(|(on, _)| *on)
+                .map(|(_, w)| *w)
+                .collect();
+            shown.iter().sum::<f32>() + between * (shown.len() as f32 - 1.0)
         };
+        let total = across(&widths);
         let x0 = ((fw - total) * 0.5).round();
         let equip_rect = Rect::new(x0, ((fh - equip_h) * 0.5).round(), equip_w, equip_h);
-        let bag_x = if self.show_equip {
+        let stats_x = if self.show_equip {
             x0 + equip_w + between
         } else {
             x0
+        };
+        let bag_x = if self.show_stats {
+            stats_x + stats_w + between
+        } else {
+            stats_x
         };
         let bag_rect = Rect::new(bag_x, ((fh - bag_h) * 0.5).round(), bag_w, bag_h);
         let may_change = self.ready() && self.wearing.free(self.now);
@@ -1075,6 +1134,38 @@ impl Bag {
             take_off = ui.button_if(row[0], "Take off", may_change && worn);
             want_bag = ui.button(row[1], "Bag");
             close_equip = ui.button(row[2], "Close");
+        }
+
+        // The stats (EQUIPMENT.md 4.6): the character sheet's rows, name on the left
+        // and value on the right, as many as the panel holds, and Close.
+        let mut close_stats = false;
+        if self.show_stats {
+            let rows_h = (wearer.stats.len() as f32 * (line + egap)).max(line);
+            let want = ui
+                .panel_height(rows_h + egap + h, true)
+                .min(equip_h.max(bag_h));
+            let rect = Rect::new(stats_x, ((fh - want) * 0.5).round(), stats_w, want);
+            let inner = ui.panel(rect, "stats");
+            let mut y = inner.y;
+            let bottom = inner.y + inner.h - h - egap;
+            for (name, value) in wearer.stats {
+                if y + line > bottom {
+                    break;
+                }
+                ui.label(inner.x, y, inner.w * 0.5, ui::FAINT, name);
+                let vw = ui.text_width(value);
+                ui.label(
+                    (inner.x + inner.w - vw).max(inner.x + inner.w * 0.4),
+                    y,
+                    inner.w * 0.6,
+                    ui::TEXT,
+                    value,
+                );
+                y += line + egap;
+            }
+            let row = Rect::new(inner.x, inner.y + inner.h - h, inner.w, h);
+            let buttons = ui.buttons(row, &["Close"]);
+            close_stats = ui.button(buttons[0], "Close");
         }
 
         // The bag (ITEMS.md 6.1, LOOK.md 4).
@@ -1240,13 +1331,16 @@ impl Bag {
         if close_bag {
             self.show_grid = false;
         }
+        if close_stats {
+            self.show_stats = false;
+        }
         if want_bag {
             self.show_grid = true;
         }
         if want_equip {
             self.show_equip = true;
         }
-        if !self.show_grid && !self.show_equip {
+        if !self.shows() {
             return BagAction::Close;
         }
         if sell && let Some(item) = &picked {
@@ -1959,6 +2053,37 @@ mod tests {
     /// ITEMS.md 2: the equip panel has three slots; a sword dropped on the left hand's is
     /// worn there (`WearIn`), on the right hand's as itself (`Wear`); a cuirass is nothing
     /// to the left hand; and what is worn in each hand sits in its own slot.
+    /// The character sheet (EQUIPMENT.md 4.6): `C` opens the equipment with the stats
+    /// beside it; `I` brings the bag in beside them, `C` again hides the stats, and the
+    /// last panel closed closes the screen.
+    #[test]
+    fn the_sheet_s_panels_toggle_by_their_keys() {
+        let hub = shop();
+        let mut run = Run::new(false);
+        let mut bag = Bag::sheet(&hub, S, ME, run.t);
+        assert_eq!(bag.name(), "sheet");
+        run.look(&mut bag, &hub);
+        assert!(bag.show_equip && bag.show_stats && !bag.show_grid);
+        // `I`: the three do not fit a 1280-wide frame at scale 2 (300 + 200 + 300
+        // units and the gaps), so the frame sets the grid aside again.
+        assert!(bag.toggle_grid());
+        assert!(bag.show_grid);
+        run.look(&mut bag, &hub);
+        assert!(bag.show_equip && bag.show_stats && !bag.show_grid);
+        assert_eq!(bag.name(), "sheet");
+        // `C`: the stats go, and the equipment stands alone.
+        assert!(bag.toggle_stats());
+        run.look(&mut bag, &hub);
+        assert!(!bag.show_stats && !bag.show_grid && bag.show_equip);
+        assert_eq!(bag.name(), "equipment");
+        // `I` brings the bag beside it, and the two fit; `O` and `I` close the last two.
+        assert!(bag.toggle_grid());
+        run.look(&mut bag, &hub);
+        assert!(bag.show_grid && bag.show_equip);
+        assert!(bag.toggle_equip());
+        assert!(!bag.toggle_grid(), "nothing is shown: the screen closes");
+    }
+
     #[test]
     fn a_sword_dropped_on_the_left_hand_is_worn_there() {
         let hub = shop();
@@ -2550,7 +2675,25 @@ mod tests {
             // the ribbon as long as a class line gets.
             let mut both = Bag::inventory(&hub, S, ME, t);
             both.show_equip = true;
-            pages.extend([Bag::equipment(&hub, S, ME, t), both]);
+            // And the character sheet (EQUIPMENT.md 4.6): the stats beside the
+            // equipment, alone and with the bag too, with the longest rows there are.
+            let mut three = Bag::sheet(&hub, S, ME, t);
+            three.show_grid = true;
+            pages.extend([
+                Bag::equipment(&hub, S, ME, t),
+                both,
+                Bag::sheet(&hub, S, ME, t),
+                three,
+            ]);
+            let stats: Vec<(String, String)> = {
+                let pack = gm_core::sim::test_content::pack(gm_core::tick::TickRate::TOWN);
+                let b = &pack.builds[0].build;
+                let mut d = b.derived_in(&pack);
+                d.stamina_regen = 10.0;
+                d.focus_regen = 10.0;
+                d.max_speed = 1000.0;
+                crate::character::stat_rows(b, &d)
+            };
             // The stall as its keeper sees it (the answer is made when it is asked for),
             // and one whose keeper's name is as long as a name gets.
             hub.0.borrow_mut().mine = true;
@@ -2581,6 +2724,7 @@ mod tests {
                         name: "A name of twenty-four b.",
                         ribbon: "Custom (a Frostweaver)  |  infiltrator in leather",
                         class: "Custom (a Frostweaver)",
+                        stats: &stats,
                     };
                     bag.frame_with(&mut ui, &hub, true, t, ItemLooks::default(), wearer);
                     ui.end();

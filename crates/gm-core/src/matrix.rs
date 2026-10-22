@@ -184,7 +184,7 @@ impl ArchetypeFrame {
                 armour: 0.0,
                 ward: 0.10,
                 evasion: 0.0,
-                focus: 20,
+                focus: 2,
             },
             ArchetypeFrame::Infiltrator => FrameMods {
                 mass: 0.8,
@@ -304,9 +304,12 @@ impl Default for Attributes {
 /// Everything the simulation reads per character (MATRIX.md 6).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Derived {
+    /// HP.
     pub health: i32,
+    /// ST, the stamina: what a block takes (MATRIX.md 23).
     pub stamina: f32,
     pub stamina_regen: f32,
+    /// MP, the magic points: what every skill but the primary takes (MATRIX.md 23).
     pub focus: f32,
     pub focus_regen: f32,
     pub max_speed: f32,
@@ -353,10 +356,11 @@ impl Derived {
         );
         Derived {
             health: 50 + 4 * attrs.con as i32,
-            stamina: 60.0 + 3.0 * (con + agi),
-            stamina_regen: 10.0 + 0.6 * agi,
-            focus: 40.0 + 5.0 * int + f.focus as f32,
-            focus_regen: 5.0 + 0.6 * spr,
+            // ST and MP a tenth of what they were, as HP is (MATRIX.md 23, 2026-10-22).
+            stamina: 6.0 + 0.3 * (con + agi),
+            stamina_regen: 1.0 + 0.06 * agi,
+            focus: 4.0 + 0.5 * int + f.focus as f32,
+            focus_regen: 0.5 + 0.06 * spr,
             max_speed: (280.0 + 2.0 * agi) * f.mobility,
             physical_mult: 0.60 + 0.04 * str_,
             elemental_mult: 0.60 + 0.04 * int,
@@ -724,7 +728,8 @@ mod tests {
         let lo = Derived::compute(Attributes::flat(5), ArchetypeFrame::Striker);
         let hi = Derived::compute(Attributes::flat(25), ArchetypeFrame::Striker);
         assert_eq!((lo.health, hi.health), (70, 150));
-        assert_eq!((lo.stamina, hi.stamina), (90.0, 210.0));
+        assert_eq!((lo.stamina, hi.stamina), (9.0, 21.0));
+        assert_eq!((lo.focus, hi.focus), (6.5, 16.5));
         assert!((lo.max_speed - 290.0).abs() < 1e-3 && (hi.max_speed - 330.0).abs() < 1e-3);
         assert!((lo.physical_mult - 0.8).abs() < 1e-6 && (hi.physical_mult - 1.6).abs() < 1e-6);
         assert!((lo.armour - 0.125).abs() < 1e-6 && (hi.armour - 0.425).abs() < 1e-6);
