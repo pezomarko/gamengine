@@ -1551,7 +1551,7 @@ mod tests {
         // element taken off the wheel.
         assert_eq!(run.front.screen, Screen::NewBuild);
         assert!(
-            run.says("Elder  |  caster  |  body skill: Sanctuary"),
+            run.says("Elder  |  caster  |  body skill: Purify"),
             "{:?}",
             run.said()
         );
