@@ -255,10 +255,9 @@ fn dash_moves_fast_and_costs_mp() {
     let focus = p.mover.focus;
     run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 64);
     let p = zone.player(a).unwrap();
-    assert!(
-        p.mover.focus > focus + 0.5,
-        "MP regenerates: {} from {focus}",
-        p.mover.focus
+    assert_eq!(
+        p.mover.focus, focus,
+        "MP comes back only at rest (SKILLS.md 2)"
     );
     assert!(!p.mover.evading(p.last_input_tick));
 }
