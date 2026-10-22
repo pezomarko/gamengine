@@ -1387,7 +1387,8 @@ impl App {
                 self.view.aim = (input.yaw, input.pitch);
                 input
             } else {
-                self.input.sim_input(yaw, pitch, dodge, gun, rpg_frame)
+                self.input
+                    .sim_input(yaw, self.sim.yaw, pitch, dodge, gun, rpg_frame)
             };
             // A press of an item key that begins no use is said why (MODES.md 11.3):
             // what the predicted body knows (an empty cell, the air, the hands, a

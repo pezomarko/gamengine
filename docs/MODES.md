@@ -249,7 +249,7 @@ mark on the target so a gank is timed, not spammed.
 As today: the primary on the left button, the secondary on the right, the guard on `X`
 (Ctrl until 2026-10-22, when Ctrl became every mode's crouch, section 12), the first
 active on `Shift` and the actives on `1`–`4`, the dodge on `Space` when the build has a
-dash (jump is the dash without one), the crouch on Ctrl. The HUD keeps the hotbar with its cooldowns and gets a combo counter at the
+dash (jump is the dash without one, and Space with Ctrl held), the crouch on Ctrl. The HUD keeps the hotbar with its cooldowns and gets a combo counter at the
 right of the crosshair (hits in the current chain, fading two seconds after the last).
 
 ## 5. RPG: third person, mouse driven, target-actions (Ether Saga, Tales of Pirates)
@@ -861,8 +861,10 @@ body moves at a third of its pace.
 
 - **Keys**: Ctrl crouches in every mode. `X` keeps its part in each: the FPS mode's crouch
   beside Ctrl (a browser keeps Ctrl+W: WEB.md 3.4), the action mode's guard (its only key
-  now; Ctrl guarded until today), nothing in the RPG mode (Shift guards there). A phone has
-  no crouch button yet.
+  now; Ctrl guarded until today), nothing in the RPG mode (Shift guards there). The action
+  mode's Space is the dodge while the kit's dash is ready (4.6); with Ctrl held it is a
+  jump, so Ctrl then Space (or both at once) is a crouch-jump there with the dash ready or
+  not. A phone has no crouch button yet.
 - **A hull half as tall**: `Hull::Crouch`, 32 × 32 × 28, standing on the player's feet
   (mins −24, maxs +4 about the origin), so every "feet = origin + mins" stays true in both
   postures and nothing new goes on the wire. qbsp builds the clip hulls a target game names
@@ -923,6 +925,12 @@ body moves at a third of its pace.
   the first frame of a crouch under way, as its eye begins to sink; everyone else sees it
   stand until the crouch is done, as its hitbox does.
 
+- **The action mode walks along its camera**: its frame's yaw is the aim re-aimed through
+  the crosshair (4.1), and that yaw bent toward a near wall's point 24 u to the right of
+  the body (17° at 80 u, more nearer), so a walk straight at the crawl hole went into the
+  wall beside it, and every walk at a wall curved right. The client keeps the re-aimed
+  yaw for the aim and turns the keys' axes by the difference, so the keys walk where the
+  camera looks (nothing on the wire changes).
 - **Where to try it**: the town's north street, gated and empty, is the crouch yard
   (`town::crouch_yard`): a garden wall across it, 104 u high, with a crawl hole 40 u high
   near its west end that only a crouch goes through, and before the wall at its east end a
@@ -974,7 +982,16 @@ standing body at its face and lets a crouched one under, keeps it down under it,
 stand past it), `a_crouch_jump_lands_on_a_ledge_a_jump_cannot_reach` (a 52 u ledge: a plain
 jump falls back, a crouch pressed with the jump or 12 frames before it lands on top),
 `in_the_air_a_crouch_keeps_the_centre_and_getting_up_waits_for_room`,
-`a_helpless_body_keeps_the_posture_it_was_struck_in`, `every_mode_crouches`
+`a_helpless_body_keeps_the_posture_it_was_struck_in`, `every_mode_crouches`; `gm-client`
+`ctrl_crouches_in_every_mode_and_x_keeps_its_part` (and Space with Ctrl is a jump, not
+the dodge), `the_keys_walk_along_the_camera_whatever_the_aim`. **Run, not only tested**
+(2026-10-22, a private hub and town from the branch's release build, a real client at
+1080p on an Xvfb driven by xdotool, the positions the hub saved at a graceful logout): an
+action-mode soldier crouches at the crawl hole, goes through it into the yard (y 984), and
+crouch-jumps onto the crates (z 76, Ctrl then Space); an FPS soldier's plain jump stops at
+the crates' face (z 24), its crouch-jump (Space then Ctrl 40 ms later) landed on them once
+and fell short once on timing, as the root's does; the RPG soldier squats on Ctrl; the FPS
+eye drops to the hole.
 (the FPS, action and RPG presets), the two older crouch tests at the new numbers (a scoped
 shot aimed 3° down at 300 u is a headshot on a crouched blade); `gm-bsp`
 `the_crouched_hull_stands_on_the_same_feet_and_is_half_as_tall` (on the test room: floor,

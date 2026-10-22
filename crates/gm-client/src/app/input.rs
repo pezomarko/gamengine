@@ -44,14 +44,18 @@ impl Input {
         }
     }
 
-    /// The frame's input. `dodge` is the active slot (1-based) Space plays instead of a
-    /// jump (MODES.md 4.6): the kit's dash, while it is ready. Ctrl crouches in every mode
-    /// (MODES.md 3.5). In the gun mode (MODES.md 3.7) `1 2 3` take the gun, the pistol and
-    /// the knife in hand, `4`–`7` are the actives, Shift walks, `R` reloads and the
-    /// secondary button is the scope.
+    /// The frame's input. `yaw` is the aim; `walk` the yaw the keys walk along, the
+    /// camera's (the action mode re-aims the frame through the crosshair, MODES.md 4.1).
+    /// `dodge` is the active slot (1-based) Space plays instead of a jump (MODES.md 4.6):
+    /// the kit's dash, while it is ready. Ctrl crouches in every mode (MODES.md 3.5). In the
+    /// gun mode (MODES.md 3.7) `1 2 3` take the gun, the pistol and the knife in hand,
+    /// `4`–`7` are the actives, Shift walks, `R` reloads and the secondary button is the
+    /// scope.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn sim_input(
         &mut self,
         yaw: f32,
+        walk: f32,
         pitch: f32,
         dodge: Option<u8>,
         gun: bool,
@@ -76,6 +80,9 @@ impl Input {
         if let Some(r) = rpg {
             return self.rpg_input(yaw, pitch, r, kit, use_slot);
         }
+        // A crouching body jumps on Space rather than dodging (MODES.md 12): Ctrl then
+        // Space is the action mode's crouch-jump, the dash ready or not.
+        let dodge = if ctrl { None } else { dodge };
         let (mut forward, mut side) = self.axes();
         let mut b = kit;
         let dodged = dodge.is_some() && self.just_pressed.contains(&KeyCode::Space);
@@ -100,6 +107,12 @@ impl Input {
         if dodged && let Some(d) = dodge {
             ability = d;
         }
+        // The keys walk along the camera, the frame's yaw being the aim: re-aimed through
+        // the crosshair it bends toward a near wall (24 u to the right of the body where
+        // the camera's ray meets it), and a walk straight at a crawl hole went into the
+        // wall beside it (MODES.md 12). The axes are turned by the difference.
+        let (sin, cos) = (walk - yaw).to_radians().sin_cos();
+        let (forward, side) = (forward * cos + side * sin, side * cos - forward * sin);
         self.just_pressed.clear();
         SimInput {
             buttons: b,
