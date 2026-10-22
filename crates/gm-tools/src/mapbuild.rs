@@ -60,7 +60,7 @@ pub struct BuildOptions {
     pub no_light: bool,
 }
 
-fn run(exe: &Path, args: &[&str]) -> Result<()> {
+pub(crate) fn run(exe: &Path, args: &[&str]) -> Result<()> {
     println!("+ {} {}", exe.display(), args.join(" "));
     let status = Command::new(exe)
         .args(args)
@@ -104,6 +104,8 @@ pub fn build(map: &Path, opts: &BuildOptions, tools: &Tools) -> Result<PathBuf> 
             &["-log", "0", "-nopercent", "-extra", "-lit", bsp_s],
         )?;
     }
+    // Last, so vis and light never see it: the crouched hull (MODES.md 3.5).
+    crate::crouch::add(map, &bsp, &opts.wad_dir, tools)?;
     let size = fs::metadata(&bsp)?.len();
     let lit = bsp.with_extension("lit");
     let lit_size = fs::metadata(&lit).map(|m| m.len()).unwrap_or(0);
@@ -133,6 +135,14 @@ pub fn info(bsp_path: &Path) -> Result<()> {
         bsp.models.len()
     );
     println!("  world bounds {:?} .. {:?}", world.mins, world.maxs);
+    println!(
+        "  crouched hull {}",
+        if bsp.has_crouch_hull() {
+            "yes"
+        } else {
+            "NO (gm-tools map crouch)"
+        }
+    );
     println!(
         "  lighting {} bytes, lit {}, visdata {} bytes, entities {}",
         bsp.lighting.len(),

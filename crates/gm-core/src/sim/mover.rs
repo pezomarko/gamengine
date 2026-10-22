@@ -222,10 +222,18 @@ pub struct Mover {
     pub use_until: Option<Tick>,
     pub use_cell: u8,
     pub used: Option<u8>,
-    /// Crouching (MODES.md 3.4, 3.5, 10.2): the button held on the ground. The eye, the
-    /// top of the hitbox and the body are lower by `CROUCH_DROP`, the head band with
-    /// them, and the body walks at half speed; the world hull does not change.
+    /// Crouching (MODES.md 3.4, 3.5, 10.2): the button held, on the ground or in the
+    /// air, in every mode. The world hull is `Hull::Crouch` (half the player's), the eye,
+    /// the top of the hitbox and the body are lower by `CROUCH_DROP`, the head band with
+    /// them, and the body walks at half speed. Let go, it stands when there is room.
     pub crouched: bool,
+    /// How far this frame's crouch or rise moved the origin up: `CROUCH_TUCK` for a
+    /// crouch in the air, minus it for a rise there, 0 otherwise. The client draws the
+    /// move away and lets it go, so neither the view nor the body jumps.
+    pub stance_lift: f32,
+    /// A crouch on the ground under way (`DUCK_SECS`): 0 none, 1 done, the eye sinking
+    /// between while the body still stands.
+    pub duck: f32,
 }
 
 impl Mover {
@@ -255,6 +263,8 @@ impl Mover {
             use_cell: 0,
             used: None,
             crouched: false,
+            stance_lift: 0.0,
+            duck: 0.0,
         }
     }
 
@@ -345,13 +355,11 @@ impl Mover {
         Some((1.0 - left / whole).clamp(0.0, 1.0))
     }
 
+    /// The eye: the hull's, `CROUCH_DROP` lower while crouched (MODES.md 3.5), and
+    /// sinking toward that over a crouch under way on the ground, as the root's view does
+    /// over its duck time.
     pub fn eye(&self) -> Vec3 {
-        let eye = self.mv.eye_position();
-        if self.crouched {
-            eye - Vec3::Z * CROUCH_DROP
-        } else {
-            eye
-        }
+        self.mv.eye_position() - Vec3::Z * (CROUCH_DROP * duck_curve(self.duck))
     }
 
     /// Unit view direction from yaw and pitch (positive pitch looks down).
@@ -428,10 +436,12 @@ pub fn view_dir(yaw: f32, pitch: f32) -> Vec3 {
 /// The hitbox capsule of a body of `frame` whose hull origin is `origin`: standing on the
 /// hull's feet, its top `CROUCH_DROP` lower while `crouched` (MODES.md 3.5), so the head
 /// band moves down with the body and a shot at a standing head passes over a crouched one.
+/// Never shorter than its width (a colossus's 60 crouches to 38 over a radius of 18). In
+/// the air the feet a crouch lifted lift the capsule with them.
 pub fn capsule_at(origin: Vec3, hull: Hull, frame: ArchetypeFrame, crouched: bool) -> Capsule {
     let (radius, height) = frame.capsule();
     let height = if crouched {
-        height - CROUCH_DROP
+        (height - CROUCH_DROP).max(2.0 * radius)
     } else {
         height
     };
@@ -662,9 +672,18 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
     if m.using_item(now).is_some() {
         scale *= 0.5;
     }
-    // A crouch is a half-speed creep with the eye lowered (MODES.md 3.4); the button
-    // counts on the ground only.
-    m.crouched = input.buttons & buttons::CROUCH != 0 && m.mv.on_ground;
+    let jump = input.buttons & buttons::JUMP != 0 && !staggered;
+    // A crouch is a half-speed creep in a hull half as tall (MODES.md 3.4, 3.5), on the
+    // ground or in the air.
+    let jumps = jump && !m.mv.jump_held && m.dash.is_none();
+    // A staggered or downed body is helpless (MATRIX.md 8, MODES.md 4.5): it keeps the
+    // posture it was struck in, as it cannot jump, and cannot shrink its hitbox at will.
+    let want = if staggered {
+        m.crouched
+    } else {
+        input.buttons & buttons::CROUCH != 0
+    };
+    crouch_step(world, m, want, jumps, dt);
     if m.crouched {
         scale *= 0.5;
     }
@@ -672,7 +691,6 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         max_speed: d.max_speed * m.statuses.speed_scale(),
         ..MoveVars::QUAKE
     };
-    let jump = input.buttons & buttons::JUMP != 0 && !staggered;
     match m.dash {
         Some(dsh)
             if tick_delta(dsh.until, now) > 0 && !m.statuses.has(crate::vocab::Status::Root) =>
@@ -976,9 +994,91 @@ pub const SCOPED_CONE: f32 = 0.25;
 
 /// How far a crouch brings the body down, in units (MODES.md 3.4, 3.5): the eye, the top
 /// of the hitbox capsule (and so the head band) and the drawn body, all by the same
-/// amount. Two sevenths of a striker's 56 (the root halves its 72; a capsule of our
-/// radius cannot shorten that far and stay a body).
-pub const CROUCH_DROP: f32 = 16.0;
+/// amount. The eye goes from 46 over the feet to 24, inside the crouched hull's 28
+/// (`Hull::Crouch`, half the standing 56 as Counter-Strike halves its 72), and a
+/// striker's head from 56 to 34: as in the root, the crouched body is drawn a little
+/// taller than its hull, which nobody sees from the eye.
+pub const CROUCH_DROP: f32 = 22.0;
+
+/// How far a crouch in the air lifts the feet, in units (MODES.md 3.5): the crouched hull
+/// keeps the standing one's centre there, as Counter-Strike's duck in the air does, so the
+/// feet come up half of what the hull loses and the head comes down the other half. A jump
+/// that peaks at 45.6 u clears a ledge 14 u higher crouched: the crouch-jump.
+pub const CROUCH_TUCK: f32 = (Hull::Player.maxs().z - Hull::Crouch.maxs().z) * 0.5;
+
+/// How long a crouch takes on the ground, in seconds (MODES.md 3.5): the root's duck time.
+/// The eye sinks over it while the body still stands, walks at its pace and keeps its
+/// hitbox; at its end the body is crouched where its feet are. A body that leaves the ground
+/// before then (a jump pressed with the crouch or just after it) is crouched at once in the
+/// air, tucked: the crouch-jump. A crouch in the air and getting up are at once.
+pub const DUCK_SECS: f32 = 0.4;
+
+/// The root's spline over a crouch under way: slow out of the stand, slow into the crouch.
+pub fn duck_curve(duck: f32) -> f32 {
+    let t = duck.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// The posture (MODES.md 3.5), before the frame's movement; `jumps` says a jump is pressed
+/// this frame (it leaves the ground if the body is on it). Down: on the ground over
+/// `DUCK_SECS`, the feet staying where they are;
+/// in the air at once, the hull keeping its centre so the feet come up `CROUCH_TUCK`. The
+/// crouched box lies inside the standing one either way, so a crouch is always free. Up,
+/// once the button is let go: the standing hull where the feet are on the ground, or round
+/// the same centre in the air, if it is in open space there; else the body stays down
+/// (under a low ceiling, or with the ground nearer than the tuck under its feet) and tries
+/// again the next frame. Only a player-sized body crouches.
+pub fn crouch_step<W: CollisionWorld + ?Sized>(
+    world: &W,
+    m: &mut Mover,
+    want: bool,
+    jumps: bool,
+    dt: f32,
+) {
+    m.stance_lift = 0.0;
+    // Whether the body is on the ground now, as the movement is about to find: the flag of
+    // the last frame does not know a spawn, a blow's lift or a ledge walked off.
+    if want != m.crouched && matches!(m.mv.hull, Hull::Player | Hull::Crouch) {
+        crate::movement::categorize_position(&world, &mut m.mv);
+    }
+    let jumping = jumps && m.mv.on_ground;
+    if !want {
+        m.duck = 0.0;
+        if m.crouched {
+            let lift = if m.mv.on_ground { 0.0 } else { -CROUCH_TUCK };
+            let at = m.mv.origin + Vec3::Z * lift;
+            let t = world.trace(Hull::Player, at, at);
+            if !t.start_solid && !t.all_solid {
+                m.mv.origin = at;
+                m.mv.hull = Hull::Player;
+                m.crouched = false;
+                m.stance_lift = lift;
+            }
+        }
+        return;
+    }
+    if m.crouched || m.mv.hull != Hull::Player {
+        return;
+    }
+    if !m.mv.on_ground {
+        m.mv.origin.z += CROUCH_TUCK;
+        m.stance_lift = CROUCH_TUCK;
+    } else {
+        // A crouch done the frame a jump leaves would be a crouched jump: it waits a frame
+        // and is done in the air.
+        m.duck = (m.duck + dt / DUCK_SECS).min(1.0);
+        if m.duck < 1.0 - DUCK_DONE || jumping {
+            return;
+        }
+    }
+    m.duck = 0.0;
+    m.mv.hull = Hull::Crouch;
+    m.crouched = true;
+}
+
+/// Short of 1 by less than this, a crouch under way is done: the frames of `DUCK_SECS`
+/// added up in `f32` land a hair under it.
+const DUCK_DONE: f32 = 1e-3;
 
 /// Line of sight from `eye` to a body's `centre` through the mover's world, which holds
 /// the other bodies as solids: the trace stops a little short of the body, so the body
@@ -1203,7 +1303,7 @@ fn resolve_step<W: CollisionWorld + ?Sized>(
             let (turn, kick, cone_deg, headshot) = match &ab.firearm {
                 Some(f) => {
                     let g = &m.guns[m.held.min(1) as usize];
-                    let crouched = input.buttons & buttons::CROUCH != 0;
+                    let crouched = m.crouched;
                     let scoped = input.buttons & buttons::SCOPE != 0;
                     let cone = cone_deg(
                         f,

@@ -159,7 +159,9 @@ pub fn player_move<W: CollisionWorld>(
     );
 }
 
-fn categorize_position<W: CollisionWorld>(world: &W, st: &mut PlayerState) {
+/// Whether the hull stands on ground (a floor, not a wall, under it within a unit, and not
+/// rising faster than a step), and onto it if so: Quake's `PM_CatagorizePosition`.
+pub fn categorize_position<W: CollisionWorld>(world: &W, st: &mut PlayerState) {
     if st.velocity.z > 180.0 {
         st.on_ground = false;
         st.ground_normal = Vec3::ZERO;

@@ -810,4 +810,5 @@ stats."
 - **The character sheet, `C`** (EQUIPMENT.md 4.6): the equipment with every stat beside it,
   in every mode. `C` was the key held beside Ctrl (the action mode's guard, the gun mode's
   crouch; WEB.md 3.4: a browser keeps Ctrl+W): **`X`** is that key now, on the hotbar's
-  guard cell and the touch hotbar too. `K` still opens the build's page.
+  guard cell and the touch hotbar too. (Since 2026-10-22 Ctrl crouches in every mode and
+  `X` alone guards in the action mode: MODES.md 12.) `K` still opens the build's page.

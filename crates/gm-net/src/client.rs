@@ -153,6 +153,15 @@ pub struct ClientState {
     pub actions: Vec<Action>,
 }
 
+/// The world hull a body's record says it is in: crouched or standing (MODES.md 3.5).
+fn hull_of(bits: u16) -> Hull {
+    if bits & flags::CROUCHED != 0 {
+        Hull::Crouch
+    } else {
+        Hull::Player
+    }
+}
+
 impl ClientState {
     pub fn new(my_id: EntityId, rate: TickRate, sheet: Sheet) -> ClientState {
         let mover = Mover::spawn(Vec3::ZERO, 0.0, &sheet);
@@ -436,6 +445,13 @@ impl ClientState {
             st
         };
         let apply = |m: &mut Mover| {
+            // The posture first (MODES.md 3.5): it is the hull the position is nudged in.
+            let crouched = own.flags & flags::CROUCHED != 0;
+            if crouched != m.crouched {
+                m.crouched = crouched;
+                m.mv.hull = hull_of(own.flags);
+                m.duck = 0.0;
+            }
             // The wire position is rounded to 1/4 u and can sit exactly on a clip plane, where
             // the tracer would report solid and freeze the mover; nudge out first.
             m.mv.origin = gm_core::movement::nudge_position(world, m.mv.hull, server_pos);
@@ -543,6 +559,8 @@ impl ClientState {
                         )
                     || (own.flags & flags::COMMANDING != 0)
                         != predicted.commanding(last_input_tick)
+                    // A crouch the zone saw done or undone a frame apart (MODES.md 3.5).
+                    || (own.flags & flags::CROUCHED != 0) != predicted.crouched
                     // The stacks (MODES.md 11): kits bought at a stall, rounds the zone
                     // read after a buy, a use it refused at full health; the HUD counts
                     // them and the prediction begins a use only with a kit in hand.
@@ -783,7 +801,7 @@ impl ClientState {
         self.others_at(t)
             .into_iter()
             .filter(|e| e.kind == EntityKind::Player && e.alive())
-            .map(|e| Aabb::around(e.pos, Hull::Player))
+            .map(|e| Aabb::around(e.pos, hull_of(e.flags)))
             .collect()
     }
 
@@ -795,7 +813,7 @@ impl ClientState {
             .filter(|t| t.removed_at.is_none())
             .filter_map(|t| t.samples.back())
             .filter(|(_, e)| e.spawn.kind() == EntityKind::Player && e.flags & flags::ALIVE != 0)
-            .map(|(_, e)| Aabb::around(Vec3::from(quant::dequantize_pos3(e.pos)), Hull::Player))
+            .map(|(_, e)| Aabb::around(Vec3::from(quant::dequantize_pos3(e.pos)), hull_of(e.flags)))
             .collect()
     }
 
@@ -814,9 +832,10 @@ impl ClientState {
                     _ => 0,
                 };
                 let pos = Vec3::from(quant::dequantize_pos3(e.pos));
+                let hull = hull_of(e.flags);
                 Nearby {
                     id,
-                    centre: pos + Vec3::Z * (Hull::Player.mins().z + Hull::Player.maxs().z) * 0.5,
+                    centre: pos + Vec3::Z * (hull.mins().z + hull.maxs().z) * 0.5,
                     velocity: Vec3::ZERO,
                     team,
                     party: 0,

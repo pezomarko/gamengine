@@ -329,6 +329,8 @@ struct Sample {
     yaw: f32,
     pitch: f32,
     alive: bool,
+    /// Crouched (MODES.md 12): the eye at the crouched hull's.
+    crouched: bool,
     /// How far behind this tick the world was that this view looked at, where the record
     /// says (`Event::View`).
     lag: Option<u8>,
@@ -468,6 +470,7 @@ impl Analyser {
                 yaw: quant::wire_to_yaw(e.yaw),
                 pitch: quant::wire_to_pitch(e.pitch),
                 alive: e.flags & flags::ALIVE != 0,
+                crouched: e.flags & flags::CROUCHED != 0,
                 lag: self.lags.get(&e.id).copied(),
             });
             while trace.samples.len() > HISTORY {
@@ -522,7 +525,12 @@ impl Analyser {
 
     fn eye(&self, id: u32, tick: u32) -> Option<Vec3> {
         let s = self.traces.get(&id)?.at(tick)?;
-        Some(s.pos + Vec3::Z * Hull::Player.eye_height())
+        let hull = if s.crouched {
+            Hull::Crouch
+        } else {
+            Hull::Player
+        };
+        Some(s.pos + Vec3::Z * hull.eye_height())
     }
 
     /// A body's centre and velocity at a tick, if it lived then. The velocity is taken over

@@ -28,6 +28,16 @@ impl ZoneWorld {
             std::fs::read(path).map_err(|e| anyhow::anyhow!("reading {}: {e}", path.display()))?;
         let bsp =
             Bsp::load(path).map_err(|e| anyhow::anyhow!("parsing {}: {e}", path.display()))?;
+        // A crouch is a hull of its own (MODES.md 3.5): without it a crouch in the air
+        // would lift a standing-sized box into the ceiling.
+        if !bsp.has_crouch_hull() {
+            anyhow::bail!(
+                "{} has no crouched hull: build it with `gm-tools map build`, or add it with \
+                 `gm-tools map crouch SOURCE.map {}`",
+                path.display(),
+                path.display()
+            );
+        }
         let name = path
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())

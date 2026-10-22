@@ -233,6 +233,8 @@ and **Close**. Three panels that do not fit across the frame (a phone at 780 uni
 200 + 300 do not) set the grid aside and show the sheet. The UI scripts find the page as
 `sheet`; `equipment` and `inventory` are what they were. `C` held the action mode's guard
 and the gun mode's crouch beside Ctrl (WEB.md 3.4): `X` holds them now, in every mode.
+Since 2026-10-22 Ctrl crouches in every mode and the action mode's guard is `X` alone
+(MODES.md 12).
 
 ## 5. All the equipment types
 

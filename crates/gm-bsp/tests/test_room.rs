@@ -261,6 +261,72 @@ fn player_hull_traces_respect_the_box() {
     assert!(t.start_solid);
 }
 
+#[test]
+fn the_crouched_hull_stands_on_the_same_feet_and_is_half_as_tall() {
+    // MODES.md 3.5: Hexen II's crouching hull 3, merged by `gm-tools map crouch`, traced
+    // on the player's feet: 28 u from the feet up where the standing hull is 56.
+    let bsp = load();
+    assert!(bsp.has_crouch_hull());
+    let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
+    // Down onto the floor: the feet where the standing hull's are.
+    let t = bsp.trace(Hull::Crouch, at(-176.0, 100.0), at(-176.0, -100.0));
+    assert!((t.end.z - REST_Z).abs() < 0.1, "end = {:?}", t.end);
+    assert!(t.plane_normal.z > 0.99);
+    assert!(
+        (t.plane_dist - REST_Z).abs() < 0.1,
+        "dist = {}",
+        t.plane_dist
+    );
+    // Up to the ceiling at 192: the crouched top is 4 over the origin, the standing 32.
+    let crouched = bsp.trace(Hull::Crouch, at(-176.0, 100.0), at(-176.0, 400.0));
+    let standing = bsp.trace(Hull::Player, at(-176.0, 100.0), at(-176.0, 400.0));
+    assert!((crouched.end.z - 188.0).abs() < 0.1, "{:?}", crouched.end);
+    assert!((standing.end.z - 160.0).abs() < 0.1, "{:?}", standing.end);
+    assert!(crouched.plane_normal.z < -0.99);
+    assert!(
+        (crouched.plane_dist + 188.0).abs() < 0.1,
+        "{}",
+        crouched.plane_dist
+    );
+    // As wide: the +x wall stops it where it stops the standing hull.
+    let t = bsp.trace(Hull::Crouch, at(0.0, 96.0), at(400.0, 96.0));
+    assert!((t.end.x - 240.0).abs() < 0.1, "end = {:?}", t.end);
+    // Contents: feet under the floor are solid, over it open, for both postures.
+    for hull in [Hull::Player, Hull::Crouch] {
+        assert_eq!(bsp.point_contents(hull, at(0.0, 10.0)), Contents::Solid);
+        assert_eq!(bsp.point_contents(hull, at(0.0, 40.0)), Contents::Empty);
+    }
+    // Under the ceiling where only a crouch fits: the standing hull is in it.
+    assert_eq!(
+        bsp.point_contents(Hull::Player, at(0.0, 180.0)),
+        Contents::Solid
+    );
+    assert_eq!(
+        bsp.point_contents(Hull::Crouch, at(0.0, 180.0)),
+        Contents::Empty
+    );
+}
+
+#[test]
+fn every_committed_map_carries_the_crouched_hull() {
+    // The zone refuses a map without it (MODES.md 3.5); `gm-tools map build` merges it.
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/maps/built");
+    let mut maps = 0;
+    for entry in std::fs::read_dir(&dir).expect("assets/maps/built") {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|e| e == "bsp") {
+            let bsp = Bsp::load(&path).expect("loads");
+            assert!(
+                bsp.has_crouch_hull(),
+                "{} has no crouched hull",
+                path.display()
+            );
+            maps += 1;
+        }
+    }
+    assert!(maps >= 4, "{maps} maps");
+}
+
 fn settle(bsp: &Bsp, origin: Vec3) -> PlayerState {
     let mut st = PlayerState::new(origin);
     let dt = 1.0 / 64.0;

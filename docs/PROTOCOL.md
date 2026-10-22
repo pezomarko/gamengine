@@ -863,6 +863,12 @@ in the simulation's snapshots:
 - The zone's rewind (7.4) records the posture with the position, so a bolt or a blade is
   resolved against a capsule as short as the body was at the shooter's view tick. Nothing
   of that is on the wire.
+- **Since 2026-10-22** (MODES.md 12, no version change: nothing new is on the wire) the
+  bit says the body is in the crouched hull, half the standing one, on the ground or in
+  the air, in every mode; the drop is 22 u. A client predicts with the crouched box of a
+  body that carries it, and its own posture is the zone's at reconciliation (a different
+  one is a soft correction, adopted and replayed) before the rounded position is nudged
+  in that hull. A client holding the maps of before is refused by the map's hash (8).
 
 ## 27. Changes in v15 (the RPG body stands as it was left, 2026-10-08)
 

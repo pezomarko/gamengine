@@ -102,6 +102,15 @@ pub(super) struct Entry {
     pub(super) zone_name: String,
 }
 
+/// How far a body's head is lower than standing (MODES.md 3.5): by its record's flag.
+fn crouch_drop_of(e: &gm_net::client::RenderEntity) -> f32 {
+    if e.flags & gm_net::snapshot::flags::CROUCHED != 0 {
+        gm_core::sim::CROUCH_DROP
+    } else {
+        0.0
+    }
+}
+
 pub(super) fn online(
     opts: &Options,
     sim: &Sim,
@@ -1403,8 +1412,13 @@ impl App {
                 own_travel += (c.mover.mv.origin - before).truncate().length();
             }
             o.net.send_input(datagram.encode());
-            o.prev_origin = o.curr_origin;
+            // A crouch or a rise in the air moves the origin by the tuck (MODES.md 3.5):
+            // not a stride to interpolate, so the last origin takes it too, and the view
+            // draws it away and lets it go.
+            let lift = c.mover.stance_lift;
+            o.prev_origin = o.curr_origin + Vec3::Z * lift;
             o.curr_origin = c.mover.mv.origin;
+            self.view.lift -= lift;
             o.accumulator -= dt;
             steps += 1;
         }
@@ -1469,21 +1483,20 @@ impl App {
         self.scene.bodies.clear();
         self.scene.tags.clear();
         self.scene.effects.begin(frame_dt);
-        // The crouch lowers the eye (MODES.md 3.4): the predicted mover's drop, eased over
-        // about a tenth of a second so the view does not jump.
-        let drop = if c.mover.crouched {
-            gm_core::sim::CROUCH_DROP
-        } else {
-            0.0
-        };
-        self.view.eye_drop += (drop - self.view.eye_drop) * (frame_dt * 12.0).min(1.0);
-        // The own hull origin as drawn, and the eye over it less the drop: the body
-        // itself is lowered by its squat (the animator's), not by the eye.
+        // The eye over the origin (MODES.md 3.4, 3.5): the predicted mover's, which sinks
+        // over a crouch under way, eased over about a tenth of a second so getting up does
+        // not jump; a crouch's lift in the air is let go at the same pace.
+        let ease = (frame_dt * 12.0).min(1.0);
+        let target = c.mover.eye().z - c.mover.mv.origin.z;
+        self.view.eye_height += (target - self.view.eye_height) * ease;
+        self.view.lift -= self.view.lift * ease;
+        // The own hull origin as drawn, and the eye over it: the body itself is lowered by
+        // its squat (the animator's), not by the eye.
         let centre = {
             let alpha = (o.accumulator / o.rate.dt()).clamp(0.0, 1.0);
-            o.prev_origin.lerp(o.curr_origin, alpha)
+            o.prev_origin.lerp(o.curr_origin, alpha) + Vec3::Z * self.view.lift
         };
-        let eye = centre + Vec3::Z * (c.mover.mv.hull.eye_height() - self.view.eye_drop);
+        let eye = centre + Vec3::Z * self.view.eye_height;
         // The recoil's punch (MODES.md 3.3): the firearm's kick for this shot lands on the
         // view at once and decays over 150 ms; the frames sent carry the mouse's aim,
         // the zone kicks the bolt by the same pair.
@@ -1725,8 +1738,9 @@ impl App {
                 &mut self.scene.fx,
             );
             // What a Regen gave it, as the zone said: a number over its head, large
-            // for the own hand's, small for another's (LOOK.md 13.8, 13.13).
-            let over_head = e.pos + feet_under + Vec3::Z * 72.0;
+            // for the own hand's, small for another's (LOOK.md 13.8, 13.13); a crouched
+            // head is lower (MODES.md 3.5).
+            let over_head = e.pos + feet_under + Vec3::Z * (72.0 - crouch_drop_of(&e));
             o.heals.retain(|&(target, amount, own)| {
                 if target != e.id {
                     return true;
@@ -1796,7 +1810,7 @@ impl App {
         camera: Vec3,
     ) {
         let (friend, creature, foe) = side;
-        let head = e.pos + Vec3::Z * 40.0;
+        let head = e.pos + Vec3::Z * (40.0 - crouch_drop_of(e));
         if name.is_empty()
             || (head - camera).length() >= 900.0
             || bsp.trace(Hull::Point, camera, head).fraction < 1.0
@@ -2314,7 +2328,10 @@ impl App {
             yaw,
             pitch: self.sim.pitch,
             anim: own_anim,
-            crouched: c.mover.crouched,
+            // The own body squats from the first frame of a crouch under way, as its eye
+            // begins to sink; others see it stand until it is done, as its hitbox does
+            // (MODES.md 12).
+            crouched: c.mover.crouched || c.mover.duck > 0.0,
             frame: gm_model::rig::frame_index(build.frame),
             aspects: build.aspects.0,
             status: c.mover.statuses.mask(),

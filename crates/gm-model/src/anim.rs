@@ -51,9 +51,9 @@ pub struct AnimInput {
     /// its arms less. (The armour class until GEAR.md 12, 2026-10-17; every body is light
     /// since, the knob kept for a frame's own gait.)
     pub weight: f32,
-    /// Crouched (MODES.md 3.5): the squat is laid over the stance, the body
-    /// `CROUCH_DROP` lower, so a crouch reads from across the arena as it does in the
-    /// root, and the body stands where its shortened hitbox is.
+    /// Crouched (MODES.md 3.5): the squat is laid over the stance, the head `CROUCH_DROP`
+    /// lower, so a crouch reads from across the arena as it does in the root, and the body
+    /// stands where its shortened hitbox is.
     pub crouched: bool,
 }
 
@@ -270,29 +270,50 @@ pub fn pose(i: &AnimInput) -> Pose {
     p
 }
 
-/// The squat (MODES.md 3.5), over whatever the arms and the torso are doing: the thighs
-/// swung forward and the knees folded so the hips come down by `CROUCH_DROP` with the feet
-/// where they were (the thigh and the shin are each 0.225 of the frame's height: at 75°
-/// forward and 62° back from the upright they give up 1.27 of their length, 16 u of a
-/// striker's 12.6), the torso leant into it. A crouch that walks (the RUN stance) rocks
-/// the legs a little with the cycle instead of striding; the kneeling command stance is
-/// left alone.
+/// How far the squat brings the hips down, in units: what the folded legs give up of a
+/// striker's (`crouch`).
+pub const SQUAT: f32 = 20.6;
+
+/// The squat's hips tipped forward, and its heels raised off the floor, in degrees.
+const HIPS_TILT: f32 = 6.0;
+const HEELS_UP: f32 = 10.0;
+
+/// The squat (MODES.md 3.5), over whatever the arms and the torso are doing: a full squat,
+/// the thighs a little past level and the heels under the hips, so the hips come down
+/// `SQUAT` with the feet where they were (the thigh and the shin are each 0.225 of the
+/// frame's height: at 95° forward and 63° back from the upright they give up 1.63 of their
+/// length, 20.6 u of a striker's 12.6), the back upright as the root's crouch is but for a
+/// lean that brings the head the last of `CROUCH_DROP` down, where the crouched hitbox's top
+/// is. A crouch that walks (the RUN stance) rocks the thighs a little with the cycle
+/// instead of striding; the kneeling command stance is left alone. In the air it is the
+/// tuck: the feet drawn up under the body.
 fn crouch(p: &mut Pose, i: &AnimInput) {
     let rock = if i.state == anim::RUN {
         6.0 * i.cycle.sin()
     } else {
         0.0
     };
-    legs(p, -75.0 - rock, 137.0 - rock, -75.0 + rock, 137.0 + rock);
-    p.rot[HIPS] = ry(6.0) * p.rot[HIPS];
-    p.rot[SPINE] = ry(6.0) * p.rot[SPINE];
-    // Arms that hang would reach the knees: the elbows bend and the hands rest at the
-    // thighs. Arms that do something (a creep's swing, a cast, a reload) are left to it.
-    if i.state == anim::IDLE {
-        p.rot[FOREARM_L] = rz(-35.0) * p.rot[FOREARM_L];
-        p.rot[FOREARM_R] = rz(35.0) * p.rot[FOREARM_R];
+    // The knees stay folded through a creep's rock: a thigh swung forward lifts the hips
+    // as much as its shin raked back lowers them, so the feet keep to the floor.
+    let (thigh_l, knee_l) = (-95.0 - rock, 158.0);
+    let (thigh_r, knee_r) = (-95.0 + rock, 158.0);
+    legs(p, thigh_l, knee_l, thigh_r, knee_r);
+    p.rot[HIPS] = ry(HIPS_TILT) * p.rot[HIPS];
+    // The feet stay near level on the ground under shins raked back past 60°, the heels a
+    // little up as in any deep squat (a foot left at the shin's angle stood on its toes,
+    // its tip in the floor).
+    for (foot, thigh, knee) in [(FOOT_L, thigh_l, knee_l), (FOOT_R, thigh_r, knee_r)] {
+        p.rot[foot] = ry(HEELS_UP - (HIPS_TILT + thigh + knee));
     }
-    p.offset.z -= gm_core::sim::CROUCH_DROP;
+    p.rot[SPINE] = ry(10.0) * p.rot[SPINE];
+    // Arms that hang would reach the floor, and a long gun into it: the forearms come up
+    // level over the knees, what lies along a forearm pointing ahead and what stands across
+    // a fist standing up, as a creep's swing holds them. Arms that do something (a creep's
+    // swing, a cast, a reload) are left to it.
+    if i.state == anim::IDLE {
+        arms(p, 78.0, -15.0, -15.0, 80.0, 80.0);
+    }
+    p.offset.z -= SQUAT;
 }
 
 /// Per-entity animation state: the running clock, the run phase and the cross-fade.
@@ -478,11 +499,7 @@ mod tests {
         for _ in 0..12 {
             last = a.advance_posture(anim::IDLE, true, 0.016, Vec3::ZERO, 0.0, 29.0, 0.0);
         }
-        assert!(
-            (last.offset.z + CROUCH_DROP).abs() < 0.01,
-            "{}",
-            last.offset.z
-        );
+        assert!((last.offset.z + SQUAT).abs() < 0.01, "{}", last.offset.z);
     }
 
     #[test]

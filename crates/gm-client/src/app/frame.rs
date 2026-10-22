@@ -423,10 +423,10 @@ impl App {
             } else {
                 gm_core::sim::anim::IDLE
             },
-            crouched: self.sim.curr.on_ground
-                && (self.input.down(KeyCode::ControlLeft)
-                    || self.input.down(KeyCode::ControlRight)
-                    || self.input.down(KeyCode::KeyX)),
+            // Offline there is no mover: the keys draw the squat, on the ground or off it.
+            crouched: self.input.down(KeyCode::ControlLeft)
+                || self.input.down(KeyCode::ControlRight)
+                || self.input.down(KeyCode::KeyX),
             frame: 1,
             aspects: 0,
             status: 0,
@@ -663,9 +663,13 @@ impl App {
                             .1
                             .map_or(f32::MAX, |t| t.elapsed().as_secs_f32()),
                     ),
-                    crouched: self.input.down(KeyCode::ControlLeft)
-                        || self.input.down(KeyCode::ControlRight)
-                        || self.input.down(KeyCode::KeyX),
+                    // The body's posture, not the keys: a crouch takes the duck time, and
+                    // under a low ceiling it lasts past the key (MODES.md 3.5).
+                    crouched: self
+                        .online
+                        .as_ref()
+                        .and_then(|o| o.client.as_ref())
+                        .is_some_and(|c| c.mover.crouched),
                     zoom: self.view.zoom,
                     scoped: self.input.scoped,
                     touch: TouchHud {

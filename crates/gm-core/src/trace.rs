@@ -13,11 +13,16 @@ pub enum Hull {
     /// Zero-size hull: projectiles, view traces, line of sight.
     Point = 0,
     /// Player hull, 32 x 32 x 56 units. Every player archetype uses this for world collision
-    /// (hitbox capsules differ, see `vocab::ArchetypeFrame`).
+    /// standing (hitbox capsules differ, see `vocab::ArchetypeFrame`).
     #[default]
     Player = 1,
     /// Large hull, 64 x 64 x 88 units: big monsters and hired colossi.
     Large = 2,
+    /// The crouched player hull, 32 x 32 x 28 units: half the player's, standing on the
+    /// same feet (MODES.md 3.5), so a crouch goes under what a standing body cannot and a
+    /// crouch in the air lifts the feet (the crouch-jump). The map carries it as hull 3,
+    /// Hexen II's crouching hull compiled beside the Quake one (`gm-tools map crouch`).
+    Crouch = 3,
 }
 
 impl Hull {
@@ -26,6 +31,7 @@ impl Hull {
             Hull::Point => Vec3::ZERO,
             Hull::Player => Vec3::new(-16.0, -16.0, -24.0),
             Hull::Large => Vec3::new(-32.0, -32.0, -24.0),
+            Hull::Crouch => Vec3::new(-16.0, -16.0, -24.0),
         }
     }
 
@@ -34,15 +40,19 @@ impl Hull {
             Hull::Point => Vec3::ZERO,
             Hull::Player => Vec3::new(16.0, 16.0, 32.0),
             Hull::Large => Vec3::new(32.0, 32.0, 64.0),
+            Hull::Crouch => Vec3::new(16.0, 16.0, 4.0),
         }
     }
 
-    /// Eye height above the hull origin (Quake's `view_ofs`).
+    /// Eye height above the hull origin (Quake's `view_ofs`). The crouched eye is at the
+    /// origin, 24 u over the feet and 4 under the crouched top, as Quake 3 keeps its
+    /// crouched eye 4 under its crouched hull (the near plane is 4 u).
     pub const fn eye_height(self) -> f32 {
         match self {
             Hull::Point => 0.0,
             Hull::Player => 22.0,
             Hull::Large => 44.0,
+            Hull::Crouch => 0.0,
         }
     }
 }
