@@ -5,8 +5,7 @@ use gm_core::build::{Kit, MAX_ACTIVES, Sheet};
 use gm_core::sim::buttons;
 use gm_core::tick::Tick;
 use gm_core::vocab::{
-    Ability, ApplyStatus, ArchetypeFrame, AreaEffect, Guard, MoveKind, Origin, Shape, Status,
-    StatusTarget, Trigger, Verb,
+    Ability, ArchetypeFrame, Guard, MoveKind, Origin, Shape, Status, StatusTarget, Trigger, Verb,
 };
 
 /// What an ability is good for.
@@ -141,28 +140,13 @@ fn radius_of(shape: &Shape) -> f32 {
     }
 }
 
-/// Statuses nobody wants on themselves.
-fn bane(s: &ApplyStatus) -> bool {
-    !matches!(
-        s.status,
-        Status::Regen | Status::Haste | Status::Fortify | Status::Stealth
-    )
-}
-
-fn area_harmful(a: &AreaEffect) -> bool {
-    a.damage.is_some_and(|d| d.amount > 0)
-        || a.effects
-            .iter()
-            .any(|s| s.target != StatusTarget::Actor && bane(s))
-}
-
 fn classify(ab: &Ability) -> Option<Use> {
     let step = ab.steps.first()?;
     Some(match &step.verb {
         Verb::ApplyStatus(s) if s.target == StatusTarget::Actor => Use::Buff,
         Verb::ApplyStatus(_) => return None,
         Verb::AreaEffect(a) => {
-            let (radius, harmful) = (radius_of(&a.shape), area_harmful(a));
+            let (radius, harmful) = (radius_of(&a.shape), a.harmful());
             match a.origin {
                 Origin::Weapon { offset } => Use::Placed {
                     ahead: offset[0],
@@ -320,16 +304,16 @@ mod tests {
             mender.secondary,
             Some((_, Use::Shot { mends: true, .. }))
         ));
+        // The Elder's Purify (SKILLS.md 3): a cleanse at its feet.
         assert!(matches!(
             mender.actives[0],
             Some((
                 _,
-                Use::Aimed {
+                Use::Burst {
                     harmful: false,
-                    range,
-                    ..
+                    radius
                 }
-            )) if range == 500.0
+            )) if radius == 160.0
         ));
         assert!(mender.mends() && !mender.shoots());
         let ironclad = plan("ironclad");

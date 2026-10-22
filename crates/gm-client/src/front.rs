@@ -1543,7 +1543,7 @@ mod tests {
         assert!(run.says(
             "A small old woman. Wards, healing, long statuses on others. Slow to move, weak to hit."
         ));
-        assert!(run.says("Sanctuary  body skill"));
+        assert!(run.says("Purify  body skill"));
         run.field("name", "Aldric");
         run.click("Next");
         // The points and the elements on the Elder's draft (BODIES.md 6.7): at the

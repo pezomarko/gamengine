@@ -190,9 +190,11 @@ impl Player {
             Some(_) => self.sheet.build.aspects,
             None => Aspects::NONE,
         };
+        // Fury is Weaken the other way: damage dealt × (1 − weaken + fury).
+        let statuses = &self.mover.statuses;
         AttackerStats::from_derived(
             &self.sheet.derived,
-            self.mover.statuses.magnitude(Status::Weaken),
+            statuses.magnitude(Status::Weaken) - statuses.magnitude(Status::Fury),
             &self.gear,
             affinity,
             self.sheet.group,

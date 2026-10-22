@@ -83,10 +83,16 @@ pub enum Status {
     /// Taunted (MATRIX.md 8, 16): the body and its view are turned to the slot's `source`
     /// and held there while it lasts; a mind under it fights the source. A control.
     Taunt = 16,
+    /// Damage dealt × (1 + m): Weaken the other way (SKILLS.md 3).
+    Fury = 17,
+    /// Instant, never stored: removes every status that is not a boon.
+    Cleanse = 18,
+    /// Instant, never stored: removes every boon.
+    Dispel = 19,
 }
 
 impl Status {
-    pub const ALL: [Status; 17] = [
+    pub const ALL: [Status; 20] = [
         Status::Slow,
         Status::Haste,
         Status::Root,
@@ -104,6 +110,9 @@ impl Status {
         Status::Knockdown,
         Status::Launched,
         Status::Taunt,
+        Status::Fury,
+        Status::Cleanse,
+        Status::Dispel,
     ];
 
     pub const fn from_index(i: u8) -> Option<Status> {
@@ -137,6 +146,9 @@ impl Status {
             Status::Knockdown => "knockdown",
             Status::Launched => "launched",
             Status::Taunt => "taunt",
+            Status::Fury => "fury",
+            Status::Cleanse => "cleanse",
+            Status::Dispel => "dispel",
         }
     }
 
@@ -181,6 +193,9 @@ impl Status {
             "knockdown" => Status::Knockdown,
             "launched" => Status::Launched,
             "taunt" => Status::Taunt,
+            "fury" => Status::Fury,
+            "cleanse" => Status::Cleanse,
+            "dispel" => Status::Dispel,
             _ => return None,
         })
     }
@@ -192,6 +207,19 @@ impl Status {
             self,
             Status::Knockdown | Status::Launched | Status::Root | Status::Taunt
         )
+    }
+
+    /// Good for whoever has it: what Dispel takes and Cleanse leaves.
+    pub const fn is_boon(self) -> bool {
+        matches!(
+            self,
+            Status::Haste | Status::Fortify | Status::Regen | Status::Stealth | Status::Fury
+        )
+    }
+
+    /// Applied at once and never stored.
+    pub const fn is_instant(self) -> bool {
+        matches!(self, Status::Cleanse | Status::Dispel)
     }
 
     /// The body is on the ground: it cannot act, guard or move (MODES.md 4.5).
@@ -291,6 +319,9 @@ impl Timing {
 pub struct Cost {
     pub stamina: u16,
     pub focus: u16,
+    /// Per mille of the pool's maximum, on top (SKILLS.md 3).
+    pub stamina_share: u16,
+    pub focus_share: u16,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -461,10 +492,8 @@ impl AreaEffect {
         self.damage.is_some_and(|d| d.amount > 0)
             || self.effects.iter().any(|s| {
                 s.target != StatusTarget::Actor
-                    && !matches!(
-                        s.status,
-                        Status::Regen | Status::Haste | Status::Fortify | Status::Stealth
-                    )
+                    && !s.status.is_boon()
+                    && s.status != Status::Cleanse
             })
     }
 }
@@ -955,7 +984,7 @@ fn validate_verb(
             }
         }
         Verb::ApplyStatus(s) => {
-            if s.duration == 0 {
+            if s.duration == 0 && !s.status.is_instant() {
                 return Err(err("status duration must be >= 1 tick"));
             }
             if s.max_stacks == 0 {
@@ -1039,10 +1068,7 @@ mod tests {
         let ability = Ability {
             id: AbilityId(1),
             name: "Crossbow shot".into(),
-            cost: Cost {
-                stamina: 0,
-                focus: 0,
-            },
+            cost: Cost::default(),
             cooldown: Cooldown {
                 ticks: rate.ms_to_ticks(1800),
                 group: None,

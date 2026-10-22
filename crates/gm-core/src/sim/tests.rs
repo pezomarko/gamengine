@@ -240,13 +240,10 @@ fn dash_moves_fast_and_costs_mp() {
         "{:?}",
         p.mover.mv.origin
     );
-    // ST is the guard's alone since 2026-10-22 (MATRIX.md 23): a dash takes 3 MP.
-    assert_eq!(p.mover.stamina, p.sheet.derived.stamina);
-    let spent = p.sheet.derived.focus - p.mover.focus;
-    assert!(
-        spent > 2.5 && spent <= 3.0,
-        "spent {spent} MP, regenerating"
-    );
+    // A dash is the body's: 2 ST, no MP (SKILLS.md 3).
+    let spent = p.sheet.derived.stamina - p.mover.stamina;
+    assert!(spent > 1.9 && spent <= 2.0, "spent {spent} ST");
+    assert_eq!(p.mover.focus, p.sheet.derived.focus);
     assert_eq!(p.anim, anim::DASH);
     assert!(p.mover.evading(p.last_input_tick));
     run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 2);
@@ -976,11 +973,11 @@ fn fortify_cuts_frost_but_not_the_hammer() {
         40,
     );
     let pb = zone.player(b).unwrap();
-    // Ice shard 5 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.6
-    // (fortify) = 4.2; x1.25 affinity x1.25 magic (BODIES.md 7.3) = 6.56 -> 7.
+    // Ice shard 5 x 1.4 (INT 20) x 1.25 (water into ground) x 0.8 (ward 0.20) x 0.7
+    // (Harden 0.3) = 4.9; x1.25 affinity x1.25 magic (BODIES.md 7.3) = 7.66 -> 8.
     assert_eq!(
         before - pb.health,
-        7,
+        8,
         "{}",
         hits(&zone, HitKind::Projectile)
     );
@@ -1178,17 +1175,17 @@ fn a_mend_dart_heals_whoever_it_hits_and_is_not_an_attack() {
     assert_eq!(hits(&zone, HitKind::Projectile), 0, "no damage event");
     assert_eq!(p.mover.stamina, full_stamina, "nothing was blocked");
     assert_eq!(p.mover.guard, GuardState::Block, "and nothing interrupted");
-    // 10/s in a pulse a second for 3 s, neither shortened nor lengthened by the ironclad's SPR 10
-    // (x 1.0): three or four pulses depending on where the dart landed in the pulse
+    // 5/s in a pulse a second for 8 s, neither shortened nor lengthened by the ironclad's SPR 10
+    // (x 1.0): eight or nine pulses depending on where the dart landed in the pulse
     // cycle, all credited to the healer.
     run(
         &mut zone,
         &world,
         &[(healer, input(0.0, 0.0, 0)), (tank, guard)],
-        200,
+        600,
     );
     let healed = zone.player(tank).unwrap().health - hurt;
-    assert!(healed == 30 || healed == 40, "healed {healed}");
+    assert!(healed == 40 || healed == 45, "healed {healed}");
     let credited: i32 = zone
         .events
         .iter()
@@ -1204,6 +1201,16 @@ fn a_mend_dart_heals_whoever_it_hits_and_is_not_an_attack() {
     assert_eq!(credited, healed);
 }
 
+/// Sanctuary as active 1: an area where the body aims (the Elder's skill is Purify since
+/// SKILLS.md 3).
+fn with_sanctuary(zone: &mut Zone, id: EntityId) {
+    let i = zone.content.find("sanctuary").unwrap() as usize;
+    let ability = zone.content.abilities[i].ability.clone();
+    let kit = &mut zone.player_mut(id).unwrap().sheet.kit;
+    let slot = kit.push(ability, false);
+    kit.actives[0] = Some(slot);
+}
+
 #[test]
 fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
     // At a body: its feet.
@@ -1212,6 +1219,7 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
         ("blade", Vec3::new(300.0, 0.0, REST_Z), 180.0),
     ]);
     let (healer, ally) = (ids[0], ids[1]);
+    with_sanctuary(&mut zone, healer);
     zone.player_mut(ally).unwrap().health -= 25;
     let idle = input(180.0, 0.0, 0);
     tick(
@@ -1252,6 +1260,7 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
     ] {
         let (world, mut zone, ids) = arena_builds(&[("mender", Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
         let a = ids[0];
+        with_sanctuary(&mut zone, a);
         let aim = |ability: u8| Input {
             pitch,
             ability,
@@ -2026,6 +2035,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
     ]);
     let (healer, tank) = (ids[0], ids[1]);
     zone.player_mut(tank).unwrap().health -= 60;
+    let hurt = zone.player(tank).unwrap().health;
     let idle = input(180.0, 0.0, 0);
     tick(
         &mut zone,
@@ -2039,10 +2049,7 @@ fn gear_is_taken_when_a_blow_is_made_and_a_fight_is_damage() {
         &[(healer, input(0.0, 0.0, 0)), (tank, idle)],
         80,
     );
-    assert!(
-        zone.player(tank).unwrap().health > 140 - 60 - 1,
-        "it healed"
-    );
+    assert!(zone.player(tank).unwrap().health > hurt, "it healed");
     for id in [healer, tank] {
         assert!(!zone.player(id).unwrap().fought_within(zone.tick, 640));
     }
@@ -4608,4 +4615,35 @@ fn standing_brings_back_stamina_alone() {
     let p = zone.player(a).unwrap();
     assert_eq!((p.mover.focus, p.health), (0.0, 10));
     assert!((p.mover.stamina - 4.0 * p.sheet.derived.stamina_regen).abs() < 0.2);
+}
+
+#[test]
+fn a_share_cost_takes_its_part_of_the_pool() {
+    let world = BoxWorld::floor();
+    let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
+    let build = zone.content.build("blade").unwrap().clone();
+    let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 64);
+    let p = zone.player_mut(a).unwrap();
+    let slot = p.sheet.kit.actives[0].unwrap() as usize;
+    p.sheet.kit.abilities[slot].cost = crate::vocab::Cost {
+        stamina_share: 600,
+        ..Default::default()
+    };
+    let max = p.sheet.derived.stamina;
+    p.mover.stamina = max * 0.5;
+    run(&mut zone, &world, &[(a, active(0.0, 0.0, 1))], 2);
+    assert!(
+        zone.player(a).unwrap().mover.script.is_none(),
+        "half a pool is short"
+    );
+    zone.player_mut(a).unwrap().mover.stamina = max * 0.7;
+    run(&mut zone, &world, &[(a, active(0.0, 0.0, 1))], 2);
+    let p = zone.player(a).unwrap();
+    assert!(p.mover.script.is_some());
+    assert!(
+        (p.mover.stamina - max * 0.1).abs() < 0.2,
+        "{} of {max}",
+        p.mover.stamina
+    );
 }

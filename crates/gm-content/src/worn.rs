@@ -82,7 +82,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
     {
         let holds = |slot: Slot, names: &dyn Fn(&crate::looks::AbilityLook) -> bool| {
             let mut holders: Vec<u16> = Vec::new();
-            for a in looks.abilities.iter().filter(|a| names(a)) {
+            for a in looks.abilities.iter().filter(|a| !a.retired && names(a)) {
                 if let Some(i) = pack.find(&a.key)
                     && let Some(def) = pack.abilities.get(i as usize)
                     && def.slot == slot
@@ -102,14 +102,17 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
         // The weapon's spell (BODIES.md 7.2): among the actives whose `spell_of` names
         // the weapon, the build's own when it holds one, else the first of the body's
         // element; a weapon of no element carries none.
-        let spells = holds(Slot::Active, &|a| a.spell_of.contains(model));
-        let own = build
-            .actives
-            .iter()
-            .copied()
-            .find(|i| spells.contains(i))
-            .unwrap_or(u16::MAX);
-        worn.spell = pick(&spells, own);
+        // A weapon whose blow the mode does not hold brings no spell either.
+        if worn.primary.is_some() {
+            let spells = holds(Slot::Active, &|a| a.spell_of.contains(model));
+            let own = build
+                .actives
+                .iter()
+                .copied()
+                .find(|i| spells.contains(i))
+                .unwrap_or(u16::MAX);
+            worn.spell = pick(&spells, own);
+        }
     }
     if let Some(t) = template(LEFT) {
         if !gun
@@ -209,6 +212,15 @@ mod tests {
             worn_of(&looks, &pack, &blade, &six("sword", "sword")).guard,
             None
         );
+    }
+
+    #[test]
+    fn a_retired_row_is_offered_by_no_weapon() {
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let worn = worn_of(&looks, &pack, &blade, &six("dagger", ""));
+        assert!(!worn.techniques.contains(&pack.find("backstab").unwrap()));
+        assert!(worn.techniques.contains(&pack.find("dagger").unwrap()));
     }
 
     #[test]
@@ -323,17 +335,18 @@ mod tests {
         assert_eq!(w("ironclad", "staff", "").secondary, Some(by("stomp")));
         assert_eq!(w("shaman", "staff", "").secondary, Some(by("briar_burst")));
         assert_eq!(w("shade", "staff", "").secondary, Some(by("gust")));
-        assert_eq!(w("shade", "wand", "").secondary, Some(by("gust")));
+        // The wand's second move is Dispel, whatever the body (SKILLS.md 3).
+        assert_eq!(w("shade", "wand", "").secondary, Some(by("dispel")));
         // The blade is Water: the nova; a body of no element gets the sweep.
         assert_eq!(w("blade", "staff", "").secondary, Some(by("chill_wave")));
         // The staff's spell (BODIES.md 7.2): the active of the body's element; the
-        // frostweaver's own nova; nothing for a neutral build or a sword.
+        // frostweaver's own nova; a sword's is Illusion Slash (SKILLS.md 3).
         assert_eq!(w("frostweaver", "staff", "").spell, Some(by("frost_nova")));
         assert_eq!(w("mender", "staff", "").spell, Some(by("thunderclap")));
         assert_eq!(w("ironclad", "staff", "").spell, Some(by("fortify")));
         assert_eq!(w("shaman", "wand", "").spell, Some(by("briar")));
         assert_eq!(w("shade", "staff", "").spell, Some(by("blink")));
-        assert_eq!(w("blade", "sword", "").spell, None);
+        assert_eq!(w("blade", "sword", "").spell, Some(by("illusion_slash")));
         let mut neutral = pack.build("blade").unwrap().clone();
         neutral.aspects = gm_core::matrix::Aspects::NONE;
         assert_eq!(

@@ -63,7 +63,8 @@ Content (keys and row order stay; new rows are appended):
   place of Sanctuary);
 - Bull Rush knocks down the body it stops on (a short arc after the charge); Leap is
   untouchable for 100 ms;
-- Backstab retired; content rebuilt.
+- Backstab retired; content rebuilt. Content v29, PROTOCOL 34 (the costs and the statuses
+  travel in the content pack).
 
 Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-measured.
 
@@ -80,7 +81,7 @@ Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-m
   keys 3, 5 and 6, as the hotbar has them). `Mover::rearm` carries each cooldown over by
   `AbilityId` to wherever that ability sits in the new kit, so a swap resets nothing.
 - Client: the smith's screen moves it; the C sheet names it.
-- HUB_VERSION 23, PROTOCOL 34, content.
+- HUB_VERSION 23, PROTOCOL 35, content.
 
 Tests: awaken once and only with a formed weapon; infuse within the form; the fee; the
 refusals; the kit; rearm.

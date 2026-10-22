@@ -92,6 +92,15 @@ impl Statuses {
         *self = Statuses::default();
     }
 
+    fn drop_where(&mut self, drop: impl Fn(Status) -> bool) -> Applied {
+        for slot in &mut self.slots {
+            if slot.status.is_some_and(&drop) {
+                *slot = StatusSlot::default();
+            }
+        }
+        Applied::Applied
+    }
+
     pub fn remove(&mut self, status: Status) {
         for s in &mut self.slots {
             if s.status == Some(status) {
@@ -119,6 +128,11 @@ impl Statuses {
         source: u32,
         dt: f32,
     ) -> Applied {
+        match verb.status {
+            Status::Cleanse => return self.drop_where(|st| !st.is_boon()),
+            Status::Dispel => return self.drop_where(Status::is_boon),
+            _ => {}
+        }
         let duration = duration.max(1);
         if verb.status == Status::Chill && tick_delta(now, self.chill_immune_until) < 0 {
             return Applied::Immune;
@@ -256,6 +270,31 @@ mod tests {
         assert!(!st.has(Status::Slow));
         assert!(!st.has(Status::Bleed));
         assert!(st.has(Status::Haste));
+    }
+
+    #[test]
+    fn cleanse_takes_the_banes_and_dispel_the_boons() {
+        let mut st = Statuses::default();
+        for s in [Status::Bleed, Status::Slow, Status::Haste, Status::Fury] {
+            st.apply(&verb(s, StackRule::Refresh, 1, 0.5), 64, 1, 1, DT);
+        }
+        st.apply(
+            &verb(Status::Cleanse, StackRule::Refresh, 1, 0.0),
+            0,
+            2,
+            1,
+            DT,
+        );
+        assert!(!st.has(Status::Bleed) && !st.has(Status::Slow));
+        assert!(st.has(Status::Haste) && st.has(Status::Fury));
+        st.apply(
+            &verb(Status::Dispel, StackRule::Refresh, 1, 0.0),
+            0,
+            3,
+            1,
+            DT,
+        );
+        assert_eq!(st.active().count(), 0);
     }
 
     #[test]

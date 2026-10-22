@@ -94,11 +94,11 @@ lifetime_ms = 3000
 damage = { amount = 6, type = "fire", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "burn", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "burn", duration_ms = 6000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 [[ability]]
 key = "ice_shard"
-name = "Ice shard"
+name = "Ice Shard"
 slot = "primary"
 prop = "staff"
 aspect = "water"
@@ -115,11 +115,11 @@ lifetime_ms = 3000
 damage = { amount = 5, type = "water", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "chill", duration_ms = 3000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "hit" } } ]
+on_hit = [ { status = { status = "chill", duration_ms = 6000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "hit" } } ]
 
 [[ability]]
 key = "stone_throw"
-name = "Stone throw"
+name = "Stone Throw"
 slot = "primary"
 prop = "staff"
 aspect = "ground"
@@ -132,7 +132,7 @@ projectile = { speed = 1100, gravity = 0.6, radius = 6, lifetime_ms = 3000, dama
 
 [[ability]]
 key = "shadow_dart"
-name = "Shadow dart"
+name = "Shadow Dart"
 slot = "primary"
 prop = "staff"
 aspect = "air"
@@ -186,13 +186,13 @@ arc = 90
 window_ms = 150
 whiff_recovery_ms = 400
 on_success = [
-  { status = { status = "stagger", duration_ms = 600, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } },
+  { status = { status = "stagger", duration_ms = 800, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } },
   { swing = { reach = 72, arc = 90, half_height = 40, windup_ms = 0, active_ms = 45, recovery_ms = 0, damage = { amount = 4, type = "slash", knockback = 120, stagger = 0 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 0 } },
 ]
 
 [[ability]]
 key = "brace"
-name = "Brace"
+name = "Block"
 slot = "guard"
 [[ability.step]]
 guard = { block = { arc = 120, mitigation = 0.5, stamina_per_hit = 1, stops_projectiles = false, move_speed_scale = 0.7 } }
@@ -204,7 +204,7 @@ key = "dash"
 name = "Dash"
 slot = "active"
 cooldown_ms = 1000
-focus = 3                      # MP since 2026-10-22; was 30 stamina
+stamina = 2
 [[ability.step]]
 # The dodge (MODES.md 4.4): untouchable for its first 150 ms, and it cuts a recovery.
 move_self = { dash = { speed = 900, duration_ms = 150 }, iframes_ms = 150, cancel = "recovery" }
@@ -214,18 +214,25 @@ key = "leap"
 name = "Leap"
 slot = "active"
 cooldown_ms = 1500
-focus = 2                      # MP since 2026-10-22; was 25 stamina
+stamina = 2
 [[ability.step]]
-move_self = { leap = { forward = 400, up = 320 } }
+move_self = { leap = { forward = 400, up = 320 }, iframes_ms = 100 }
 
 [[ability]]
 key = "charge"
-name = "Charge"
+name = "Bull Rush"
 slot = "active"
-cooldown_ms = 4000
-focus = 3                      # MP since 2026-10-22; was 30 stamina
+cooldown_ms = 6000
+stamina = 3
 [[ability.step]]
 move_self = { charge = { speed = 700, duration_ms = 400, stop_on_hit = true } }
+# The body it stops on is knocked down: a short arc at the charge's end.
+[[ability.step]]
+at_ms = 400
+melee_arc = { reach = 60, arc = 90, half_height = 40, windup_ms = 0, active_ms = 60, recovery_ms = 0, damage = { amount = 1, type = "blunt", knockback = 0, stagger = 0 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 30 }
+[[ability.step]]
+at_ms = 400
+apply_status = { status = "knockdown", duration_ms = 1000, magnitude = 1, target = "hit" }
 
 [[ability]]
 key = "blink"
@@ -233,21 +240,21 @@ name = "Blink"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "air"
-cooldown_ms = 6000
+cooldown_ms = 8000
 focus = 3
 [[ability.step]]
 move_self = { blink = { distance = 256 } }
 
 [[ability]]
 key = "overhead"
-name = "Overhead"
+name = "Mighty Strike"
 slot = "active"
-cooldown_ms = 3000
-focus = 2                      # MP since 2026-10-22; was 20 stamina
+cooldown_ms = 6000
+stamina = 2
 move_scale = 0.4
 interrupt = "on_stagger"
 [[ability.step]]
-melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms = 60, recovery_ms = 500, damage = { amount = 7, type = "slash", knockback = 200, stagger = 40 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
+melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms = 60, recovery_ms = 500, damage = { amount = 8, type = "slash", knockback = 200, stagger = 60 }, max_targets = 3, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 30 }
 
 # The staff's second move of Ground (BODIES.md 3.6, 2026-10-19): a spell bought with
 # points until then; now what a caster weapon does, coloured by the body's element.
@@ -255,9 +262,9 @@ melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 350, active_ms
 key = "stomp"
 name = "Stomp"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "ground"
-cooldown_ms = 8000
+cooldown_ms = 6000
 focus = 2
 move_scale = 0.3
 interrupt = "on_stagger"
@@ -267,7 +274,7 @@ at_ms = 250
 shape = { cylinder = { radius = 128, height = 96 } }
 origin = "self_feet"
 damage = { amount = 4, type = "ground", knockback = 200, stagger = 40 }
-effects = [ { status = "slow", duration_ms = 2000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "slow", duration_ms = 6000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = true
@@ -275,25 +282,25 @@ exclude_actor = true
 
 [[ability]]
 key = "fortify"
-name = "Fortify"
+name = "Harden"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "ground"
-cooldown_ms = 15000
+cooldown_ms = 20000
 focus = 3
 move_scale = 0.8
 [[ability.step]]
-apply_status = { status = "fortify", duration_ms = 5000, magnitude = 0.4, max_stacks = 1, stacking = "refresh", target = "actor" }
+apply_status = { status = "fortify", duration_ms = 12000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 # The staff's second move of Water (BODIES.md 3.6).
 [[ability]]
 key = "frost_nova"
-name = "Frost nova"
+name = "Frost Nova"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "water"
-cooldown_ms = 8000
-focus = 3
+cooldown_ms = 10000
+focus = 4
 move_scale = 0.3
 interrupt = "on_damage"
 [[ability.step]]
@@ -303,8 +310,8 @@ shape = { sphere = { radius = 160 } }
 origin = "self_feet"
 damage = { amount = 3, type = "water", knockback = 60, stagger = 10 }
 effects = [
-  { status = "chill", duration_ms = 4000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
-  { status = "chill", duration_ms = 4000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
+  { status = "chill", duration_ms = 8000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
+  { status = "chill", duration_ms = 8000, magnitude = 0, max_stacks = 3, stacking = "extend", target = "area" },
 ]
 falloff = "none"
 max_targets = 8
@@ -313,12 +320,12 @@ exclude_actor = true
 
 [[ability]]
 key = "haste"
-name = "Haste"
+name = "Quickening"
 slot = "active"
-cooldown_ms = 12000
-focus = 2
+cooldown_ms = 20000
+focus = 3
 [[ability.step]]
-apply_status = { status = "haste", duration_ms = 5000, magnitude = 0.25, max_stacks = 1, stacking = "refresh", target = "actor" }
+apply_status = { status = "haste", duration_ms = 10000, magnitude = 0.25, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 # The staff's second move of Electric (BODIES.md 3.6): the mender's clap comes with the
 # staff and the element, not with points.
@@ -328,8 +335,8 @@ name = "Thunderclap"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "electric"
-cooldown_ms = 7000
-focus = 3
+cooldown_ms = 8000
+focus = 4
 move_scale = 0.3
 interrupt = "on_damage"
 [[ability.step]]
@@ -346,43 +353,43 @@ exclude_actor = true
 
 [[ability]]
 key = "vanish"
-name = "Vanish"
+name = "Stealth"
 slot = "active"
 spell_of = ["dagger"]
 aspect = "air"
-cooldown_ms = 14000
-focus = 2
+cooldown_ms = 20000
+focus = 3
 [[ability.step]]
-apply_status = { status = "stealth", duration_ms = 6000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
+apply_status = { status = "stealth", duration_ms = 10000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 # The slip (BODIES.md 3.1): the thief's body skill, a short vanish of no element, paid in
 # stamina. A trick of the body, not a spell: it ignores no gate because it needs none.
 [[ability]]
 key = "slip"
-name = "Slip"
+name = "Fade"
 slot = "active"
-cooldown_ms = 10000
-focus = 2                      # MP since 2026-10-22; was 20 stamina
+cooldown_ms = 12000
+stamina = 2
 [[ability.step]]
-apply_status = { status = "stealth", duration_ms = 3000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
+apply_status = { status = "stealth", duration_ms = 4000, magnitude = 256, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 [[ability]]
 key = "poison_cloud"
-name = "Poison cloud"
+name = "Venom Cloud"
 slot = "active"
 spell_of = ["bow"]
 aspect = "air"
-cooldown_ms = 10000
-focus = 2
+cooldown_ms = 12000
+focus = 3
 move_scale = 0.6
 [[ability.step]]
 at_ms = 200
 [ability.step.area_effect]
 shape = { cylinder = { radius = 96, height = 80 } }
 origin = { weapon = [96, 0, -40] }
-duration_ms = 5000
+duration_ms = 6000
 interval_ms = 1000
-effects = [ { status = "bleed", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "bleed", duration_ms = 8000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -394,7 +401,7 @@ name = "Fireball"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "fire"
-cooldown_ms = 5000
+cooldown_ms = 8000
 focus = 4
 move_scale = 0.5
 interrupt = "on_damage"
@@ -413,7 +420,7 @@ spread = 0
 shape = { sphere = { radius = 96 } }
 origin = "impact"
 damage = { amount = 3, type = "fire", knockback = 120, stagger = 15 }
-effects = [ { status = "burn", duration_ms = 3000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "burn", duration_ms = 8000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "linear"
 max_targets = 8
 requires_los = true
@@ -442,7 +449,7 @@ lifetime_ms = 3000
 damage = { amount = 0, type = "blunt" }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "regen", duration_ms = 3000, magnitude = 10, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "regen", duration_ms = 8000, magnitude = 5, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 [[ability]]
 key = "sanctuary"
@@ -467,19 +474,19 @@ exclude_actor = false
 
 [[ability]]
 key = "war_standard"
-name = "War standard"
+name = "War Standard"
 slot = "active"
 spell_of = ["spear"]
 squad = 2
-cooldown_ms = 20000
-focus = 2                      # MP since 2026-10-22; was 20 stamina
+cooldown_ms = 25000
+stamina = 3
 move_scale = 0.8
 [[ability.step]]
 at_ms = 200
 [ability.step.area_effect]
 shape = { cylinder = { radius = 256, height = 96 } }
 origin = "self_feet"
-effects = [ { status = "fortify", duration_ms = 8000, magnitude = 0.15, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "fortify", duration_ms = 12000, magnitude = 0.2, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = true
@@ -544,6 +551,7 @@ key = "kick"
 name = "Kick"
 slot = "secondary"
 cooldown_ms = 1500
+stamina = 1
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
@@ -552,9 +560,10 @@ melee_arc = { reach = 64, arc = 60, half_height = 40, windup_ms = 120, active_ms
 
 [[ability]]
 key = "shield_bash"
-name = "Shield bash"
+name = "Shield Bash"
 slot = "secondary"
 cooldown_ms = 4000
+stamina = 2
 move_scale = 0.5
 interrupt = "on_stagger"
 [[ability.step]]
@@ -563,10 +572,11 @@ melee_arc = { reach = 60, arc = 60, half_height = 40, windup_ms = 150, active_ms
 
 [[ability]]
 key = "throwing_knife"
-name = "Throwing knife"
+name = "Throwing Knife"
 slot = "secondary"
 secondary_of = ["dagger"]
 cooldown_ms = 2000
+stamina = 1
 move_scale = 0.8
 interrupt = "never"
 [[ability.step]]
@@ -606,7 +616,7 @@ at_ms = 0
 melee_arc = { reach = 80, arc = 70, half_height = 44, windup_ms = 260, active_ms = 70, recovery_ms = 450, damage = { amount = 8, type = "slash", knockback = 220, stagger = 40 }, max_targets = 2, cleave_falloff = 0.7, parryable = true, hit_stop_ms = 40, assist = 30 }
 [[ability.step]]
 at_ms = 260
-apply_status = { status = "knockdown", duration_ms = 1200, magnitude = 1, target = "hit" }
+apply_status = { status = "knockdown", duration_ms = 1500, magnitude = 1, target = "hit" }
 
 [[ability]]
 key = "dagger_2"
@@ -709,8 +719,8 @@ melee_arc = { reach = 96, arc = 120, half_height = 44, windup_ms = 320, active_m
 key = "bellow"
 name = "Bellow"
 slot = "active"
-cooldown_ms = 12000
-focus = 2
+cooldown_ms = 15000
+stamina = 3
 move_scale = 0.5
 interrupt = "on_stagger"
 # The roar is the first step: a mind reads an active by its first verb (gm-ai `KitPlan`,
@@ -720,14 +730,14 @@ at_ms = 200
 [ability.step.area_effect]
 shape = { cylinder = { radius = 256, height = 128 } }
 origin = "self_feet"
-effects = [ { status = "taunt", duration_ms = 2500, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "taunt", duration_ms = 4000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = true
 exclude_actor = true
 [[ability.step]]
 at_ms = 200
-apply_status = { status = "fortify", duration_ms = 4000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "actor" }
+apply_status = { status = "fortify", duration_ms = 8000, magnitude = 0.3, max_stacks = 1, stacking = "refresh", target = "actor" }
 
 # ---------- the shaman (MATRIX.md 17) ----------
 
@@ -736,10 +746,11 @@ apply_status = { status = "fortify", duration_ms = 4000, magnitude = 0.3, max_st
 # build that holds a hammer and fights in a crowd.
 [[ability]]
 key = "slam"
-name = "Slam"
+name = "Ground Slam"
 slot = "secondary"
 secondary_of = ["hammer", "warhammer", "mace"]
 cooldown_ms = 4000
+stamina = 2
 move_scale = 0.4
 interrupt = "on_stagger"
 [[ability.step]]
@@ -760,11 +771,11 @@ exclude_actor = true
 # shamans keep a whole team under one Regen the whole fight, and the patch is the build.
 [[ability]]
 key = "briar"
-name = "Briar"
+name = "Briar Patch"
 slot = "active"
 spell_of = ["staff", "wand"]
 aspect = "grass"
-cooldown_ms = 14000
+cooldown_ms = 15000
 focus = 4
 move_scale = 0.5
 interrupt = "on_damage"
@@ -773,7 +784,7 @@ at_ms = 300
 [ability.step.area_effect]
 shape = { cylinder = { radius = 140, height = 96 } }
 origin = { aim = 500 }
-duration_ms = 6000
+duration_ms = 10000
 interval_ms = 1000
 damage = { amount = 1, type = "grass", knockback = 0, stagger = 0 }
 effects = [ { status = "regen", duration_ms = 1500, magnitude = 3, max_stacks = 1, stacking = "refresh", target = "allies" } ]
@@ -790,8 +801,8 @@ name = "Entangle"
 slot = "active"
 spell_of = ["hammer", "warhammer", "mace"]
 aspect = "grass"
-cooldown_ms = 14000
-focus = 2
+cooldown_ms = 12000
+focus = 3
 move_scale = 0.3
 interrupt = "on_damage"
 [[ability.step]]
@@ -800,7 +811,7 @@ at_ms = 300
 shape = { cylinder = { radius = 112, height = 96 } }
 origin = { aim = 500 }
 damage = { amount = 2, type = "grass", knockback = 0, stagger = 10 }
-effects = [ { status = "root", duration_ms = 1500, magnitude = 0, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "root", duration_ms = 2500, magnitude = 0, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = true
@@ -985,14 +996,14 @@ lifetime_ms = 3000
 damage = { amount = 4, type = "grass", knockback = 60, stagger = 10 }
 spawn = { weapon = [16, 4, -2] }
 spread = 0.3
-on_hit = [ { status = { status = "bleed", duration_ms = 2000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+on_hit = [ { status = { status = "bleed", duration_ms = 6000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
 
 # The flame burst: Fire's blast, a cone of fire from the staff that burns.
 [[ability]]
 key = "flame_burst"
-name = "Flame burst"
+name = "Flame Burst"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "fire"
 cooldown_ms = 2500
 focus = 2
@@ -1004,7 +1015,7 @@ at_ms = 200
 shape = { cone = { length = 220, half_angle = 30 } }
 origin = "self_feet"
 damage = { amount = 6, type = "fire", knockback = 80, stagger = 15 }
-effects = [ { status = "burn", duration_ms = 2000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "burn", duration_ms = 5000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 6
 requires_los = true
@@ -1013,9 +1024,9 @@ exclude_actor = true
 # The briar burst: Grass's blast, thorns up from the ground around the caster that root.
 [[ability]]
 key = "briar_burst"
-name = "Briar burst"
+name = "Thorn Ring"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "grass"
 cooldown_ms = 6000
 focus = 2
@@ -1027,7 +1038,7 @@ at_ms = 250
 shape = { cylinder = { radius = 128, height = 96 } }
 origin = "self_feet"
 damage = { amount = 4, type = "grass", knockback = 60, stagger = 20 }
-effects = [ { status = "root", duration_ms = 800, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [ { status = "root", duration_ms = 1000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" } ]
 falloff = "none"
 max_targets = 8
 requires_los = true
@@ -1038,7 +1049,7 @@ exclude_actor = true
 key = "gust"
 name = "Gust"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "air"
 cooldown_ms = 3000
 focus = 1
@@ -1060,8 +1071,9 @@ exclude_actor = true
 key = "staff_sweep"
 name = "Sweep"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 cooldown_ms = 2000
+stamina = 1
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
@@ -1071,10 +1083,11 @@ melee_arc = { reach = 72, arc = 140, half_height = 40, windup_ms = 150, active_m
 # The pommel: a sword's, a katana's and an axe's second move, the hilt in the face.
 [[ability]]
 key = "pommel"
-name = "Pommel"
+name = "Pommel Strike"
 slot = "secondary"
 secondary_of = ["sword", "katana", "axe"]
 cooldown_ms = 1500
+stamina = 1
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]
@@ -1101,7 +1114,7 @@ melee_arc = { reach = 84, arc = 30, half_height = 40, windup_ms = 200, active_ms
 # The hammer's sweep: lighter and wider than the crush, for a crowd.
 [[ability]]
 key = "hammer_sweep"
-name = "Hammer sweep"
+name = "Hammer Sweep"
 slot = "primary"
 prop = "hammer"
 cooldown_ms = 1000
@@ -1130,6 +1143,7 @@ projectile = { speed = 1600, gravity = 0.4, radius = 2, lifetime_ms = 3000, dama
 key = "backstab"
 name = "Backstab"
 slot = "primary"
+retired = true
 prop = "dagger"
 cooldown_ms = 500
 move_scale = 0.7
@@ -1189,7 +1203,7 @@ melee_arc = { reach = 56, arc = 70, half_height = 40, windup_ms = 100, active_ms
 
 [[ability]]
 key = "force_blow"
-name = "Force blow"
+name = "Force Bolt"
 slot = "primary"
 gun_melee = true
 cooldown_ms = 600
@@ -1283,9 +1297,9 @@ projectile = { speed = 1800, gravity = 0.05, radius = 3, lifetime_ms = 3000, dam
 
 [[ability]]
 key = "chill_wave"
-name = "Chill wave"
+name = "Frost Breath"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "water"
 cooldown_ms = 4000
 focus = 2
@@ -1304,9 +1318,9 @@ exclude_actor = true
 
 [[ability]]
 key = "static"
-name = "Static"
+name = "Static Shock"
 slot = "secondary"
-secondary_of = ["staff", "wand"]
+secondary_of = ["staff"]
 aspect = "electric"
 cooldown_ms = 4000
 focus = 2
@@ -1322,3 +1336,112 @@ falloff = "none"
 max_targets = 6
 requires_los = true
 exclude_actor = true
+
+# ---------- the skills rework (SKILLS.md 3, 2026-10-22) ----------
+
+[[ability]]
+key = "illusion_slash"
+name = "Illusion Slash"
+slot = "active"
+spell_of = ["sword", "katana"]
+cooldown_ms = 6000
+stamina = 2
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 150
+projectile = { speed = 1200, gravity = 0, radius = 12, lifetime_ms = 375, damage = { amount = 6, type = "slash", knockback = 60, stagger = 15 }, spawn = { weapon = [16, 4, -2] }, spread = 0, count = 1, pierce = 2 }
+
+[[ability]]
+key = "tiger_roar"
+name = "Tiger Roar"
+slot = "active"
+spell_of = ["axe", "greataxe"]
+cooldown_ms = 15000
+stamina = 3
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 200
+[ability.step.area_effect]
+shape = { cylinder = { radius = 200, height = 128 } }
+origin = "self_feet"
+effects = [
+  { status = "weaken", duration_ms = 10000, magnitude = 0.25, max_stacks = 1, stacking = "refresh", target = "area" },
+  { status = "stagger", duration_ms = 400, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "area" },
+]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = true
+
+[[ability]]
+key = "whirlwind"
+name = "Whirlwind"
+slot = "active"
+spell_of = ["claymore", "greatsword", "scythe"]
+heavy = true
+cooldown_ms = 10000
+stamina = 4
+move_scale = 0.4
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 96, arc = 360, half_height = 44, windup_ms = 250, active_ms = 90, recovery_ms = 450, damage = { amount = 8, type = "slash", knockback = 200, stagger = 30 }, max_targets = 6, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40 }
+
+[[ability]]
+key = "deadeye"
+name = "Deadeye"
+slot = "active"
+spell_of = ["crossbow"]
+cooldown_ms = 15000
+stamina = 3
+move_scale = 0.5
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 300
+[ability.step.projectile]
+speed = 2400
+gravity = 0.1
+radius = 2
+lifetime_ms = 2000
+damage = { amount = 14, type = "pierce", bypass = ["armor"], knockback = 120, stagger = 20 }
+spawn = { weapon = [16, 4, -2] }
+spread = 0
+on_hit = [ { status = { status = "expose", duration_ms = 8000, magnitude = 1, max_stacks = 1, stacking = "refresh", target = "hit" } } ]
+
+# A zero packet (MATRIX.md 7): it strips the boons of whoever it hits.
+[[ability]]
+key = "dispel"
+name = "Dispel"
+slot = "secondary"
+secondary_of = ["wand"]
+cooldown_ms = 8000
+focus = 2
+move_scale = 0.7
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 150
+projectile = { speed = 1800, gravity = 0.05, radius = 4, lifetime_ms = 1500, damage = { amount = 0, type = "blunt" }, spawn = { weapon = [16, 4, -2] }, spread = 0, count = 1, on_hit = [ { status = { status = "dispel", duration_ms = 0, target = "hit" } } ] }
+
+[[ability]]
+key = "purify"
+name = "Purify"
+slot = "active"
+cooldown_ms = 10000
+focus = 3
+move_scale = 0.7
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 200
+[ability.step.area_effect]
+shape = { cylinder = { radius = 160, height = 96 } }
+origin = "self_feet"
+effects = [
+  { status = "cleanse", duration_ms = 0, target = "allies" },
+  { status = "regen", duration_ms = 6000, magnitude = 2, max_stacks = 1, stacking = "refresh", target = "allies" },
+]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = false
