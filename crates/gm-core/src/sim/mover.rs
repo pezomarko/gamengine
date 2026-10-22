@@ -9,7 +9,8 @@ use crate::geom::Capsule;
 use crate::matrix::EVADING_GRACE_TICKS;
 use crate::movement::{MoveInput, MoveVars, PlayerState, player_move, yaw_vectors};
 use crate::sim::{
-    BAR_CELLS, COMMAND_EXIT_MS, KIT_USE_MS, MAX_ABILITIES, REGEN_PAUSE_MS, tick_delta,
+    BAR_CELLS, COMMAND_EXIT_MS, KIT_USE_MS, MAX_ABILITIES, REGEN_PAUSE_MS, REST_MS, STAND_MS,
+    tick_delta,
 };
 use crate::status::Statuses;
 use crate::tick::{Tick, ms_ticks};
@@ -27,7 +28,8 @@ pub mod buttons {
     pub const ABILITY2: u16 = 1 << 6;
     pub const ABILITY3: u16 = 1 << 7;
     pub const ABILITY4: u16 = 1 << 8;
-    pub const INTERACT: u16 = 1 << 9;
+    /// Pressed: sit down, or stand up (SKILLS.md 2).
+    pub const SIT: u16 = 1 << 9;
     pub const VIEWPORT: u16 = 1 << 10;
     /// Held: the command stance (COMPANIONS.md 5.1).
     pub const COMMAND: u16 = 1 << 11;
@@ -63,6 +65,8 @@ pub mod anim {
     pub const RELOAD: u8 = 14;
     /// Using a kit (MODES.md 11.3): the weapon lowered, the hands at the body.
     pub const USE: u8 = 15;
+    /// Sitting (SKILLS.md 2).
+    pub const SIT: u8 = 16;
 
     /// The stances of a running script: the ones a body's `acting` ability goes with.
     pub fn acts(state: u8) -> bool {
@@ -222,6 +226,7 @@ pub struct Mover {
     pub use_until: Option<Tick>,
     pub use_cell: u8,
     pub used: Option<u8>,
+    pub seat: Seat,
     /// Crouching (MODES.md 3.4, 3.5, 10.2): the button held, on the ground or in the
     /// air, in every mode. The world hull is `Hull::Crouch` (half the player's), the eye,
     /// the top of the hitbox and the body are lower by `CROUCH_DROP`, the head band with
@@ -262,6 +267,7 @@ impl Mover {
             use_until: None,
             use_cell: 0,
             used: None,
+            seat: Seat::Up,
             crouched: false,
             stance_lift: 0.0,
             duck: 0.0,
@@ -400,6 +406,25 @@ impl Mover {
         tick_delta(now, self.command_until) < 0
     }
 
+    pub fn seated(&self) -> bool {
+        self.seat != Seat::Up
+    }
+
+    /// Seated for `REST_MS`: HP and MP come back, ST faster (SKILLS.md 2).
+    pub fn resting(&self, now: Tick, dt: f32) -> bool {
+        matches!(self.seat, Seat::Down(since)
+            if tick_delta(now, since) >= ms_ticks(REST_MS, dt) as i32)
+    }
+
+    fn can_sit(&self, now: Tick) -> bool {
+        self.mv.on_ground
+            && self.script.is_none()
+            && self.dash.is_none()
+            && self.guard == GuardState::None
+            && self.using_item(now).is_none()
+            && !self.commanding(now)
+    }
+
     /// Forget every running thing (death, respawn); cooldowns survive.
     /// The body rearmed for another kit (GEAR.md 2): nothing running, no guard, no statuses,
     /// every cooldown ready, the guns filled for the kit; the pools and the place stand.
@@ -424,7 +449,50 @@ impl Mover {
             g.spray = 0;
         }
         self.use_until = None;
+        self.seat = Seat::Up;
     }
+}
+
+/// Sitting (SKILLS.md 2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Seat {
+    #[default]
+    Up,
+    /// Down since this frame tick.
+    Down(Tick),
+    /// Standing up until this frame tick.
+    Rising(Tick),
+}
+
+/// Sit on a SIT press; any press of the body's own, a move or a SIT stands it up over
+/// `STAND_MS`; a stagger, a shock or the ground stands it up at once.
+fn seat_step(m: &mut Mover, input: &Input, pressed: u16, now: Tick, dt: f32, knocked: bool) {
+    const ACTS: u16 = buttons::SIT
+        | buttons::JUMP
+        | buttons::CROUCH
+        | buttons::PRIMARY
+        | buttons::SECONDARY
+        | buttons::GUARD
+        | buttons::ABILITY1
+        | buttons::ABILITY2
+        | buttons::ABILITY3
+        | buttons::ABILITY4
+        | buttons::COMMAND
+        | buttons::RELOAD
+        | buttons::USE;
+    let moving = input.forward != 0.0 || input.side != 0.0;
+    let acts = pressed & ACTS != 0 || input.ability != 0 || moving;
+    if let Seat::Rising(until) = m.seat
+        && tick_delta(now, until) >= 0
+    {
+        m.seat = Seat::Up;
+    }
+    m.seat = match m.seat {
+        _ if knocked => Seat::Up,
+        Seat::Down(_) if acts => Seat::Rising(now.wrapping_add(ms_ticks(STAND_MS, dt))),
+        Seat::Up if pressed & buttons::SIT != 0 && !moving && m.can_sit(now) => Seat::Down(now),
+        seat => seat,
+    };
 }
 
 pub fn view_dir(yaw: f32, pitch: f32) -> Vec3 {
@@ -550,6 +618,15 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         m.use_until = None;
     }
 
+    seat_step(
+        m,
+        input,
+        pressed,
+        now,
+        dt,
+        staggered || m.statuses.has(crate::vocab::Status::Shock),
+    );
+
     // The command stance (COMPANIONS.md 5.1): it begins on a frame that holds the button
     // while nothing runs, lasts while the button is held and for the exit time after.
     if input.buttons & buttons::COMMAND != 0
@@ -559,10 +636,10 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         m.command_until = now.wrapping_add(command_exit_ticks(dt)).wrapping_add(1);
     }
     let commanding = m.commanding(now);
-    // In the stance the body does nothing of its own: the frame is read as if only the view
-    // angles had been sent.
+    // In the stance or seated the body does nothing of its own: the frame is read as if only
+    // the view angles had been sent.
     let stance_input;
-    let (input, pressed) = if commanding {
+    let (input, pressed) = if commanding || m.seated() {
         m.guard = GuardState::None;
         stance_input = Input {
             buttons: 0,
@@ -721,10 +798,18 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         }
     }
 
+    let resting = m.resting(now, dt);
     if tick_delta(now, m.regen_pause_until) >= 0 {
-        m.stamina = (m.stamina + d.stamina_regen * dt).min(d.stamina);
+        let rate = if resting {
+            d.rest_stamina
+        } else {
+            d.stamina_regen
+        };
+        m.stamina = (m.stamina + rate * dt).min(d.stamina);
     }
-    m.focus = (m.focus + d.focus_regen * dt).min(d.focus);
+    if resting {
+        m.focus = (m.focus + d.rest_focus * dt).min(d.focus);
+    }
 }
 
 /// The block/parry state machine (VOCABULARY.md 5.6).

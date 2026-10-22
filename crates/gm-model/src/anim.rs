@@ -222,6 +222,14 @@ pub fn pose(i: &AnimInput) -> Pose {
             p.rot[HEAD] = ry(-6.0);
             p.offset.z = -i.hips_z * 0.44;
         }
+        anim::SIT => {
+            // On the ground, knees up, hands on them: resting, and plainly not fighting
+            // (SKILLS.md 2).
+            legs(&mut p, -125.0, 120.0, -115.0, 115.0);
+            arms(&mut p, 82.0, -50.0, -50.0, 30.0, 30.0);
+            torso(&mut p, 8.0, 0.0);
+            p.offset.z = -i.hips_z * 0.78;
+        }
         anim::DOWN => {
             // Knocked down (MODES.md 4.5): on the back at once, arms up a little, as
             // though to rise; the fall is the fade.

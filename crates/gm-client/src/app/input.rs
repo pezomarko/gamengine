@@ -77,6 +77,10 @@ impl Input {
         if ctrl {
             kit |= buttons::CROUCH;
         }
+        // `Insert` sits, as in Tales of Pirates; `Z` for keyboards without one (SKILLS.md 2).
+        if self.down(KeyCode::Insert) || self.down(KeyCode::KeyZ) {
+            kit |= buttons::SIT;
+        }
         if let Some(r) = rpg {
             return self.rpg_input(yaw, pitch, r, kit, use_slot);
         }
@@ -346,6 +350,7 @@ impl App {
                 }
             }
             TouchButton::Jump => self.hold_key(KeyCode::Space, down),
+            TouchButton::Sit => self.hold_key(KeyCode::KeyZ, down),
             TouchButton::Use => {
                 if down {
                     self.ui_key(Key::Use);

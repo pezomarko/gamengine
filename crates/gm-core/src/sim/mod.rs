@@ -14,6 +14,7 @@ mod zone;
 #[cfg(test)]
 mod tests;
 
+pub use mover::Seat;
 pub use mover::{
     Action, CAST_ANIM_NONE, CREEP_SPEED, CROUCH_DROP, CROUCH_TUCK, Company, DUCK_SECS, Dash,
     GuardState, GunState, Input, ItemRefusal, Mover, Nearby, RUN_SPEED, SCOPED_CONE, Script, anim,
@@ -56,6 +57,10 @@ pub const RESPAWN_MS: u32 = 3000;
 pub const MAX_ABILITIES: usize = 12;
 /// Stamina regeneration pauses this long after a spend (MATRIX.md 6).
 pub const REGEN_PAUSE_MS: u32 = 1000;
+/// Seated this long, a body rests (SKILLS.md 2).
+pub const REST_MS: u32 = 3000;
+/// Standing up from a seat.
+pub const STAND_MS: u32 = 500;
 /// A kit's use, from the press to the heal (MODES.md 11.3).
 pub const KIT_USE_MS: u32 = 1500;
 /// The item bar's cells (LOOK.md 3.2): four, after the abilities.

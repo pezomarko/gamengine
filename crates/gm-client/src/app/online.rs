@@ -1485,10 +1485,15 @@ impl App {
         self.scene.tags.clear();
         self.scene.effects.begin(frame_dt);
         // The eye over the origin (MODES.md 3.4, 3.5): the predicted mover's, which sinks
-        // over a crouch under way, eased over about a tenth of a second so getting up does
-        // not jump; a crouch's lift in the air is let go at the same pace.
+        // over a crouch under way, or a seat's, 28 under the standing eye (SKILLS.md 2);
+        // eased over about a tenth of a second so getting up does not jump; a crouch's lift
+        // in the air is let go at the same pace.
         let ease = (frame_dt * 12.0).min(1.0);
-        let target = c.mover.eye().z - c.mover.mv.origin.z;
+        let target = if c.mover.seated() {
+            gm_core::trace::Hull::Player.eye_height() - 28.0
+        } else {
+            c.mover.eye().z - c.mover.mv.origin.z
+        };
         self.view.eye_height += (target - self.view.eye_height) * ease;
         self.view.lift -= self.view.lift * ease;
         // The own hull origin as drawn, and the eye over it: the body itself is lowered by
@@ -1974,6 +1979,8 @@ impl App {
             {
                 // Dead, staggered, commanding, dashing, guarding: the zone's word.
                 said
+            } else if c.mover.seated() {
+                anim::SIT
             } else if let Some((ability, elapsed)) = own_script {
                 gm_core::sim::script_anim(ability, elapsed)
             } else {

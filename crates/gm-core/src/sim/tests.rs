@@ -255,10 +255,9 @@ fn dash_moves_fast_and_costs_mp() {
     let focus = p.mover.focus;
     run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 64);
     let p = zone.player(a).unwrap();
-    assert!(
-        p.mover.focus > focus + 0.5,
-        "MP regenerates: {} from {focus}",
-        p.mover.focus
+    assert_eq!(
+        p.mover.focus, focus,
+        "MP comes back only at rest (SKILLS.md 2)"
     );
     assert!(!p.mover.evading(p.last_input_tick));
 }
@@ -4501,4 +4500,112 @@ fn a_spend_pauses_stamina_for_a_second_at_any_rate() {
             "{hz} Hz: back after {back} ms"
         );
     }
+}
+
+fn seated_zone() -> (BoxWorld, Zone, EntityId) {
+    let world = BoxWorld::floor();
+    let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
+    let build = zone.content.build("blade").unwrap().clone();
+    let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 64);
+    let p = zone.player_mut(a).unwrap();
+    p.mover.stamina = 0.0;
+    p.mover.focus = 0.0;
+    p.health = 10;
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, buttons::SIT))], 1);
+    (world, zone, a)
+}
+
+#[test]
+fn a_seated_body_rests_after_three_seconds() {
+    let (world, mut zone, a) = seated_zone();
+    let idle = [(a, input(0.0, 0.0, 0))];
+    run(&mut zone, &world, &idle, 2 * 64);
+    let p = zone.player(a).unwrap();
+    assert!(p.mover.seated());
+    assert_eq!((p.mover.focus, p.health), (0.0, 10), "no rest before 3 s");
+    let st = p.mover.stamina;
+    let d = p.sheet.derived;
+    assert!(
+        (st - 2.0 * d.stamina_regen).abs() < 0.2,
+        "{st}: standing rate before the rest"
+    );
+    run(&mut zone, &world, &idle, 3 * 64);
+    let p = zone.player(a).unwrap();
+    let rested = 2.0 - 2.0 / 64.0;
+    assert!(
+        (p.mover.focus - rested * d.rest_focus).abs() < 0.1,
+        "{}",
+        p.mover.focus
+    );
+    let hp = 10 + (rested * d.rest_health) as i32;
+    assert!((p.health - hp).abs() <= 1, "{} vs {hp}", p.health);
+    assert!(p.mover.stamina - st > rested * d.rest_stamina);
+}
+
+#[test]
+fn a_move_stands_a_sitter_up_over_half_a_second() {
+    let (world, mut zone, a) = seated_zone();
+    zone.player_mut(a).unwrap().mover.stamina = 10.0;
+    run(&mut zone, &world, &[(a, input(0.0, 1.0, 0))], 2);
+    assert!(matches!(
+        zone.player(a).unwrap().mover.seat,
+        Seat::Rising(_)
+    ));
+    run(
+        &mut zone,
+        &world,
+        &[(a, input(0.0, 0.0, buttons::PRIMARY))],
+        2,
+    );
+    assert!(
+        zone.player(a).unwrap().mover.script.is_none(),
+        "no blow while rising"
+    );
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 32);
+    assert_eq!(zone.player(a).unwrap().mover.seat, Seat::Up);
+    let at = zone.player(a).unwrap().mover.mv.origin;
+    assert!(at.x.abs() < 1.0, "a sitter does not walk: {at}");
+}
+
+#[test]
+fn damage_keeps_the_rest_and_a_stagger_ends_it() {
+    use crate::vocab::{ApplyStatus, StackRule, StatusTarget};
+    let (world, mut zone, a) = seated_zone();
+    let status = |status, ms| ApplyStatus {
+        status,
+        duration: RATE.ms_to_ticks(ms),
+        magnitude: 1.0,
+        max_stacks: 1,
+        stacking: StackRule::Refresh,
+        target: StatusTarget::Hit,
+        dispellable: true,
+    };
+    zone.apply_status(a, a, &status(Status::Bleed, 5000));
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 4 * 64);
+    let p = zone.player(a).unwrap();
+    assert!(
+        p.mover.resting(p.last_input_tick, RATE.dt()),
+        "a bleed does not stand it up"
+    );
+    zone.apply_status(a, a, &status(Status::Stagger, 400));
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 2);
+    assert_eq!(zone.player(a).unwrap().mover.seat, Seat::Up);
+}
+
+#[test]
+fn standing_brings_back_stamina_alone() {
+    let world = BoxWorld::floor();
+    let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
+    let build = zone.content.build("blade").unwrap().clone();
+    let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 64);
+    let p = zone.player_mut(a).unwrap();
+    p.mover.stamina = 0.0;
+    p.mover.focus = 0.0;
+    p.health = 10;
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 4 * 64);
+    let p = zone.player(a).unwrap();
+    assert_eq!((p.mover.focus, p.health), (0.0, 10));
+    assert!((p.mover.stamina - 4.0 * p.sheet.derived.stamina_regen).abs() < 0.2);
 }
