@@ -376,19 +376,22 @@ other key, so fullscreen is the page's control or the menu's Fullscreen (3.7).
 So the page can be installed as an app. `app.webmanifest` names it (`gamengine`,
 `standalone`, the page's colours) with icons of 192 and 512 texels, which
 `scripts/dev/icon-gen.py` draws: the skin's frame round the title face's "G" (its "g" reads
-as a 9); `index.html` links both, `scripts/build-web.sh` copies them. Chromium's menu has
-**Cast, save, and share → Install page as app…** on any page: tried on a page under a
-self-signed certificate, as the LAN's is, the dialog names "gamengine" with the icon, the
-window it opens is the game's (dark title bar, the icon), and the body walked through a held
-`Ctrl+W` there. Under an untrusted certificate the page is `not-from-secure-origin` for the
-browser's own offer to install, and the window shows "Not secure" with the address under its
-title; under the cloud's (2.2) neither. No service worker: an install from the menu has not
-needed one since Chromium 112, and the installed game fetches the client as the page does.
+as a 9); `index.html` links both, `scripts/build-web.sh` copies them; the manifest's `id` is
+the page's root, so that a later `start_url` is the same app. Chromium's menu, **Cast, save,
+and share**, then has **Install gamengine…** on a trusted origin (localhost, the cloud's
+certificate, 2.2), with an **Install** button in the address bar (no service worker asked
+for), and **Install page as app…** under an untrusted one, as the LAN's self-signed
+certificate is (`not-from-secure-origin` for the browser's own offer). Tried under a
+self-signed certificate: the dialog names "gamengine" with the icon, the window it opens is
+the game's (a dark title bar, the icon, and "Not secure" with the address under the title),
+and the body walked through a held `Ctrl+W` there. The installed game fetches the client as
+the page does.
 
 And the page says it once: the first `Ctrl` pressed while a game is played in a Chromium
 tab, or anywhere in Firefox, puts where `Ctrl+W` walks instead on the status line for 15
-seconds (not in Chromium's fullscreen, not in an installed app, not on a Mac, where the
-tab's key is `Cmd+W` and `Ctrl+W` is the page's).
+seconds, when the line has nothing else to say (so a `Ctrl` while the client loads waits
+for the next); not in Chromium's fullscreen, F11's included, not in an app window, not on a
+Mac, where the tab's key is `Cmd+W` and `Ctrl+W` is the page's.
 
 ## 4. The model cache without a filesystem
 
@@ -715,6 +718,28 @@ commit, asked for what the earlier reviews missed. 3 findings.
    `tx_bytes` when they are flushed*: **accepted**, fixed.
 
 Its verdict on the earlier reviews: sound.
+
+### 12.5 Review by Gemini 3.8 Flash of 3.8 (2026-10-22)
+
+Gemini 3.8 Flash (with search) read the change and 3.8, told the measured facts and asked for
+defects only. 7 findings.
+
+1. *Chromium's F11 fullscreen (and an app window gone fullscreen) is neither `standalone`
+   nor an element's fullscreen, so the hint showed where `Ctrl+W` is the page's*:
+   **accepted**. A Chromium tab is now the `browser` display mode without an element
+   fullscreen.
+2. *Edge has no "Cast, save, and share"*: **accepted**; the hint names the menu as Chrome's.
+3. *A `Ctrl` while the client loads spends the hint, and the login's `say("")` wipes it*:
+   **accepted** with 4.
+4. *The hint overwrites the client's own status (an error, "loading the map")*:
+   **accepted**. The hint waits for an empty status line and is not spent until it shows.
+5. *No manifest `id`*: **accepted**, `"id": "./"`. Its other half, that an install from
+   `?offline=1` opens the plain page: **meant** (the installed game is the login's).
+6. *The manifest and the icons carry no build stamp*: **rejected**. The play stack's servers
+   send `no-cache` (5), and a stale icon or name costs nothing a reload does not mend.
+7. *On a trusted origin with the manifest the menu says "Install gamengine…", not "Install
+   page as app…"*: **accepted**, seen on localhost (with an Install button in the address
+   bar); 3.8 corrected.
 
 ## 13. Changes in Phase 10 (the screens, docs/CLIENT.md)
 

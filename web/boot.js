@@ -318,15 +318,19 @@ if (coarse) fullscreen.textContent = "tap here for fullscreen";
 
 // Ctrl+W is the browser's before the page hears of it in a Chromium tab, and in Firefox
 // even in fullscreen (docs/WEB.md 3.8): the first Ctrl of a game played there says where
-// Ctrl+W walks instead. (On a Mac the tab's key is Cmd+W, and Ctrl+W is the page's.)
+// Ctrl+W walks instead, once the status line has nothing else to say (a Ctrl while the
+// client loads waits for the next). Chromium's tab is the browser display mode without an
+// element fullscreen: its F11 fullscreen and its app windows give the page Ctrl+W. (On a
+// Mac the tab's key is Cmd+W, and Ctrl+W is the page's.)
 let ctrlWSaid = false;
 addEventListener("keydown", (e) => {
-  if (ctrlWSaid || e.key !== "Control" || !running || !panel.hidden || /Mac/.test(navigator.platform)) return;
+  if (ctrlWSaid || e.key !== "Control" || !running || !panel.hidden || statusLine.textContent) return;
   const chromium = !!navigator.keyboard;
-  if (matchMedia("(display-mode: standalone)").matches || (chromium && document.fullscreenElement)) return;
+  const tab = matchMedia("(display-mode: browser)").matches && !document.fullscreenElement;
+  if ((chromium && !tab) || /Mac/.test(navigator.platform)) return;
   ctrlWSaid = true;
   const text = chromium
-    ? "Ctrl+W closes a browser tab: the game keeps it in fullscreen, or installed as an app (the browser's menu: Cast, save and share)"
+    ? "Ctrl+W closes a browser tab: the game keeps it in fullscreen, or installed as an app from the browser's menu (Chrome: Cast, save, and share)"
     : "Ctrl+W closes a browser tab, and this browser lets no page keep it: Chrome or Edge do, in fullscreen or with the game installed as an app";
   say(text);
   setTimeout(() => { if (statusLine.textContent === text) say(""); }, 15000);
