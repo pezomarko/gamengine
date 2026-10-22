@@ -147,7 +147,7 @@ deploy() {
   cp "$R/scripts/dev/play.sh" "$T/scripts/dev/"
   cp "$M"/gm-hub "$M"/gm-ingest-worker "$M"/gm-server "$M"/gm-bot "$T/target/release/"
   cp -r "$R/assets" "$T/assets"; rm -rf "$T/assets/maps/src" "$T"/assets/maps/built/*.prt
-  for f in index.html boot.js app.webmanifest icon-192.png icon-512.png gm-client-webgpu.js gm-client-webgpu_bg.wasm gm-client-webgl.js gm-client-webgl_bg.wasm; do cp "$R/target/web/$f" "$T/target/web/"; done
+  for f in index.html boot.js gm-client-webgpu.js gm-client-webgpu_bg.wasm gm-client-webgl.js gm-client-webgl_bg.wasm; do cp "$R/target/web/$f" "$T/target/web/"; done
   cp -r "$R/target/web/assets" "$T/target/web/assets"
   rsync -az --delete -e "ssh -o StrictHostKeyChecking=accept-new" "$T/" "root@$ip:/home/gm/gamengine/" || exit 1
   echo "== the unit, the site, the restart =="

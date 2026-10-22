@@ -193,7 +193,6 @@ async function start(options, build) {
 
 // Closing the tab mid-fight should take a second thought: Ctrl+W is one key from walking.
 // Not while the login form is up (nothing is being played), and not in a scripted run.
-// A last resort (docs/WEB.md 3.8): the browser's question takes Space and Enter for "leave".
 addEventListener("beforeunload", (e) => {
   if (running && panel.hidden && !query.has("script") && !query.has("ui-script")) e.preventDefault();
 });
@@ -282,10 +281,8 @@ panel.addEventListener("focusin", (e) => {
   if (e.target.scrollIntoView) e.target.scrollIntoView({ block: "center" });
 });
 
-// Fullscreen takes the pointer, and in Chromium the browser's own shortcuts reach the page
-// there, Ctrl+W among them, which the client keeps (winit cancels every key the canvas
-// takes: docs/WEB.md 3.8); the Keyboard Lock API adds Esc and the system's keys (leaving
-// is then a long press of Esc).
+// Fullscreen takes the pointer and, where the browser has the Keyboard Lock API (Chromium),
+// the keys a tab normally keeps: Ctrl+W, Tab, Esc (leaving is then a long press of Esc).
 // On a phone, fullscreen also turns the screen to landscape where the browser allows
 // (docs/WEB.md 3.5): the game is wide, and a phone held upright shows little of it.
 // The game's menu asks for the same, and for the way back (docs/WEB.md 3.7): the tap on
@@ -315,26 +312,6 @@ async function leaveFullscreen() {
 }
 fullscreen.addEventListener("click", enterFullscreen);
 if (coarse) fullscreen.textContent = "tap here for fullscreen";
-
-// Ctrl+W is the browser's before the page hears of it in a Chromium tab, and in Firefox
-// even in fullscreen (docs/WEB.md 3.8): the first Ctrl of a game played there says where
-// Ctrl+W walks instead, once the status line has nothing else to say (a Ctrl while the
-// client loads waits for the next). Chromium's tab is the browser display mode without an
-// element fullscreen: its F11 fullscreen and its app windows give the page Ctrl+W. (On a
-// Mac the tab's key is Cmd+W, and Ctrl+W is the page's.)
-let ctrlWSaid = false;
-addEventListener("keydown", (e) => {
-  if (ctrlWSaid || e.key !== "Control" || !running || !panel.hidden || statusLine.textContent) return;
-  const chromium = !!navigator.keyboard;
-  const tab = matchMedia("(display-mode: browser)").matches && !document.fullscreenElement;
-  if ((chromium && !tab) || /Mac/.test(navigator.platform)) return;
-  ctrlWSaid = true;
-  const text = chromium
-    ? "Ctrl+W closes a browser tab: the game keeps it in fullscreen, or installed as an app from the browser's menu (Chrome: Cast, save, and share)"
-    : "Ctrl+W closes a browser tab, and this browser lets no page keep it: Chrome or Edge do, in fullscreen or with the game installed as an app";
-  say(text);
-  setTimeout(() => { if (statusLine.textContent === text) say(""); }, 15000);
-}, true);
 
 (async () => {
   if (typeof WebTransport === "undefined") {

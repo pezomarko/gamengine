@@ -205,17 +205,14 @@ resynchronises from the next snapshot; after it, it shows the kick.
 
 ### 3.4 Keys the browser keeps for itself
 
-`Ctrl+W` closes a tab and cannot be prevented by a page in a tab, and the crouch is on `Ctrl`
-(every mode's since 2026-10-22, MODES.md 12; the action mode's guard was, until then) while
-`W` runs forward. So: the FPS mode's crouch is also on `X`, and the action mode's guard is on
+`Ctrl+W` closes a tab and cannot be prevented by a page, and the crouch is on `Ctrl` (every
+mode's since 2026-10-22, MODES.md 12; the action mode's guard was, until then) while `W`
+runs forward. So: the FPS mode's crouch is also on `X`, and the action mode's guard is on
 `X` alone, on every platform (`C` until 2026-10-22, when `C` became the character sheet's
 key, MATRIX.md 23); the page asks before unloading while the
-client runs (`beforeunload`); and outside a tab `Ctrl+W` is the game's (3.8, measured):
-Chromium gives a fullscreen page and a page installed as an app the browser's own shortcuts,
-which the client keeps (Firefox keeps `Ctrl+W` from every page, fullscreen or not). The
-page's "fullscreen" control also asks for the Keyboard Lock API where the browser has it
-(Chromium), under which `Esc` and the system's keys reach the game too (leaving fullscreen
-is then a long press of `Esc`). A browser gives the
+client runs (`beforeunload`); and the page's "fullscreen" control requests fullscreen and,
+where the browser has it (Chromium), the Keyboard Lock API, under which `Ctrl+W`, `Tab` and
+`Esc` reach the game (leaving fullscreen is then a long press of `Esc`). A browser gives the
 pointer only to a click: the first click on the canvas takes it, `Esc` releases it (the
 browser's rule), the next click takes it again. That `Esc` never reaches the page, so the
 client asks every frame whether it still has the pointer, and takes losing it for the key:
@@ -346,53 +343,6 @@ label follows `document.fullscreenElement` (`web::fullscreen_on`). Natively the 
 its fullscreen setting. Before the game (the characters) the way back is the phone's own
 (back, or a swipe), as it was.
 
-### 3.8 Ctrl+W, measured, and the game as an app (2026-10-22)
-
-The director, the evening the crouch went on `Ctrl` in every mode: "can we make the browser
-game not quit when CTRL+W is pressed or held since thats forward walk while crouching". 3.4
-had the keyboard lock for the answer, which holds in fullscreen only, and he plays in a tab
-(Chrome 134 on his PC). Measured with real X key presses (`xdotool` on Xvfb under xfwm4) in
-Chromium 150, Chrome 121 and Firefox 152, on a page that cancels every key as the canvas
-does (winit's `with_prevent_default`) and asks before unloading as `boot.js` does, and then
-on the game's own page in Chromium 150 (the offline walk):
-
-| Where the page is | `Ctrl+W` reaches the page | What follows |
-|---|---|---|
-| a Chromium tab | no: only the `Ctrl` | "Leave site?", with "Leave" focused |
-| Chromium, the page fullscreen (with the Keyboard Lock or without) | yes | nothing: the canvas cancels it, the body crouch-walks |
-| Chromium, the page in an app window (installed, or `--app=`) | yes | the same |
-| Firefox, a tab or the page fullscreen | no | "This page is asking you to confirm", with "Leave page" focused |
-
-Both browsers' question has "leave" on its focused button, so a Space (the jump, and the
-action mode's crouch-jump) or an Enter after it closes the tab: that is the quit the
-director met. The question stays, as the last resort it is. What Chromium keeps from a page
-is `BrowserCommandController::IsReservedCommandOrKey`: in a tab, closing the tab or the
-window, a new tab or window, the tab just closed, the next or previous tab, and quitting
-(`Ctrl+W`, `Ctrl+Shift+W`, `Ctrl+T`, `Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+Shift+T`, `Ctrl+Tab`,
-`Ctrl+PageDown` and their kin); in fullscreen only quitting and leaving fullscreen; in an
-app window nothing. F11 is no way into that fullscreen: the canvas cancels it with every
-other key, so fullscreen is the page's control or the menu's Fullscreen (3.7).
-
-So the page can be installed as an app. `app.webmanifest` names it (`gamengine`,
-`standalone`, the page's colours) with icons of 192 and 512 texels, which
-`scripts/dev/icon-gen.py` draws: the skin's frame round the title face's "G" (its "g" reads
-as a 9); `index.html` links both, `scripts/build-web.sh` copies them; the manifest's `id` is
-the page's root, so that a later `start_url` is the same app. Chromium's menu, **Cast, save,
-and share**, then has **Install gamengine…** on a trusted origin (localhost, the cloud's
-certificate, 2.2), with an **Install** button in the address bar (no service worker asked
-for), and **Install page as app…** under an untrusted one, as the LAN's self-signed
-certificate is (`not-from-secure-origin` for the browser's own offer). Tried under a
-self-signed certificate: the dialog names "gamengine" with the icon, the window it opens is
-the game's (a dark title bar, the icon, and "Not secure" with the address under the title),
-and the body walked through a held `Ctrl+W` there. The installed game fetches the client as
-the page does.
-
-And the page says it once: the first `Ctrl` pressed while a game is played in a Chromium
-tab, or anywhere in Firefox, puts where `Ctrl+W` walks instead on the status line for 15
-seconds, when the line has nothing else to say (so a `Ctrl` while the client loads waits
-for the next); not in Chromium's fullscreen, F11's included, not in an app window, not on a
-Mac, where the tab's key is `Cmd+W` and `Ctrl+W` is the page's.
-
 ## 4. The model cache without a filesystem
 
 **What a phone fetches and holds** (MODELS.md 5.2, 2026-10-15): the WebGPU build reads the
@@ -436,8 +386,7 @@ the native client):
 ## 5. The page
 
 `index.html` holds a stage with a canvas, a login form (email, password, "new account", which
-asks for the password a second time), a status line and a fullscreen control, and links the
-manifest the page installs as an app from (3.8); fullscreen
+asks for the password a second time), a status line and a fullscreen control; fullscreen
 takes the stage, so the form and the status line are there when the client asks for them. `boot.js` picks the build (3.2), reads `config.json` and the query
 string, leaves the options in `globalThis.gmOptions` and imports the build; the client
 reports to the page through `globalThis.gmStatus(kind, text)` (`status`, `error`, `stats`,
@@ -607,8 +556,7 @@ is 184,786 bytes with the phone's keyboard (3.6), 170,358 before it; `max_js_byt
 - `unadjustedMovement` under pointer lock (raw mouse input, 3.4).
 - Model upload from the browser (still `gm-tools model upload`). (The inventory, the trade
   window and sound, absent in v1, came with Phases 11, 12 and 13: 14, 15, 16.)
-- A service worker / offline install (the page installs as an app since 3.8, and fetches the
-  client as the page does); saved logins.
+- A service worker / offline install; saved logins.
 - Safari- and Firefox-specific testing: the gate runs Chromium. The client needs WebTransport
   with datagrams and either WebGPU or WebGL2; a browser without them gets a sentence saying
   what is missing.
@@ -718,28 +666,6 @@ commit, asked for what the earlier reviews missed. 3 findings.
    `tx_bytes` when they are flushed*: **accepted**, fixed.
 
 Its verdict on the earlier reviews: sound.
-
-### 12.5 Review by Gemini 3.8 Flash of 3.8 (2026-10-22)
-
-Gemini 3.8 Flash (with search) read the change and 3.8, told the measured facts and asked for
-defects only. 7 findings.
-
-1. *Chromium's F11 fullscreen (and an app window gone fullscreen) is neither `standalone`
-   nor an element's fullscreen, so the hint showed where `Ctrl+W` is the page's*:
-   **accepted**. A Chromium tab is now the `browser` display mode without an element
-   fullscreen.
-2. *Edge has no "Cast, save, and share"*: **accepted**; the hint names the menu as Chrome's.
-3. *A `Ctrl` while the client loads spends the hint, and the login's `say("")` wipes it*:
-   **accepted** with 4.
-4. *The hint overwrites the client's own status (an error, "loading the map")*:
-   **accepted**. The hint waits for an empty status line and is not spent until it shows.
-5. *No manifest `id`*: **accepted**, `"id": "./"`. Its other half, that an install from
-   `?offline=1` opens the plain page: **meant** (the installed game is the login's).
-6. *The manifest and the icons carry no build stamp*: **rejected**. The play stack's servers
-   send `no-cache` (5), and a stale icon or name costs nothing a reload does not mend.
-7. *On a trusted origin with the manifest the menu says "Install gamengine…", not "Install
-   page as app…"*: **accepted**, seen on localhost (with an Install button in the address
-   bar); 3.8 corrected.
 
 ## 13. Changes in Phase 10 (the screens, docs/CLIENT.md)
 
