@@ -70,9 +70,10 @@ impl Input {
             Some(i) => (buttons::USE, i as u8 + 1),
             None => (0, 0),
         };
-        // Ctrl crouches in every mode since 2026-10-22 (MODES.md 3.5); a browser keeps
-        // Ctrl+W, so the page asks before it closes and fullscreen locks the keyboard
-        // (WEB.md 3.4), and the FPS mode keeps `X` beside it.
+        // Ctrl crouches in every mode since 2026-10-22 (MODES.md 3.5); a browser's tab keeps
+        // Ctrl+W, so the page asks before it closes, Chromium gives it to the game in
+        // fullscreen and installed as an app (WEB.md 3.4, 3.8), and the FPS mode keeps `X`
+        // beside it.
         let ctrl = self.down(KeyCode::ControlLeft) || self.down(KeyCode::ControlRight);
         if ctrl {
             kit |= buttons::CROUCH;

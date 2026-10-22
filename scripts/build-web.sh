@@ -36,6 +36,8 @@ build webgpu
 build webgl --features webgl
 
 cp "$ROOT/web/boot.js" "$OUT/"
+# What a browser installs the page as (WEB.md 3.8): the manifest and its icons.
+cp "$ROOT/web/app.webmanifest" "$ROOT"/web/icon-*.png "$OUT/"
 # The build's stamp (the wasm's and the loader's hash) on the script's URL, which boot.js
 # carries to the module and the wasm: a browser that cached the last build fetches this one.
 # The page itself is what a browser revalidates on every visit (WEB.md 2.5).
