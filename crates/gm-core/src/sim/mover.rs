@@ -1014,6 +1014,16 @@ fn item_step(m: &mut Mover, pressed: u16, use_slot: u8, now: Tick, dt: f32, stag
     }
 }
 
+/// What `ab` takes from the pools: its stamina at the frame's share, its focus, and its
+/// shares of the maxima (SKILLS.md 3).
+pub fn cost_of(sheet: &Sheet, ab: &crate::vocab::Ability) -> (f32, f32) {
+    let d = &sheet.derived;
+    (
+        sheet.kit.blow_cost(ab) + ab.cost.stamina_share as f32 * d.stamina / 1000.0,
+        ab.cost.focus as f32 + ab.cost.focus_share as f32 * d.focus / 1000.0,
+    )
+}
+
 /// Frames an item's use takes (`KIT_USE_MS`, the kit's and every stack's for now) at the
 /// tick length `dt`: 1.5 s in a town at 20 Hz as in a fight at 64.
 pub fn kit_use_ticks(dt: f32) -> Tick {
@@ -1250,7 +1260,8 @@ fn try_activate<W: CollisionWorld + ?Sized>(
     if kit.elemental[slot] && m.statuses.silenced() {
         return false;
     }
-    if m.stamina < kit.blow_cost(ab) || m.focus < ab.cost.focus as f32 {
+    let (stamina, focus) = cost_of(sheet, ab);
+    if m.stamina < stamina || m.focus < focus {
         return false;
     }
     // A shot that draws on a stack without a magazine (GEAR.md 7: the bow's arrows): one
@@ -1291,9 +1302,9 @@ fn try_activate<W: CollisionWorld + ?Sized>(
         g.last_shot = now;
         g.magazine -= 1;
     }
-    m.stamina -= kit.blow_cost(ab);
-    m.focus -= ab.cost.focus as f32;
-    if ab.cost.stamina > 0 {
+    m.stamina -= stamina;
+    m.focus -= focus;
+    if stamina > 0.0 {
         m.regen_pause_until = now.wrapping_add(ms_ticks(REGEN_PAUSE_MS, dt));
     }
     // Attacking drops a held block.

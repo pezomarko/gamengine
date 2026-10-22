@@ -14,7 +14,6 @@ mod zone;
 #[cfg(test)]
 mod tests;
 
-pub use mover::Seat;
 pub use mover::{
     Action, CAST_ANIM_NONE, CREEP_SPEED, CROUCH_DROP, CROUCH_TUCK, Company, DUCK_SECS, Dash,
     GuardState, GunState, Input, ItemRefusal, Mover, Nearby, RUN_SPEED, SCOPED_CONE, Script, anim,
@@ -22,6 +21,7 @@ pub use mover::{
     item_refusal, kit_use_ticks, melee_hit_point, move_share, sees, step_mover, view_dir,
     yaw_toward,
 };
+pub use mover::{Seat, cost_of};
 pub use zone::{
     Area, DOT_INTERVAL_TICKS, Driver, HEAD_BAND, History, HitKind, INSTANT_AREA_ECHO_MS,
     MAX_CLAIMED_VIEW_LAG, MAX_ENTITY_ID, Player, Projectile, Shot, Spawn, Swing, Zone, ZoneEvent,

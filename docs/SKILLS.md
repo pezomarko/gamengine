@@ -52,18 +52,22 @@ Engine:
 - `Cost.stamina_share`, `Cost.focus_share`: per mille of the pool's maximum (the mover reads
   it from the sheet), needed in hand and spent.
 - `retired = true` on an ability row: `worn_of` never picks it.
+- A mind that blocks keeps half its ST for the guard, and reads costs as the mover does.
 
 Content (keys and row order stay; new rows are appended):
 - the page's costs, cooldowns and durations: ST for physical second moves, tricks and
   weapon spells, MP for the rest;
-- the fifteen names; Mend 4 a second for 8 s; the staff's blasts are the staff's alone and
-  the wand's second move is Dispel;
+- the fifteen names; Mend 5 a second for 8 s at 1 MP (measured: at 2 MP a healer runs dry
+  and the squad loses to the Warden, MATRIX.md 24); Frost Nova 8 s at 3 MP and Blink 6 s
+  (measured: at the page's the frostweaver no longer counters the ironclad); the staff's
+  blasts are the staff's alone and the wand's second move is Dispel;
 - new: Illusion Slash (sword, katana: a 450 u bolt through three bodies), Tiger Roar (axes),
   Whirlwind (big blades), Deadeye (crossbow), Dispel (wand), Purify (the Elder's skill in
   place of Sanctuary);
 - Bull Rush knocks down the body it stops on (a short arc after the charge); Leap is
   untouchable for 100 ms;
-- Backstab retired; content rebuilt.
+- Backstab retired; content rebuilt. Content v29, PROTOCOL 34 (the costs and the statuses
+  travel in the content pack).
 
 Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-measured.
 
@@ -80,7 +84,7 @@ Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-m
   keys 3, 5 and 6, as the hotbar has them). `Mover::rearm` carries each cooldown over by
   `AbilityId` to wherever that ability sits in the new kit, so a swap resets nothing.
 - Client: the smith's screen moves it; the C sheet names it.
-- HUB_VERSION 23, PROTOCOL 34, content.
+- HUB_VERSION 23, PROTOCOL 35, content.
 
 Tests: awaken once and only with a formed weapon; infuse within the form; the fee; the
 refusals; the kit; rearm.
@@ -125,6 +129,9 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of step 3. Taken: the dash test's name. Not taken: "Mend at 4 as
+the plan said": the plan follows the measurement now.
 
 Gemini 3.1 Pro on the code of steps 1 and 2. Taken: a taunter that dies no longer holds a
 creature for the rest of the taunt; a SIT pressed on the frame a rise ends is not lost.

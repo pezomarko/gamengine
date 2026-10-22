@@ -1024,5 +1024,11 @@ mod tests {
             resolve_damage(&packet(100, DamageType::Slash, Bypass::NONE), &weak, &d),
             62
         );
+        // Fury is Weaken the other way (SKILLS.md 3).
+        let fury = AttackerStats { weaken: -0.3, ..a };
+        assert_eq!(
+            resolve_damage(&packet(100, DamageType::Slash, Bypass::NONE), &fury, &d),
+            114
+        );
     }
 }

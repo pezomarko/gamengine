@@ -964,13 +964,7 @@ fn hud_statuses(
         let Some(status) = slot.status else { continue };
         let left = gm_core::sim::tick_delta(slot.until, now).max(0) as f32;
         let side = 24.0 * s;
-        let harmful = !matches!(
-            status,
-            gm_core::vocab::Status::Regen
-                | gm_core::vocab::Status::Haste
-                | gm_core::vocab::Status::Fortify
-                | gm_core::vocab::Status::Stealth
-        );
+        let harmful = !status.is_boon();
         hud.rect(
             sx,
             sy,
