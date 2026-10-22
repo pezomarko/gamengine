@@ -84,6 +84,80 @@ impl Run {
         }
     }
 
+    /// `ClientEvent::Infuse` (SKILLS.md 4): by the smith, alive and in person; the hub
+    /// checks the rest.
+    pub(super) fn on_infuse(&mut self, id: EntityId, fee: i64) {
+        let request = (|| {
+            let link = self.cfg.hub.clone().ok_or("this zone has no smith")?;
+            let slot = self.hub_slots.get(&id).ok_or("this zone has no smith")?;
+            let p = self
+                .zone
+                .player(id)
+                .filter(|p| p.alive && !p.ghost)
+                .ok_or("not now")?;
+            if !self.npc_near(p.mover.mv.origin, "smith", NPC_REACH) {
+                return Err("walk up to the smith first");
+            }
+            Ok((link, slot.character))
+        })();
+        let Some(session) = self.sessions.get_mut(&id) else {
+            return;
+        };
+        let say = |session: &Session, text: &str| {
+            session.send_control(FromZone::ChatFrom {
+                from: 0,
+                text: text.to_string(),
+            });
+        };
+        if !session.begin_stall_request() {
+            say(session, "one thing at a time: try again in a moment");
+            return;
+        }
+        match request {
+            Ok((link, character)) => {
+                let tx = self.event_tx.clone();
+                tokio::spawn(async move {
+                    let result = tokio::time::timeout(HUB_PATIENCE, link.infuse(character, fee))
+                        .await
+                        .unwrap_or_else(|_| Err(HUB_SILENT.to_string()));
+                    let _ = tx
+                        .send(ClientEvent::Infused {
+                            id,
+                            character,
+                            result,
+                        })
+                        .await;
+                });
+            }
+            Err(why) => {
+                session.cancel_stall_request();
+                say(session, why);
+            }
+        }
+    }
+
+    /// `ClientEvent::Infused`: the reading after goes to the body as any reading does.
+    pub(super) fn on_infused(
+        &mut self,
+        id: EntityId,
+        character: CharacterId,
+        result: Result<GearReading, String>,
+    ) {
+        let line = match &result {
+            Ok(_) => "The Essence moves into your weapon.".to_string(),
+            Err(why) => format!("the smith: {why}"),
+        };
+        if let Some(s) = self.sessions.get_mut(&id)
+            && s.end_stall_request()
+        {
+            s.send_control(FromZone::ChatFrom {
+                from: 0,
+                text: line,
+            });
+        }
+        self.on_worn(id, character, 0, result, false);
+    }
+
     /// `ClientEvent::SmithBought`.
     pub(super) fn on_smith_bought(
         &mut self,

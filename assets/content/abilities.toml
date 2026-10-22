@@ -453,20 +453,24 @@ on_hit = [ { status = { status = "regen", duration_ms = 8000, magnitude = 5, max
 
 [[ability]]
 key = "sanctuary"
-name = "Sanctuary"
+name = "Healing Spring"
 slot = "active"
-cooldown_ms = 14000
-focus = 4
+essence_of = ["wand"]
+cooldown_ms = 40000
+focus_share = 600
 move_scale = 0.5
 interrupt = "on_damage"
 [[ability.step]]
 at_ms = 300
 [ability.step.area_effect]
-shape = { cylinder = { radius = 140, height = 96 } }
+shape = { cylinder = { radius = 160, height = 96 } }
 origin = { aim = 500 }
-duration_ms = 6000
+duration_ms = 10000
 interval_ms = 1000
-effects = [ { status = "regen", duration_ms = 1500, magnitude = 6, max_stacks = 1, stacking = "refresh", target = "area" } ]
+effects = [
+  { status = "regen", duration_ms = 1500, magnitude = 4, max_stacks = 1, stacking = "refresh", target = "allies" },
+  { status = "cleanse", duration_ms = 0, target = "allies" },
+]
 falloff = "none"
 max_targets = 8
 requires_los = false
@@ -1445,3 +1449,177 @@ falloff = "none"
 max_targets = 8
 requires_los = true
 exclude_actor = false
+
+# ---------- the Essence's forms (SKILLS.md 4): a weapon's signature, a share of a pool ----------
+
+[[ability]]
+key = "break_armor"
+name = "Break Armor"
+slot = "active"
+essence_of = ["sword", "katana"]
+cooldown_ms = 30000
+stamina_share = 600
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 80, arc = 60, half_height = 40, windup_ms = 200, active_ms = 60, recovery_ms = 400, damage = { amount = 8, type = "slash", knockback = 150, stagger = 30 }, max_targets = 1, cleave_falloff = 1.0, parryable = true, hit_stop_ms = 40 }
+[[ability.step]]
+at_ms = 200
+apply_status = { status = "expose", duration_ms = 12000, magnitude = 1, target = "hit" }
+[[ability.step]]
+at_ms = 200
+apply_status = { status = "weaken", duration_ms = 12000, magnitude = 0.2, target = "hit" }
+
+[[ability]]
+key = "primal_rage"
+name = "Primal Rage"
+slot = "active"
+essence_of = ["axe", "greataxe"]
+cooldown_ms = 40000
+stamina_share = 600
+[[ability.step]]
+apply_status = { status = "fury", duration_ms = 12000, magnitude = 0.3, target = "actor" }
+[[ability.step]]
+apply_status = { status = "expose", duration_ms = 12000, magnitude = 1, target = "actor" }
+
+[[ability]]
+key = "will_of_steel"
+name = "Will of Steel"
+slot = "active"
+essence_of = ["claymore", "greatsword", "scythe"]
+cooldown_ms = 35000
+stamina_share = 600
+[[ability.step]]
+apply_status = { status = "fortify", duration_ms = 12000, magnitude = 0.35, target = "actor" }
+[[ability.step]]
+apply_status = { status = "regen", duration_ms = 12000, magnitude = 1, target = "actor" }
+
+[[ability]]
+key = "earthshaker"
+name = "Earthshaker"
+slot = "active"
+essence_of = ["hammer", "warhammer", "mace"]
+cooldown_ms = 35000
+stamina_share = 600
+move_scale = 0.3
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 300
+[ability.step.area_effect]
+shape = { cylinder = { radius = 200, height = 96 } }
+origin = "self_feet"
+damage = { amount = 6, type = "blunt", knockback = 150, stagger = 0 }
+effects = [
+  { status = "knockdown", duration_ms = 1500, magnitude = 1, target = "area" },
+  { status = "slow", duration_ms = 10000, magnitude = 0.3, target = "area" },
+]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = true
+
+[[ability]]
+key = "tail_wind"
+name = "Tail Wind"
+slot = "active"
+essence_of = ["spear"]
+cooldown_ms = 35000
+stamina_share = 600
+[[ability.step]]
+at_ms = 200
+[ability.step.area_effect]
+shape = { cylinder = { radius = 200, height = 128 } }
+origin = "self_feet"
+effects = [ { status = "haste", duration_ms = 12000, magnitude = 0.4, target = "allies" } ]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = false
+
+[[ability]]
+key = "shadow_slash"
+name = "Shadow Slash"
+slot = "active"
+essence_of = ["dagger"]
+cooldown_ms = 30000
+stamina_share = 600
+move_scale = 0.7
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 0
+melee_arc = { reach = 60, arc = 60, half_height = 40, windup_ms = 150, active_ms = 50, recovery_ms = 300, damage = { amount = 10, type = "pierce", knockback = 80, stagger = 20 }, max_targets = 1, cleave_falloff = 1.0, parryable = false, hit_stop_ms = 40 }
+[[ability.step]]
+at_ms = 150
+apply_status = { status = "knockdown", duration_ms = 2000, magnitude = 1, target = "hit" }
+[[ability.step]]
+at_ms = 150
+apply_status = { status = "bleed", duration_ms = 10000, magnitude = 2, target = "hit" }
+
+[[ability]]
+key = "arrow_rain"
+name = "Arrow Rain"
+slot = "active"
+essence_of = ["bow"]
+cooldown_ms = 35000
+stamina_share = 600
+move_scale = 0.5
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 300
+[ability.step.area_effect]
+shape = { cylinder = { radius = 160, height = 128 } }
+origin = { aim = 700 }
+duration_ms = 4000
+interval_ms = 1000
+damage = { amount = 3, type = "pierce", knockback = 0, stagger = 10 }
+effects = [ { status = "slow", duration_ms = 6000, magnitude = 0.3, target = "area" } ]
+falloff = "none"
+max_targets = 8
+requires_los = false
+exclude_actor = true
+
+[[ability]]
+key = "venom_bolt"
+name = "Venom Bolt"
+slot = "active"
+essence_of = ["crossbow"]
+cooldown_ms = 30000
+stamina_share = 600
+move_scale = 0.6
+interrupt = "on_stagger"
+[[ability.step]]
+at_ms = 200
+[ability.step.projectile]
+speed = 1800
+gravity = 0.3
+radius = 3
+lifetime_ms = 3000
+damage = { amount = 4, type = "pierce", knockback = 60, stagger = 10 }
+spawn = { weapon = [16, 4, -2] }
+spread = 0
+on_hit = [
+  { status = { status = "bleed", duration_ms = 15000, magnitude = 2, target = "hit" } },
+  { status = { status = "slow", duration_ms = 15000, magnitude = 0.3, target = "hit" } },
+]
+
+[[ability]]
+key = "seal_of_silence"
+name = "Seal of Silence"
+slot = "active"
+essence_of = ["staff"]
+cooldown_ms = 35000
+focus_share = 600
+move_scale = 0.4
+interrupt = "on_damage"
+[[ability.step]]
+at_ms = 400
+[ability.step.area_effect]
+shape = { cylinder = { radius = 128, height = 96 } }
+origin = { aim = 500 }
+damage = { amount = 5, type = "blunt", knockback = 0, stagger = 10 }
+effects = [ { status = "silence", duration_ms = 8000, magnitude = 1, target = "area" } ]
+falloff = "none"
+max_targets = 8
+requires_los = true
+exclude_actor = true

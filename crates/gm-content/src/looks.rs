@@ -27,6 +27,8 @@ pub struct AbilityLook {
     pub spell_of: Vec<String>,
     /// Offered by no weapon (SKILLS.md 3).
     pub retired: bool,
+    /// A form's weapons (SKILLS.md 4).
+    pub essence_of: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -220,6 +222,7 @@ impl Looks {
                 spell_of: a.spell_of.clone(),
                 sound: a.sound.clone(),
                 retired: a.retired,
+                essence_of: a.essence_of.clone(),
             });
         }
         let it_abilities: Vec<String> = af.ability.iter().map(|a| a.key.clone()).collect();

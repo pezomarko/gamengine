@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, PLACES, Place};
 use gm_core::matrix::Gear;
+use gm_hub_proto::protocol::ESSENCE_FEE;
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
 
@@ -171,7 +172,18 @@ pub struct Item {
 /// A stack in a character's inventory, as a zone reads it (MODES.md 11.2).
 /// What `Economy::gear` reads of a character (ITEMS.md 3.3): the reading's number, the
 /// gear term, the templates worn, the stacks carried and the item bar (LOOK.md 3.2).
-pub type Reading = (u64, Gear, [String; PLACES], Vec<Stack>, Vec<Option<String>>);
+/// The hub's reading of what a character wears and carries.
+#[derive(Clone, Debug)]
+pub struct Reading {
+    /// Orders the readings: the larger is the truer.
+    pub seq: u64,
+    pub gear: Gear,
+    pub templates: [String; PLACES],
+    pub stacks: Vec<Stack>,
+    pub bar: Vec<Option<String>>,
+    /// The Essence: its form, and whether the weapon in hand holds it (SKILLS.md 4).
+    pub essence: Option<(String, bool)>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stack {
@@ -653,6 +665,42 @@ async fn playing_in(tx: &mut Tx<'_>, character: i64, zone: &str) -> Result<(), E
 /// (weapon, off hand, armour; empty for nothing). The off hand's item adds to what the
 /// weapon deals (a second weapon) or to what the armour takes (a shield), each number
 /// capped where the zone caps it (ITEMS.md 3.1).
+/// The weapon in the right hand: its id and template.
+async fn weapon_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(i64, String)>, EconError> {
+    let r = sqlx::query(
+        "select i.id, i.template from worn w join items i on i.id = w.item_id \
+         where w.character_id = $1 and w.slot = 'weapon'",
+    )
+    .bind(character)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(internal)?;
+    r.map(|r| {
+        Ok((
+            r.try_get("id").map_err(internal)?,
+            r.try_get("template").map_err(internal)?,
+        ))
+    })
+    .transpose()
+}
+
+/// The Essence: its form, and whether the weapon in hand holds it.
+async fn essence_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(String, bool)>, EconError> {
+    let r = sqlx::query(
+        "select c.essence_form, exists (select 1 from worn w where w.character_id = c.id \
+         and w.slot = 'weapon' and w.item_id = c.essence_item) as in_hand \
+         from characters c where c.id = $1",
+    )
+    .bind(character)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(internal)?;
+    let Some(r) = r else { return Ok(None) };
+    let form: Option<String> = r.try_get("essence_form").map_err(internal)?;
+    let in_hand: bool = r.try_get("in_hand").map_err(internal)?;
+    Ok(form.map(|f| (f, in_hand)))
+}
+
 async fn gear_in(
     tx: &mut Tx<'_>,
     character: i64,
@@ -1339,8 +1387,98 @@ impl Economy {
         let (gear, templates) = gear_in(&mut tx, character, content).await?;
         let stacks = stacks_in(&mut tx, character, &self.stacks).await?;
         let bar = bar_in(&mut tx, character, &stacks).await?;
+        let essence = essence_in(&mut tx, character).await?;
         tx.commit().await.map_err(internal)?;
-        Ok((seq as u64, gear, templates, stacks, bar))
+        Ok(Reading {
+            seq: seq as u64,
+            gear,
+            templates,
+            stacks,
+            bar,
+            essence,
+        })
+    }
+
+    /// The rite (SKILLS.md 4): the Essence wakes in the weapon in hand, in the form
+    /// `form_of` gives its template. Once: a character that has one keeps it. `None`: no
+    /// weapon in hand, or one of no form; the next rite may wake it.
+    pub async fn awaken(
+        &self,
+        character: i64,
+        form_of: impl Fn(&str) -> Option<String>,
+    ) -> Result<Option<String>, EconError> {
+        let mut tx = self.begin().await?;
+        let Some((item, template)) = weapon_in(&mut tx, character).await? else {
+            return Ok(None);
+        };
+        let Some(form) = form_of(&template) else {
+            return Ok(None);
+        };
+        let woke = sqlx::query(
+            "update characters set essence_form = $2, essence_item = $3 \
+             where id = $1 and essence_form is null",
+        )
+        .bind(character)
+        .bind(&form)
+        .bind(item)
+        .execute(&mut *tx)
+        .await
+        .map_err(internal)?
+        .rows_affected()
+            == 1;
+        tx.commit().await.map_err(internal)?;
+        Ok(woke.then_some(form))
+    }
+
+    /// The smith moves the Essence into the weapon in hand, which must take its form, for
+    /// `fee` (what the player was shown), burned (SKILLS.md 4).
+    pub async fn infuse(
+        &self,
+        character: i64,
+        fee: i64,
+        form_of: impl Fn(&str) -> Option<String>,
+    ) -> Result<(), EconError> {
+        if fee != ESSENCE_FEE {
+            return Err(EconError::Invalid("the fee changed: look again".into()));
+        }
+        let mut tx = self.begin().await?;
+        let (_, sink) = singletons(&mut tx).await?;
+        let inv = character_holder(&mut tx, character).await?;
+        lock_holders(&mut tx, &[inv]).await?;
+        let r = sqlx::query(
+            "select essence_form, essence_item from characters where id = $1 for update",
+        )
+        .bind(character)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(internal)?;
+        let form: Option<String> = r.try_get("essence_form").map_err(internal)?;
+        let sits: Option<i64> = r.try_get("essence_item").map_err(internal)?;
+        let Some(form) = form else {
+            return Err(EconError::State("no Essence yet: the rite wakes it".into()));
+        };
+        let Some((item, template)) = weapon_in(&mut tx, character).await? else {
+            return Err(EconError::State("take the weapon in hand first".into()));
+        };
+        if sits == Some(item) {
+            return Err(EconError::State(
+                "the Essence is in this weapon already".into(),
+            ));
+        }
+        if form_of(&template).as_deref() != Some(form.as_str()) {
+            return Err(EconError::State(
+                "this weapon does not take the Essence's form".into(),
+            ));
+        }
+        move_coin(&mut tx, inv, sink, fee, "essence", item).await?;
+        sqlx::query("update characters set essence_item = $2 where id = $1")
+            .bind(character)
+            .bind(item)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal)?;
+        tx.commit().await.map_err(internal)?;
+        Ok(())
     }
 
     /// The item bar (LOOK.md 3.2, ITEMS.md 4): the template on each of the four cells as

@@ -1495,3 +1495,79 @@ async fn the_smith_sells_and_the_forge_charges() {
     assert_eq!(coin(&econ, poor).await, 3);
     assert_eq!(econ.audit().await.unwrap(), 0, "the ledger balances");
 }
+
+/// Put `item` in the right hand, as a wear through a zone would.
+async fn hold(econ: &Economy, character: i64, item: i64) {
+    let pool = econ_pool(econ);
+    sqlx::query("delete from worn where character_id = $1 and slot = 'weapon'")
+        .bind(character)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("insert into worn (character_id, slot, item_id) values ($1, 'weapon', $2)")
+        .bind(character)
+        .bind(item)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn essence(econ: &Economy, character: i64) -> Option<(String, bool)> {
+    let r = sqlx::query(
+        "select essence_form, coalesce(essence_item = (select item_id from worn \
+         where character_id = $1 and slot = 'weapon'), false) as in_hand \
+         from characters where id = $1",
+    )
+    .bind(character)
+    .fetch_one(econ_pool(econ))
+    .await
+    .unwrap();
+    let form: Option<String> = r.try_get("essence_form").unwrap();
+    form.map(|f| (f, r.try_get("in_hand").unwrap()))
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_essence_wakes_once_and_the_smith_moves_it_within_its_form() {
+    use gm_hub::protocol::ESSENCE_FEE;
+    let Some(econ) = setup().await else { return };
+    let me = player(&econ, 100).await;
+    let parts = ["core/iron".to_string(), "frame/oak".to_string()];
+    let form_of = |t: &str| (t == "sword").then(|| "break_armor".to_string());
+    assert_eq!(
+        econ.awaken(me, form_of).await.unwrap(),
+        None,
+        "nothing in hand"
+    );
+    let old = econ.grant_item(me, "sword", &parts, None).await.unwrap();
+    hold(&econ, me, old).await;
+    let woke = econ.awaken(me, form_of).await.unwrap();
+    assert_eq!(woke.as_deref(), Some("break_armor"));
+    assert_eq!(econ.awaken(me, form_of).await.unwrap(), None, "once");
+    assert_eq!(essence(&econ, me).await, Some(("break_armor".into(), true)));
+    // A new sword in hand: the Essence is not in it until the smith moves it.
+    let new = econ.grant_item(me, "sword", &parts, None).await.unwrap();
+    hold(&econ, me, new).await;
+    assert_eq!(
+        essence(&econ, me).await,
+        Some(("break_armor".into(), false))
+    );
+    assert!(matches!(
+        econ.infuse(me, ESSENCE_FEE + 1, form_of).await,
+        Err(EconError::Invalid(_))
+    ));
+    econ.infuse(me, ESSENCE_FEE, form_of).await.unwrap();
+    assert_eq!(essence(&econ, me).await, Some(("break_armor".into(), true)));
+    assert_eq!(coin(&econ, me).await, 100 - ESSENCE_FEE);
+    assert!(matches!(
+        econ.infuse(me, ESSENCE_FEE, form_of).await,
+        Err(EconError::State(_))
+    ));
+    // A weapon of another form does not take it.
+    let hammer = econ.grant_item(me, "hammer", &parts, None).await.unwrap();
+    hold(&econ, me, hammer).await;
+    assert!(matches!(
+        econ.infuse(me, ESSENCE_FEE, form_of).await,
+        Err(EconError::State(_))
+    ));
+    sound(&econ).await;
+}

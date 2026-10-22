@@ -51,6 +51,10 @@ pub enum SmithyAction {
         material: String,
         price: i64,
     },
+    /// Said to the zone (`FromClient::Infuse`): the Essence into the weapon in hand.
+    Infuse {
+        fee: i64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -234,6 +238,7 @@ impl Smithy {
         ui: &mut Ui<'_, C>,
         hub: &dyn HubApi,
         looks: ItemLooks<'_>,
+        essence: Option<(String, bool)>,
         now: Instant,
     ) -> SmithyAction {
         let _ = hub;
@@ -371,7 +376,7 @@ impl Smithy {
         if !text.is_empty() {
             ui.label(note.x, note.y, note.w, colour, text);
         }
-        let row = ui.buttons(col.take(h), &["Buy", "Close"]);
+        let row = ui.buttons(col.take(h), &["Buy", "Essence", "Close"]);
         let free = self.buying.free(now) && !self.hub.waiting();
         let short = picked_ware
             .zip(self.coin)
@@ -383,7 +388,23 @@ impl Smithy {
             _ => None,
         };
         let pressed = ui.button_or(row[0], "Buy", off);
-        if ui.button(row[1], "Close") || ui.key(Key::Escape) {
+        // The Essence (SKILLS.md 4): into the weapon in hand, for the fee.
+        let fee = gm_hub_proto::protocol::ESSENCE_FEE;
+        let essence_off = match &essence {
+            None => Some("the rite wakes the Essence"),
+            Some((_, true)) => Some("the Essence is in the weapon in hand"),
+            Some(_) if !free => Some(""),
+            Some(_) if self.coin.is_some_and(|c| c < fee) => Some("not enough coin"),
+            Some(_) => None,
+        };
+        if ui.button_or(row[1], "Essence", essence_off) {
+            self.notice = format!(
+                "the Essence into the weapon in hand, {fee} silver: {}",
+                essence.map_or(String::new(), |(name, _)| name)
+            );
+            return SmithyAction::Infuse { fee };
+        }
+        if ui.button(row[2], "Close") || ui.key(Key::Escape) {
             return SmithyAction::Close;
         }
         self.answers();
@@ -1119,7 +1140,7 @@ mod tests {
         fn shop_frame(&mut self, s: &mut Smithy, input: &UiInput, hub: &Hub) -> SmithyAction {
             let mut canvas = Recorder::new(self.size.0, self.size.1);
             let mut ui = Ui::begin(&mut canvas, &mut self.st, input, s.name(), PANEL_UNITS);
-            let a = s.frame(&mut ui, hub, ItemLooks::default(), self.t);
+            let a = s.frame(&mut ui, hub, ItemLooks::default(), None, self.t);
             ui.end();
             tidy(&canvas, &self.st, PANEL_UNITS);
             a

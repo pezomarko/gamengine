@@ -40,3 +40,10 @@ time_limit_s = 300
 max_party_deaths = 0
 max_humans = 1
 role = { healing = 50 }
+
+# The rite (SKILLS.md 4): the Warden falls and the Essence wakes in the weapon in hand.
+[[trial]]
+key = "rite"
+name = "The rite: the Warden falls"
+map = "dungeon"
+encounter = "warden"

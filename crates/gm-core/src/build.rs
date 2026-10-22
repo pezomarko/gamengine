@@ -258,6 +258,10 @@ pub struct Worn {
     /// The spell the weapon in the right hand brings (BODIES.md 7.2): a staff's or a
     /// wand's of the body's element, the active after the body skill; `None`: nothing.
     pub spell: Option<u16>,
+    /// The character's Essence (SKILLS.md 4): its form, wherever it sits.
+    pub essence: Option<u16>,
+    /// The form, when the weapon in the right hand holds the Essence: the signature.
+    pub signature: Option<u16>,
     /// The techniques of the weapon in the right hand (BODIES.md 3.8): every primary that
     /// holds its prop and the build may use, the one in `primary` among them; the K page
     /// offers them, and the build's stored primary picks one when it is one of them.
@@ -285,6 +289,8 @@ impl Worn {
         secondary: None,
         guard: None,
         spell: None,
+        essence: None,
+        signature: None,
         techniques: Vec::new(),
         armour: 0.0,
         ward: 0.0,
@@ -501,7 +507,9 @@ impl Build {
         // The weapon's spell (BODIES.md 7.2), after the body skill; a preset that holds
         // it among its own actives (the arena's frostweaver, the nova) has it once.
         out.extend(
-            worn.spell
+            [worn.spell, worn.signature]
+                .into_iter()
+                .flatten()
                 .filter(|i| !self.actives.contains(i))
                 .map(|i| (i, Slot::Active)),
         );

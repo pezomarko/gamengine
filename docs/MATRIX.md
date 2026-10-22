@@ -842,4 +842,14 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   A mind that blocks keeps half its ST for the guard (gm-ai `Senses::ready`): with the
   blows and the block on one purse, the reference squad's tank spent its block on Bull Rush
   and Ground Slam and the squad wiped on one seed of 24 here and one of six on CI. With the
-  reserve: 24 of 24 seeds clear, and 12 of 12 against a Warden of 1,800.
+  reserve: 24 of 24 seeds clear, and 12 of 12 against a Warden of 1,800 (the content before
+  the rework: 7 of 12 fail against it).
+- **Step 4, the Essence.** Ten forms, one per weapon family, each costing 60% of a pool:
+  Break Armor (sword, katana: Expose and Weaken 20% for 12 s; 30 s), Primal Rage (axes: Fury
+  30% and Exposed for 12 s; 40 s), Will of Steel (big blades: Fortify 35% and Regen 1 for 12
+  s; 35 s), Earthshaker (hammers: Knockdown 1.5 s and Slow 30% for 10 s in 200 u; 35 s),
+  Tail Wind (spear: Haste 40% for 12 s to allies in 200 u; 35 s), Shadow Slash (dagger:
+  Knockdown 2 s and Bleed 2 for 10 s; 30 s), Arrow Rain (bow: 3 a second for 4 s and Slow;
+  35 s), Venom Bolt (crossbow: Bleed 2 and Slow for 15 s; 30 s), Seal of Silence (staff:
+  Silence 8 s in 128 u; 35 s, MP), Healing Spring (wand: Regen 4 and a cleanse a pulse for
+  10 s; 40 s, MP). A rearm keeps the cooldown of whatever stays in the kit.
