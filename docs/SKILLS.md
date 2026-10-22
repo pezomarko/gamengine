@@ -56,8 +56,9 @@ Engine:
 Content (keys and row order stay; new rows are appended):
 - the page's costs, cooldowns and durations: ST for physical second moves, tricks and
   weapon spells, MP for the rest;
-- the fifteen names; Mend 4 a second for 8 s; the staff's blasts are the staff's alone and
-  the wand's second move is Dispel;
+- the fifteen names; Mend 5 a second for 8 s at 1 MP (measured: at 2 MP a healer runs dry
+  and the squad loses to the Warden, MATRIX.md 24); the staff's blasts are the staff's alone
+  and the wand's second move is Dispel;
 - new: Illusion Slash (sword, katana: a 450 u bolt through three bodies), Tiger Roar (axes),
   Whirlwind (big blades), Deadeye (crossbow), Dispel (wand), Purify (the Elder's skill in
   place of Sanctuary);
@@ -126,6 +127,9 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of step 3. Taken: the dash test's name. Not taken: "Mend at 4 as
+the plan said": the plan follows the measurement now.
 
 Gemini 3.1 Pro on the code of steps 1 and 2. Taken: a taunter that dies no longer holds a
 creature for the rest of the taunt; a SIT pressed on the frame a rise ends is not lost.

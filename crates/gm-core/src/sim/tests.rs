@@ -222,7 +222,7 @@ fn crossbow_bolt_hits_the_first_body_in_line_even_an_ally() {
 }
 
 #[test]
-fn dash_moves_fast_and_costs_mp() {
+fn dash_moves_fast_and_costs_st() {
     let (world, mut zone, ids) = arena(&[(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
     let a = ids[0];
     tick(
