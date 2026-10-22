@@ -17,7 +17,6 @@ import sys
 
 from PIL import Image, ImageDraw
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else "assets/content/ui"
 DENSITIES = (1, 2, 3, 4)
 # Every picture is drawn this many times larger and averaged down: the curves' edges.
 SS = 4
@@ -313,33 +312,40 @@ PIECES = {
     "mark_worn": (lambda k: mark(k, "worn"), [0, 0, 0, 0]),
 }
 
-os.makedirs(OUT, exist_ok=True)
-lines = [
-    "# The skin (LOOK.md 2.2): the faces the tool rasterises and the pieces of the toolkit,",
-    "# each a PNG beside this file with its nine-slice insets in dots (left, top, right,",
-    "# bottom). `name.png` is the piece at one texel a dot; `name@2x.png`, `@3x` and `@4x`",
-    "# are the same piece drawn finer, for the atlases of the larger UI scales (a density",
-    "# without a file is the first one enlarged). scripts/dev/skin-gen.py wrote these;",
-    "# replace any file with a better one.",
-    "",
-    "[font.text]",
-    'file = "fira_sans_medium.ttf"',
-    "size = 15.5",
-    "",
-    "[font.title]",
-    'file = "medievalsharp.ttf"',
-    "size = 20",
-    "",
-]
-for name, (draw, inset) in PIECES.items():
-    for k in DENSITIES:
-        suffix = "" if k == 1 else f"@{k}x"
-        draw(k).save(os.path.join(OUT, f"{name}{suffix}.png"), optimize=True)
-    lines.append(f"[piece.{name}]")
-    lines.append(f'file = "{name}.png"')
-    if any(inset):
-        lines.append(f"inset = [{', '.join(str(v) for v in inset)}]")
-    lines.append("")
-with open(os.path.join(OUT, "skin.toml"), "w") as f:
-    f.write("\n".join(lines))
-print(f"skin: {len(PIECES)} pieces at {len(DENSITIES)} densities written to {OUT}")
+
+def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else "assets/content/ui"
+    os.makedirs(out, exist_ok=True)
+    lines = [
+        "# The skin (LOOK.md 2.2): the faces the tool rasterises and the pieces of the toolkit,",
+        "# each a PNG beside this file with its nine-slice insets in dots (left, top, right,",
+        "# bottom). `name.png` is the piece at one texel a dot; `name@2x.png`, `@3x` and `@4x`",
+        "# are the same piece drawn finer, for the atlases of the larger UI scales (a density",
+        "# without a file is the first one enlarged). scripts/dev/skin-gen.py wrote these;",
+        "# replace any file with a better one.",
+        "",
+        "[font.text]",
+        'file = "fira_sans_medium.ttf"',
+        "size = 15.5",
+        "",
+        "[font.title]",
+        'file = "medievalsharp.ttf"',
+        "size = 20",
+        "",
+    ]
+    for name, (draw, inset) in PIECES.items():
+        for k in DENSITIES:
+            suffix = "" if k == 1 else f"@{k}x"
+            draw(k).save(os.path.join(out, f"{name}{suffix}.png"), optimize=True)
+        lines.append(f"[piece.{name}]")
+        lines.append(f'file = "{name}.png"')
+        if any(inset):
+            lines.append(f"inset = [{', '.join(str(v) for v in inset)}]")
+        lines.append("")
+    with open(os.path.join(out, "skin.toml"), "w") as f:
+        f.write("\n".join(lines))
+    print(f"skin: {len(PIECES)} pieces at {len(DENSITIES)} densities written to {out}")
+
+
+if __name__ == "__main__":
+    main()
