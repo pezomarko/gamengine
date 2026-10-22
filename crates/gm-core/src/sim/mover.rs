@@ -1016,7 +1016,7 @@ fn item_step(m: &mut Mover, pressed: u16, use_slot: u8, now: Tick, dt: f32, stag
 
 /// What `ab` takes from the pools: its stamina at the frame's share, its focus, and its
 /// shares of the maxima (SKILLS.md 3).
-fn cost_of(sheet: &Sheet, ab: &crate::vocab::Ability) -> (f32, f32) {
+pub fn cost_of(sheet: &Sheet, ab: &crate::vocab::Ability) -> (f32, f32) {
     let d = &sheet.derived;
     (
         sheet.kit.blow_cost(ab) + ab.cost.stamina_share as f32 * d.stamina / 1000.0,

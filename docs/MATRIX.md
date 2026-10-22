@@ -836,3 +836,7 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   clear, and the dungeon and party gates pass. The arena (3 seeds × 60 s, 8 v 8):
   ironclad : blade 58 : 21 (2.76, was 2.24), frostweaver : ironclad 38 : 26 (1.46, was 1.74),
   blade : frostweaver 22 : 34 (0.65, was 0.47), mirror 42 : 44.
+  A mind that blocks keeps half its ST for the guard (gm-ai `Senses::ready`): with the
+  blows and the block on one purse, the reference squad's tank spent its block on Bull Rush
+  and Ground Slam and the squad wiped on one seed of 24 here and one of six on CI. With the
+  reserve: 24 of 24 seeds clear, and 12 of 12 against a Warden of 1,800.

@@ -52,6 +52,7 @@ Engine:
 - `Cost.stamina_share`, `Cost.focus_share`: per mille of the pool's maximum (the mover reads
   it from the sheet), needed in hand and spent.
 - `retired = true` on an ability row: `worn_of` never picks it.
+- A mind that blocks keeps half its ST for the guard, and reads costs as the mover does.
 
 Content (keys and row order stay; new rows are appended):
 - the page's costs, cooldowns and durations: ST for physical second moves, tricks and

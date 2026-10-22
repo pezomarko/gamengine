@@ -179,15 +179,36 @@ impl Senses<'_> {
             .filter(|&id| self.body(id).is_some_and(|b| b.alive))
     }
 
-    /// The ability in kit slot `slot` is off cooldown and affordable.
+    /// The ability in kit slot `slot` is off cooldown and affordable. A body that blocks keeps
+    /// half its stamina for the guard: the blows and the block share one purse (SKILLS.md 3).
     pub fn ready(&self, slot: u8) -> bool {
         let i = slot as usize;
-        let Some(ab) = self.sheet.kit.abilities.get(i) else {
+        let kit = &self.sheet.kit;
+        let Some(ab) = kit.abilities.get(i) else {
             return false;
         };
+        let (stamina, focus) = gm_core::sim::cost_of(self.sheet, ab);
+        let reserve = if stamina > 0.0 && kit.guard != Some(slot) && self.blocks() {
+            self.sheet.derived.stamina * 0.5
+        } else {
+            0.0
+        };
         gm_core::sim::tick_delta(self.tick, self.me.cooldowns[i]) >= 0
-            && self.me.stamina >= ab.cost.stamina as f32
-            && self.me.focus >= ab.cost.focus as f32
-            && !(self.sheet.kit.elemental[i] && self.me.statuses.silenced())
+            && self.me.stamina - stamina >= reserve
+            && self.me.focus >= focus
+            && !(kit.elemental[i] && self.me.statuses.silenced())
+    }
+
+    fn blocks(&self) -> bool {
+        let kit = &self.sheet.kit;
+        kit.guard
+            .and_then(|g| kit.abilities.get(g as usize))
+            .and_then(|a| a.steps.first())
+            .is_some_and(|s| {
+                matches!(
+                    s.verb,
+                    gm_core::vocab::Verb::Guard(gm_core::vocab::Guard::Block(_))
+                )
+            })
     }
 }
