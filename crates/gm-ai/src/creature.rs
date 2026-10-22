@@ -4,7 +4,7 @@
 
 use glam::Vec3;
 use gm_core::build::Sheet;
-use gm_core::sim::{Input, tick_delta};
+use gm_core::sim::{Input, anim, tick_delta};
 use gm_core::tick::Tick;
 use gm_core::vocab::EntityId;
 
@@ -165,9 +165,15 @@ impl Creature {
             // holds its eye), with a margin so two equals do not swap every decision.
             let reach = self.fighter.plan.reach().max(64.0);
             let dist_of = |id: EntityId| s.body(id).map_or(f32::MAX, |b| s.dist(b));
+            let seated = |id: EntityId| s.body(id).is_some_and(|b| b.anim == anim::SIT);
             let weigh = |(id, t): (EntityId, f32)| {
-                // (A reach of 400 u or more would divide by nothing.)
-                let near = ((FAR - dist_of(id)) / (FAR - reach).max(1.0)).clamp(0.0, 1.0);
+                // A sitter holds no eye (SKILLS.md 2). (A reach of 400 u or more would
+                // divide by nothing.)
+                let near = if seated(id) {
+                    0.0
+                } else {
+                    ((FAR - dist_of(id)) / (FAR - reach).max(1.0)).clamp(0.0, 1.0)
+                };
                 (id, t * (1.0 + (PROXIMITY - 1.0) * near))
             };
             let current = self
@@ -318,5 +324,42 @@ mod tests {
         let ratio = threat(b) / threat(a);
         assert!((ratio - SWITCH).abs() < 0.01, "{ratio}");
         assert_eq!(mind.target(), Some(b));
+    }
+
+    #[test]
+    fn a_sitter_holds_no_eye() {
+        use gm_core::sim::buttons;
+        let rate = TickRate::COMBAT;
+        let world = BoxWorld::floor();
+        let at = |x: f32| Vec3::new(x, 0.0, 24.0);
+        let pick = |sit: bool| {
+            let mut zone = Zone::new(rate, 1, vec![], test_content::pack(rate));
+            let build = zone.content.build("blade").unwrap().clone();
+            let me = zone.add_player_at(build.clone(), 1, at(0.0), 0.0);
+            let near = zone.add_player_at(build.clone(), 0, at(50.0), 180.0);
+            let far = zone.add_player_at(build, 0, at(350.0), 180.0);
+            for t in 1..=16 {
+                let buttons = if sit && t == 8 { buttons::SIT } else { 0 };
+                let input = Input {
+                    buttons,
+                    ..Input::default()
+                };
+                zone.queue_input(near, t, input, 0);
+                zone.step(&world);
+            }
+            let sheet = zone.player(me).unwrap().sheet.clone();
+            let mut mind = Creature::new(1, &sheet, at(0.0), 0.0, 800.0, 2000.0);
+            mind.hurt_by(near, 10.0);
+            mind.hurt_by(far, 12.0);
+            let nav = NavGrid::build(&world, &[at(0.0)]);
+            assert_eq!(zone.player(near).unwrap().mover.seated(), sit);
+            let view = ZoneView::of(&zone, &|id| (id == me).then_some(0));
+            mind.think(&view.senses(&zone, me, &world, &nav).unwrap());
+            (mind.target(), near, far)
+        };
+        let (target, near, _) = pick(false);
+        assert_eq!(target, Some(near), "what is in its face holds its eye");
+        let (target, _, far) = pick(true);
+        assert_eq!(target, Some(far), "a sitter does not");
     }
 }

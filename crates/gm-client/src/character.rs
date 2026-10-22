@@ -1295,7 +1295,10 @@ pub fn stat_rows(b: &Build, d: &gm_core::matrix::Derived) -> Vec<(String, String
         [
             ("HP", d.health.to_string()),
             ("ST", format!("{:.0}  +{:.1}/s", d.stamina, d.stamina_regen)),
-            ("MP", format!("{:.0}  +{:.1}/s", d.focus, d.focus_regen)),
+            ("MP", format!("{:.0}", d.focus)),
+            ("rest HP", format!("+{:.1}/s", d.rest_health)),
+            ("rest ST", format!("+{:.1}/s", d.rest_stamina)),
+            ("rest MP", format!("+{:.1}/s", d.rest_focus)),
             ("DEF", pct(d.armour)),
             ("ward", pct(d.ward)),
             ("evasion", pct(d.evasion)),

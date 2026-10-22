@@ -196,6 +196,7 @@ impl GameMenu {
             ("1 2 3 4", "the actives (Shift is 1)"),
             ("Space", "dodge, while the dash is ready"),
             ("R", "reload (gun)"),
+            ("Insert or Z", "sit and rest; again to stand"),
             ("1 2 3", "gun, pistol, knife in hand"),
             ("click", "target a body or walk (rpg)"),
             ("Tab", "the next enemy in sight (rpg)"),

@@ -821,3 +821,8 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   taunter's threat once, to the top of the table × 1.3 (it was added every frame of the
   mind: 64 a second in the dungeon). The bow costs 2 ST a draw and the crossbow 3 a span
   again: section 23 had made them free with every primary.
+- **Step 2, rest.** Insert (or Z) sits; HP and MP come back only while sitting, from the
+  third second: HP 1 + 0.04·CON, MP 0.3 + 0.03·SPR, ST 1 + 0.06·AGI a second (the old
+  standing rate). Standing, only ST comes back, at half: 0.5 + 0.03·AGI. Damage does not end
+  a rest; Stagger, Shock, Knockdown and Launched do. A sitter takes hits in full and holds
+  no creature's eye (no proximity weight, no healing threat).

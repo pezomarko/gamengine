@@ -497,6 +497,15 @@ impl ClientState {
                     last_input_tick
                 };
             }
+            // Seated or not: the server's word (SKILLS.md 2).
+            let seated = own.anim == gm_core::sim::anim::SIT;
+            if seated != m.seated() {
+                m.seat = if seated {
+                    gm_core::sim::Seat::Down(last_input_tick)
+                } else {
+                    gm_core::sim::Seat::Up
+                };
+            }
         };
         // A respawn resets the ability state exactly as the server does (cooldowns survive).
         let derived = self.sheet.derived;

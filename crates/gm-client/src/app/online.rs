@@ -1469,9 +1469,11 @@ impl App {
         self.scene.bodies.clear();
         self.scene.tags.clear();
         self.scene.effects.begin(frame_dt);
-        // The crouch lowers the eye (MODES.md 3.4): the predicted mover's drop, eased over
-        // about a tenth of a second so the view does not jump.
-        let drop = if c.mover.crouched {
+        // The crouch lowers the eye (MODES.md 3.4), a seat more (SKILLS.md 2): the predicted
+        // mover's drop, eased over about a tenth of a second so the view does not jump.
+        let drop = if c.mover.seated() {
+            28.0
+        } else if c.mover.crouched {
             gm_core::sim::CROUCH_DROP
         } else {
             0.0
@@ -1959,6 +1961,8 @@ impl App {
             {
                 // Dead, staggered, commanding, dashing, guarding: the zone's word.
                 said
+            } else if c.mover.seated() {
+                anim::SIT
             } else if let Some((ability, elapsed)) = own_script {
                 gm_core::sim::script_anim(ability, elapsed)
             } else {

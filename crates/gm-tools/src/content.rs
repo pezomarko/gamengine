@@ -1131,8 +1131,8 @@ pub fn build(dir: &Path) -> Result<Bundle> {
 }
 
 /// The stances of the fitting room: the snapshot's state, the moment it is drawn at, and
-/// whether the body crouches (MODES.md 3.5: the last two columns, still and creeping).
-const STANCES: [(u8, f32, f32, bool); 11] = [
+/// whether the body crouches (MODES.md 3.5: still and creeping); last, seated (SKILLS.md 2).
+const STANCES: [(u8, f32, f32, bool); 12] = [
     (gm_core::sim::anim::IDLE, 0.0, 0.0, false),
     (gm_core::sim::anim::RUN, 1.0, 1.2, false),
     (gm_core::sim::anim::WINDUP, 0.3, 0.0, false),
@@ -1144,6 +1144,7 @@ const STANCES: [(u8, f32, f32, bool); 11] = [
     (gm_core::sim::anim::DASH, 0.3, 0.0, false),
     (gm_core::sim::anim::IDLE, 0.0, 0.0, true),
     (gm_core::sim::anim::RUN, 1.0, 1.2, true),
+    (gm_core::sim::anim::SIT, 1.0, 0.0, false),
 ];
 
 /// The striker's mannequin holding `prop` in every stance, seen from the front (top row)

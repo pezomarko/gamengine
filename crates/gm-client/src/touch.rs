@@ -41,6 +41,7 @@ pub enum Zone {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Button {
     Jump,
+    Sit,
     Secondary,
     Menu,
     /// `E`: the forge, the smith or the stall the body stands at (ITEMS.md 6.6); drawn

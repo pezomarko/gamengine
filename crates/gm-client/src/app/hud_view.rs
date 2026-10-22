@@ -283,6 +283,10 @@ pub(crate) fn touch_controls(
         TouchButton::Menu,
         ui::Rect::new(w - 16.0 - menu, 16.0, menu, menu),
     ));
+    out.push((
+        TouchButton::Sit,
+        ui::Rect::new(w - 16.0 - menu, 16.0 + menu + 12.0 * s, menu, menu),
+    ));
     let side = 60.0 * s;
     let gap = 12.0 * s;
     let y = h - 16.0 - side;
@@ -411,6 +415,7 @@ fn hud_touch(hud: &mut Hud, touch: &TouchHud<'_>, s: f32, cap: f32) {
         let word = match button {
             TouchButton::Menu => "menu",
             TouchButton::Jump => "jump",
+            TouchButton::Sit => "sit",
             TouchButton::Secondary => "2",
             TouchButton::Use => "E",
             TouchButton::Hot(_) => continue,

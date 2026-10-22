@@ -2690,7 +2690,7 @@ mod tests {
                 let b = &pack.builds[0].build;
                 let mut d = b.derived_in(&pack);
                 d.stamina_regen = 10.0;
-                d.focus_regen = 10.0;
+                d.rest_focus = 10.0;
                 d.max_speed = 1000.0;
                 crate::character::stat_rows(b, &d)
             };
