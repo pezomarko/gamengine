@@ -125,3 +125,7 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of steps 1 and 2. Taken: a taunter that dies no longer holds a
+creature for the rest of the taunt; a SIT pressed on the frame a rise ends is not lost.
+Not taken: "sit while a move key is held": the next frame's move would stand the body up.

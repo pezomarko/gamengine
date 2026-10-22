@@ -472,7 +472,9 @@ impl Build {
         d.armour = (d.armour + worn.armour).clamp(0.0, crate::matrix::MAX_ARMOUR);
         d.ward = (d.ward + worn.ward).clamp(0.0, crate::matrix::MAX_WARD);
         d.max_speed *= worn.speed.clamp(1, 200) as f32 / 100.0;
-        d.stamina_regen *= worn.regen.clamp(1, 200) as f32 / 100.0;
+        let regen = worn.regen.clamp(1, 200) as f32 / 100.0;
+        d.stamina_regen *= regen;
+        d.rest_stamina *= regen;
         d
     }
 

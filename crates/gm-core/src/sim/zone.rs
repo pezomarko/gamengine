@@ -67,6 +67,8 @@ pub struct Player {
     pub sheet: Sheet,
     pub mover: Mover,
     pub health: i32,
+    /// The rest's HP not yet whole (SKILLS.md 2).
+    rest_hp: f32,
     pub alive: bool,
     pub respawn_at: Tick,
     pub anim: u8,
@@ -166,6 +168,19 @@ impl Player {
     pub fn fought_within(&self, now: Tick, ticks: Tick) -> bool {
         self.fought_at
             .is_some_and(|at| (tick_delta(now, at).max(0) as u32) < ticks)
+    }
+
+    /// HP comes back only while resting, in whole points, with no event: a rest is no
+    /// heal, so it draws no threat (SKILLS.md 2).
+    fn rest(&mut self, frame: Tick, dt: f32) {
+        if !self.mover.resting(frame, dt) {
+            self.rest_hp = 0.0;
+            return;
+        }
+        self.rest_hp += self.sheet.derived.rest_health * dt;
+        let whole = self.rest_hp.floor();
+        self.rest_hp -= whole;
+        self.health = (self.health + whole as i32).min(self.max_health());
     }
 
     fn attacker_stats(&self) -> AttackerStats {
@@ -536,6 +551,7 @@ impl Zone {
             credits: CREDIT_BURST,
             queue: VecDeque::new(),
             starved_ticks: 0,
+            rest_hp: 0.0,
             executed_frames: 0,
             dropped_frames: 0,
             kills: 0,
@@ -951,6 +967,7 @@ impl Zone {
                             company,
                             &mut sink,
                         );
+                        p.rest(t, dt);
                         actions.extend(sink.drain(..).map(|a| (t, now, a)));
                     }
                 }
@@ -990,6 +1007,7 @@ impl Zone {
                         company,
                         &mut sink,
                     );
+                    p.rest(t, dt);
                     actions.extend(sink.drain(..).map(|a| (t, view, a)));
                 } else {
                     p.mover.yaw = input.yaw;
@@ -2481,6 +2499,9 @@ fn compute_anim(p: &Player) -> u8 {
     }
     if p.mover.statuses.staggered() {
         return anim::STAGGER;
+    }
+    if p.mover.seated() {
+        return anim::SIT;
     }
     if p.mover.reloading(p.last_input_tick) {
         return anim::RELOAD;

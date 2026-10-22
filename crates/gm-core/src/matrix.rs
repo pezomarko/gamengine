@@ -308,10 +308,13 @@ pub struct Derived {
     pub health: i32,
     /// ST, the stamina: what a block takes (MATRIX.md 23).
     pub stamina: f32,
+    /// ST a second standing; the rest's rates are a resting body's (SKILLS.md 2).
     pub stamina_regen: f32,
+    pub rest_stamina: f32,
     /// MP, the magic points: what every skill but the primary takes (MATRIX.md 23).
     pub focus: f32,
-    pub focus_regen: f32,
+    pub rest_focus: f32,
+    pub rest_health: f32,
     pub max_speed: f32,
     pub physical_mult: f32,
     pub elemental_mult: f32,
@@ -358,9 +361,11 @@ impl Derived {
             health: 50 + 4 * attrs.con as i32,
             // ST and MP a tenth of what they were, as HP is (MATRIX.md 23, 2026-10-22).
             stamina: 6.0 + 0.3 * (con + agi),
-            stamina_regen: 1.0 + 0.06 * agi,
+            stamina_regen: 0.5 + 0.03 * agi,
+            rest_stamina: 1.0 + 0.06 * agi,
             focus: 4.0 + 0.5 * int + f.focus as f32,
-            focus_regen: 0.5 + 0.06 * spr,
+            rest_focus: 0.3 + 0.03 * spr,
+            rest_health: 1.0 + 0.04 * con,
             max_speed: (280.0 + 2.0 * agi) * f.mobility,
             physical_mult: 0.60 + 0.04 * str_,
             elemental_mult: 0.60 + 0.04 * int,

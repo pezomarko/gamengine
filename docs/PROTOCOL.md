@@ -121,7 +121,7 @@ Frame:
 
 | Field | Bits | Notes |
 |---|---|---|
-| buttons | 16 | bit 0 jump, 1 crouch, 2 primary, 3 secondary, 4 guard, 5–8 ability 1–4, 9 interact, 10 unused (the viewport switch until v11: the camera is the mode's, MODES.md 2), 11 command (the command stance, COMPANIONS.md 5.1), 12 reload, 13 scope held (MODES.md 3.2), 14 use a kit (MODES.md 11.3, v12), 15 reserved (must be 0) |
+| buttons | 16 | bit 0 jump, 1 crouch, 2 primary, 3 secondary, 4 guard, 5–8 ability 1–4, 9 sit (pressed: sit or stand, v33; never used as interact before), 10 unused (the viewport switch until v11: the camera is the mode's, MODES.md 2), 11 command (the command stance, COMPANIONS.md 5.1), 12 reload, 13 scope held (MODES.md 3.2), 14 use a kit (MODES.md 11.3, v12), 15 reserved (must be 0) |
 | yaw | 12 | 0.1° |
 | pitch | 11 | 0.1° |
 | forward | 8 | i8, −127..=127 → −1..=1 |
@@ -1026,3 +1026,8 @@ v25 client would read the spawn two bits short, so the version byte keeps it out
   `NONE`), and `off` the item worn in the left hand before the guard's prop. The version
   byte keeps a v18 client out, since it could not say `WearIn` and would read the enum
   one short.
+
+## 40. Changes in v33 (sitting, 2026-10-22)
+
+`PROTOCOL_VERSION` 33 (SKILLS.md 2). Input bit 9 is `SIT` (it was `interact`, never sent).
+`anim` 16 is `SIT`: a body sitting or standing up. Nothing else on the wire changes.

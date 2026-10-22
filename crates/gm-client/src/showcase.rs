@@ -438,7 +438,7 @@ pub fn selector<C: Canvas>(
             "ST",
             format!("{:.0} (+{:.1}/s)", d.stamina, d.stamina_regen),
         ),
-        ("MP", format!("{:.0} (+{:.1}/s)", d.focus, d.focus_regen)),
+        ("MP", format!("{:.0}", d.focus)),
         ("DEF", format!("{:.0}%", d.armour * 100.0)),
         ("evasion", format!("{:.0}%", d.evasion * 100.0)),
     ];
