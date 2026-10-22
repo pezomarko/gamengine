@@ -203,7 +203,9 @@ impl Creature {
 
         // Taunted (MATRIX.md 8): the taunter is fought while it lasts and tops the table
         // after, by the switch margin, set once when the taunt lands.
-        let taunted_by = s.taunted_by();
+        let taunted_by = s
+            .taunted_by()
+            .filter(|by| s.body(*by).is_some_and(|b| b.alive));
         if let Some(by) = taunted_by {
             if self.taunted_by != Some(by) {
                 let top = self.threat.iter().map(|(_, t)| *t).fold(0.0, f32::max);

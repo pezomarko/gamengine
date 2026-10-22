@@ -474,10 +474,14 @@ fn seat_step(m: &mut Mover, input: &Input, pressed: u16, now: Tick, dt: f32, kno
         | buttons::USE;
     let moving = input.forward != 0.0 || input.side != 0.0;
     let acts = pressed & ACTS != 0 || input.ability != 0 || moving;
+    if let Seat::Rising(until) = m.seat
+        && tick_delta(now, until) >= 0
+    {
+        m.seat = Seat::Up;
+    }
     m.seat = match m.seat {
         _ if knocked => Seat::Up,
         Seat::Down(_) if acts => Seat::Rising(now.wrapping_add(ms_ticks(STAND_MS, dt))),
-        Seat::Rising(until) if tick_delta(now, until) >= 0 => Seat::Up,
         Seat::Up if pressed & buttons::SIT != 0 && !moving && m.can_sit(now) => Seat::Down(now),
         seat => seat,
     };
