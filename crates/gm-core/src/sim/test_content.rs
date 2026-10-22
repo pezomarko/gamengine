@@ -373,7 +373,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 10,
                 "Crossbow",
                 1800,
-                0, // GEAR.md 11: the span tires, as the bow's draw does (2026-10-20)
+                3,
                 0,
                 0.7,
                 Interrupt::Never,
@@ -2029,7 +2029,7 @@ pub fn pack(rate: TickRate) -> ContentPack {
                 57,
                 "Bow",
                 1100,
-                0,
+                2,
                 0,
                 0.6,
                 Interrupt::OnStagger,
