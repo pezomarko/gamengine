@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, PLACES, Place};
 use gm_core::matrix::Gear;
-use gm_hub_proto::protocol::ESSENCE_FEE;
+use gm_hub_proto::protocol::{ESSENCE_FEE, LADDER};
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
 
@@ -183,6 +183,8 @@ pub struct Reading {
     pub bar: Vec<Option<String>>,
     /// The Essence: its form, and whether the weapon in hand holds it (SKILLS.md 4).
     pub essence: Option<(String, bool)>,
+    /// The cells not yet earned on the ladder (SKILLS.md 5).
+    pub locked: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -682,6 +684,26 @@ async fn weapon_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(i64, Strin
         ))
     })
     .transpose()
+}
+
+/// The ladder's cells the character has not earned: a step opens its cell once its trial and
+/// every step's before it have passed (SKILLS.md 5).
+async fn locked_in(tx: &mut Tx<'_>, character: i64) -> Result<u8, EconError> {
+    let steps: Vec<&str> = LADDER.iter().map(|(trial, _)| *trial).collect();
+    let passed: Vec<String> =
+        sqlx::query_scalar("select trial from trials where character_id = $1 and trial = any($2)")
+            .bind(character)
+            .bind(&steps)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(internal)?;
+    let earned = LADDER
+        .iter()
+        .take_while(|(trial, _)| passed.iter().any(|p| p == trial))
+        .count();
+    Ok(LADDER[earned..]
+        .iter()
+        .fold(0, |bits, (_, cell)| bits | cell))
 }
 
 /// The Essence: its form, and whether the weapon in hand holds it.
@@ -1388,6 +1410,7 @@ impl Economy {
         let stacks = stacks_in(&mut tx, character, &self.stacks).await?;
         let bar = bar_in(&mut tx, character, &stacks).await?;
         let essence = essence_in(&mut tx, character).await?;
+        let locked = locked_in(&mut tx, character).await?;
         tx.commit().await.map_err(internal)?;
         Ok(Reading {
             seq: seq as u64,
@@ -1396,6 +1419,7 @@ impl Economy {
             stacks,
             bar,
             essence,
+            locked,
         })
     }
 

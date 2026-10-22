@@ -58,6 +58,13 @@ pub(super) async fn trial(
     hub.db
         .log(&zone, "trial", &format!("{character} {trial} {secs}s"))
         .await;
+    // A step of the ladder opens a cell of the kit at once (SKILLS.md 5).
+    if gm_hub_proto::protocol::LADDER
+        .iter()
+        .any(|(step, _)| *step == trial)
+    {
+        super::tell_zone_of_items(hub, character).await;
+    }
     // The rite (SKILLS.md 4): the Essence wakes in the weapon in hand.
     if trial == RITE
         && let Some(form) = hub

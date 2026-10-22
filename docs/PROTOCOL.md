@@ -1046,3 +1046,10 @@ are instant and never sent as a slot. 35 (SKILLS.md 4): `Worn` carries `essence`
 `signature`; `FromClient::Infuse { fee }` asks the smith to move the Essence into the weapon
 in hand, answered by a line.
 
+## 42. Changes in v36 (the ladder, 2026-10-22)
+
+`PROTOCOL_VERSION` 36 (SKILLS.md 5): `Worn` carries `locked`, the kit's cells not yet earned
+(`gm_core::build::locked`: the second move 1, the trick 2, the spell 4); the zone and the
+client compile the same kit from it. `FromClient::Shrine` asks the shrine the player stands
+at to wash every harmful status off the body, answered by a line.
+

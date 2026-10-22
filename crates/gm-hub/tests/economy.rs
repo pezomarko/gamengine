@@ -1571,3 +1571,35 @@ async fn the_essence_wakes_once_and_the_smith_moves_it_within_its_form() {
     ));
     sound(&econ).await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_ladder_opens_its_cells_in_order() {
+    use gm_core::build::locked::{SECOND, SPELL, TRICK};
+    let Some(econ) = setup().await else { return };
+    let content = gm_content::items::load_items(std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/content"
+    )))
+    .unwrap();
+    let me = player(&econ, 0).await;
+    assert_eq!(
+        econ.gear(me, &content).await.unwrap().locked,
+        SECOND | TRICK | SPELL
+    );
+    for (trial, locked) in [
+        ("yard", TRICK | SPELL),
+        ("hall", TRICK | SPELL),
+        ("gate", 0),
+    ] {
+        sqlx::query(
+            "insert into trials (character_id, trial, zone, secs) values ($1, $2, 'test', 0)",
+        )
+        .bind(me)
+        .bind(trial)
+        .execute(econ_pool(&econ))
+        .await
+        .unwrap();
+        let left = econ.gear(me, &content).await.unwrap().locked;
+        assert_eq!(left, locked, "after {trial}: the hall waits for the gate");
+    }
+}

@@ -38,8 +38,9 @@ committed; the `.prt` portal file is not. `map gen-arena` regenerates `assets/ma
 arena of Phase 3 (symmetric, two team bases, pillars, low cover, side walkways), and
 `map gen-town` regenerates `assets/maps/src/town.map`, the town of Phase 6 (a square under an
 open sky lit by the sun, houses, a market of 30 stall tiles, 128 spawns), and `map gen-dungeon`
-`assets/maps/src/dungeon.map`, the tutorial dungeon of Phase 7 (an entry hall, a passage with
-two turns, the gate room with two sentinels, a stair, the Warden's hall).
+`assets/maps/src/dungeon.map`, the tutorial dungeon of Phase 7 (an entry hall with a campfire,
+a passage with two turns kept by a shield-bearer, the hall and its pack, a stair held by two
+venomers above a shrine, the Warden's hall: SKILLS.md 5).
 
 ## Client flags
 

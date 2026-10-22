@@ -268,6 +268,7 @@ impl Run {
         };
         let mut worn =
             gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
+        worn.locked = self.hub_slots.get(&body).map_or(0, |s| s.locked);
         if let Some(e) = self.hub_slots.get(&body).and_then(|s| s.essence.as_ref()) {
             gm_content::worn::essence_of(
                 &mut worn,
@@ -341,6 +342,16 @@ impl Run {
                                 });
                             }
                             slot.essence = reading.essence.clone();
+                            let opened = slot.locked & !reading.locked;
+                            slot.locked = reading.locked;
+                            if opened != 0
+                                && let Some(s) = self.sessions.get(&body)
+                            {
+                                s.send_control(FromZone::ChatFrom {
+                                    from: 0,
+                                    text: opened_words(opened).into(),
+                                });
+                            }
                         }
                         self.zone.set_gear(body, reading.gear);
                         self.zone
@@ -393,5 +404,17 @@ impl Run {
                 result: result.map(|_| ()),
             });
         }
+    }
+}
+
+/// What a step of the ladder opened (SKILLS.md 5), in words.
+fn opened_words(cells: u8) -> &'static str {
+    use gm_core::build::locked;
+    if cells & locked::SPELL != 0 {
+        "You have earned your weapon's spell: its key is next to your trick's."
+    } else if cells & locked::TRICK != 0 {
+        "You have earned your body's trick: the first key of the actives."
+    } else {
+        "You have earned your second move: the right button, or 2."
     }
 }

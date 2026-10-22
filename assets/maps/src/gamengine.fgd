@@ -70,6 +70,10 @@
     angle(integer) : "The way the hearth opens" : 90
 ]
 
+@PointClass size(-16 -16 0, 16 16 40) color(120 220 200) = gm_shrine : "Shrine (SKILLS.md 5): E within 120 of it washes every harmful status off the body. The altar is a brush." []
+
+@PointClass size(-16 -16 0, 16 16 16) color(255 150 60) = gm_campfire : "Campfire (SKILLS.md 5): the client draws a fire here and, near it, says that Insert sits to rest." []
+
 @SolidClass base(Targetname) = gm_zone : "Zone volume (Phase 3+): rules inside it" [
     kind(choices) : "Kind" : 1 =
     [

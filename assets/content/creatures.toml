@@ -81,3 +81,64 @@ still = true
 npc = true
 role = "smith"
 wears = { chest = "cuirass", legs = "trousers" }
+
+# The ladder's first step (SKILLS.md 5): the yard. A sparring master at the south end of the
+# dummies' street swings slowly, telegraphed and parryable, for a point; beating it is the
+# `yard` trial, and it opens the second move.
+
+[[creature]]
+key = "yard_master"
+name = "Sparring master"
+frame = "striker"
+aspects = []
+attributes = { str = 5, agi = 5, con = 5, int = 5, spr = 5 }
+health = 30
+primary = "drill"
+secondary = "kick"
+sight = 220
+leash = 320
+respawn_s = 5
+
+# The dungeon's steps (SKILLS.md 5): a shield-bearer keeps the passage (the gate), a pack of
+# three the hall, two venomers the stair (the antechamber); the Warden is the rite.
+
+[[creature]]
+key = "shieldbearer"
+name = "Shield-bearer"
+frame = "striker"
+aspects = ["ground"]
+attributes = { str = 14, agi = 8, con = 16, int = 6, spr = 8 }
+health = 160
+primary = "mace"
+secondary = "shield_bash"
+guard = "shield_wall"
+sight = 400
+leash = 700
+respawn_s = 600
+
+[[creature]]
+key = "cutthroat"
+name = "Cutthroat"
+frame = "infiltrator"
+aspects = ["air"]
+attributes = { str = 10, agi = 16, con = 8, int = 6, spr = 6 }
+health = 60
+primary = "dagger"
+secondary = "throwing_knife"
+actives = ["dash"]
+sight = 520
+leash = 400
+respawn_s = 600
+
+[[creature]]
+key = "venomer"
+name = "Venomer"
+frame = "caster"
+aspects = ["grass"]
+attributes = { str = 6, agi = 10, con = 8, int = 14, spr = 10 }
+health = 50
+primary = "venom_thorn"
+secondary = "kick"
+sight = 420
+leash = 640
+respawn_s = 600

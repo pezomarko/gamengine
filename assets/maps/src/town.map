@@ -1997,6 +1997,13 @@
 "encounter" "smith"
 }
 {
+"classname" "gm_creature"
+"origin" "0 -960 40"
+"angle" "90"
+"creature" "yard_master"
+"encounter" "yard"
+}
+{
 "classname" "info_player_start"
 "origin" "-940 -660 40"
 "angle" "32"

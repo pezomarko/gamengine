@@ -1366,6 +1366,7 @@ fn reading(r: crate::economy::Reading) -> GearReading {
         stacks,
         bar,
         essence,
+        locked,
     } = r;
     GearReading {
         seq,
@@ -1373,6 +1374,7 @@ fn reading(r: crate::economy::Reading) -> GearReading {
         templates,
         bar,
         essence: essence.map(|(form, in_hand)| gm_hub_proto::protocol::Essence { form, in_hand }),
+        locked,
         stacks: stacks
             .into_iter()
             .map(|s| StackReading {

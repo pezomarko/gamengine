@@ -358,8 +358,11 @@ struct App {
     /// The window, from its creation: the renderer on it (`active`) may come later.
     window: Option<Arc<Window>>,
     bsp: Bsp,
-    /// The map's forges (ITEMS.md 6.6), read from the map whenever it changes.
+    /// The map's forges (ITEMS.md 6.6), shrines and campfires (SKILLS.md 5), read from the
+    /// map whenever it changes.
     forges: Vec<gm_bsp::ForgePost>,
+    shrines: Vec<Vec3>,
+    campfires: Vec<Vec3>,
     active: Option<Active>,
     sim: Sim,
     online: Option<Online>,

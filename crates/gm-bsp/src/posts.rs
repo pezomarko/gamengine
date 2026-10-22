@@ -43,4 +43,15 @@ impl Bsp {
             .take(MAX_CREATURE_POSTS)
             .collect()
     }
+
+    /// The origins of the map's points of `class`, in entity order: the `gm_shrine`s and
+    /// the `gm_campfire`s (SKILLS.md 5).
+    pub fn points(&self, class: &str) -> Vec<Vec3> {
+        self.entities
+            .iter()
+            .filter(|e| e.classname() == class)
+            .filter_map(|e| e.origin())
+            .take(MAX_CREATURE_POSTS)
+            .collect()
+    }
 }
