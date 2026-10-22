@@ -812,3 +812,13 @@ stats."
   crouch; WEB.md 3.4: a browser keeps Ctrl+W): **`X`** is that key now, on the hotbar's
   guard cell and the touch hotbar too. (Since 2026-10-22 Ctrl crouches in every mode and
   `X` alone guards in the action mode: MODES.md 12.) `K` still opens the build's page.
+## 24. v13 (2026-10-22): the skills rework
+
+The plan is docs/SKILLS.md; each step adds its numbers here.
+
+- **Step 1, fixes.** The pause after a stamina spend, the leap's lift, Freeze and the Chill
+  immunity are counted in the zone's rate (they were 64 Hz ticks everywhere: the pause
+  measured 3.25 s in the 20 Hz town, 1.0 s in the dungeon and the arena). A taunt sets the
+  taunter's threat once, to the top of the table × 1.3 (it was added every frame of the
+  mind: 64 a second in the dungeon). The bow costs 2 ST a draw and the crossbow 3 a span
+  again: section 23 had made them free with every primary.

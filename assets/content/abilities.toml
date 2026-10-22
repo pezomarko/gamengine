@@ -68,6 +68,7 @@ name = "Crossbow"
 slot = "primary"
 prop = "crossbow"
 cooldown_ms = 1800
+stamina = 3
 move_scale = 0.7
 interrupt = "never"
 [[ability.step]]
@@ -849,6 +850,7 @@ name = "Bow"
 slot = "primary"
 prop = "bow"
 cooldown_ms = 1100
+stamina = 2
 move_scale = 0.6
 interrupt = "on_stagger"
 [[ability.step]]

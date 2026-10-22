@@ -6,7 +6,7 @@
 
 use crate::matrix::CHILL_PER_STACK;
 use crate::sim::tick_delta;
-use crate::tick::Tick;
+use crate::tick::{Tick, ms_ticks};
 use crate::vocab::{ApplyStatus, StackRule, Status};
 
 pub const MAX_STATUSES: usize = 8;
@@ -111,7 +111,14 @@ impl Statuses {
 
     /// Apply a verb at frame tick `now`; `duration` is already scaled by the defender's status
     /// duration factor (MATRIX.md 6) unless the status has a fixed duration.
-    pub fn apply(&mut self, verb: &ApplyStatus, duration: Tick, now: Tick, source: u32) -> Applied {
+    pub fn apply(
+        &mut self,
+        verb: &ApplyStatus,
+        duration: Tick,
+        now: Tick,
+        source: u32,
+        dt: f32,
+    ) -> Applied {
         let duration = duration.max(1);
         if verb.status == Status::Chill && tick_delta(now, self.chill_immune_until) < 0 {
             return Applied::Immune;
@@ -165,11 +172,11 @@ impl Statuses {
                 target: verb.target,
                 dispellable: verb.dispellable,
             };
-            let freeze_ticks = crate::tick::TickRate::COMBAT.ms_to_ticks(crate::matrix::FREEZE_MS);
-            self.apply(&root, freeze_ticks, now, source);
-            self.chill_immune_until = now.wrapping_add(freeze_ticks).wrapping_add(
-                crate::tick::TickRate::COMBAT.ms_to_ticks(crate::matrix::CHILL_IMMUNITY_MS),
-            );
+            let freeze_ticks = ms_ticks(crate::matrix::FREEZE_MS, dt);
+            self.apply(&root, freeze_ticks, now, source, dt);
+            self.chill_immune_until = now
+                .wrapping_add(freeze_ticks)
+                .wrapping_add(ms_ticks(crate::matrix::CHILL_IMMUNITY_MS, dt));
             return Applied::Frozen;
         }
         outcome
@@ -210,6 +217,8 @@ mod tests {
     use super::*;
     use crate::vocab::StatusTarget;
 
+    const DT: f32 = 1.0 / 64.0;
+
     fn verb(status: Status, stacking: StackRule, max_stacks: u8, magnitude: f32) -> ApplyStatus {
         ApplyStatus {
             status,
@@ -226,17 +235,17 @@ mod tests {
     fn refresh_extend_independent_and_expiry() {
         let mut st = Statuses::default();
         let slow = verb(Status::Slow, StackRule::Refresh, 1, 0.3);
-        assert_eq!(st.apply(&slow, 64, 100, 1), Applied::Applied);
-        assert_eq!(st.apply(&slow, 64, 120, 1), Applied::Refreshed);
+        assert_eq!(st.apply(&slow, 64, 100, 1, DT), Applied::Applied);
+        assert_eq!(st.apply(&slow, 64, 120, 1, DT), Applied::Refreshed);
         assert_eq!(st.get(Status::Slow).unwrap().until, 184);
         assert!((st.speed_scale() - 0.7).abs() < 1e-6);
         let bleed = verb(Status::Bleed, StackRule::Independent, 5, 4.0);
-        st.apply(&bleed, 64, 100, 2);
-        st.apply(&bleed, 64, 100, 3);
+        st.apply(&bleed, 64, 100, 2, DT);
+        st.apply(&bleed, 64, 100, 3, DT);
         assert_eq!(st.active().count(), 3);
         let haste = verb(Status::Haste, StackRule::Extend, 1, 0.2);
-        st.apply(&haste, 64, 100, 1);
-        st.apply(&haste, 64, 110, 1);
+        st.apply(&haste, 64, 100, 1, DT);
+        st.apply(&haste, 64, 110, 1, DT);
         // 54 remaining + 64 = 118, under the 3x cap.
         assert_eq!(st.get(Status::Haste).unwrap().until, 228);
         assert_eq!(
@@ -250,20 +259,32 @@ mod tests {
     }
 
     #[test]
+    fn a_freeze_lasts_a_second_at_the_towns_rate() {
+        let dt = 1.0 / 20.0;
+        let mut st = Statuses::default();
+        let chill = verb(Status::Chill, StackRule::Extend, 3, 0.0);
+        for now in 10..13 {
+            st.apply(&chill, 20, now, 1, dt);
+        }
+        assert_eq!(st.get(Status::Root).unwrap().until, 12 + 20);
+        assert_eq!(st.chill_immune_until, 12 + 20 + 40);
+    }
+
+    #[test]
     fn chill_freezes_at_the_stack_limit_then_grants_immunity() {
         let mut st = Statuses::default();
         let chill = verb(Status::Chill, StackRule::Extend, 3, 0.0);
-        assert_eq!(st.apply(&chill, 64, 10, 1), Applied::Applied);
+        assert_eq!(st.apply(&chill, 64, 10, 1, DT), Applied::Applied);
         assert!((st.speed_scale() - 0.85).abs() < 1e-6);
-        assert_eq!(st.apply(&chill, 64, 11, 1), Applied::Refreshed);
-        assert_eq!(st.apply(&chill, 64, 12, 1), Applied::Frozen);
+        assert_eq!(st.apply(&chill, 64, 11, 1, DT), Applied::Refreshed);
+        assert_eq!(st.apply(&chill, 64, 12, 1, DT), Applied::Frozen);
         assert!(st.has(Status::Root) && !st.has(Status::Chill));
         assert_eq!(st.speed_scale(), 0.0);
-        assert_eq!(st.apply(&chill, 64, 13, 1), Applied::Immune);
+        assert_eq!(st.apply(&chill, 64, 13, 1, DT), Applied::Immune);
         st.expire(12 + 64);
         assert!(!st.has(Status::Root));
-        assert_eq!(st.apply(&chill, 64, 12 + 64 + 127, 1), Applied::Immune);
-        assert_eq!(st.apply(&chill, 64, 12 + 64 + 128, 1), Applied::Applied);
+        assert_eq!(st.apply(&chill, 64, 12 + 64 + 127, 1, DT), Applied::Immune);
+        assert_eq!(st.apply(&chill, 64, 12 + 64 + 128, 1, DT), Applied::Applied);
     }
 
     #[test]
@@ -271,8 +292,8 @@ mod tests {
         let mut st = Statuses::default();
         let bleed = verb(Status::Bleed, StackRule::Independent, 9, 1.0);
         for _ in 0..MAX_STATUSES {
-            assert_eq!(st.apply(&bleed, 64, 1, 1), Applied::Applied);
+            assert_eq!(st.apply(&bleed, 64, 1, 1, DT), Applied::Applied);
         }
-        assert_eq!(st.apply(&bleed, 64, 1, 1), Applied::NoRoom);
+        assert_eq!(st.apply(&bleed, 64, 1, 1, DT), Applied::NoRoom);
     }
 }

@@ -49,6 +49,11 @@ impl TickRate {
     }
 }
 
+/// `ms` in ticks of `dt` seconds, rounded up as `TickRate::ms_to_ticks` rounds.
+pub fn ms_ticks(ms: u32, dt: f32) -> Tick {
+    TickRate::new((1.0 / dt).round().max(1.0) as u32).ms_to_ticks(ms)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1979,7 +1979,10 @@ impl Zone {
             }
             t.controls[kind] = (count + 1, self.tick);
         }
-        let outcome = t.mover.statuses.apply(s, duration, now, source);
+        let outcome = t
+            .mover
+            .statuses
+            .apply(s, duration, now, source, self.rate.dt());
         if matches!(
             outcome,
             crate::status::Applied::Immune | crate::status::Applied::NoRoom

@@ -12,7 +12,7 @@ use crate::sim::{
     BAR_CELLS, COMMAND_EXIT_MS, KIT_USE_MS, MAX_ABILITIES, REGEN_PAUSE_MS, tick_delta,
 };
 use crate::status::Statuses;
-use crate::tick::{Tick, TickRate};
+use crate::tick::{Tick, ms_ticks};
 use crate::trace::{CollisionWorld, Hull};
 use crate::vocab::{ArchetypeFrame, FireMode, Guard, MeleeArc, Mode, MoveKind, StatusTarget, Verb};
 
@@ -576,7 +576,7 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         (input, pressed)
     };
 
-    guard_step(sheet, m, input, pressed, now, staggered, actions);
+    guard_step(sheet, m, input, pressed, now, dt, staggered, actions);
 
     // The weapon in hand (MODES.md 3.7): a switch cancels a reload under way.
     if kit.mode == Mode::Fps && input.held != m.held && input.held <= 2 && !staggered {
@@ -608,7 +608,7 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
         && !staggered
         && m.using_item(now).is_none()
     {
-        try_activate(world, sheet, m, slot as usize, now, input, company);
+        try_activate(world, sheet, m, slot as usize, now, dt, input, company);
     }
     reload_step(sheet, m, pressed, now, staggered);
     item_step(m, pressed, input.use_slot, now, dt, staggered);
@@ -628,6 +628,7 @@ pub fn step_mover<W: CollisionWorld + ?Sized>(
                 &s,
                 s.next_step,
                 now,
+                dt,
                 company,
                 actions,
             );
@@ -734,6 +735,7 @@ fn guard_step(
     input: &Input,
     pressed: u16,
     now: Tick,
+    dt: f32,
     staggered: bool,
     actions: &mut Vec<Action>,
 ) {
@@ -774,7 +776,7 @@ fn guard_step(
                 {
                     m.stamina -= kit.guard_cost(ab);
                     if ab.cost.stamina > 0 {
-                        m.regen_pause_until = now.wrapping_add(regen_pause_ticks());
+                        m.regen_pause_until = now.wrapping_add(ms_ticks(REGEN_PAUSE_MS, dt));
                     }
                     let ready_at = now.wrapping_add(ab.cooldown.ticks.max(1));
                     m.cooldowns[gi as usize] = ready_at;
@@ -930,16 +932,12 @@ fn item_step(m: &mut Mover, pressed: u16, use_slot: u8, now: Tick, dt: f32, stag
 /// Frames an item's use takes (`KIT_USE_MS`, the kit's and every stack's for now) at the
 /// tick length `dt`: 1.5 s in a town at 20 Hz as in a fight at 64.
 pub fn kit_use_ticks(dt: f32) -> Tick {
-    (KIT_USE_MS as f32 / 1000.0 / dt).ceil() as Tick
-}
-
-fn regen_pause_ticks() -> Tick {
-    TickRate::COMBAT.ms_to_ticks(REGEN_PAUSE_MS)
+    ms_ticks(KIT_USE_MS, dt)
 }
 
 /// Frames a body needs to stand up from the command stance, at the tick length `dt`.
 pub fn command_exit_ticks(dt: f32) -> Tick {
-    (COMMAND_EXIT_MS as f32 / 1000.0 / dt).ceil() as Tick
+    ms_ticks(COMMAND_EXIT_MS, dt)
 }
 
 /// The cone a firearm's bolt is rolled in now (MODES.md 3.4), in degrees, shaped as the
@@ -1115,12 +1113,14 @@ fn turn_between(a: f32, b: f32) -> f32 {
 }
 
 /// Start the pressed slot's ability, or what its chain or its target make of it.
+#[allow(clippy::too_many_arguments)]
 fn try_activate<W: CollisionWorld + ?Sized>(
     world: &W,
     sheet: &Sheet,
     m: &mut Mover,
     pressed_slot: usize,
     now: Tick,
+    dt: f32,
     input: &Input,
     company: Company<'_>,
 ) -> bool {
@@ -1209,7 +1209,7 @@ fn try_activate<W: CollisionWorld + ?Sized>(
     m.stamina -= kit.blow_cost(ab);
     m.focus -= ab.cost.focus as f32;
     if ab.cost.stamina > 0 {
-        m.regen_pause_until = now.wrapping_add(regen_pause_ticks());
+        m.regen_pause_until = now.wrapping_add(ms_ticks(REGEN_PAUSE_MS, dt));
     }
     // Attacking drops a held block.
     if m.guard == GuardState::Block {
@@ -1265,6 +1265,7 @@ fn resolve_step<W: CollisionWorld + ?Sized>(
     script: &Script,
     step: u8,
     now: Tick,
+    dt: f32,
     company: Company<'_>,
     actions: &mut Vec<Action>,
 ) {
@@ -1337,7 +1338,7 @@ fn resolve_step<W: CollisionWorld + ?Sized>(
         Verb::ApplyStatus(s) => {
             // Self-targeted statuses are predicted; hit/area targets are the server's.
             if s.target == StatusTarget::Actor {
-                m.statuses.apply(s, s.duration, now, 0);
+                m.statuses.apply(s, s.duration, now, 0, dt);
             }
         }
         Verb::MoveSelf(ms) => {
@@ -1375,7 +1376,7 @@ fn resolve_step<W: CollisionWorld + ?Sized>(
                 MoveKind::Leap { forward, up } => {
                     m.mv.velocity += dir * forward + Vec3::new(0.0, 0.0, up);
                     m.mv.on_ground = false;
-                    TickRate::COMBAT.ms_to_ticks(250)
+                    ms_ticks(250, dt)
                 }
                 MoveKind::Blink { distance } => {
                     // Hull-traced along the facing; never through geometry (VOCABULARY.md 5.5).
