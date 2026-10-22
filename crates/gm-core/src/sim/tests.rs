@@ -4126,3 +4126,44 @@ fn a_kit_heals_when_pressed_with_free_hands_and_a_refused_press_says_why() {
             .any(|e| matches!(e, ZoneEvent::ItemUsed { id, cell: 2 } if *id == a))
     );
 }
+
+#[test]
+fn a_spend_pauses_stamina_for_a_second_at_any_rate() {
+    for hz in [64u32, 20] {
+        let rate = TickRate::new(hz);
+        let world = BoxWorld::floor();
+        let spawns = vec![Spawn {
+            origin: Vec3::new(0.0, 0.0, REST_Z),
+            yaw: 0.0,
+            team: 0,
+        }];
+        let mut zone = Zone::new(rate, 7, spawns, test_content::pack(rate));
+        let build = zone.content.build("blade").unwrap().clone();
+        let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
+        let idle = [(a, input(0.0, 0.0, 0))];
+        run(&mut zone, &world, &idle, hz as usize);
+        zone.player_mut(a).unwrap().mover.stamina = 5.0;
+        run(
+            &mut zone,
+            &world,
+            &[(a, input(0.0, 0.0, buttons::GUARD))],
+            1,
+        );
+        let mut low = f32::MAX;
+        let mut back_ms = None;
+        for t in 1..=(3 * hz) {
+            run(&mut zone, &world, &idle, 1);
+            let s = zone.player(a).unwrap().mover.stamina;
+            if s < low {
+                low = s;
+            } else if back_ms.is_none() && s > low {
+                back_ms = Some(t * 1000 / hz);
+            }
+        }
+        let back = back_ms.expect("stamina came back");
+        assert!(
+            (1000..=1150).contains(&back),
+            "{hz} Hz: back after {back} ms"
+        );
+    }
+}

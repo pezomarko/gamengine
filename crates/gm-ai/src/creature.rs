@@ -37,6 +37,7 @@ pub struct Creature {
     fighter: Fighter,
     threat: Vec<(EntityId, f32)>,
     target: Option<EntityId>,
+    taunted_by: Option<EntityId>,
     next_pick: Tick,
 }
 
@@ -57,6 +58,7 @@ impl Creature {
             fighter: Fighter::new(seed, KitPlan::of(&sheet.kit), home_yaw),
             threat: Vec::new(),
             target: None,
+            taunted_by: None,
             next_pick: 0,
         }
     }
@@ -113,6 +115,7 @@ impl Creature {
     pub fn reset(&mut self) {
         self.threat.clear();
         self.target = None;
+        self.taunted_by = None;
         self.fighter.nav.clear();
         self.fighter.yaw = self.home_yaw;
         self.fighter.pitch = 0.0;
@@ -192,12 +195,22 @@ impl Creature {
             };
         }
 
-        // Taunted (MATRIX.md 8): the taunter is the one to fight while it lasts, and it
-        // tops the table after.
-        if let Some(by) = s.taunted_by() {
-            self.add(by, SIGHT_THREAT);
+        // Taunted (MATRIX.md 8): the taunter is fought while it lasts and tops the table
+        // after, by the switch margin, set once when the taunt lands.
+        let taunted_by = s.taunted_by();
+        if let Some(by) = taunted_by {
+            if self.taunted_by != Some(by) {
+                let top = self.threat.iter().map(|(_, t)| *t).fold(0.0, f32::max);
+                let mine = self
+                    .threat
+                    .iter()
+                    .find(|(e, _)| *e == by)
+                    .map_or(0.0, |(_, t)| *t);
+                self.add(by, (top * SWITCH - mine).max(SIGHT_THREAT));
+            }
             self.target = Some(by);
         }
+        self.taunted_by = taunted_by;
         let Some(t) = self.target.and_then(|id| s.body(id)).filter(|b| b.alive) else {
             // Nothing to fight: back to the post (a reset puts the body there at once; this
             // is for a creature that merely strayed).
@@ -258,5 +271,52 @@ impl Creature {
                 hostile: &hostile,
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nav::NavGrid;
+    use crate::view::ZoneView;
+    use gm_core::collide::BoxWorld;
+    use gm_core::sim::{Zone, test_content};
+    use gm_core::tick::TickRate;
+    use gm_core::vocab::{ApplyStatus, StackRule, Status, StatusTarget};
+
+    #[test]
+    fn a_taunt_tops_the_table_by_the_margin_once() {
+        let rate = TickRate::COMBAT;
+        let world = BoxWorld::floor();
+        let mut zone = Zone::new(rate, 1, vec![], test_content::pack(rate));
+        let build = zone.content.build("blade").unwrap().clone();
+        let at = |x: f32| Vec3::new(x, 0.0, 24.0);
+        let me = zone.add_player_at(build.clone(), 1, at(0.0), 0.0);
+        let a = zone.add_player_at(build.clone(), 0, at(100.0), 180.0);
+        let b = zone.add_player_at(build, 0, at(-100.0), 0.0);
+        let sheet = zone.player(me).unwrap().sheet.clone();
+        let mut mind = Creature::new(1, &sheet, at(0.0), 0.0, 800.0, 2000.0);
+        mind.hurt_by(a, 30.0);
+        mind.hurt_by(b, 5.0);
+        let taunt = ApplyStatus {
+            status: Status::Taunt,
+            duration: rate.ms_to_ticks(4000),
+            magnitude: 1.0,
+            max_stacks: 1,
+            stacking: StackRule::Refresh,
+            target: StatusTarget::Area,
+            dispellable: true,
+        };
+        zone.apply_status(me, b, &taunt);
+        let nav = NavGrid::build(&world, &[at(0.0)]);
+        let creature_of = |id| (id == me).then_some(0);
+        for _ in 0..64 {
+            let view = ZoneView::of(&zone, &creature_of);
+            mind.think(&view.senses(&zone, me, &world, &nav).unwrap());
+        }
+        let threat = |id| mind.table().into_iter().find(|e| e.0 == id).unwrap().1;
+        let ratio = threat(b) / threat(a);
+        assert!((ratio - SWITCH).abs() < 0.01, "{ratio}");
+        assert_eq!(mind.target(), Some(b));
     }
 }
