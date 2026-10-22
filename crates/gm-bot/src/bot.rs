@@ -674,13 +674,16 @@ impl BotRun {
                 if worn != self.worn {
                     self.worn = worn;
                     let build = self.client.sheet.build.clone();
+                    let was = self.client.sheet.kit.clone();
                     self.client.set_sheet(Sheet::wearing(
                         build,
                         self.worn.clone(),
                         &self.pack,
                         self.team,
                     ));
-                    self.client.mover.rearm(&self.client.sheet);
+                    self.client
+                        .mover
+                        .rearm(&was, &self.client.sheet, self.client.tick);
                 }
             }
             // Content tuned under the zone (GM.md 3): the same build on the new numbers;

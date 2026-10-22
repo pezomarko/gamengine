@@ -310,6 +310,21 @@ impl HubLink {
         }
     }
 
+    /// Move the Essence into the weapon in hand of a character the zone saw by the smith,
+    /// for the fee it was shown (SKILLS.md 4); the gear reading after.
+    pub async fn infuse(&self, character: CharacterId, fee: i64) -> Result<GearReading, String> {
+        let op = ZoneEconOp::Infuse { character, fee };
+        match self.client.request(&HubRequest::ZoneEcon(op)).await {
+            Ok(HubResponse::Econ(EconReply::Gear(reading))) => Ok(reading),
+            Err(HubClientError::Refused(e)) => Err(match e {
+                HubError::Insufficient => "not enough coin".to_string(),
+                HubError::Invalid(why) => why,
+                other => Self::words(&other, "infuse"),
+            }),
+            other => Err(Self::trouble("infuse", &format!("{other:?}"))),
+        }
+    }
+
     /// Make a craft at the forge for a character the zone saw standing at one, for the
     /// fee it was shown (ITEMS.md 6.6); the new item's id.
     pub async fn forge(

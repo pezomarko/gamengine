@@ -329,7 +329,7 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
         report.coin, 30,
         "300 granted, 300 paid for hires, 30 dropped"
     );
-    assert_eq!(report.trials, ["warden_leader"]);
+    assert_eq!(report.trials, ["rite", "warden_leader"]);
     let (coin, held) = econ.inventory(leader).await.unwrap();
     assert_eq!((coin, held.len()), (30, 3));
     for &avatar in &avatars {
@@ -343,7 +343,10 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
     assert_eq!(econ.audit().await.unwrap(), 0, "the ledger is sound");
     assert_eq!(
         db.trials_of(leader).await.unwrap(),
-        vec![("warden_leader".to_string(), warden)]
+        vec![
+            ("rite".to_string(), warden),
+            ("warden_leader".to_string(), warden)
+        ]
     );
 
     // The trial opens the keep.

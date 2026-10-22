@@ -110,6 +110,7 @@ impl Run {
                 templates: slot.worn.clone(),
                 stacks: slot.stacks.clone(),
                 bar: slot.bar.clone(),
+                essence: slot.essence.clone(),
             };
             self.gear_kept.insert(character, (reading, Instant::now()));
         }
@@ -206,6 +207,7 @@ impl Run {
                 worn: reading.templates.clone(),
                 stacks: reading.stacks.clone(),
                 bar: reading.bar.clone(),
+                essence: reading.essence.clone(),
                 character: h.character,
                 joined: Instant::now(),
                 play_seconds_before: h.play_seconds,

@@ -1358,12 +1358,21 @@ fn trade_offer(
 
 /// The hub's reading of a character's gear and stacks (ITEMS.md 3.3, MODES.md 11.2), as
 /// a zone is told it.
-fn reading((seq, gear, templates, stacks, bar): crate::economy::Reading) -> GearReading {
+fn reading(r: crate::economy::Reading) -> GearReading {
+    let crate::economy::Reading {
+        seq,
+        gear,
+        templates,
+        stacks,
+        bar,
+        essence,
+    } = r;
     GearReading {
         seq,
         gear,
         templates,
         bar,
+        essence: essence.map(|(form, in_hand)| gm_hub_proto::protocol::Essence { form, in_hand }),
         stacks: stacks
             .into_iter()
             .map(|s| StackReading {
@@ -1374,6 +1383,18 @@ fn reading((seq, gear, templates, stacks, bar): crate::economy::Reading) -> Gear
             })
             .collect(),
     }
+}
+
+/// The form the Essence takes in a weapon of `template` (SKILLS.md 4).
+fn form_of(hub: &Hub, template: &str) -> Option<String> {
+    let looks = &hub.cfg.looks;
+    let model = looks
+        .templates
+        .iter()
+        .find(|t| t.key == template)?
+        .model
+        .as_deref()?;
+    gm_content::worn::form_for(looks, model).map(str::to_string)
 }
 
 /// After a session's request moved items of `character` without its zone knowing (the
@@ -1856,6 +1877,19 @@ async fn zone_econ_op(hub: &Hub, zone: &ZoneId, op: ZoneEconOp) -> Result<EconRe
             Ok(EconReply::Done)
         }
         ZoneEconOp::Stalls => Ok(EconReply::Stalls(stall_summaries(hub, zone, None).await?)),
+        // The smith moves the Essence (SKILLS.md 4): the zone saw the body by the smith.
+        ZoneEconOp::Infuse { character, fee } => {
+            if hub.db.zone_of(character).await?.as_ref() != Some(zone) {
+                return Err(HubError::Unauthorized);
+            }
+            e.infuse(character, fee, |t| form_of(hub, t))
+                .await
+                .map_err(econ_err)?;
+            e.gear(character, &hub.cfg.items)
+                .await
+                .map(|r| EconReply::Gear(reading(r)))
+                .map_err(econ_err)
+        }
         // The smith and the forge (ITEMS.md 6.6): the zone saw the body standing there;
         // the price and the fee are the content's, and what the buyer saw must be them.
         ZoneEconOp::SmithBuy {

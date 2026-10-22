@@ -135,6 +135,11 @@ impl App {
                     o.net.send_control(FromClient::SmithBuy { material, price });
                 }
             }
+            SmithyAction::Infuse { fee } => {
+                if let Some(o) = &mut self.online {
+                    o.net.send_control(FromClient::Infuse { fee });
+                }
+            }
         }
     }
 

@@ -473,6 +473,8 @@ struct HubSlot {
     stacks: Vec<StackReading>,
     /// Its item bar, from the same reading (LOOK.md 3.2): the template on each cell.
     bar: Vec<Option<String>>,
+    /// Its Essence, from the same reading (SKILLS.md 4).
+    essence: Option<gm_hub_proto::protocol::Essence>,
 }
 
 /// An invitation for a character that has no body here yet is kept this long (the

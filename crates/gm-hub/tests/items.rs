@@ -1036,7 +1036,7 @@ async fn what_is_worn_is_the_hub_s_and_changes_through_the_zone() {
             both += 1;
         }
         let latest = readings.iter().max_by_key(|r| r.seq).unwrap();
-        let (_, held, _, _, _) = direct.gear(smith, &items).await.unwrap();
+        let held = direct.gear(smith, &items).await.unwrap().gear;
         assert_eq!(
             latest.gear, held,
             "round {round}: the readings {readings:?} against what the hub holds"
@@ -1223,7 +1223,8 @@ async fn stacks_merge_to_the_cap_and_are_spent_through_the_zone() {
 
     // The reading carries the stacks, as a zone takes them, and the item bar (LOOK.md
     // 3.2): never arranged, it is the kit on the first cell.
-    let (_, _, _, stacks, bar) = direct.gear(smith, &items).await.unwrap();
+    let r = direct.gear(smith, &items).await.unwrap();
+    let (stacks, bar) = (r.stacks, r.bar);
     let find = |stacks: &[gm_hub::economy::Stack], t: &str| {
         stacks
             .iter()
@@ -1238,7 +1239,7 @@ async fn stacks_merge_to_the_cap_and_are_spent_through_the_zone() {
         econ(&smith_conn, smith_s, smith, EconOp::Bar).await,
         Ok(EconReply::Bar(kit_first.clone()))
     );
-    let (_, _, _, _, bar) = direct.gear(other, &items).await.unwrap();
+    let bar = direct.gear(other, &items).await.unwrap().bar;
     assert_eq!(bar, vec![None; 4], "nothing carried, nothing on the bar");
     // Arranged by the player: kept as set, even for a stack not carried; gear is refused,
     // and so is a bar of another size.
@@ -1264,7 +1265,7 @@ async fn stacks_merge_to_the_cap_and_are_spent_through_the_zone() {
         econ(&smith_conn, smith_s, smith, EconOp::Bar).await,
         Ok(EconReply::Bar(arranged.clone()))
     );
-    let (_, _, _, _, bar) = direct.gear(smith, &items).await.unwrap();
+    let bar = direct.gear(smith, &items).await.unwrap().bar;
     assert_eq!(bar, arranged);
     assert!(matches!(
         econ(

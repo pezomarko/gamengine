@@ -109,7 +109,8 @@ fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
     assert_eq!(o.server.orders_refused, b.orders_refused as u64);
     assert_eq!(o.server.orders + o.server.orders_refused, b.orders as u64);
 
-    // The kill: the standard list and the coin to the one human; the leader's trial.
+    // The kill: the standard list and the coin to the one human; the leader's trial and
+    // the rite (SKILLS.md 4).
     assert_eq!(b.loot, ["core/iron", "frame/ash", "catalyst/basalt"]);
     assert_eq!(b.coin, 30);
     assert_eq!(o.server.loot_items, 3);
@@ -119,13 +120,13 @@ fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
         .filter(|t| t.1)
         .map(|t| t.0.as_str())
         .collect();
-    assert_eq!(passed, ["warden_leader"], "{:?}", b.trials);
+    assert_eq!(passed, ["warden_leader", "rite"], "{:?}", b.trials);
     assert_eq!(
         b.trials.len(),
-        4,
+        5,
         "every trial of the encounter gave a verdict"
     );
-    assert_eq!(o.server.trials_passed, 1);
+    assert_eq!(o.server.trials_passed, 2);
 
     // The wire: inside the per-player budget with squad sight and health on it, and the
     // command stance predicted (corrections with no visible cause stay rare).

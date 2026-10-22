@@ -19,6 +19,45 @@ const LEGS: usize = 4;
 /// (BODIES.md 3.7).
 const SMALL_PLACE: f32 = 1.0 / 3.0;
 
+/// The Essence (SKILLS.md 4) on what `worn_of` read: the character's `form`, and the
+/// signature when the weapon in the right hand holds it (`in_hand`), the form fits that
+/// weapon and the mode holds its blow.
+pub fn essence_of(
+    worn: &mut Worn,
+    looks: &Looks,
+    pack: &ContentPack,
+    templates: &[String],
+    form: &str,
+    in_hand: bool,
+) {
+    let Some(i) = pack.find(form) else {
+        return;
+    };
+    worn.essence = Some(i);
+    let model = templates
+        .get(RIGHT)
+        .and_then(|t| looks.templates.iter().find(|l| &l.key == t))
+        .and_then(|l| l.model.as_ref());
+    let fits = model.is_some_and(|m| {
+        looks
+            .abilities
+            .iter()
+            .any(|a| a.key == form && a.essence_of.contains(m))
+    });
+    if in_hand && fits && worn.primary.is_some() {
+        worn.signature = Some(i);
+    }
+}
+
+/// The form the Essence takes in a weapon of `model` (SKILLS.md 4), if any.
+pub fn form_for<'a>(looks: &'a Looks, model: &str) -> Option<&'a str> {
+    looks
+        .abilities
+        .iter()
+        .find(|a| a.essence_of.iter().any(|m| m == model))
+        .map(|a| a.key.as_str())
+}
+
 /// The `Worn` of `build` in `templates` (the hub's six, by place; empty for nothing).
 ///
 /// - **The right hand** (GEAR.md 2): the primary whose prop is the weapon's model. Of
@@ -211,6 +250,43 @@ mod tests {
         assert_eq!(
             worn_of(&looks, &pack, &blade, &six("sword", "sword")).guard,
             None
+        );
+    }
+
+    #[test]
+    fn the_essence_is_a_signature_only_in_a_weapon_of_its_form_in_hand() {
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let by = |k: &str| pack.find(k).unwrap();
+        let with = |right: &str, in_hand: bool| {
+            let templates = six(right, "");
+            let mut worn = worn_of(&looks, &pack, &blade, &templates);
+            essence_of(&mut worn, &looks, &pack, &templates, "break_armor", in_hand);
+            worn
+        };
+        let worn = with("sword", true);
+        assert_eq!(
+            (worn.essence, worn.signature),
+            (Some(by("break_armor")), Some(by("break_armor")))
+        );
+        assert_eq!(with("sword", false).signature, None, "in another sword");
+        assert_eq!(with("hammer", true).signature, None, "not its form");
+        assert_eq!(with("hammer", true).essence, Some(by("break_armor")));
+        assert_eq!(form_for(&looks, "katana"), Some("break_armor"));
+        assert_eq!(form_for(&looks, "wand"), Some("sanctuary"));
+        assert_eq!(form_for(&looks, "musket"), None);
+        // The kit takes it after the spell.
+        let kit = gm_core::build::Kit::from_build(&blade, &with("sword", true), &pack);
+        let ids: Vec<u16> = kit
+            .actives
+            .iter()
+            .flatten()
+            .map(|&i| kit.abilities[i as usize].id.0 - 1)
+            .collect();
+        assert_eq!(
+            ids[1..3],
+            [by("illusion_slash"), by("break_armor")],
+            "{ids:?}"
         );
     }
 

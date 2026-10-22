@@ -77,9 +77,10 @@ Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-m
   Sanctuary becomes Healing Spring, the wand's form. Signatures cost a share of 600.
 - Hub: migration 0020, `characters.essence_form` and `characters.essence_item`. A `rite`
   trial (dungeon, warden, no conditions): its first pass awakens the Essence in the worn
-  weapon if that weapon has a form. `ZoneEconOp::Infuse { character, item, fee }`: the
-  smith moves it to another weapon of the same form for `ESSENCE_FEE` (10 silver) to the
-  sink. `GearReading.essence`: the form when the worn weapon holds it.
+  weapon if that weapon has a form. `ZoneEconOp::Infuse { character, fee }`: the smith
+  moves it into the weapon in hand, of the same form, for `ESSENCE_FEE` (20 silver, a plain
+  sword's forging) to the sink. `GearReading.essence`: the form and whether the weapon in
+  hand holds it. Healing Spring's zone lasts 10 s, the limit of an area.
 - Core and zone: `Worn.signature`, put after the spell by `kit_slots` (the third active:
   keys 3, 5 and 6, as the hotbar has them). `Mover::rearm` carries each cooldown over by
   `AbilityId` to wherever that ability sits in the new kit, so a swap resets nothing.
@@ -129,6 +130,12 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of step 4. Taken: an ability that leaves the kit while cooling
+waits aside (`Mover.away`) and comes back as it was, so swapping weapons away and back
+resets no signature. Not taken: "the zone refits with the old Essence" (the slot takes the
+reading's before the refit) and "the infusion's reading is dropped" (its argument is the
+item, not the order).
 
 Gemini 3.1 Pro on the code of step 3. Taken: the dash test's name. Not taken: "Mend at 4 as
 the plan said": the plan follows the measurement now.

@@ -958,8 +958,9 @@ impl App {
         o.worn = worn;
         if let (Some(pack), Some(c)) = (&o.pack, &mut o.client) {
             let sheet = Sheet::wearing(c.sheet.build.clone(), o.worn.clone(), pack, o.team);
+            let was = c.sheet.kit.clone();
             c.set_sheet(sheet);
-            c.mover.rearm(&c.sheet);
+            c.mover.rearm(&was, &c.sheet, c.tick);
             let name = |i: Option<u8>| {
                 i.and_then(|i| c.sheet.kit.abilities.get(i as usize))
                     .map_or("nothing", |a| a.name.as_str())

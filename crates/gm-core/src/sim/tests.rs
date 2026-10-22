@@ -1240,7 +1240,7 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
         (o - Vec3::new(300.0, 0.0, 0.0)).length() < 1.0,
         "under the ally: {o:?}"
     );
-    // It heals who stands in it, 6/s while they stay.
+    // It heals who stands in it, 4/s while they stay (Healing Spring, SKILLS.md 4).
     run(
         &mut zone,
         &world,
@@ -1248,10 +1248,7 @@ fn an_aimed_area_lands_under_the_first_body_or_surface_on_the_view_ray() {
         130,
     );
     let healed = zone.player(ally).unwrap().health - (zone.player(ally).unwrap().max_health() - 25);
-    assert!(
-        (12..=18).contains(&healed),
-        "healed {healed} in two seconds"
-    );
+    assert!((8..=12).contains(&healed), "healed {healed} in two seconds");
 
     // At the floor: where the ray meets it. Into the sky: the point at the range, dropped.
     for (pitch, expect_x) in [
@@ -4646,4 +4643,41 @@ fn a_share_cost_takes_its_part_of_the_pool() {
         "{} of {max}",
         p.mover.stamina
     );
+}
+
+#[test]
+fn a_rearm_keeps_the_cooldowns_of_what_stays_in_the_kit() {
+    let world = BoxWorld::floor();
+    let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
+    let build = zone.content.build("blade").unwrap().clone();
+    let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
+    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 8);
+    let p = zone.player_mut(a).unwrap();
+    let skill = p.sheet.kit.actives[0].unwrap() as usize;
+    let id = p.sheet.kit.abilities[skill].id;
+    p.mover.cooldowns[skill] = 9999;
+    let was = p.sheet.kit.clone();
+    let mut kit = was.clone();
+    kit.abilities.rotate_left(1);
+    let sheet = crate::build::Sheet {
+        kit,
+        ..p.sheet.clone()
+    };
+    let tick = p.last_input_tick;
+    p.mover.rearm(&was, &sheet, tick);
+    let now = sheet
+        .kit
+        .abilities
+        .iter()
+        .position(|ab| ab.id == id)
+        .unwrap();
+    assert_eq!(p.mover.cooldowns[now], 9999);
+    assert_eq!(p.mover.cooldowns.iter().filter(|&&c| c == 9999).count(), 1);
+    // Out of the kit and back: it waits aside meanwhile.
+    let mut without = sheet.clone();
+    without.kit.abilities.remove(now);
+    p.mover.rearm(&sheet.kit, &without, tick);
+    assert!(!p.mover.cooldowns.contains(&9999));
+    p.mover.rearm(&without.kit, &sheet, tick);
+    assert_eq!(p.mover.cooldowns[now], 9999);
 }

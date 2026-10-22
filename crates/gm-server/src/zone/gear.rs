@@ -268,6 +268,16 @@ impl Run {
         };
         let mut worn =
             gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
+        if let Some(e) = self.hub_slots.get(&body).and_then(|s| s.essence.as_ref()) {
+            gm_content::worn::essence_of(
+                &mut worn,
+                &self.cfg.looks,
+                &self.pack,
+                templates,
+                &e.form,
+                e.in_hand,
+            );
+        }
         // The frames' stamina (GEAR.md 6) is the hub's reading of the materials, set into
         // the body before this is asked; the client predicts with it, so it rides in `Worn`.
         worn.stamina_blows = p.gear.stamina_blows;
@@ -318,6 +328,19 @@ impl Run {
                             slot.worn = reading.templates.clone();
                             slot.stacks = reading.stacks.clone();
                             slot.bar = reading.bar.clone();
+                            if slot.essence.is_none()
+                                && let Some(e) = &reading.essence
+                                && let Some(s) = self.sessions.get(&body)
+                            {
+                                let name = self.pack.find(&e.form).map_or(e.form.as_str(), |i| {
+                                    self.pack.abilities[i as usize].ability.name.as_str()
+                                });
+                                s.send_control(FromZone::ChatFrom {
+                                    from: 0,
+                                    text: format!("The Essence wakes in your weapon: {name}."),
+                                });
+                            }
+                            slot.essence = reading.essence.clone();
                         }
                         self.zone.set_gear(body, reading.gear);
                         self.zone
