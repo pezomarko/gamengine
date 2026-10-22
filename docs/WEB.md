@@ -205,12 +205,20 @@ resynchronises from the next snapshot; after it, it shows the kick.
 
 ### 3.4 Keys the browser keeps for itself
 
-`Ctrl+W` closes a tab and cannot be prevented by a page, and the crouch is on `Ctrl` (every
-mode's since 2026-10-22, MODES.md 12; the action mode's guard was, until then) while `W`
-runs forward. So: the FPS mode's crouch is also on `X`, and the action mode's guard is on
-`X` alone, on every platform (`C` until 2026-10-22, when `C` became the character sheet's
-key, MATRIX.md 23); the page asks before unloading while the
-client runs (`beforeunload`); and the page's "fullscreen" control requests fullscreen and,
+`Ctrl+W` closes a tab and cannot be prevented by a page, and natively the crouch is on
+`Ctrl` (every mode's since 2026-10-22, MODES.md 12; the action mode's guard was, until
+then) while `W` runs forward. So in a browser Shift and Ctrl trade places (the director's
+word of 2026-10-22, after a held `Ctrl+W` closed his tab: the page's question before
+unloading has "Leave" focused, and his next Space left): Shift crouches in every mode, and
+Space after it is the action mode's crouch-jump; Ctrl does what Shift does natively, the gun
+mode's walk, the action mode's first ability, the RPG mode's guard (`SHIFT_CROUCHES` in
+`app/input.rs`; the RPG hotbar's guard cell and the Keys page name the key). A `W` pressed
+while Ctrl is held for one of those still closes the tab, and `Ctrl+Tab`, the RPG mode's
+guard with its next enemy, changes tabs. Also: the FPS mode's crouch is on `X` beside the
+crouch's key, and the action mode's guard is on `X` alone, on every platform (`C` until
+2026-10-22, when `C` became the character sheet's key, MATRIX.md 23); the page asks before
+unloading while the client runs (`beforeunload`); and the page's "fullscreen" control
+requests fullscreen and,
 where the browser has it (Chromium), the Keyboard Lock API, under which `Ctrl+W`, `Tab` and
 `Esc` reach the game (leaving fullscreen is then a long press of `Esc`). A browser gives the
 pointer only to a click: the first click on the canvas takes it, `Esc` releases it (the

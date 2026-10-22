@@ -864,7 +864,10 @@ body moves at a third of its pace.
   now; Ctrl guarded until today), nothing in the RPG mode (Shift guards there). The action
   mode's Space is the dodge while the kit's dash is ready (4.6); with Ctrl held it is a
   jump, so Ctrl then Space (or both at once) is a crouch-jump there with the dash ready or
-  not. A phone has no crouch button yet.
+  not. A phone has no crouch button yet. In a browser Shift and Ctrl trade places (the
+  director's word the same evening, WEB.md 3.4): Shift crouches, Shift then Space is the
+  crouch-jump, and Ctrl does Shift's part (the gun's walk, the first ability, the RPG
+  guard).
 - **A hull half as tall**: `Hull::Crouch`, 32 × 32 × 28, standing on the player's feet
   (mins −24, maxs +4 about the origin), so every "feet = origin + mins" stays true in both
   postures and nothing new goes on the wire. qbsp builds the clip hulls a target game names

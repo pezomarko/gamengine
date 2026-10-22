@@ -276,7 +276,7 @@ The HUD as before, and:
   3.2, arranged by drag), **O** the equipment (EQUIPMENT.md 4: the body with its places,
   beside the bag when that is up), **C** the character sheet (EQUIPMENT.md 4.6: the
   equipment with every stat beside it; `X` holds the guard and the crouch `C` held, and
-  since 2026-10-22 Ctrl crouches in every mode, MODES.md 12), and
+  since 2026-10-22 Ctrl crouches in every mode, Shift in a browser, MODES.md 12), and
   **E** the stall the body stands at (ITEMS.md 6): screens like the menu's, with the body
   standing while one is up.
 - **K** opens the character (MATRIX.md 20, since 2026-10-20): a sheet, read, never
