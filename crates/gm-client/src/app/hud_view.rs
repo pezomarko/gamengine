@@ -155,10 +155,11 @@ pub(crate) fn hotbar(o: &Online) -> Vec<HotbarCell> {
         cells.extend(item_cells(o, c));
         return cells;
     }
-    // The RPG mode's keys (MODES.md 5.5): the kit on 1 to 6, the guard on Shift.
+    // The RPG mode's keys (MODES.md 5.5): the kit on 1 to 6, the guard on Shift (Ctrl in
+    // a browser, WEB.md 3.4).
     let rpg = kit.mode == gm_core::vocab::Mode::Rpg;
     let keys: [&'static str; 7] = if rpg {
-        ["1", "2", "Shift", "3", "4", "5", "6"]
+        ["1", "2", SHIFT_PART_KEY, "3", "4", "5", "6"]
     } else {
         ["LMB", "RMB", "X", "1", "2", "3", "4"]
     };
@@ -1240,6 +1241,58 @@ mod kit_tests {
         assert!(dodge.buttons & buttons::JUMP == 0);
         let jump = space(true);
         assert_eq!(jump.ability, 0);
+        assert!(jump.buttons & buttons::JUMP != 0 && jump.buttons & buttons::CROUCH != 0);
+    }
+
+    /// WEB.md 3.4: in a browser Shift crouches in every mode and Ctrl does what Shift does
+    /// natively: the action mode's first ability, the RPG mode's guard, the gun's walk at
+    /// half speed; and Shift then Space is the action mode's crouch-jump.
+    #[test]
+    fn in_a_browser_shift_crouches_and_ctrl_does_shifts_part() {
+        let browser = |keys: &[KeyCode]| {
+            let mut input = Input {
+                shift_crouches: true,
+                ..Input::default()
+            };
+            input.keys.extend(keys.iter().copied());
+            input
+        };
+        let rpg = Some(crate::rpg::RpgFrame::default());
+        for (mode, gun, rpg) in [
+            ("action", false, None),
+            ("fps", true, None),
+            ("rpg", false, rpg),
+        ] {
+            let shift = browser(&[KeyCode::ShiftLeft]).sim_input(0.0, 0.0, 0.0, None, gun, rpg);
+            assert!(
+                shift.buttons & buttons::CROUCH != 0,
+                "{mode}: Shift crouches"
+            );
+            let ctrl = browser(&[KeyCode::ControlLeft]).sim_input(0.0, 0.0, 0.0, None, gun, rpg);
+            assert!(ctrl.buttons & buttons::CROUCH == 0, "{mode}: Ctrl does not");
+        }
+        let ctrl = |gun, rpg| {
+            browser(&[KeyCode::ControlLeft, KeyCode::KeyW]).sim_input(0.0, 0.0, 0.0, None, gun, rpg)
+        };
+        assert!(
+            ctrl(false, None).buttons & buttons::ABILITY1 != 0,
+            "the action mode's first ability"
+        );
+        assert!(
+            ctrl(false, rpg).buttons & buttons::GUARD != 0,
+            "the RPG mode's guard"
+        );
+        assert_eq!(ctrl(true, None).forward, 0.5, "the gun's walk");
+        assert_eq!(
+            browser(&[KeyCode::KeyW])
+                .sim_input(0.0, 0.0, 0.0, None, true, None)
+                .forward,
+            1.0
+        );
+        let mut jump = browser(&[KeyCode::ShiftLeft, KeyCode::Space]);
+        jump.just_pressed.insert(KeyCode::Space);
+        let jump = jump.sim_input(0.0, 0.0, 0.0, Some(2), false, None);
+        assert_eq!(jump.ability, 0, "no dash");
         assert!(jump.buttons & buttons::JUMP != 0 && jump.buttons & buttons::CROUCH != 0);
     }
 

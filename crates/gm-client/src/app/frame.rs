@@ -424,9 +424,7 @@ impl App {
                 gm_core::sim::anim::IDLE
             },
             // Offline there is no mover: the keys draw the squat, on the ground or off it.
-            crouched: self.input.down(KeyCode::ControlLeft)
-                || self.input.down(KeyCode::ControlRight)
-                || self.input.down(KeyCode::KeyX),
+            crouched: self.input.crouch_and_shift().0 || self.input.down(KeyCode::KeyX),
             frame: 1,
             aspects: 0,
             status: 0,

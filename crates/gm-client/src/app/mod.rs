@@ -76,8 +76,8 @@ mod window;
 
 use frame::*;
 use hud_view::*;
-pub(crate) use input::BAR_KEYS;
 use input::*;
+pub(crate) use input::{BAR_KEYS, CROUCH_KEY, SHIFT_CROUCHES};
 use looks::*;
 use online::*;
 #[cfg(target_arch = "wasm32")]

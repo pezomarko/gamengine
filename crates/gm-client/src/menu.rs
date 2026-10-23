@@ -7,6 +7,7 @@ use gm_hub_proto::player::{PlayerRequest, PlayerResponse};
 use gm_hub_proto::protocol::{SessionId, ZoneSummary};
 use web_time::Instant;
 
+use crate::app::{CROUCH_KEY, SHIFT_CROUCHES};
 use crate::hub::{Answer, HubApi, Pending};
 use crate::settings::{SENSITIVITY_RANGE, Settings};
 use crate::ui::{self, Canvas, Column, Field, Key, ListEvent, Rect, Ui};
@@ -192,8 +193,16 @@ impl GameMenu {
             ("mouse", "look around"),
             ("left button", "the primary attack"),
             ("right button", "the secondary"),
-            ("X or Ctrl", "guard"),
-            ("1 2 3 4", "the actives (Shift is 1)"),
+            (CROUCH_KEY, "crouch, and the crouch-jump"),
+            ("X", "guard; crouch, with a gun"),
+            (
+                "1 2 3 4",
+                if SHIFT_CROUCHES {
+                    "the actives (Ctrl is 1)"
+                } else {
+                    "the actives (Shift is 1)"
+                },
+            ),
             ("Space", "dodge, while the dash is ready"),
             ("R", "reload (gun)"),
             ("Insert or Z", "sit and rest; again to stand"),

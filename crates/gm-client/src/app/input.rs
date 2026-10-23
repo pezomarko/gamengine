@@ -1,6 +1,14 @@
 use super::*;
 
-#[derive(Default)]
+/// In a browser Shift crouches and Ctrl does what Shift does natively (the gun mode's walk,
+/// the action mode's first ability, the RPG mode's guard): a tab keeps Ctrl+W from every
+/// page, and the crouch is held while W runs forward (WEB.md 3.4, the director's word of
+/// 2026-10-22). Natively Ctrl crouches.
+pub(crate) const SHIFT_CROUCHES: bool = cfg!(target_arch = "wasm32");
+/// The crouch's key as the screens name it, and the key that does Shift's part.
+pub(crate) const CROUCH_KEY: &str = if SHIFT_CROUCHES { "Shift" } else { "Ctrl" };
+pub(crate) const SHIFT_PART_KEY: &str = if SHIFT_CROUCHES { "Ctrl" } else { "Shift" };
+
 pub(super) struct Input {
     pub(super) keys: HashSet<KeyCode>,
     /// Keys pressed since the last simulation tick (consumed by the next tick).
@@ -15,11 +23,41 @@ pub(super) struct Input {
     /// knife) and whether the scope is up (the secondary button toggles it).
     pub(super) held: u8,
     pub(super) scoped: bool,
+    /// `SHIFT_CROUCHES`, a field so that a test can hold a browser's keys natively.
+    pub(super) shift_crouches: bool,
+}
+
+impl Default for Input {
+    fn default() -> Self {
+        Self {
+            keys: HashSet::new(),
+            just_pressed: HashSet::new(),
+            mouse: HashSet::new(),
+            mouse_dx: 0.0,
+            mouse_dy: 0.0,
+            stick: None,
+            held: 0,
+            scoped: false,
+            shift_crouches: SHIFT_CROUCHES,
+        }
+    }
 }
 
 impl Input {
     pub(super) fn down(&self, k: KeyCode) -> bool {
         self.keys.contains(&k)
+    }
+
+    /// Whether the crouch's key is held, and whether Shift's part is: Ctrl and Shift
+    /// natively, the other way round in a browser (`SHIFT_CROUCHES`).
+    pub(super) fn crouch_and_shift(&self) -> (bool, bool) {
+        let ctrl = self.down(KeyCode::ControlLeft) || self.down(KeyCode::ControlRight);
+        let shift = self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight);
+        if self.shift_crouches {
+            (shift, ctrl)
+        } else {
+            (ctrl, shift)
+        }
     }
 
     pub(super) fn axes(&self) -> (f32, f32) {
@@ -47,10 +85,10 @@ impl Input {
     /// The frame's input. `yaw` is the aim; `walk` the yaw the keys walk along, the
     /// camera's (the action mode re-aims the frame through the crosshair, MODES.md 4.1).
     /// `dodge` is the active slot (1-based) Space plays instead of a jump (MODES.md 4.6):
-    /// the kit's dash, while it is ready. Ctrl crouches in every mode (MODES.md 3.5). In the
-    /// gun mode (MODES.md 3.7) `1 2 3` take the gun, the pistol and the knife in hand,
-    /// `4`–`7` are the actives, Shift walks, `R` reloads and the secondary button is the
-    /// scope.
+    /// the kit's dash, while it is ready. Ctrl crouches in every mode (MODES.md 3.5), Shift
+    /// in a browser, where Ctrl does Shift's part (`SHIFT_CROUCHES`). In the gun mode
+    /// (MODES.md 3.7) `1 2 3` take the gun, the pistol and the knife in hand, `4`–`7` are
+    /// the actives, Shift walks, `R` reloads and the secondary button is the scope.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn sim_input(
         &mut self,
@@ -71,11 +109,10 @@ impl Input {
             None => (0, 0),
         };
         // Ctrl crouches in every mode since 2026-10-22 (MODES.md 3.5); a browser's tab keeps
-        // Ctrl+W, so the page asks before it closes, Chromium gives it to the game in
-        // fullscreen and installed as an app (WEB.md 3.4, 3.8), and the FPS mode keeps `X`
-        // beside it.
-        let ctrl = self.down(KeyCode::ControlLeft) || self.down(KeyCode::ControlRight);
-        if ctrl {
+        // Ctrl+W, so there Shift crouches and Ctrl does Shift's part (`SHIFT_CROUCHES`,
+        // WEB.md 3.4); the FPS mode keeps `X` beside the crouch's key.
+        let (crouch, shift) = self.crouch_and_shift();
+        if crouch {
             kit |= buttons::CROUCH;
         }
         // `Insert` sits, as in Tales of Pirates; `Z` for keyboards without one (SKILLS.md 2).
@@ -83,11 +120,11 @@ impl Input {
             kit |= buttons::SIT;
         }
         if let Some(r) = rpg {
-            return self.rpg_input(yaw, pitch, r, kit, use_slot);
+            return self.rpg_input(yaw, pitch, r, kit, shift, use_slot);
         }
-        // A crouching body jumps on Space rather than dodging (MODES.md 12): Ctrl then
-        // Space is the action mode's crouch-jump, the dash ready or not.
-        let dodge = if ctrl { None } else { dodge };
+        // A crouching body jumps on Space rather than dodging (MODES.md 12): the crouch's
+        // key then Space is the action mode's crouch-jump, the dash ready or not.
+        let dodge = if crouch { None } else { dodge };
         let (mut forward, mut side) = self.axes();
         let mut b = kit;
         let dodged = dodge.is_some() && self.just_pressed.contains(&KeyCode::Space);
@@ -103,7 +140,6 @@ impl Input {
         // `X` holds what `C` held until 2026-10-22, when `C` became the character sheet's
         // key (MATRIX.md 23): the action mode's guard, the gun mode's crouch beside Ctrl.
         let x = self.down(KeyCode::KeyX);
-        let shift = self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight);
         let mut ability = if gun {
             self.gun_keys(&mut b, &mut forward, &mut side, x, shift)
         } else {
@@ -133,21 +169,22 @@ impl Input {
     }
 
     /// The RPG mode (MODES.md 5.5): `1` the primary, `2` the secondary, `3`–`6` the
-    /// actives, Shift guards, Space jumps, Ctrl crouches (in `kit`); the axes are the
-    /// walk's when none is held.
+    /// actives, Shift guards (Ctrl in a browser: `shift`), Space jumps, Ctrl crouches (in
+    /// `kit`, Shift in a browser); the axes are the walk's when none is held.
     fn rpg_input(
         &mut self,
         yaw: f32,
         pitch: f32,
         r: crate::rpg::RpgFrame,
         kit: u16,
+        shift: bool,
         use_slot: u8,
     ) -> SimInput {
         let mut b = r.buttons | kit;
         if self.down(KeyCode::Space) {
             b |= buttons::JUMP;
         }
-        if self.down(KeyCode::ShiftLeft) || self.down(KeyCode::ShiftRight) {
+        if shift {
             b |= buttons::GUARD;
         }
         self.just_pressed.clear();
@@ -166,7 +203,8 @@ impl Input {
 
     /// The gun mode's keys (MODES.md 3.7): `1 2 3` take a weapon in hand (and drop the
     /// scope), `4`–`7` are the actives, `X` crouches as Ctrl does, Shift walks at half
-    /// speed, the scope stays up while toggled. Returns the active pressed.
+    /// speed (Shift and Ctrl trade places in a browser), the scope stays up while toggled.
+    /// Returns the active pressed.
     fn gun_keys(
         &mut self,
         b: &mut u16,
@@ -208,7 +246,7 @@ impl Input {
 
     /// The action mode's keys: the right button is the secondary, `X` guards (Ctrl did
     /// until 2026-10-22, when it became every mode's crouch, MODES.md 3.5), Shift is the
-    /// first ability, `1`–`4` the actives. Returns the active pressed.
+    /// first ability (Ctrl in a browser), `1`–`4` the actives. Returns the active pressed.
     fn action_keys(&mut self, b: &mut u16, x: bool, shift: bool) -> u8 {
         if self.mouse.contains(&MouseButton::Right) {
             *b |= buttons::SECONDARY;
@@ -375,6 +413,7 @@ impl App {
                     .and_then(|o| hotbar(o).get(i as usize).map(|c| c.key));
                 match key {
                     Some("Shift") => self.hold_key(KeyCode::ShiftLeft, down),
+                    Some("Ctrl") => self.hold_key(KeyCode::ControlLeft, down),
                     Some("X") => self.hold_key(KeyCode::KeyX, down),
                     Some("LMB") if down => self.press_in_game(MouseButton::Left),
                     Some("LMB") => {
