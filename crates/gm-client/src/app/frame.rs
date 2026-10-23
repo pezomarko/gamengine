@@ -562,26 +562,38 @@ impl App {
         // browser it is fetched like a prop and lands through `poll`.
         // A body's look (BODIES.md 3.1) goes under the body's index in the pack the zone
         // or the hub sent; one the client has no pack for yet waits for the next frame.
+        // (Whose a row is stands in its own enum, not an `Option<Option<u16>>`: the
+        // wasm32 build of 1.97 matched the frame's row as a body's with a garbage index,
+        // and the striker's look never reached its frame's cell, 2026-10-23.)
         {
+            enum RowOf {
+                Frame,
+                Body(u16),
+                Unknown,
+            }
             let packs = [
                 self.online.as_ref().and_then(|o| o.pack.as_ref()),
                 self.screens.front.as_ref().and_then(|f| f.pack()),
             ];
-            let index_of = |key: &str| -> Option<u16> {
+            let row_of = |body: Option<String>| -> RowOf {
+                let Some(key) = body else {
+                    return RowOf::Frame;
+                };
                 packs
                     .into_iter()
                     .flatten()
-                    .find_map(|p| p.bodies.iter().position(|b| b.key == key).map(|i| i as u16))
+                    .find_map(|p| p.bodies.iter().position(|b| b.key == key))
+                    .map_or(RowOf::Unknown, |i| RowOf::Body(i as u16))
             };
-            let entries: Vec<(u8, String, Option<Option<u16>>)> = self
+            let entries: Vec<(u8, String, RowOf)> = self
                 .content
                 .avatar_entries()
                 .into_iter()
-                .map(|(frame, key, body)| (frame, key, body.map(|b| index_of(&b))))
+                .map(|(frame, key, body)| (frame, key, row_of(body)))
                 .collect();
             let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
-            for (frame, key, body) in entries {
-                if body == Some(None) {
+            for (frame, key, row) in entries {
+                if matches!(row, RowOf::Unknown) {
                     continue;
                 }
                 let slot = self.content.avatar_by_key(&key, |model| {
@@ -591,9 +603,9 @@ impl App {
                     avatars.keep_body(slot, &key, model);
                     Some(slot)
                 });
-                match body {
-                    Some(Some(index)) => avatars.set_body_official(index, slot),
-                    _ => avatars.set_official(frame, slot),
+                match row {
+                    RowOf::Body(index) => avatars.set_body_official(index, slot),
+                    RowOf::Frame | RowOf::Unknown => avatars.set_official(frame, slot),
                 }
             }
         }
