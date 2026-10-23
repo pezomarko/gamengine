@@ -10,6 +10,8 @@
 #   scripts/dev/play.sh status
 #   scripts/dev/play.sh give NAME         coin and a few items for an offline character of yours
 #   scripts/dev/play.sh gm EMAIL          make an account's characters game masters (G in the game: GM.md)
+#   scripts/dev/play.sh rite NAME FORM    the ladder and the rite for an offline character: its Essence in the
+#                                         weapon in its hand, in FORM (break_armor, primal_rage, ... sanctuary)
 #   scripts/dev/play.sh people            respawn the town's people and the arena's duelists (they live 23 h)
 #   scripts/dev/play.sh sellers           the armourer, the weaponsmith and the outfitter on a running stack (people spawns them too)
 #   scripts/dev/play.sh spar [N] [BUILDS] N sparring partners in the town (stand, fight back): tune on them
@@ -106,7 +108,7 @@ start() {
     echo $! >>"$D/pids"
   }
   zone town $((P + 2)) --hz 20
-  zone arena $((P + 4)) --replay-dir "$D/replays"
+  zone arena $((P + 4)) --replay-dir "$D/replays" --requires rite
   zone dungeon $((P + 6)) --squads --recruits ironclad,mender,frostweaver --arrive-at-entry
   sleep 1.5
   printf 'hub = "%s"\nhub_cert = "%s"\n' "$host:$P" "$D/hub.der" >"$D/settings.toml"
@@ -135,6 +137,11 @@ people() {
   need; cd "$R"; hub_up || { echo "start the stack first"; exit 1; }
   bot owners --bots 3 --user 'owner-{i}@bots.test' --register --character 'Avatar{i}' \
     --builds ironclad,mender,frostweaver --zone town --list-for-hire 150 --secs 0
+  # The arena asks for the rite (SKILLS.md 5): the duelists register first, then every bot
+  # passes the ladder's steps and the rite.
+  bot duelists-reg --bots 8 --user 'duelist-{i}@bots.test' --register --character 'Duelist{i}' \
+    --builds ironclad,blade,frostweaver,shade --zone arena --secs 0
+  pass_bots
   # A stall keeper: walks to the first market tile, opens its stall, and lists whatever an
   # operator hands it at 1 s 20 c: the six weapons the presets hold (the crossbow is
   # nobody's since MATRIX.md 15; the hammer is the shaman's again, MATRIX.md 17), one plain
@@ -188,6 +195,8 @@ people() {
     --builds ironclad,blade,frostweaver,shade --zone town --secs $BOT_SECS --behaviour stroll
   spawn duelists --bots 8 --user 'duelist-{i}@bots.test' --register --character 'Duelist{i}' \
     --builds ironclad,blade,frostweaver,shade --zone arena --secs $BOT_SECS --behaviour duelist
+  # The bots made just now: their passes count from their next entry.
+  pass_bots
 }
 
 # The sellers of the equipment (EQUIPMENT.md 10.7 and 10.8; 2026-10-14, the director:
@@ -247,6 +256,9 @@ sellers() {
 spar() {
   need; cd "$R"; hub_up || { echo "start the stack first"; exit 1; }
   local n=${1:-3} builds=${2:-blade,shade,frostweaver}
+  bot spar-reg --bots "$n" --user 'spar-{i}@bots.test' --register --character 'Spar{i}' \
+    --builds "$builds" --zone town --secs 0
+  pass_bots
   spawn spar --bots "$n" --user 'spar-{i}@bots.test' --register --character 'Spar{i}' \
     --builds "$builds" --zone town --secs $BOT_SECS --behaviour spar
   echo "$n sparring partners on their way to the town (log: $D/log/spar.log)"
@@ -288,6 +300,26 @@ give() {
   local who=${1:?the name of a character}
   hubctl --grant-coin "$who" 12345 && hubctl --grant-item "$who" sword core/iron,frame/oak \
     && hubctl --grant-item "$who" cuirass core/iron,frame/oak && hubctl --grant-item "$who" dagger core/iron,frame/oak
+}
+
+# Every character of a bot account passes the ladder's steps and the rite (SKILLS.md 5).
+pass_bots() {
+  psql "$URL" -qc "insert into trials (character_id, trial, zone, secs) select c.id, t.trial, 'play.sh', 0 \
+    from characters c join accounts a on a.id = c.account_id \
+    cross join (values ('yard'), ('gate'), ('hall'), ('rite')) as t (trial) \
+    where a.email like '%@bots.test' on conflict do nothing" >/dev/null
+}
+
+# The ladder and the rite for a character of yours, to try a signature without the dungeon
+# (SKILLS.md 4, 5): its steps passed and its Essence awake in the weapon in its hand, in FORM.
+rite() {
+  local who=${1:?the name of a character} form=${2:?the form: break_armor primal_rage will_of_steel earthshaker tail_wind shadow_slash arrow_rain venom_bolt seal_of_silence sanctuary}
+  psql "$URL" -qc "insert into trials (character_id, trial, zone, secs) select c.id, t.trial, 'play.sh', 0 \
+    from characters c cross join (values ('yard'), ('gate'), ('hall'), ('rite')) as t (trial) \
+    where c.name = '$who' on conflict do nothing" \
+    -c "update characters c set essence_form = '$form', essence_item = \
+    (select item_id from worn w where w.character_id = c.id and w.slot = 'weapon') where c.name = '$who'" >/dev/null \
+    && echo "$who: the ladder passed, the Essence ($form) in the weapon in hand, from the next entry"
 }
 
 # A game master (GM.md 1): the hub's moderator flag on the account; its characters get the
@@ -381,6 +413,7 @@ case "${1:-}" in
   status) status ;;
   give) shift; give "$@" ;;
   gm) shift; gm "$@" ;;
+  rite) shift; rite "$@" ;;
   people) people ;;
   sellers) need; cd "$R"; hub_up || { echo "start the stack first"; exit 1; }; sellers ;;
   spar) shift; spar "$@" ;;

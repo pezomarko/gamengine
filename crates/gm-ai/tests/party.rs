@@ -78,11 +78,14 @@ fn two_humans_of_one_party_are_one_party_to_the_ledger_and_both_are_paid() {
             o.loot
         );
         assert!(a.2.abs_diff(b.2) <= 1, "seed {seed}: {:?}", o.loot);
-        // A trial for one human and its squad is not passed by two.
+        // A trial for one human and its squad is not passed by two; the rite is everyone's
+        // who was there (SKILLS.md 4).
         assert!(
-            o.trials
-                .iter()
-                .all(|(_, passed, why)| !passed && why.contains("players in the party")),
+            o.trials.iter().all(|(key, passed, why)| if key == "rite" {
+                *passed
+            } else {
+                !passed && why.contains("players in the party")
+            }),
             "seed {seed}: {:?}",
             o.trials
         );

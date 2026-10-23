@@ -289,6 +289,14 @@
 ( 1728 544 64 ) ( 1728 160 64 ) ( 1984 160 64 ) trim_dark 0 0 0 1 1
 }
 {
+( 192 768 0 ) ( 192 704 0 ) ( 192 704 40 ) rune_stone 0 0 0 1 1
+( 136 704 40 ) ( 136 704 0 ) ( 136 768 0 ) rune_stone 0 0 0 1 1
+( 136 768 40 ) ( 136 768 0 ) ( 192 768 0 ) rune_stone 0 0 0 1 1
+( 192 704 0 ) ( 136 704 0 ) ( 136 704 40 ) rune_stone 0 0 0 1 1
+( 192 704 40 ) ( 136 704 40 ) ( 136 768 40 ) rune_stone 0 0 0 1 1
+( 136 768 0 ) ( 136 704 0 ) ( 192 704 0 ) rune_stone 0 0 0 1 1
+}
+{
 ( -192 384 0 ) ( -192 320 0 ) ( -192 320 44 ) trim_dark 0 0 0 1 1
 ( -256 320 44 ) ( -256 320 0 ) ( -256 384 0 ) trim_dark 0 0 0 1 1
 ( -256 384 44 ) ( -256 384 0 ) ( -192 384 0 ) trim_dark 0 0 0 1 1
@@ -432,6 +440,18 @@
 "_color" "255 90 50"
 }
 {
+"classname" "light"
+"origin" "160 736 120"
+"light" "220"
+"_color" "120 230 210"
+}
+{
+"classname" "light"
+"origin" "-1728 320 48"
+"light" "200"
+"_color" "255 150 60"
+}
+{
 "classname" "gm_spawn"
 "origin" "-1856 -96 40"
 "angle" "0"
@@ -492,17 +512,45 @@
 }
 {
 "classname" "gm_creature"
-"origin" "96 480 25"
+"origin" "-1216 32 25"
 "angle" "180"
-"creature" "sentinel"
+"creature" "shieldbearer"
 "encounter" "gate"
 }
 {
 "classname" "gm_creature"
-"origin" "96 608 25"
+"origin" "-352 448 25"
 "angle" "180"
-"creature" "sentinel"
-"encounter" "gate"
+"creature" "cutthroat"
+"encounter" "hall"
+}
+{
+"classname" "gm_creature"
+"origin" "-352 640 25"
+"angle" "180"
+"creature" "cutthroat"
+"encounter" "hall"
+}
+{
+"classname" "gm_creature"
+"origin" "-160 544 25"
+"angle" "180"
+"creature" "cutthroat"
+"encounter" "hall"
+}
+{
+"classname" "gm_creature"
+"origin" "512 480 89"
+"angle" "180"
+"creature" "venomer"
+"encounter" "antechamber"
+}
+{
+"classname" "gm_creature"
+"origin" "512 608 89"
+"angle" "180"
+"creature" "venomer"
+"encounter" "antechamber"
 }
 {
 "classname" "gm_creature"
@@ -510,4 +558,12 @@
 "angle" "180"
 "creature" "warden"
 "encounter" "warden"
+}
+{
+"classname" "gm_shrine"
+"origin" "112 736 0"
+}
+{
+"classname" "gm_campfire"
+"origin" "-1728 320 0"
 }

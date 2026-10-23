@@ -19,6 +19,45 @@ const LEGS: usize = 4;
 /// (BODIES.md 3.7).
 const SMALL_PLACE: f32 = 1.0 / 3.0;
 
+/// The Essence (SKILLS.md 4) on what `worn_of` read: the character's `form`, and the
+/// signature when the weapon in the right hand holds it (`in_hand`), the form fits that
+/// weapon and the mode holds its blow.
+pub fn essence_of(
+    worn: &mut Worn,
+    looks: &Looks,
+    pack: &ContentPack,
+    templates: &[String],
+    form: &str,
+    in_hand: bool,
+) {
+    let Some(i) = pack.find(form) else {
+        return;
+    };
+    worn.essence = Some(i);
+    let model = templates
+        .get(RIGHT)
+        .and_then(|t| looks.templates.iter().find(|l| &l.key == t))
+        .and_then(|l| l.model.as_ref());
+    let fits = model.is_some_and(|m| {
+        looks
+            .abilities
+            .iter()
+            .any(|a| a.key == form && a.essence_of.contains(m))
+    });
+    if in_hand && fits && worn.primary.is_some() {
+        worn.signature = Some(i);
+    }
+}
+
+/// The form the Essence takes in a weapon of `model` (SKILLS.md 4), if any.
+pub fn form_for<'a>(looks: &'a Looks, model: &str) -> Option<&'a str> {
+    looks
+        .abilities
+        .iter()
+        .find(|a| a.essence_of.iter().any(|m| m == model))
+        .map(|a| a.key.as_str())
+}
+
 /// The `Worn` of `build` in `templates` (the hub's six, by place; empty for nothing).
 ///
 /// - **The right hand** (GEAR.md 2): the primary whose prop is the weapon's model. Of
@@ -82,7 +121,7 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
     {
         let holds = |slot: Slot, names: &dyn Fn(&crate::looks::AbilityLook) -> bool| {
             let mut holders: Vec<u16> = Vec::new();
-            for a in looks.abilities.iter().filter(|a| names(a)) {
+            for a in looks.abilities.iter().filter(|a| !a.retired && names(a)) {
                 if let Some(i) = pack.find(&a.key)
                     && let Some(def) = pack.abilities.get(i as usize)
                     && def.slot == slot
@@ -102,14 +141,17 @@ pub fn worn_of(looks: &Looks, pack: &ContentPack, build: &Build, templates: &[St
         // The weapon's spell (BODIES.md 7.2): among the actives whose `spell_of` names
         // the weapon, the build's own when it holds one, else the first of the body's
         // element; a weapon of no element carries none.
-        let spells = holds(Slot::Active, &|a| a.spell_of.contains(model));
-        let own = build
-            .actives
-            .iter()
-            .copied()
-            .find(|i| spells.contains(i))
-            .unwrap_or(u16::MAX);
-        worn.spell = pick(&spells, own);
+        // A weapon whose blow the mode does not hold brings no spell either.
+        if worn.primary.is_some() {
+            let spells = holds(Slot::Active, &|a| a.spell_of.contains(model));
+            let own = build
+                .actives
+                .iter()
+                .copied()
+                .find(|i| spells.contains(i))
+                .unwrap_or(u16::MAX);
+            worn.spell = pick(&spells, own);
+        }
     }
     if let Some(t) = template(LEFT) {
         if !gun
@@ -209,6 +251,83 @@ mod tests {
             worn_of(&looks, &pack, &blade, &six("sword", "sword")).guard,
             None
         );
+    }
+
+    #[test]
+    fn the_essence_is_a_signature_only_in_a_weapon_of_its_form_in_hand() {
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let by = |k: &str| pack.find(k).unwrap();
+        let with = |right: &str, in_hand: bool| {
+            let templates = six(right, "");
+            let mut worn = worn_of(&looks, &pack, &blade, &templates);
+            essence_of(&mut worn, &looks, &pack, &templates, "break_armor", in_hand);
+            worn
+        };
+        let worn = with("sword", true);
+        assert_eq!(
+            (worn.essence, worn.signature),
+            (Some(by("break_armor")), Some(by("break_armor")))
+        );
+        assert_eq!(with("sword", false).signature, None, "in another sword");
+        assert_eq!(with("hammer", true).signature, None, "not its form");
+        assert_eq!(with("hammer", true).essence, Some(by("break_armor")));
+        assert_eq!(form_for(&looks, "katana"), Some("break_armor"));
+        assert_eq!(form_for(&looks, "wand"), Some("sanctuary"));
+        assert_eq!(form_for(&looks, "musket"), None);
+        // The kit takes it after the spell.
+        let kit = gm_core::build::Kit::from_build(&blade, &with("sword", true), &pack);
+        let ids: Vec<u16> = kit
+            .actives
+            .iter()
+            .flatten()
+            .map(|&i| kit.abilities[i as usize].id.0 - 1)
+            .collect();
+        assert_eq!(
+            ids[1..3],
+            [by("illusion_slash"), by("break_armor")],
+            "{ids:?}"
+        );
+    }
+
+    #[test]
+    fn the_ladder_locks_the_cells_not_earned() {
+        use gm_core::build::{Kit, locked};
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let worn = |bits| Worn {
+            locked: bits,
+            ..worn_of(&looks, &pack, &blade, &six("sword", ""))
+        };
+        let all = Kit::from_build(&blade, &worn(0), &pack);
+        assert!(all.secondary.is_some() && all.actives[0].is_some());
+        let none = Kit::from_build(
+            &blade,
+            &worn(locked::SECOND | locked::TRICK | locked::SPELL),
+            &pack,
+        );
+        assert!(none.primary.is_some() && none.secondary.is_none());
+        let names = |k: &Kit| {
+            k.actives
+                .iter()
+                .flatten()
+                .map(|&i| k.abilities[i as usize].id.0 - 1)
+                .collect::<Vec<_>>()
+        };
+        let skill = pack.find("overhead").unwrap();
+        let spell = pack.find("illusion_slash").unwrap();
+        assert!(!names(&none).contains(&skill) && !names(&none).contains(&spell));
+        let trick = Kit::from_build(&blade, &worn(locked::SPELL), &pack);
+        assert!(names(&trick).contains(&skill) && !names(&trick).contains(&spell));
+    }
+
+    #[test]
+    fn a_retired_row_is_offered_by_no_weapon() {
+        let (looks, pack) = load();
+        let blade = pack.build("blade").unwrap().clone();
+        let worn = worn_of(&looks, &pack, &blade, &six("dagger", ""));
+        assert!(!worn.techniques.contains(&pack.find("backstab").unwrap()));
+        assert!(worn.techniques.contains(&pack.find("dagger").unwrap()));
     }
 
     #[test]
@@ -323,17 +442,18 @@ mod tests {
         assert_eq!(w("ironclad", "staff", "").secondary, Some(by("stomp")));
         assert_eq!(w("shaman", "staff", "").secondary, Some(by("briar_burst")));
         assert_eq!(w("shade", "staff", "").secondary, Some(by("gust")));
-        assert_eq!(w("shade", "wand", "").secondary, Some(by("gust")));
+        // The wand's second move is Dispel, whatever the body (SKILLS.md 3).
+        assert_eq!(w("shade", "wand", "").secondary, Some(by("dispel")));
         // The blade is Water: the nova; a body of no element gets the sweep.
         assert_eq!(w("blade", "staff", "").secondary, Some(by("chill_wave")));
         // The staff's spell (BODIES.md 7.2): the active of the body's element; the
-        // frostweaver's own nova; nothing for a neutral build or a sword.
+        // frostweaver's own nova; a sword's is Illusion Slash (SKILLS.md 3).
         assert_eq!(w("frostweaver", "staff", "").spell, Some(by("frost_nova")));
         assert_eq!(w("mender", "staff", "").spell, Some(by("thunderclap")));
         assert_eq!(w("ironclad", "staff", "").spell, Some(by("fortify")));
         assert_eq!(w("shaman", "wand", "").spell, Some(by("briar")));
         assert_eq!(w("shade", "staff", "").spell, Some(by("blink")));
-        assert_eq!(w("blade", "sword", "").spell, None);
+        assert_eq!(w("blade", "sword", "").spell, Some(by("illusion_slash")));
         let mut neutral = pack.build("blade").unwrap().clone();
         neutral.aspects = gm_core::matrix::Aspects::NONE;
         assert_eq!(

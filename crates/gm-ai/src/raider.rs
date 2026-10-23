@@ -28,6 +28,12 @@ const POST_RADIUS: f32 = 640.0;
 const REORDER_MS: u32 = 4000;
 /// A second creature seen after the orders went out is answered no sooner than this.
 const RESPLIT_MS: u32 = 1000;
+/// After a post falls the leader sits, and its squad with it (SKILLS.md 2): until the
+/// wounds it is shown have closed and its own MP is back, no sooner than `REST_MIN_MS` (a
+/// caster's MP comes back slower than health, and the leader is not shown it) and no later
+/// than `REST_MAX_MS`.
+const REST_MIN_MS: u32 = 15_000;
+const REST_MAX_MS: u32 = 60_000;
 
 /// What the raider asks of its zone besides its input frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -59,6 +65,9 @@ enum Phase {
         sent: u8,
     },
     Watch,
+    Rest {
+        since: Tick,
+    },
     Done,
 }
 
@@ -155,8 +164,12 @@ impl Raider {
             self.phase = Phase::Done;
             return (self.fighter.idle(s, None), None);
         };
-        // What lives at this post and can be seen, by the raider or through its squad.
-        let near_post = |b: &Body| (b.pos - objective).length() < 1400.0;
+        // What lives at this post and can be seen, by the raider or through its squad: a
+        // creature belongs to the post nearest to it.
+        let near_post = |b: &Body| {
+            let d = (b.pos - objective).length();
+            d < 1400.0 && self.objectives.iter().all(|o| (b.pos - *o).length() >= d)
+        };
         let living: Vec<&Body> = s
             .bodies
             .iter()
@@ -238,7 +251,7 @@ impl Raider {
                 self.at += 1;
                 self.clear_since = None;
                 self.target = None;
-                self.phase = Phase::Advance;
+                self.phase = Phase::Rest { since: s.tick };
                 self.home = Some(me);
             }
         } else {
@@ -247,6 +260,26 @@ impl Raider {
 
         match self.phase {
             Phase::Done => (self.fighter.idle(s, None), None),
+            Phase::Rest { since } => {
+                let rested = tick_delta(s.tick, since);
+                let wounded = s.health_frac() < 0.95
+                    || s.me.focus < s.sheet.derived.focus * 0.95
+                    || squad_bodies
+                        .iter()
+                        .any(|b| b.health_for(party).is_some_and(|h| h < 950));
+                let threat = s
+                    .bodies
+                    .iter()
+                    .any(|b| b.alive && hostile(b) && exposed_to(b));
+                if threat
+                    || rested >= s.ticks(REST_MAX_MS) as i32
+                    || (rested >= s.ticks(REST_MIN_MS) as i32 && !wounded)
+                {
+                    self.phase = Phase::Advance;
+                    return (self.fighter.idle(s, None), None);
+                }
+                (self.fighter.sit(s), None)
+            }
             Phase::Advance => {
                 if let Some(first) = focus.or(seen.first().copied()) {
                     self.phase = Phase::Command {

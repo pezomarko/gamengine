@@ -1,6 +1,6 @@
 //! Phase 7 acceptance, step 1 (COMPANIONS.md 14): on the real tutorial dungeon, a lone
-//! player with three companions clears the gate and the Warden, without a network. The same
-//! run goes over the protocol in `gm-server/tests/dungeon.rs`.
+//! player with three companions clears the ladder's steps (SKILLS.md 5) and the Warden,
+//! without a network. The same run goes over the protocol in `gm-server/tests/dungeon.rs`.
 
 mod common;
 
@@ -69,15 +69,20 @@ fn run_tuned(
     })
 }
 
-/// Tuning aid, not a gate: how the gate goes for a range of sentinel health and both of
-/// the leader's tactics. `cargo test -p gm-ai --release --test dungeon -- --ignored --nocapture`.
+/// Tuning aid, not a gate: how the gate goes for a range of the shield-bearer's health and
+/// both of the leader's tactics. `cargo test -p gm-ai --release --test dungeon -- --ignored
+/// --nocapture`.
 #[test]
 #[ignore]
 fn gate_tuning_matrix() {
-    for health in [420u16, 360, 300, 240] {
+    for health in [240u16, 200, 160, 120] {
         for split in [false, true] {
             let tune = move |pack: &mut ContentPack| {
-                for c in pack.creatures.iter_mut().filter(|c| c.key == "sentinel") {
+                for c in pack
+                    .creatures
+                    .iter_mut()
+                    .filter(|c| c.key == "shieldbearer")
+                {
                     c.health = health;
                 }
             };
@@ -95,7 +100,7 @@ fn gate_tuning_matrix() {
                 secs += gate.unwrap_or(0);
             }
             println!(
-                "sentinel {health} split {split}: {clean}/{seeds} without a reset, {resets} resets, {deaths} deaths, mean clear {:.1} s",
+                "shield-bearer {health} split {split}: {clean}/{seeds} without a reset, {resets} resets, {deaths} deaths, mean clear {:.1} s",
                 secs as f32 / seeds as f32
             );
         }
@@ -111,13 +116,16 @@ fn a_lone_player_with_three_companions_clears_the_dungeon() {
     let mut cleared = 0;
     let mut slowest = 0;
     for &seed in &seeds {
-        let o = run(&REFERENCE, "blade", false, seed, 600);
+        let o = run(&REFERENCE, "blade", false, seed, 720);
         report(&format!("dungeon seed {seed}"), &o);
-        // The gate always falls; it gives nothing.
-        assert!(
-            o.cleared_in("gate").is_some(),
-            "seed {seed}: the gate stands"
-        );
+        // The steps always fall, each passing its trial; they give no loot.
+        for step in ["gate", "hall", "antechamber"] {
+            assert!(
+                o.cleared_in(step).is_some(),
+                "seed {seed}: the {step} stands"
+            );
+            assert!(o.passed(step), "seed {seed}: {step}: {:?}", o.trials);
+        }
         let Some(secs) = o.cleared_in("warden") else {
             continue;
         };
@@ -136,6 +144,7 @@ fn a_lone_player_with_three_companions_clears_the_dungeon() {
             "seed {seed}"
         );
         assert_eq!(*coin, 30, "seed {seed}");
+        assert!(o.passed("rite"), "seed {seed}: {:?}", o.trials);
         // A leader who stayed back and commanded passes the leader's trial and no other.
         if o.party_deaths <= 1 && secs <= 300 {
             assert!(o.passed("warden_leader"), "seed {seed}: {:?}", o.trials);

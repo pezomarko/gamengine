@@ -132,7 +132,7 @@ fn flow(
 // Five minutes of bots over real time, and not repeatable bit for bit: a gate, not a unit
 // test. The nightly dungeon job runs it (`cargo test --test companions -- --ignored`,
 // gates.yml); on a loaded machine it fails at the gate with the raid unfinished.
-#[ignore = "a five-minute bot run over real time: run by the nightly dungeon gate with --ignored"]
+#[ignore = "a twelve-minute bot run over real time: run by the nightly dungeon gate with --ignored"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
     let Ok(url) = std::env::var("GM_TEST_DATABASE_URL") else {
@@ -188,7 +188,7 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
             squads: true,
             recruits: vec!["ironclad".into(), "mender".into(), "frostweaver".into()],
             requires: Vec::new(),
-            seconds: 400,
+            seconds: 760,
         },
         hub_addr,
         hub_cert.clone(),
@@ -202,7 +202,7 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
             squads: false,
             recruits: Vec::new(),
             requires: vec!["warden_leader".into()],
-            seconds: 400,
+            seconds: 760,
         },
         hub_addr,
         hub_cert.clone(),
@@ -270,11 +270,11 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
         HubResponse::Trials(Vec::new())
     );
 
-    // The run: hire the three, enter, lead them through the gate and the Warden.
+    // The run: hire the three, enter, lead them through the steps and the Warden.
     let mut cfg = leader_flow.clone();
     cfg.register = false;
     cfg.hire = 3;
-    cfg.play = Duration::from_secs(330);
+    cfg.play = Duration::from_secs(690);
     let started = std::time::Instant::now();
     let report = run_hub_flow(cfg).await.expect("the leader's run");
     let b = &report.reports[0];
@@ -329,7 +329,10 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
         report.coin, 30,
         "300 granted, 300 paid for hires, 30 dropped"
     );
-    assert_eq!(report.trials, ["warden_leader"]);
+    assert_eq!(
+        report.trials,
+        ["antechamber", "gate", "hall", "rite", "warden_leader"]
+    );
     let (coin, held) = econ.inventory(leader).await.unwrap();
     assert_eq!((coin, held.len()), (30, 3));
     for &avatar in &avatars {
@@ -341,9 +344,17 @@ async fn a_solo_player_clears_the_dungeon_with_three_hired_avatars() {
     assert_eq!(supply.burned, 3 * PRICE * HIRE_BURN_PER_CENT / 100);
     assert_eq!(supply.created, 3 * PRICE + 30);
     assert_eq!(econ.audit().await.unwrap(), 0, "the ledger is sound");
+    let secs_of = |name: &str| b.cleared.iter().find(|c| c.0 == name).unwrap().1;
     assert_eq!(
         db.trials_of(leader).await.unwrap(),
-        vec![("warden_leader".to_string(), warden)]
+        [
+            ("antechamber", secs_of("antechamber")),
+            ("gate", secs_of("gate")),
+            ("hall", secs_of("hall")),
+            ("rite", warden),
+            ("warden_leader", warden)
+        ]
+        .map(|(t, secs)| (t.to_string(), secs))
     );
 
     // The trial opens the keep.

@@ -61,7 +61,7 @@ name = "Elder"
 frame = "caster"
 group = "magic"
 floors = { str = 3, agi = 3, con = 4, int = 6, spr = 9 }
-skill = "sanctuary"
+skill = "purify"
 blurb = "A small old woman. Wards, healing, long statuses on others. Slow to move, weak to hit."
 
 [[body]]

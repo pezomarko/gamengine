@@ -18,6 +18,9 @@ pub(super) struct Hello {
     pub max_players: u32,
 }
 
+/// The trial whose pass wakes the Essence.
+pub const RITE: &str = "rite";
+
 /// `HubRequest::Trial`.
 pub(super) async fn trial(
     hub: &Arc<Hub>,
@@ -55,6 +58,26 @@ pub(super) async fn trial(
     hub.db
         .log(&zone, "trial", &format!("{character} {trial} {secs}s"))
         .await;
+    // A step of the ladder opens a cell of the kit at once (SKILLS.md 5).
+    if gm_hub_proto::protocol::LADDER
+        .iter()
+        .any(|(step, _)| *step == trial)
+    {
+        super::tell_zone_of_items(hub, character).await;
+    }
+    // The rite (SKILLS.md 4): the Essence wakes in the weapon in hand.
+    if trial == RITE
+        && let Some(form) = hub
+            .econ
+            .awaken(character, |t| super::form_of(hub, t))
+            .await
+            .map_err(super::econ_err)?
+    {
+        hub.db
+            .log(&zone, "essence", &format!("{character} {form}"))
+            .await;
+        super::tell_zone_of_items(hub, character).await;
+    }
     Ok(HubResponse::Ok)
 }
 

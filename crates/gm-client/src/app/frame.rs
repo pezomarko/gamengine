@@ -825,12 +825,16 @@ impl App {
             let looks = crate::bag::ItemLooks {
                 manifest: self.content.manifest.as_ref(),
             };
-            let stats = self
+            let mut stats = self
                 .online
                 .as_ref()
                 .and_then(|o| o.client.as_ref())
                 .map(|c| crate::character::stat_rows(&c.sheet.build, &c.sheet.derived))
                 .unwrap_or_default();
+            if let Some((name, in_hand)) = self.online.as_ref().and_then(essence_of) {
+                let sits = if in_hand { "in hand" } else { "not in hand" };
+                stats.push(("Essence".into(), format!("{name}, {sits}")));
+            }
             let wearer = crate::bag::Wearer {
                 name: me,
                 ribbon: &ribbon,
@@ -850,8 +854,9 @@ impl App {
             manifest: self.content.manifest.as_ref(),
         };
         let now = Instant::now();
+        let essence = self.online.as_ref().and_then(essence_of);
         if let (Some(smithy), Some(hub)) = (&mut self.screens.smithy, &self.session.hub) {
-            actions.smithy = smithy.frame(ui, hub, looks, now);
+            actions.smithy = smithy.frame(ui, hub, looks, essence, now);
         } else if let (Some(forge), Some(hub)) = (&mut self.screens.forge, &self.session.hub) {
             actions.forge = forge.frame(ui, hub, looks, now);
         }
@@ -1012,6 +1017,8 @@ impl App {
                 ui.small(w - 16.0, h - 14.0 * ui.scale, ui::FAINT, &hint);
                 if let Some(look) = self.use_hint() {
                     ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, &look);
+                } else if let Some(rest) = self.rest_hint() {
+                    ui.small(w - 16.0, h - 24.0 * ui.scale, ui::TEXT, rest);
                 }
             }
             None => {}
@@ -1302,4 +1309,18 @@ impl App {
         self.act(answered, actions.menu, actions.said, event_loop);
         self.act(clicked, MenuAction::None, None, event_loop);
     }
+}
+
+/// The Essence (SKILLS.md 4): its form's name, and whether the weapon in hand holds it.
+fn essence_of(o: &super::online::Online) -> Option<(String, bool)> {
+    let i = o.worn.essence?;
+    let name = o
+        .pack
+        .as_ref()?
+        .abilities
+        .get(i as usize)?
+        .ability
+        .name
+        .clone();
+    Some((name, o.worn.signature.is_some()))
 }

@@ -66,20 +66,33 @@ impl App {
             .any(|e| e.alive() && of_role(&e.id) && (e.pos - me).length() <= reach)
     }
 
-    /// A forge of the map (ITEMS.md 6.6) is in the own body's reach, by the stall's rule.
-    pub(super) fn forge_in_reach(&self) -> bool {
+    /// One of `points` of the map is in the own body's reach, by the stall's rule.
+    fn in_reach(&self, mut points: impl Iterator<Item = Vec3>) -> bool {
         let Some(c) = self.online.as_ref().and_then(|o| o.client.as_ref()) else {
             return false;
         };
         let feet = c.mover.mv.origin + Vec3::Z * Hull::Player.mins().z;
-        self.forges
-            .iter()
-            .any(|f| gm_net::control::stall_in_reach(f.origin.into(), feet.into()))
+        points.any(|p| gm_net::control::stall_in_reach(p.into(), feet.into()))
     }
 
-    /// What `E` would open where the body stands, and the corner's words for it: the
-    /// forge first, then the smith, then a stall (ITEMS.md 6.6).
+    /// A forge of the map (ITEMS.md 6.6) is in the own body's reach.
+    pub(super) fn forge_in_reach(&self) -> bool {
+        self.in_reach(self.forges.iter().map(|f| f.origin))
+    }
+
+    /// Standing by a campfire (SKILLS.md 5): the corner says how to rest.
+    pub(super) fn rest_hint(&self) -> Option<&'static str> {
+        let c = self.online.as_ref()?.client.as_ref()?;
+        (!c.mover.seated() && self.in_reach(self.campfires.iter().copied()))
+            .then_some("Campfire  Insert sit and rest")
+    }
+
+    /// What `E` would do where the body stands, and the corner's words for it: the shrine
+    /// (SKILLS.md 5), the forge, the smith, then a stall (ITEMS.md 6.6).
     pub(super) fn use_hint(&self) -> Option<String> {
+        if self.in_reach(self.shrines.iter().copied()) {
+            return Some("Shrine  E cleanse".to_string());
+        }
         self.session.hub.as_ref()?;
         if self.forge_in_reach() {
             return Some("Forge  E craft".to_string());
@@ -90,9 +103,13 @@ impl App {
         Self::stall_in_reach(self.online.as_ref()).map(|s| format!("{}'s stall  E look", s.owner))
     }
 
-    /// `E`: the forge, the smith or the stall the body stands at.
+    /// `E`: the shrine, the forge, the smith or the stall the body stands at.
     pub(super) fn open_use(&mut self) {
-        if self.forge_in_reach() {
+        if self.in_reach(self.shrines.iter().copied()) {
+            if let Some(o) = &mut self.online {
+                o.net.send_control(FromClient::Shrine);
+            }
+        } else if self.forge_in_reach() {
             self.open_forge();
         } else if Self::npc_in_reach(self.online.as_ref(), "smith", NPC_REACH) {
             self.open_smithy();
@@ -133,6 +150,11 @@ impl App {
             SmithyAction::Buy { material, price } => {
                 if let Some(o) = &mut self.online {
                     o.net.send_control(FromClient::SmithBuy { material, price });
+                }
+            }
+            SmithyAction::Infuse { fee } => {
+                if let Some(o) = &mut self.online {
+                    o.net.send_control(FromClient::Infuse { fee });
                 }
             }
         }

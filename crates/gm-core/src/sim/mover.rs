@@ -195,6 +195,9 @@ pub struct Mover {
     pub script: Option<Script>,
     /// Tick at which each slot is ready again.
     pub cooldowns: [Tick; MAX_ABILITIES],
+    /// Abilities that left the kit while cooling (`AbilityId`, ready at): a swap back finds
+    /// them as they were (SKILLS.md 4). Id 0 is an empty place.
+    pub away: [(u16, Tick); 4],
     pub dash: Option<Dash>,
     pub guard: GuardState,
     pub statuses: Statuses,
@@ -252,6 +255,7 @@ impl Mover {
             buttons_prev: 0,
             script: None,
             cooldowns: [0; MAX_ABILITIES],
+            away: [(0, 0); 4],
             dash: None,
             guard: GuardState::None,
             statuses: Statuses::default(),
@@ -426,11 +430,31 @@ impl Mover {
     }
 
     /// Forget every running thing (death, respawn); cooldowns survive.
-    /// The body rearmed for another kit (GEAR.md 2): nothing running, no guard, no statuses,
-    /// every cooldown ready, the guns filled for the kit; the pools and the place stand.
-    pub fn rearm(&mut self, sheet: &Sheet) {
+    /// The body rearmed for another kit (GEAR.md 2) at frame tick `now`: nothing running,
+    /// no guard, no statuses, the guns filled for the kit; the pools and the place stand.
+    /// A swap resets no cooldown (SKILLS.md 4): an ability in both kits keeps its own
+    /// wherever it now sits, one that leaves while cooling is set aside until it comes back.
+    pub fn rearm(&mut self, from: &crate::build::Kit, sheet: &Sheet, now: Tick) {
         self.reset_actions();
+        let before = self.cooldowns;
+        let kept = |id| sheet.kit.abilities.iter().any(|a| a.id == id);
+        for (slot, ability) in from.abilities.iter().enumerate().take(MAX_ABILITIES) {
+            if !kept(ability.id) && tick_delta(before[slot], now) > 0 {
+                self.away.rotate_right(1);
+                self.away[0] = (ability.id.0, before[slot]);
+            }
+        }
         self.cooldowns = [0; MAX_ABILITIES];
+        for (slot, ability) in sheet.kit.abilities.iter().enumerate().take(MAX_ABILITIES) {
+            if let Some(was) = from.abilities.iter().position(|a| a.id == ability.id)
+                && was < MAX_ABILITIES
+            {
+                self.cooldowns[slot] = before[was];
+            } else if let Some(i) = self.away.iter().position(|&(id, _)| id == ability.id.0) {
+                self.cooldowns[slot] = self.away[i].1;
+                self.away[i] = (0, 0);
+            }
+        }
         self.fill_guns(sheet);
     }
 
@@ -1014,6 +1038,16 @@ fn item_step(m: &mut Mover, pressed: u16, use_slot: u8, now: Tick, dt: f32, stag
     }
 }
 
+/// What `ab` takes from the pools: its stamina at the frame's share, its focus, and its
+/// shares of the maxima (SKILLS.md 3).
+pub fn cost_of(sheet: &Sheet, ab: &crate::vocab::Ability) -> (f32, f32) {
+    let d = &sheet.derived;
+    (
+        sheet.kit.blow_cost(ab) + ab.cost.stamina_share as f32 * d.stamina / 1000.0,
+        ab.cost.focus as f32 + ab.cost.focus_share as f32 * d.focus / 1000.0,
+    )
+}
+
 /// Frames an item's use takes (`KIT_USE_MS`, the kit's and every stack's for now) at the
 /// tick length `dt`: 1.5 s in a town at 20 Hz as in a fight at 64.
 pub fn kit_use_ticks(dt: f32) -> Tick {
@@ -1250,7 +1284,8 @@ fn try_activate<W: CollisionWorld + ?Sized>(
     if kit.elemental[slot] && m.statuses.silenced() {
         return false;
     }
-    if m.stamina < kit.blow_cost(ab) || m.focus < ab.cost.focus as f32 {
+    let (stamina, focus) = cost_of(sheet, ab);
+    if m.stamina < stamina || m.focus < focus {
         return false;
     }
     // A shot that draws on a stack without a magazine (GEAR.md 7: the bow's arrows): one
@@ -1291,9 +1326,9 @@ fn try_activate<W: CollisionWorld + ?Sized>(
         g.last_shot = now;
         g.magazine -= 1;
     }
-    m.stamina -= kit.blow_cost(ab);
-    m.focus -= ab.cost.focus as f32;
-    if ab.cost.stamina > 0 {
+    m.stamina -= stamina;
+    m.focus -= focus;
+    if stamina > 0.0 {
         m.regen_pause_until = now.wrapping_add(ms_ticks(REGEN_PAUSE_MS, dt));
     }
     // Attacking drops a held block.

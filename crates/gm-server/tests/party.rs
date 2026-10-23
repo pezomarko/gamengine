@@ -891,20 +891,20 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
     );
     drop(bojan_hand);
 
-    // --- The dungeon: two in one party walk into the sentinels (in plate: the fight is
+    // --- The dungeon: two in one party walk into the hall's pack (in plate: the fight is
     // to last). In the middle of it a third is asked in and one of the two is removed.
     // The hub's party changes at once both times; the bodies fight on as the fight
     // began (PARTY.md 2): its roster is closed, and nobody changes sides.
     let dane = Someone::of(hub_addr, &hub_cert, "Dane", "ironclad").await;
     let ema = Someone::of(hub_addr, &hub_cert, "Ema", "ironclad").await;
     let filip = Someone::new(hub_addr, &hub_cert, "Filip").await;
-    // Round the corner from the gate room (the passage's second leg), out of the
-    // sentinels' sight for as long as it takes to make a party; the third stays there.
-    let north = 90.0;
+    // At the corner of the passage, side by side and facing the hall down its last leg, out
+    // of the gate's and the hall's sight for as long as it takes to make a party; the third
+    // stays behind them.
     for (who, at) in [
-        (&dane, Vec3::new(-940.0, 300.0, 0.0)),
-        (&ema, Vec3::new(-1040.0, 300.0, 0.0)),
-        (&filip, Vec3::new(-992.0, 180.0, 0.0)),
+        (&dane, Vec3::new(-990.0, 600.0, 0.0)),
+        (&ema, Vec3::new(-990.0, 500.0, 0.0)),
+        (&filip, Vec3::new(-1040.0, 400.0, 0.0)),
     ] {
         assert_eq!(
             dungeon.world.bsp.point_contents(Hull::Player, at + up),
@@ -912,12 +912,12 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
             "{at:?} is a place to stand"
         );
         assert!(
-            db.place(who.character, "dungeon", (at + up).into(), north)
+            db.place(who.character, "dungeon", (at + up).into(), 0.0)
                 .await
                 .unwrap()
         );
     }
-    let facing = north;
+    let facing = 0.0;
     let dane_hand = dane
         .enter("dungeon", "Dane", facing, dungeon.map.clone())
         .await;
@@ -927,6 +927,11 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
     let filip_hand = filip
         .enter("dungeon", "Filip", facing, dungeon.map.clone())
         .await;
+    // The shrine answers whoever asks (SKILLS.md 5), from beside it or not.
+    assert_eq!(
+        dane_hand.ask(FromClient::Shrine).await,
+        "walk up to the shrine first"
+    );
     assert_eq!(dane_hand.ask(invite("Ema")).await, "Ema was asked to join");
     let joined = "you are in a party: Dane, Ema";
     assert_eq!(ema_hand.ask(answer("Dane", true)).await, joined);
@@ -938,13 +943,9 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
     ema_hand
         .until("a member's health", |s| carries(s, dane_body))
         .await;
-    // Up the passage to its corner, then east along it into the gate room, swinging; a
-    // moment after the fight begins both have dealt or taken a blow.
-    dane_hand.go(1.0, 0);
-    ema_hand.go(1.0, 0);
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // East down the leg into the hall, swinging; a moment after the fight begins both have
+    // dealt or taken a blow.
     for hand in [&dane_hand, &ema_hand] {
-        hand.shared.lock().unwrap().yaw = 0.0;
         hand.go(1.0, buttons::PRIMARY);
     }
     ema_hand.engaged().await;
@@ -995,9 +996,9 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
         .until("the wire to follow", |s| !carries(s, dane_body))
         .await;
 
-    // --- Nobody who left a fight comes back into it. Somebody appears in the sentinels'
-    // room, takes a blow, and loses the connection: the zone does not let that character
-    // in again until the fight it left is over.
+    // --- Nobody who left a fight comes back into it. Somebody appears in the hall, takes
+    // a blow, and loses the connection: the zone does not let that character in again
+    // until the fight it left is over.
     let gita = Someone::of(hub_addr, &hub_cert, "Gita", "ironclad").await;
     let before_them = Vec3::new(-300.0, 544.0, 0.0);
     assert_eq!(
@@ -1012,7 +1013,7 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
     let gita_hand = gita
         .enter("dungeon", "Gita", 0.0, dungeon.map.clone())
         .await;
-    gita_hand.engaged().await;
+    // A blow is the fight: the pack may still be at the one before, which says nothing new.
     gita_hand
         .within(Duration::from_secs(20), "a blow", |s| s.own < s.full)
         .await;
@@ -1027,7 +1028,7 @@ async fn people_join_each_other_through_their_zones_and_a_fight_keeps_its_partie
         again.err().as_deref(),
         Some("the fight you left here is not over: come back when it is")
     );
-    // The sentinels lose her, the encounter resets, and she is let in.
+    // The pack loses her, the encounter resets, and she is let in.
     let started = Instant::now();
     let back = loop {
         match gita

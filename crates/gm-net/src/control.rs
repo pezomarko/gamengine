@@ -335,6 +335,14 @@ pub enum FromClient {
         components: Vec<i64>,
         fee: i64,
     },
+    /// Have the smith the player stands by move its Essence into the weapon in its hand,
+    /// paying `fee` (the fee it was shown); answered by a line, always (SKILLS.md 4). v35.
+    Infuse {
+        fee: i64,
+    },
+    /// Kneel at the shrine the player stands at: every harmful status is washed off the body;
+    /// answered by a line, always (SKILLS.md 5). v36.
+    Shrine,
 }
 
 /// What a game master may do to a running zone (GM.md 2): tune its timings, make a body

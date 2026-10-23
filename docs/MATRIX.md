@@ -827,3 +827,43 @@ The plan is docs/SKILLS.md; each step adds its numbers here.
   standing rate). Standing, only ST comes back, at half: 0.5 + 0.03·AGI. Damage does not end
   a rest; Stagger, Shock, Knockdown and Launched do. A sitter takes hits in full and holds
   no creature's eye (no proximity weight, no healing threat).
+- **Step 3, skills.** The page's names, costs (ST for the body's moves, MP for magic),
+  cooldowns and durations; Illusion Slash, Tiger Roar, Whirlwind, Deadeye, Dispel and
+  Purify; Fury, Cleanse and Dispel. **Mend stays at 1 MP, 5 a second for 8 s**, not the
+  page's 2 MP and 4: measured on the reference squad against the Warden (six seeds), at 2 MP
+  the mender runs dry and the squad leaves the Warden at 82–1,491 health on every seed, even
+  at 6 a second; at 1 MP and 4 a second one seed of six misses by 96; at 1 MP and 5 all six
+  clear, and the dungeon and party gates pass. **Frost Nova stays at 8 s and 3 MP and Blink
+  at 6 s**, not the page's 10 s, 4 MP and 8 s: with the page's the frostweaver's edge on the
+  ironclad fell to 1.47 (12 seeds × 60 s; 1.83 with these), and the counter-pick over the
+  wire (gm-server `counterpick`, two cores) failed two runs of five, main none. The arena
+  (3 seeds × 60 s, 8 v 8): ironclad : blade 58 : 21 (2.76, was 2.24), frostweaver : ironclad
+  40 : 21 (1.90, was 1.74), blade : frostweaver 21 : 38 (0.55, was 0.47), mirror 42 : 44.
+  A mind that blocks keeps half its ST for the guard (gm-ai `Senses::ready`): with the
+  blows and the block on one purse, the reference squad's tank spent its block on Bull Rush
+  and Ground Slam and the squad wiped on one seed of 24 here and one of six on CI. With the
+  reserve: 24 of 24 seeds clear, and 12 of 12 against a Warden of 1,800 (the content before
+  the rework: 7 of 12 fail against it).
+- **Step 4, the Essence.** Ten forms, one per weapon family, each costing 60% of a pool:
+  Break Armor (sword, katana: Expose and Weaken 20% for 12 s; 30 s), Primal Rage (axes: Fury
+  30% and Exposed for 12 s; 40 s), Will of Steel (big blades: Fortify 35% and Regen 1 for 12
+  s; 35 s), Earthshaker (hammers: Knockdown 1.5 s and Slow 30% for 10 s in 200 u; 35 s),
+  Tail Wind (spear: Haste 40% for 12 s to allies in 200 u; 35 s), Shadow Slash (dagger:
+  Knockdown 2 s and Bleed 2 for 10 s; 30 s), Arrow Rain (bow: 3 a second for 4 s and Slow;
+  35 s), Venom Bolt (crossbow: Bleed 2 and Slow for 15 s; 30 s), Seal of Silence (staff:
+  Silence 8 s in 128 u; 35 s, MP), Healing Spring (wand: Regen 4 and a cleanse a pulse for
+  10 s; 40 s, MP). A rearm keeps the cooldown of whatever stays in the kit.
+- **Step 5, the ladder.** The sparring master: 30 HP, a 1-point Drill after a 700 ms
+  windup. The dungeon's steps: the shield-bearer (160 HP; mace, Shield Bash, Shield wall),
+  three cutthroats (60 HP; dagger, Throwing Knife, Dash; leashed at 400, so the pack holds
+  its hall: at 800 a body that walked back down the passage never left the fight), two
+  venomers (50 HP; Venom Thorn: 2 and a bleed of 1 a second for 12 s, three deep). The
+  reference squad clears all four encounters on 8 seeds of 8: the gate in 20–26 s, the hall
+  in 15–24 s, the antechamber in 8–11 s, the Warden in 143–178 s; 268–574 s for the run
+  with its rests. Three things in the minds made that so. Two shields face to face waited on each other until the
+  encounter reset: a shield that waits for an opening now swings after 2 s. The raider took
+  any creature within 1,400 u for the post's, and the hall's pack stood 960 u from the gate:
+  a creature is now the post's nearest it. And with HP and MP back only seated, the squad
+  rests after each post (the raider until the wounds it sees close, 15–60 s; a companion
+  whenever its commander sits). The Warden margin stands: 24 of 24 seeds, and 12 of 12
+  against a Warden of 1,800.

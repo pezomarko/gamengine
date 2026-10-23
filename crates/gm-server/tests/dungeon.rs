@@ -1,7 +1,8 @@
 //! Phase 7 acceptance, step 2 (PLAN.md 11.8, COMPANIONS.md 14): the tutorial dungeon over the
 //! real protocol. One raid-leader bot at 150 ms round trip and 3% loss joins a wild zone that
-//! lends it three recruits, and clears the gate and the Warden by orders it sends from the
-//! command stance; everything it knows comes from its snapshots and control messages.
+//! lends it three recruits, and clears the ladder's steps (SKILLS.md 5) and the Warden by
+//! orders it sends from the command stance, resting between; everything it knows comes from
+//! its snapshots and control messages.
 
 mod common;
 
@@ -31,13 +32,14 @@ fn raid(seed: u64, recruits: &[&str], seconds: u64) -> common::Outcome {
 // Nightly (the `gates` workflow's dungeon gate), not every pull request: a real-time raid
 // of 420 s on a shared runner wiped at the Warden on four of five runs on 2026-10-16
 // while it stood 4 of 4 on an idle machine, so it was the one thing that kept green
-// pull requests out of main. `cargo test -p gm-server --test dungeon -- --ignored`.
+// pull requests out of main. Four encounters and the rests between them take it to 720 s
+// (SKILLS.md 5). `cargo test -p gm-server --test dungeon -- --ignored`.
 #[test]
-#[ignore = "a 7-minute real-time raid: the nightly dungeon gate runs it"]
+#[ignore = "a 12-minute real-time raid: the nightly dungeon gate runs it"]
 fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
     // A gate that wipes the squad once or twice costs half a minute each time: the run has
     // time for that (24 runs of 24 finished inside 230 s when this was written).
-    let o = raid(3, &["ironclad", "mender", "frostweaver"], 420);
+    let o = raid(3, &["ironclad", "mender", "frostweaver"], 720);
     println!("{}", summarize(&o));
     assert_eq!(o.bots.len(), 1, "the bot finished");
     let b = &o.bots[0];
@@ -80,20 +82,22 @@ fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
     assert_eq!(b.team, 1, "a wild zone puts every human on team 1");
     assert_eq!(b.squad_max, 3);
     assert_eq!(b.squad_hired, 0, "recruits are lent, not hired");
-    assert_eq!(b.creatures_announced, 3);
+    assert_eq!(b.creatures_announced, 7);
     assert!(b.creature_health_seen >= 1);
-    assert_eq!(minds, 6, "three creatures and three companions");
+    assert_eq!(minds, 10, "seven creatures and three companions");
 
-    // The clear: both encounters, the Warden inside the trial's window.
+    // The clear: the steps and the Warden, the Warden inside the trial's window.
     assert!(b.raid_done, "the raid was not finished: {:?}", b.cleared);
     let secs_of = |name: &str| b.cleared.iter().find(|c| c.0 == name).map(|c| c.1);
-    assert!(secs_of("gate").is_some(), "{:?}", b.cleared);
+    for step in ["gate", "hall", "antechamber"] {
+        assert!(secs_of(step).is_some(), "{step}: {:?}", b.cleared);
+    }
     let warden = secs_of("warden").expect("the Warden fell");
     assert!((45..=300).contains(&warden), "the Warden took {warden} s");
-    assert_eq!(o.server.encounters_cleared, 2);
+    assert_eq!(o.server.encounters_cleared, 4);
     assert_eq!(
         o.server.encounters_engaged,
-        o.server.encounters_reset + 2,
+        o.server.encounters_reset + 4,
         "every engagement ended in a reset or a clear"
     );
 
@@ -109,7 +113,8 @@ fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
     assert_eq!(o.server.orders_refused, b.orders_refused as u64);
     assert_eq!(o.server.orders + o.server.orders_refused, b.orders as u64);
 
-    // The kill: the standard list and the coin to the one human; the leader's trial.
+    // The kill: the standard list and the coin to the one human; the steps' trials, the
+    // leader's trial and the rite (SKILLS.md 4, 5).
     assert_eq!(b.loot, ["core/iron", "frame/ash", "catalyst/basalt"]);
     assert_eq!(b.coin, 30);
     assert_eq!(o.server.loot_items, 3);
@@ -119,13 +124,18 @@ fn a_lone_player_with_three_companions_clears_the_dungeon_over_the_protocol() {
         .filter(|t| t.1)
         .map(|t| t.0.as_str())
         .collect();
-    assert_eq!(passed, ["warden_leader"], "{:?}", b.trials);
+    assert_eq!(
+        passed,
+        ["gate", "hall", "antechamber", "warden_leader", "rite"],
+        "{:?}",
+        b.trials
+    );
     assert_eq!(
         b.trials.len(),
-        4,
-        "every trial of the encounter gave a verdict"
+        8,
+        "every trial of every encounter gave a verdict"
     );
-    assert_eq!(o.server.trials_passed, 1);
+    assert_eq!(o.server.trials_passed, 5);
 
     // The wire: inside the per-player budget with squad sight and health on it, and the
     // command stance predicted (corrections with no visible cause stay rare).
@@ -157,5 +167,5 @@ fn a_zone_without_recruits_gives_a_lone_player_no_squad() {
     assert!(!b.raid_done);
     assert_eq!(o.server.encounters_cleared, 0);
     assert_eq!(o.server.trials_passed, 0);
-    assert_eq!(o.windows.iter().map(|w| w.minds).max(), Some(3));
+    assert_eq!(o.windows.iter().map(|w| w.minds).max(), Some(7));
 }

@@ -176,6 +176,20 @@ pub enum ClientEvent {
         material: String,
         result: Result<(), String>,
     },
+    /// The Essence moved by the smith (SKILLS.md 4), and the hub's answer.
+    Infuse {
+        id: EntityId,
+        fee: i64,
+    },
+    Infused {
+        id: EntityId,
+        character: CharacterId,
+        result: Result<GearReading, String>,
+    },
+    /// `E` at a shrine (SKILLS.md 5).
+    Shrine {
+        id: EntityId,
+    },
     Forge {
         id: EntityId,
         template: String,
@@ -828,6 +842,8 @@ impl Client {
             | FromClient::TradeAsk { .. }
             | FromClient::StallBuy { .. }
             | FromClient::SmithBuy { .. }
+            | FromClient::Infuse { .. }
+            | FromClient::Shrine
             | FromClient::Forge { .. }
             | FromClient::Wear { .. }
             | FromClient::WearIn { .. }
@@ -944,6 +960,8 @@ fn asked(id: EntityId, msg: FromClient) -> ClientEvent {
             material,
             price,
         },
+        FromClient::Infuse { fee } => ClientEvent::Infuse { id, fee },
+        FromClient::Shrine => ClientEvent::Shrine { id },
         FromClient::Forge {
             template,
             components,

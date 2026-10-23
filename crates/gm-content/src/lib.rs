@@ -160,6 +160,9 @@ pub(crate) struct AbilityToml {
     /// An active's weapons (BODIES.md 7.2): the props whose weapon brings it as its spell.
     #[serde(default)]
     pub(crate) spell_of: Vec<String>,
+    /// A form's weapons (SKILLS.md 4): the props whose weapon the Essence takes it in.
+    #[serde(default)]
+    pub(crate) essence_of: Vec<String>,
     /// Squad slots the ability adds while slotted (COMPANIONS.md 3.2).
     #[serde(default)]
     squad: u8,
@@ -176,6 +179,14 @@ pub(crate) struct AbilityToml {
     stamina: u16,
     #[serde(default)]
     focus: u16,
+    /// Per mille of the pool's maximum (SKILLS.md 3): the signatures' price.
+    #[serde(default)]
+    stamina_share: u16,
+    #[serde(default)]
+    focus_share: u16,
+    /// Kept for its row (builds name abilities by position), offered by no weapon.
+    #[serde(default)]
+    pub(crate) retired: bool,
     #[serde(default = "one")]
     move_scale: f32,
     #[serde(default = "never")]
@@ -996,6 +1007,9 @@ fn compile_ability(
         "extra" => Slot::Extra,
         other => return ctx.err(format!("unknown slot {other:?}")),
     };
+    if a.stamina_share > 1000 || a.focus_share > 1000 {
+        return ctx.err("a share is per mille of the pool: at most 1000");
+    }
     let chain = a
         .chain
         .as_ref()
@@ -1086,6 +1100,8 @@ fn compile_ability(
             cost: Cost {
                 stamina: a.stamina,
                 focus: a.focus,
+                stamina_share: a.stamina_share,
+                focus_share: a.focus_share,
             },
             cooldown: Cooldown {
                 ticks: cooldown_ticks,

@@ -815,6 +815,10 @@ pub enum ZoneEconOp {
         material: String,
         price: i64,
     },
+    /// A character standing by the smith of this zone moves its Essence into the weapon in
+    /// its hand, which must take the same form, for `fee` (the fee it was shown), burned
+    /// (SKILLS.md 4). Answered `Gear`. v23.
+    Infuse { character: CharacterId, fee: i64 },
     /// A character standing at a forge of this zone makes `template` of these component
     /// items of its inventory for the content's fee (`fee` is what it was shown; refused
     /// when that is not the fee now). The fee is burned. Answered `Id`. v20.
@@ -962,6 +966,29 @@ pub struct GearReading {
     /// The item bar (LOOK.md 3.2): the template key set on each of the four cells, or
     /// nothing. The zone counts a cell's stack from `stacks`. v12.
     pub bar: Vec<Option<String>>,
+    /// The character's Essence (SKILLS.md 4), once the rite woke it. v23.
+    pub essence: Option<Essence>,
+    /// The kit's cells not yet earned on the ladder (SKILLS.md 5), `gm_core::build::locked`
+    /// bits. v24.
+    pub locked: u8,
+}
+
+/// The ladder's steps (SKILLS.md 5): a trial and the cell its pass opens.
+pub const LADDER: [(&str, u8); 3] = [
+    ("yard", gm_core::build::locked::SECOND),
+    ("gate", gm_core::build::locked::TRICK),
+    ("hall", gm_core::build::locked::SPELL),
+];
+
+/// What the smith takes to move an Essence into another weapon of its form, in silver
+/// (SKILLS.md 4): a plain sword's forging.
+pub const ESSENCE_FEE: i64 = 20;
+
+/// The Essence: the form it took at the rite, and whether the weapon in hand holds it.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct Essence {
+    pub form: String,
+    pub in_hand: bool,
 }
 
 /// One stack of a character's inventory, as the zone reads it.
@@ -1341,7 +1368,7 @@ pub const MAX_SESSIONS_PER_ACCOUNT: usize = 8;
 /// carry); any change to them is a new one. A stream that speaks them begins with it, in
 /// a frame of one byte, and the hub answers with its own before anything else: zones,
 /// tools and bots of another build are told so instead of being garbled at.
-pub const HUB_VERSION: u8 = 22;
+pub const HUB_VERSION: u8 = 24;
 pub const HUB_PREAMBLE: [u8; 3] = [0, 1, HUB_VERSION];
 pub const HUB_BIDI_STREAMS: u32 = 1024;
 /// Password hashes running at once; more answer `Busy`.

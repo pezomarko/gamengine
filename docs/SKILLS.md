@@ -52,18 +52,22 @@ Engine:
 - `Cost.stamina_share`, `Cost.focus_share`: per mille of the pool's maximum (the mover reads
   it from the sheet), needed in hand and spent.
 - `retired = true` on an ability row: `worn_of` never picks it.
+- A mind that blocks keeps half its ST for the guard, and reads costs as the mover does.
 
 Content (keys and row order stay; new rows are appended):
 - the page's costs, cooldowns and durations: ST for physical second moves, tricks and
   weapon spells, MP for the rest;
-- the fifteen names; Mend 4 a second for 8 s; the staff's blasts are the staff's alone and
-  the wand's second move is Dispel;
+- the fifteen names; Mend 5 a second for 8 s at 1 MP (measured: at 2 MP a healer runs dry
+  and the squad loses to the Warden, MATRIX.md 24); Frost Nova 8 s at 3 MP and Blink 6 s
+  (measured: at the page's the frostweaver no longer counters the ironclad); the staff's
+  blasts are the staff's alone and the wand's second move is Dispel;
 - new: Illusion Slash (sword, katana: a 450 u bolt through three bodies), Tiger Roar (axes),
   Whirlwind (big blades), Deadeye (crossbow), Dispel (wand), Purify (the Elder's skill in
   place of Sanctuary);
 - Bull Rush knocks down the body it stops on (a short arc after the charge); Leap is
   untouchable for 100 ms;
-- Backstab retired; content rebuilt.
+- Backstab retired; content rebuilt. Content v29, PROTOCOL 34 (the costs and the statuses
+  travel in the content pack).
 
 Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-measured.
 
@@ -73,14 +77,15 @@ Tests: Fury, Cleanse, Dispel, the share costs, retired rows; the arena legs re-m
   Sanctuary becomes Healing Spring, the wand's form. Signatures cost a share of 600.
 - Hub: migration 0020, `characters.essence_form` and `characters.essence_item`. A `rite`
   trial (dungeon, warden, no conditions): its first pass awakens the Essence in the worn
-  weapon if that weapon has a form. `ZoneEconOp::Infuse { character, item, fee }`: the
-  smith moves it to another weapon of the same form for `ESSENCE_FEE` (10 silver) to the
-  sink. `GearReading.essence`: the form when the worn weapon holds it.
+  weapon if that weapon has a form. `ZoneEconOp::Infuse { character, fee }`: the smith
+  moves it into the weapon in hand, of the same form, for `ESSENCE_FEE` (20 silver, a plain
+  sword's forging) to the sink. `GearReading.essence`: the form and whether the weapon in
+  hand holds it. Healing Spring's zone lasts 10 s, the limit of an area.
 - Core and zone: `Worn.signature`, put after the spell by `kit_slots` (the third active:
   keys 3, 5 and 6, as the hotbar has them). `Mover::rearm` carries each cooldown over by
   `AbilityId` to wherever that ability sits in the new kit, so a swap resets nothing.
 - Client: the smith's screen moves it; the C sheet names it.
-- HUB_VERSION 23, PROTOCOL 34, content.
+- HUB_VERSION 23, PROTOCOL 35, content.
 
 Tests: awaken once and only with a formed weapon; infuse within the form; the fee; the
 refusals; the kit; rearm.
@@ -102,6 +107,16 @@ refusals; the kit; rearm.
   "Insert: sit"); the Warden is the rite. Maps and content rebuilt.
 
 Tests: the kit by passes; the arena's refusal; the gm-ai map tests moved with the rooms.
+
+As built: the shield-bearer keeps the passage's first leg and the pack of three stands in the
+hall, leashed to it, so the steps come in their order on the walk; `antechamber` passes a
+trial and opens nothing. Venom Thorn bleeds 1 a second for 12 s, three deep; the shrine's altar stands at the
+stair's foot out of the venomers' sight; the campfire is in the entry hall, its fire drawn by
+the client as a forge's is. The arena's refusal is the zone gate the companions test proves
+(`requires`); play.sh passes its bots (`pass_bots`) and has `rite NAME FORM` for trying a
+signature. Minds: a shield that waits for an opening swings after 2 s; the raider counts a
+creature at the post nearest to it; after a post the raider sits 15–60 s, and a companion
+sits when its commander does (MATRIX.md 24).
 
 ## Not built
 
@@ -125,6 +140,22 @@ Not taken:
 - "Derived travels on the wire": both sides compute it from the build.
 - "Fury needs its own attacker field": damage dealt is already scaled by `1 − weaken`;
   the attacker's weaken is Weaken's magnitude less Fury's.
+
+Gemini 3.1 Pro on the code of step 5. Taken: a step opens its cell only when the steps
+before it have passed (a hall cleared by running past the gate opens nothing until the gate
+falls); play.sh registers its sparring bots before it passes them. Not taken: "the client
+never copies `locked`" (it gets the whole `Worn` from the zone); "no shrine in a fight"
+(it stands out of the venomers' sight: stepping back to it is the lesson); "the raider waits
+on dead companions" (it looks only at the living); "the hand's place is not `weapon`" (it is).
+
+Gemini 3.1 Pro on the code of step 4. Taken: an ability that leaves the kit while cooling
+waits aside (`Mover.away`) and comes back as it was, so swapping weapons away and back
+resets no signature. Not taken: "the zone refits with the old Essence" (the slot takes the
+reading's before the refit) and "the infusion's reading is dropped" (its argument is the
+item, not the order).
+
+Gemini 3.1 Pro on the code of step 3. Taken: the dash test's name. Not taken: "Mend at 4 as
+the plan said": the plan follows the measurement now.
 
 Gemini 3.1 Pro on the code of steps 1 and 2. Taken: a taunter that dies no longer holds a
 creature for the rest of the taunt; a SIT pressed on the frame a rise ends is not lost.

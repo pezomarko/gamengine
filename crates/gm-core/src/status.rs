@@ -92,6 +92,22 @@ impl Statuses {
         *self = Statuses::default();
     }
 
+    fn drop_where(&mut self, drop: impl Fn(Status) -> bool) -> bool {
+        let mut any = false;
+        for slot in &mut self.slots {
+            if slot.status.is_some_and(&drop) {
+                *slot = StatusSlot::default();
+                any = true;
+            }
+        }
+        any
+    }
+
+    /// Drop every harmful status (Cleanse, the shrine: SKILLS.md 3, 5); whether any was on.
+    pub fn cleanse(&mut self) -> bool {
+        self.drop_where(|st| !st.is_boon())
+    }
+
     pub fn remove(&mut self, status: Status) {
         for s in &mut self.slots {
             if s.status == Some(status) {
@@ -119,6 +135,17 @@ impl Statuses {
         source: u32,
         dt: f32,
     ) -> Applied {
+        match verb.status {
+            Status::Cleanse => {
+                self.cleanse();
+                return Applied::Applied;
+            }
+            Status::Dispel => {
+                self.drop_where(Status::is_boon);
+                return Applied::Applied;
+            }
+            _ => {}
+        }
         let duration = duration.max(1);
         if verb.status == Status::Chill && tick_delta(now, self.chill_immune_until) < 0 {
             return Applied::Immune;
@@ -256,6 +283,41 @@ mod tests {
         assert!(!st.has(Status::Slow));
         assert!(!st.has(Status::Bleed));
         assert!(st.has(Status::Haste));
+    }
+
+    #[test]
+    fn cleanse_takes_the_banes_and_dispel_the_boons() {
+        let mut st = Statuses::default();
+        for s in [Status::Bleed, Status::Slow, Status::Haste, Status::Fury] {
+            st.apply(&verb(s, StackRule::Refresh, 1, 0.5), 64, 1, 1, DT);
+        }
+        st.apply(
+            &verb(Status::Cleanse, StackRule::Refresh, 1, 0.0),
+            0,
+            2,
+            1,
+            DT,
+        );
+        assert!(!st.has(Status::Bleed) && !st.has(Status::Slow));
+        assert!(st.has(Status::Haste) && st.has(Status::Fury));
+        st.apply(
+            &verb(Status::Dispel, StackRule::Refresh, 1, 0.0),
+            0,
+            3,
+            1,
+            DT,
+        );
+        assert_eq!(st.active().count(), 0);
+        // The shrine says whether there was anything to wash off (SKILLS.md 5).
+        assert!(!st.cleanse());
+        st.apply(
+            &verb(Status::Bleed, StackRule::Refresh, 1, 1.0),
+            64,
+            4,
+            1,
+            DT,
+        );
+        assert!(st.cleanse() && !st.has(Status::Bleed));
     }
 
     #[test]

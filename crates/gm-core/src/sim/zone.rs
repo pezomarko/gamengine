@@ -190,9 +190,11 @@ impl Player {
             Some(_) => self.sheet.build.aspects,
             None => Aspects::NONE,
         };
+        // Fury is Weaken the other way: damage dealt × (1 − weaken + fury).
+        let statuses = &self.mover.statuses;
         AttackerStats::from_derived(
             &self.sheet.derived,
-            self.mover.statuses.magnitude(Status::Weaken),
+            statuses.magnitude(Status::Weaken) - statuses.magnitude(Status::Fury),
             &self.gear,
             affinity,
             self.sheet.group,
@@ -605,8 +607,9 @@ impl Zone {
             return false;
         }
         p.worn = worn.clone();
-        p.sheet = Sheet::wearing(p.sheet.build.clone(), worn, content, p.team());
-        p.mover.rearm(&p.sheet);
+        let sheet = Sheet::wearing(p.sheet.build.clone(), worn, content, p.team());
+        let was = std::mem::replace(&mut p.sheet, sheet);
+        p.mover.rearm(&was.kit, &p.sheet, p.last_input_tick);
         true
     }
 
@@ -699,10 +702,11 @@ impl Zone {
         if let Some(build) = p.pending_build.take() {
             p.sheet = Sheet::wearing(build, p.worn.clone(), content, p.team());
         }
-        let cooldowns = p.mover.cooldowns;
+        let (cooldowns, away) = (p.mover.cooldowns, p.mover.away);
         p.mover = Mover::spawn(origin, yaw, &p.sheet);
         if !fresh {
             p.mover.cooldowns = cooldowns;
+            p.mover.away = away;
         } else {
             // Ready at once in the body's own frame clock.
             p.mover.cooldowns = [p.last_input_tick; crate::sim::MAX_ABILITIES];
@@ -2308,9 +2312,10 @@ impl Zone {
         let cooldowns = p.mover.cooldowns;
         // The rounds in the guns and the item bar's stacks come back with the body
         // (MODES.md 11.2): a respawn refills nothing.
-        let (guns, bar) = (p.mover.guns, p.mover.bar);
+        let (guns, bar, away) = (p.mover.guns, p.mover.bar, p.mover.away);
         p.mover = Mover::spawn(origin, yaw, &p.sheet);
         p.mover.cooldowns = cooldowns;
+        p.mover.away = away;
         p.mover.bar = bar;
         for (g, kept) in p.mover.guns.iter_mut().zip(guns) {
             g.magazine = kept.magazine.min(g.magazine);

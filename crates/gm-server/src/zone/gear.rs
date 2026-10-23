@@ -268,6 +268,17 @@ impl Run {
         };
         let mut worn =
             gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
+        worn.locked = self.hub_slots.get(&body).map_or(0, |s| s.locked);
+        if let Some(e) = self.hub_slots.get(&body).and_then(|s| s.essence.as_ref()) {
+            gm_content::worn::essence_of(
+                &mut worn,
+                &self.cfg.looks,
+                &self.pack,
+                templates,
+                &e.form,
+                e.in_hand,
+            );
+        }
         // The frames' stamina (GEAR.md 6) is the hub's reading of the materials, set into
         // the body before this is asked; the client predicts with it, so it rides in `Worn`.
         worn.stamina_blows = p.gear.stamina_blows;
@@ -318,6 +329,29 @@ impl Run {
                             slot.worn = reading.templates.clone();
                             slot.stacks = reading.stacks.clone();
                             slot.bar = reading.bar.clone();
+                            if slot.essence.is_none()
+                                && let Some(e) = &reading.essence
+                                && let Some(s) = self.sessions.get(&body)
+                            {
+                                let name = self.pack.find(&e.form).map_or(e.form.as_str(), |i| {
+                                    self.pack.abilities[i as usize].ability.name.as_str()
+                                });
+                                s.send_control(FromZone::ChatFrom {
+                                    from: 0,
+                                    text: format!("The Essence wakes in your weapon: {name}."),
+                                });
+                            }
+                            slot.essence = reading.essence.clone();
+                            let opened = slot.locked & !reading.locked;
+                            slot.locked = reading.locked;
+                            if opened != 0
+                                && let Some(s) = self.sessions.get(&body)
+                            {
+                                s.send_control(FromZone::ChatFrom {
+                                    from: 0,
+                                    text: opened_words(opened).into(),
+                                });
+                            }
                         }
                         self.zone.set_gear(body, reading.gear);
                         self.zone
@@ -370,5 +404,17 @@ impl Run {
                 result: result.map(|_| ()),
             });
         }
+    }
+}
+
+/// What a step of the ladder opened (SKILLS.md 5), in words.
+fn opened_words(cells: u8) -> &'static str {
+    use gm_core::build::locked;
+    if cells & locked::SPELL != 0 {
+        "You have earned your weapon's spell: its key is next to your trick's."
+    } else if cells & locked::TRICK != 0 {
+        "You have earned your body's trick: the first key of the actives."
+    } else {
+        "You have earned your second move: the right button, or 2."
     }
 }

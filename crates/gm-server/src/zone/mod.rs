@@ -8,6 +8,7 @@ mod market;
 mod minds;
 mod outcomes;
 mod run;
+mod shrine;
 mod smithy;
 mod snapshot;
 mod social;
@@ -473,6 +474,10 @@ struct HubSlot {
     stacks: Vec<StackReading>,
     /// Its item bar, from the same reading (LOOK.md 3.2): the template on each cell.
     bar: Vec<Option<String>>,
+    /// Its Essence, from the same reading (SKILLS.md 4).
+    essence: Option<gm_hub_proto::protocol::Essence>,
+    /// The cells it has not earned, from the same reading (SKILLS.md 5).
+    locked: u8,
 }
 
 /// An invitation for a character that has no body here yet is kept this long (the

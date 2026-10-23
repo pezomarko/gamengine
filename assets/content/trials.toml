@@ -40,3 +40,35 @@ time_limit_s = 300
 max_party_deaths = 0
 max_humans = 1
 role = { healing = 50 }
+
+# The rite (SKILLS.md 4): the Warden falls and the Essence wakes in the weapon in hand.
+[[trial]]
+key = "rite"
+name = "The rite: the Warden falls"
+map = "dungeon"
+encounter = "warden"
+
+# The ladder (SKILLS.md 5): each step's pass opens a cell of the kit.
+[[trial]]
+key = "yard"
+name = "The sparring master"
+map = "town"
+encounter = "yard"
+
+[[trial]]
+key = "gate"
+name = "The dungeon's gate"
+map = "dungeon"
+encounter = "gate"
+
+[[trial]]
+key = "hall"
+name = "The dungeon's hall"
+map = "dungeon"
+encounter = "hall"
+
+[[trial]]
+key = "antechamber"
+name = "The dungeon's antechamber"
+map = "dungeon"
+encounter = "antechamber"
