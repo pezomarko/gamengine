@@ -85,9 +85,9 @@ pub enum Status {
     Taunt = 16,
     /// Damage dealt × (1 + m): Weaken the other way (SKILLS.md 3).
     Fury = 17,
-    /// Instant, never stored: removes every status that is not a boon.
+    /// Instant, never stored: removes every dispellable status that is not a boon.
     Cleanse = 18,
-    /// Instant, never stored: removes every boon.
+    /// Instant, never stored: removes every dispellable boon.
     Dispel = 19,
 }
 

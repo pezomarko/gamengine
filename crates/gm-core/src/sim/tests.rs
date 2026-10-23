@@ -4506,7 +4506,8 @@ fn a_spend_pauses_stamina_for_a_second_at_any_rate() {
     }
 }
 
-fn seated_zone() -> (BoxWorld, Zone, EntityId) {
+/// A blade alone, a second in, its pools empty and 10 HP left.
+fn tired_zone() -> (BoxWorld, Zone, EntityId) {
     let world = BoxWorld::floor();
     let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
     let build = zone.content.build("blade").unwrap().clone();
@@ -4516,6 +4517,12 @@ fn seated_zone() -> (BoxWorld, Zone, EntityId) {
     p.mover.stamina = 0.0;
     p.mover.focus = 0.0;
     p.health = 10;
+    (world, zone, a)
+}
+
+/// `tired_zone`, and the body sat down.
+fn seated_zone() -> (BoxWorld, Zone, EntityId) {
+    let (world, mut zone, a) = tired_zone();
     run(&mut zone, &world, &[(a, input(0.0, 0.0, buttons::SIT))], 1);
     (world, zone, a)
 }
@@ -4599,15 +4606,7 @@ fn damage_keeps_the_rest_and_a_stagger_ends_it() {
 
 #[test]
 fn standing_brings_back_stamina_alone() {
-    let world = BoxWorld::floor();
-    let mut zone = zone_with(vec![(Vec3::new(0.0, 0.0, REST_Z), 0.0)]);
-    let build = zone.content.build("blade").unwrap().clone();
-    let a = zone.add_player_at(build, 0, Vec3::new(0.0, 0.0, REST_Z), 0.0);
-    run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 64);
-    let p = zone.player_mut(a).unwrap();
-    p.mover.stamina = 0.0;
-    p.mover.focus = 0.0;
-    p.health = 10;
+    let (world, mut zone, a) = tired_zone();
     run(&mut zone, &world, &[(a, input(0.0, 0.0, 0))], 4 * 64);
     let p = zone.player(a).unwrap();
     assert_eq!((p.mover.focus, p.health), (0.0, 10));

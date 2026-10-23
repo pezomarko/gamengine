@@ -48,7 +48,8 @@ Engine:
 - `Status::Fury` (17): damage dealt × (1 + m), as Weaken in reverse. `Status::is_boon()`
   (Haste, Fortify, Regen, Stealth, Fury) replaces the three hard-coded lists.
 - `Status::Cleanse` (18) and `Status::Dispel` (19) go through `ApplyStatus` and are never
-  stored: Cleanse removes every status that is not a boon, Dispel every boon.
+  stored: Cleanse removes every status that is not a boon, Dispel every boon; neither takes
+  a status applied with `dispellable = false` (a blow's stagger).
 - `Cost.stamina_share`, `Cost.focus_share`: per mille of the pool's maximum (the mover reads
   it from the sheet), needed in hand and spent.
 - `retired = true` on an ability row: `worn_of` never picks it.
@@ -124,6 +125,15 @@ MP draughts and the respawn's half pools (the director's to decide); the premium
 re-forms an Essence; the six element blows folded into one; the Essence's glow.
 
 ## Review
+
+Claude (Fable 5.1) on the code of the five steps, 2026-10-23. Taken: Cleanse, Dispel and the
+shrine take only dispellable slots (the verb's `dispellable` was stored nowhere and read
+nowhere; a blow's stagger is applied without it, and it survives a Purify, a Healing Spring
+pulse and the shrine now); the hub's reading carries the protocol's `Essence`, not a tuple
+converted at once; `gear_in`'s doc comment back on `gear_in`; `Bsp::points` not capped by the
+creature posts' limit; the seat's eye drop named; the rest tests on one helper. Left as it
+is: `test_content.rs` mirrors every new row (the fixture test asks it to); `Mover.away` (four
+places suffice, a kit has one signature); the `away`/`rearm` and the ladder's SQL.
 
 Gemini 3.1 Pro on the plan with the code it touches, 2026-10-22. Taken:
 - `rearm` must move cooldowns by `AbilityId`, not by kit index (step 4 says so).

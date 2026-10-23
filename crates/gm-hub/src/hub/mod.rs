@@ -1373,7 +1373,7 @@ fn reading(r: crate::economy::Reading) -> GearReading {
         gear,
         templates,
         bar,
-        essence: essence.map(|(form, in_hand)| gm_hub_proto::protocol::Essence { form, in_hand }),
+        essence,
         locked,
         stacks: stacks
             .into_iter()

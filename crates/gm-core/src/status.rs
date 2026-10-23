@@ -21,6 +21,9 @@ pub struct StatusSlot {
     pub stacks: u8,
     /// Who applied it (0 = nobody / the world), for damage-over-time attribution.
     pub source: u32,
+    /// Whether Cleanse and Dispel take it (VOCABULARY.md 5.4): the verb's `dispellable`.
+    /// The zone applies a blow's stagger without it.
+    pub dispellable: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -92,10 +95,12 @@ impl Statuses {
         *self = Statuses::default();
     }
 
+    /// Drop every dispellable slot whose status `drop` picks; whether any was on. A status
+    /// applied `dispellable: false` (a blow's stagger, the zone's) stays.
     fn drop_where(&mut self, drop: impl Fn(Status) -> bool) -> bool {
         let mut any = false;
         for slot in &mut self.slots {
-            if slot.status.is_some_and(&drop) {
+            if slot.dispellable && slot.status.is_some_and(&drop) {
                 *slot = StatusSlot::default();
                 any = true;
             }
@@ -103,7 +108,8 @@ impl Statuses {
         any
     }
 
-    /// Drop every harmful status (Cleanse, the shrine: SKILLS.md 3, 5); whether any was on.
+    /// Drop every dispellable harmful status (Cleanse, the shrine: SKILLS.md 3, 5); whether
+    /// any was on.
     pub fn cleanse(&mut self) -> bool {
         self.drop_where(|st| !st.is_boon())
     }
@@ -166,6 +172,7 @@ impl Statuses {
                     magnitude: verb.magnitude,
                     stacks: 1,
                     source,
+                    dispellable: verb.dispellable,
                 };
             }
             (StackRule::Refresh, Some(i)) => {
@@ -174,6 +181,8 @@ impl Statuses {
                 s.magnitude = s.magnitude.max(verb.magnitude);
                 s.stacks = (s.stacks + 1).min(verb.max_stacks.max(1));
                 s.source = source;
+                // Once something that is not dispellable is in the slot, the slot is not.
+                s.dispellable &= verb.dispellable;
                 outcome = Applied::Refreshed;
             }
             (StackRule::Extend, Some(i)) => {
@@ -184,6 +193,7 @@ impl Statuses {
                 s.magnitude = s.magnitude.max(verb.magnitude);
                 s.stacks = (s.stacks + 1).min(verb.max_stacks.max(1));
                 s.source = source;
+                s.dispellable &= verb.dispellable;
                 outcome = Applied::Refreshed;
             }
         }
@@ -318,6 +328,22 @@ mod tests {
             DT,
         );
         assert!(st.cleanse() && !st.has(Status::Bleed));
+        // What was applied `dispellable: false` (a blow's stagger, the zone's) neither takes.
+        let fixed = |s| ApplyStatus {
+            dispellable: false,
+            ..verb(s, StackRule::Refresh, 1, 1.0)
+        };
+        st.apply(&fixed(Status::Stagger), 20, 5, 1, DT);
+        st.apply(&fixed(Status::Haste), 20, 5, 1, DT);
+        assert!(!st.cleanse());
+        st.apply(
+            &verb(Status::Dispel, StackRule::Refresh, 1, 0.0),
+            0,
+            6,
+            1,
+            DT,
+        );
+        assert!(st.has(Status::Stagger) && st.has(Status::Haste));
     }
 
     #[test]

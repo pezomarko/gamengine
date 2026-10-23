@@ -19,7 +19,7 @@ pub(super) struct Hello {
 }
 
 /// The trial whose pass wakes the Essence.
-pub const RITE: &str = "rite";
+const RITE: &str = "rite";
 
 /// `HubRequest::Trial`.
 pub(super) async fn trial(

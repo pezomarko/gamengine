@@ -102,6 +102,10 @@ pub(super) struct Entry {
     pub(super) zone_name: String,
 }
 
+/// How far a seat brings the own eye under the standing one (SKILLS.md 2): 18 u over the
+/// feet, a little under the crouched eye's 24.
+const SIT_DROP: f32 = 28.0;
+
 /// How far a body's head is lower than standing (MODES.md 3.5): by its record's flag.
 fn crouch_drop_of(e: &gm_net::client::RenderEntity) -> f32 {
     if e.flags & gm_net::snapshot::flags::CROUCHED != 0 {
@@ -1486,12 +1490,12 @@ impl App {
         self.scene.tags.clear();
         self.scene.effects.begin(frame_dt);
         // The eye over the origin (MODES.md 3.4, 3.5): the predicted mover's, which sinks
-        // over a crouch under way, or a seat's, 28 under the standing eye (SKILLS.md 2);
+        // over a crouch under way, or a seat's, `SIT_DROP` under the standing eye (SKILLS.md 2);
         // eased over about a tenth of a second so getting up does not jump; a crouch's lift
         // in the air is let go at the same pace.
         let ease = (frame_dt * 12.0).min(1.0);
         let target = if c.mover.seated() {
-            gm_core::trace::Hull::Player.eye_height() - 28.0
+            gm_core::trace::Hull::Player.eye_height() - SIT_DROP
         } else {
             c.mover.eye().z - c.mover.mv.origin.z
         };
