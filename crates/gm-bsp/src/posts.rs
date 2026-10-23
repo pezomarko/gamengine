@@ -51,7 +51,6 @@ impl Bsp {
             .iter()
             .filter(|e| e.classname() == class)
             .filter_map(|e| e.origin())
-            .take(MAX_CREATURE_POSTS)
             .collect()
     }
 }

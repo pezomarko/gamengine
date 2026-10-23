@@ -440,6 +440,8 @@ impl ClientState {
                     magnitude: w.magnitude,
                     stacks: w.stacks,
                     source: w.source,
+                    // Cleanse and Dispel are the zone's: the flag is not on the wire.
+                    dispellable: true,
                 };
             }
             st

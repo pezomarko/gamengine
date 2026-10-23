@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use gm_content::items::{ItemContent, MAX_EDGE_PER_MILLE, PLACES, Place};
 use gm_core::matrix::Gear;
-use gm_hub_proto::protocol::{ESSENCE_FEE, LADDER};
+use gm_hub_proto::protocol::{ESSENCE_FEE, Essence, LADDER};
 use sqlx::postgres::PgPool;
 use sqlx::{Postgres, Row, Transaction};
 
@@ -169,10 +169,8 @@ pub struct Item {
     pub quantity: u32,
 }
 
-/// A stack in a character's inventory, as a zone reads it (MODES.md 11.2).
-/// What `Economy::gear` reads of a character (ITEMS.md 3.3): the reading's number, the
-/// gear term, the templates worn, the stacks carried and the item bar (LOOK.md 3.2).
-/// The hub's reading of what a character wears and carries.
+/// What `Economy::gear` reads of a character (ITEMS.md 3.3): the hub's reading of what it
+/// wears and carries.
 #[derive(Clone, Debug)]
 pub struct Reading {
     /// Orders the readings: the larger is the truer.
@@ -181,12 +179,13 @@ pub struct Reading {
     pub templates: [String; PLACES],
     pub stacks: Vec<Stack>,
     pub bar: Vec<Option<String>>,
-    /// The Essence: its form, and whether the weapon in hand holds it (SKILLS.md 4).
-    pub essence: Option<(String, bool)>,
+    /// The Essence (SKILLS.md 4), once the rite woke it.
+    pub essence: Option<Essence>,
     /// The cells not yet earned on the ladder (SKILLS.md 5).
     pub locked: u8,
 }
 
+/// A stack in a character's inventory, as a zone reads it (MODES.md 11.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stack {
     pub item: i64,
@@ -662,11 +661,6 @@ async fn playing_in(tx: &mut Tx<'_>, character: i64, zone: &str) -> Result<(), E
     Ok(())
 }
 
-/// What the character's worn items do (ITEMS.md 3.2), within a transaction.
-/// The sixteen numbers of what a character wears, and the templates worn by place
-/// (weapon, off hand, armour; empty for nothing). The off hand's item adds to what the
-/// weapon deals (a second weapon) or to what the armour takes (a shield), each number
-/// capped where the zone caps it (ITEMS.md 3.1).
 /// The weapon in the right hand: its id and template.
 async fn weapon_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(i64, String)>, EconError> {
     let r = sqlx::query(
@@ -707,7 +701,7 @@ async fn locked_in(tx: &mut Tx<'_>, character: i64) -> Result<u8, EconError> {
 }
 
 /// The Essence: its form, and whether the weapon in hand holds it.
-async fn essence_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(String, bool)>, EconError> {
+async fn essence_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<Essence>, EconError> {
     let r = sqlx::query(
         "select c.essence_form, exists (select 1 from worn w where w.character_id = c.id \
          and w.slot = 'weapon' and w.item_id = c.essence_item) as in_hand \
@@ -720,9 +714,14 @@ async fn essence_in(tx: &mut Tx<'_>, character: i64) -> Result<Option<(String, b
     let Some(r) = r else { return Ok(None) };
     let form: Option<String> = r.try_get("essence_form").map_err(internal)?;
     let in_hand: bool = r.try_get("in_hand").map_err(internal)?;
-    Ok(form.map(|f| (f, in_hand)))
+    Ok(form.map(|form| Essence { form, in_hand }))
 }
 
+/// What the character's worn items do (ITEMS.md 3.2), within a transaction: the sixteen
+/// numbers of what a character wears, and the templates worn by place (weapon, off hand,
+/// armour; empty for nothing). The off hand's item adds to what the weapon deals (a second
+/// weapon) or to what the armour takes (a shield), each number capped where the zone caps
+/// it (ITEMS.md 3.1).
 async fn gear_in(
     tx: &mut Tx<'_>,
     character: i64,

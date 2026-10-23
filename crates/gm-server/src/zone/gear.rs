@@ -268,16 +268,19 @@ impl Run {
         };
         let mut worn =
             gm_content::worn::worn_of(&self.cfg.looks, &self.pack, &p.sheet.build, templates);
-        worn.locked = self.hub_slots.get(&body).map_or(0, |s| s.locked);
-        if let Some(e) = self.hub_slots.get(&body).and_then(|s| s.essence.as_ref()) {
-            gm_content::worn::essence_of(
-                &mut worn,
-                &self.cfg.looks,
-                &self.pack,
-                templates,
-                &e.form,
-                e.in_hand,
-            );
+        // The ladder's locks and the Essence (SKILLS.md 4, 5) are the hub's reading.
+        if let Some(slot) = self.hub_slots.get(&body) {
+            worn.locked = slot.locked;
+            if let Some(e) = &slot.essence {
+                gm_content::worn::essence_of(
+                    &mut worn,
+                    &self.cfg.looks,
+                    &self.pack,
+                    templates,
+                    &e.form,
+                    e.in_hand,
+                );
+            }
         }
         // The frames' stamina (GEAR.md 6) is the hub's reading of the materials, set into
         // the body before this is asked; the client predicts with it, so it rides in `Worn`.
