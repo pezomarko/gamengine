@@ -51,11 +51,12 @@ pub struct Content {
     #[cfg(target_arch = "wasm32")]
     atlas_inbox: Inbox<u8>,
     pub props: HashMap<String, PropState>,
-    /// The official avatars by frame (CONTENT.md 3.2): `None` until asked for, then as a
-    /// prop.
-    pub avatars: [Option<PropState>; 4],
-    /// The armour overlays (CONTENT.md 3.3) by model key and frame, as props.
-    pub overlays: HashMap<(String, u8), PropState>,
+    /// The official avatars by model key (CONTENT.md 3.2: a frame's look, or a body's,
+    /// BODIES.md 3.1), as props.
+    pub avatars: HashMap<String, PropState>,
+    /// The armour overlays (CONTENT.md 3.3) by model key, frame and the key of the body
+    /// asking (the cut for its look when the bundle has one, else the frame's), as props.
+    pub overlays: HashMap<(String, u8, Option<String>), PropState>,
     /// The cloth patches (CONTENT.md 3.3, LOOK.md 6.6) by model key and the official
     /// avatar's key they were baked for, the same way; the slot is the avatars' registry's.
     pub patches: HashMap<(String, String), PropState>,
@@ -342,37 +343,42 @@ impl Content {
         }
     }
 
-    /// The official avatar of a frame (`rig::frame_index`), CONTENT.md 3.2, by the same
-    /// road as a prop: `Some(slot)` when it is on the GPU, the first ask starts the load,
-    /// and `None` for good when the bundle has none. A body wears it whatever it has on
-    /// (no armour class since GEAR.md 12, 2026-10-17).
-    pub fn avatar(
+    /// Every official avatar the bundle names (CONTENT.md 3.2): its frame, its model key
+    /// and, for a body's look, the body's key.
+    pub fn avatar_entries(&self) -> Vec<(u8, String, Option<String>)> {
+        self.manifest.as_ref().map_or(Vec::new(), |m| {
+            m.avatars
+                .iter()
+                .map(|a| (a.frame, a.key.clone(), a.body.clone()))
+                .collect()
+        })
+    }
+
+    /// An official avatar by its model key (`AvatarEntry.key`), the same way.
+    pub fn avatar_by_key(
         &mut self,
-        frame: u8,
+        key: &str,
         mut load: impl FnMut(&Model) -> Option<usize>,
     ) -> Option<usize> {
-        let f = frame as usize;
-        if f >= 4 {
-            return None;
-        }
-        if let Some(state) = &self.avatars[f] {
+        if let Some(state) = self.avatars.get(key) {
             return match state {
                 PropState::Loaded(slot) => Some(*slot),
                 _ => None,
             };
         }
-        let Some(entry) = self.manifest.as_ref().and_then(|m| m.avatar(frame)) else {
-            self.avatars[f] = Some(PropState::Missing);
+        let Some(entry) = self.manifest.as_ref().and_then(|m| m.avatar_by_key(key)) else {
+            self.avatars.insert(key.to_string(), PropState::Missing);
             return None;
         };
+        let frame = entry.frame;
         let (file, sha) = self.pick(&entry.file, entry.sha256, entry.etc2);
         #[cfg(not(target_arch = "wasm32"))]
         {
             let path = std::path::Path::new(&self.base).join(&file);
             let state = match std::fs::read(&path) {
-                Ok(bytes) => Self::decoded_body(frame, &bytes, sha, &mut load),
+                Ok(bytes) => Self::decoded_body(key, frame, &bytes, sha, &mut load),
                 Err(e) => {
-                    log::warn!("avatar {frame}: {}: {e}", path.display());
+                    log::warn!("avatar {key}: {}: {e}", path.display());
                     PropState::Missing
                 }
             };
@@ -380,15 +386,15 @@ impl Content {
                 PropState::Loaded(slot) => Some(*slot),
                 _ => None,
             };
-            self.avatars[f] = Some(state);
+            self.avatars.insert(key.to_string(), state);
             out
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = (sha, &mut load);
+            let _ = (sha, frame, &mut load);
             let url = format!("{}/{file}", self.base);
             let inbox = self.inbox.clone();
-            let key = format!("{AVATAR_PREFIX}{frame}");
+            let filed = format!("{AVATAR_PREFIX}{key}");
             wasm_bindgen_futures::spawn_local(async move {
                 let bytes = match crate::web::fetch_bytes(&url).await {
                     Ok(b) => b,
@@ -397,30 +403,41 @@ impl Content {
                         None
                     }
                 };
-                inbox.borrow_mut().push((key, bytes));
+                inbox.borrow_mut().push((filed, bytes));
             });
-            self.avatars[f] = Some(PropState::Loading);
+            self.avatars.insert(key.to_string(), PropState::Loading);
             None
         }
     }
 
-    /// The overlay of an armour's model for a frame (CONTENT.md 3.3), by the same road as
-    /// a prop: `Some(slot)` when it is on the GPU, the first ask starts the load, and
-    /// `None` for good when the bundle has none for that frame.
+    /// The overlay of an armour's model on a body (CONTENT.md 3.3): the cut for the body's
+    /// official look (by the body's key, BODIES.md 3.1) when the bundle has one, else the
+    /// frame's; by the same road as a prop: `Some(slot)` when it is on the GPU, the first
+    /// ask starts the load, and `None` for good when the bundle has none for that body.
     pub fn overlay(
         &mut self,
         key: &str,
+        body: Option<&str>,
         frame: u8,
         mut load: impl FnMut(&Model) -> Option<usize>,
     ) -> Option<usize> {
-        let at = (key.to_string(), frame);
+        let at = (key.to_string(), frame, body.map(str::to_string));
         if let Some(state) = self.overlays.get(&at) {
             return match state {
                 PropState::Loaded(slot) => Some(*slot),
                 _ => None,
             };
         }
-        let Some(entry) = self.manifest.as_ref().and_then(|m| m.overlay(key, frame)) else {
+        let look = self
+            .manifest
+            .as_ref()
+            .and_then(|m| m.avatar_of(body, frame))
+            .map(|a| a.key.clone());
+        let Some(entry) = self
+            .manifest
+            .as_ref()
+            .and_then(|m| m.overlay_of(key, look.as_deref(), frame))
+        else {
             self.overlays.insert(at, PropState::Missing);
             return None;
         };
@@ -447,7 +464,7 @@ impl Content {
             let _ = (sha, &mut load);
             let url = format!("{}/{file}", self.base);
             let inbox = self.inbox.clone();
-            let filed = format!("{OVERLAY_PREFIX}{frame}:{key}");
+            let filed = format!("{OVERLAY_PREFIX}{frame}:{}:{key}", body.unwrap_or(""));
             wasm_bindgen_futures::spawn_local(async move {
                 let bytes = match crate::web::fetch_bytes(&url).await {
                     Ok(b) => b,
@@ -473,23 +490,28 @@ impl Content {
         })
     }
 
-    /// The official avatar's key of a frame (CONTENT.md 3.2), when the bundle has one:
-    /// the body a patch must have been baked for.
-    pub fn official_key(&self, frame: u8) -> Option<String> {
-        self.manifest.as_ref()?.avatar(frame).map(|a| a.key.clone())
+    /// The official avatar's key a body wears (CONTENT.md 3.2: its body's look by the
+    /// body's key, else its frame's), when the bundle has one: the body a patch must have
+    /// been baked for.
+    pub fn official_key(&self, body: Option<&str>, frame: u8) -> Option<String> {
+        self.manifest
+            .as_ref()?
+            .avatar_of(body, frame)
+            .map(|a| a.key.clone())
     }
 
-    /// The patch of an armour's model for the official avatar of a frame (LOOK.md 6.6),
+    /// The patch of an armour's model for the official avatar a body wears (LOOK.md 6.6),
     /// by the same road as an overlay: `Some(id)` when the avatars' registry has it
     /// (`load` puts a decoded patch there and returns its id), the first ask starts the
     /// load, and `None` for good when the bundle has none for that body.
     pub fn patch(
         &mut self,
         key: &str,
+        body: Option<&str>,
         frame: u8,
         mut load: impl FnMut(&Patch) -> Option<usize>,
     ) -> Option<usize> {
-        let body = self.official_key(frame)?;
+        let body = self.official_key(body, frame)?;
         let at = (key.to_string(), body.clone());
         if let Some(state) = self.patches.get(&at) {
             return match state {
@@ -633,14 +655,23 @@ impl Content {
             return;
         }
         if let Some(rest) = key.strip_prefix(OVERLAY_PREFIX) {
-            let (frame, key) = match rest.split_once(':') {
-                Some((f, k)) => (f.parse::<u8>().unwrap_or(255), k.to_string()),
-                None => return,
+            let mut parts = rest.splitn(3, ':');
+            let (Some(frame), Some(body), Some(key)) = (parts.next(), parts.next(), parts.next())
+            else {
+                return;
             };
+            let frame = frame.parse::<u8>().unwrap_or(255);
+            let body = (!body.is_empty()).then(|| body.to_string());
+            let key = key.to_string();
+            let look = self
+                .manifest
+                .as_ref()
+                .and_then(|m| m.avatar_of(body.as_deref(), frame))
+                .map(|a| a.key.clone());
             let sha = self
                 .manifest
                 .as_ref()
-                .and_then(|m| m.overlay(&key, frame))
+                .and_then(|m| m.overlay_of(&key, look.as_deref(), frame))
                 .map(|e| self.pick_sha(e.sha256, e.etc2))
                 .unwrap_or([0; 32]);
             let state = match bytes {
@@ -650,29 +681,25 @@ impl Content {
                     PropState::Missing
                 }
             };
-            self.overlays.insert((key, frame), state);
+            self.overlays.insert((key, frame, body), state);
             return;
         }
         if let Some(rest) = key.strip_prefix(AVATAR_PREFIX) {
-            let frame = rest.parse::<u8>().unwrap_or(255);
-            let f = frame as usize;
-            if f >= 4 {
-                return;
-            }
-            let sha = self
+            let key = rest.to_string();
+            let (sha, frame) = self
                 .manifest
                 .as_ref()
-                .and_then(|m| m.avatar(frame))
-                .map(|e| self.pick_sha(e.sha256, e.etc2))
-                .unwrap_or([0; 32]);
+                .and_then(|m| m.avatar_by_key(&key))
+                .map(|e| (self.pick_sha(e.sha256, e.etc2), e.frame))
+                .unwrap_or(([0; 32], 255));
             let state = match bytes {
-                Some(bytes) => Self::decoded_body(frame, &bytes, sha, &mut load),
+                Some(bytes) => Self::decoded_body(&key, frame, &bytes, sha, &mut load),
                 None => {
-                    log::warn!("avatar {frame}: not on the site");
+                    log::warn!("avatar {key}: not on the site");
                     PropState::Missing
                 }
             };
-            self.avatars[f] = Some(state);
+            self.avatars.insert(key, state);
             return;
         }
         let sha = self
@@ -729,20 +756,21 @@ impl Content {
 
     /// An official avatar's bytes: the file the manifest names, a body of that frame.
     fn decoded_body(
+        key: &str,
         frame: u8,
         bytes: &[u8],
         sha: [u8; 32],
         load: &mut impl FnMut(&Model) -> Option<usize>,
     ) -> PropState {
         if gm_model::model_id(bytes) != sha {
-            log::warn!("avatar {frame}: the file is not the one the manifest names");
+            log::warn!("avatar {key}: the file is not the one the manifest names");
             return PropState::Missing;
         }
         match Model::decode(bytes) {
             Ok(m) if !m.is_prop() && m.frame == frame => match load(&m) {
                 Some(slot) => {
                     log::info!(
-                        "avatar {frame}: {} triangles, {}x{} atlas",
+                        "avatar {key}: {} triangles, {}x{} atlas",
                         m.triangles(),
                         m.tex_w,
                         m.tex_h
@@ -752,11 +780,11 @@ impl Content {
                 None => PropState::Missing,
             },
             Ok(_) => {
-                log::warn!("avatar {frame}: the file is not a body of that frame");
+                log::warn!("avatar {key}: the file is not a body of frame {frame}");
                 PropState::Missing
             }
             Err(e) => {
-                log::warn!("avatar {frame}: {e}");
+                log::warn!("avatar {key}: {e}");
                 PropState::Missing
             }
         }

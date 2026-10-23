@@ -46,11 +46,14 @@ pub fn run(opts: &Options) -> Result<(), Error> {
     content.prefer(gpu.wanted);
     // The official avatars of the bundle (CONTENT.md 3.2), worn as the windowed client
     // wears them: a frame's look before its mannequin.
-    for frame in 0..4u8 {
-        let key = content.official_key(frame);
-        let slot = content.avatar(frame, |model| {
+    // (The bodies' looks, BODIES.md 3.1, are not: a crowd is of frames.)
+    for (frame, key, body) in content.avatar_entries() {
+        if body.is_some() {
+            continue;
+        }
+        let slot = content.avatar_by_key(&key, |model| {
             let slot = renderer.characters.add_model(&gpu, model);
-            avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+            avatars.keep_body(slot, &key, model);
             Some(slot)
         });
         avatars.set_official(frame, slot);
@@ -83,7 +86,7 @@ pub fn run(opts: &Options) -> Result<(), Error> {
             // A patch armour (LOOK.md 6.6): the patch for the official striker, laid into
             // its atlas when the crowd's strikers are drawn.
             if content.is_patch(key) {
-                let id = content.patch(key, 1, |p| Some(avatars.add_patch(p.clone())));
+                let id = content.patch(key, None, 1, |p| Some(avatars.add_patch(p.clone())));
                 match id {
                     Some(id) => avatars.crowd_patches.push(id),
                     None => {
@@ -92,7 +95,7 @@ pub fn run(opts: &Options) -> Result<(), Error> {
                 }
                 continue;
             }
-            let slot = content.overlay(key, 1, |model| {
+            let slot = content.overlay(key, None, 1, |model| {
                 Some(renderer.characters.add_model(&gpu, model))
             });
             match slot {

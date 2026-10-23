@@ -103,7 +103,7 @@ each the key of a file in 2:
 | `[[ability]]` | `secondary_of` | a secondary's weapons (BODIES.md 3.6, 2026-10-19): the props whose weapon brings it as its second move (`["staff", "wand"]`), as a primary's `prop` names the weapon that swings it; of several (the staff's six blasts) the build's own when it is one, else the first whose aspect the build holds, else the plain one |
 | `[[template]]` | `secondary` | the off hand's second move (BODIES.md 3.4, 2026-10-19): the key of the secondary the thing in the left hand brings over the weapon's own (`shield_bash` on the three shields, `pistol` on the pistol, `mend` on the focus) |
 | | `armour`, `ward`, `speed`, `regen` | an armour's base mitigation and weight (BODIES.md 3.7, 2026-10-19): armour and ward added to the wearer's before the caps (the chest whole, the head and the legs a third; within 0.3 of nothing), speed and stamina regen as factors (0.5–1.5; 1 for nothing) |
-| `[[body]]` (bodies.toml) | `key`, `name`, `frame`, `floors`, `skill`, `stamina`, `blurb` | a body (BODIES.md 3.1, 2026-10-19): the frame, five floors summing to 25 (each 3..=25), the body skill (an `active` of no aspect, free, active 1), the stamina pool's percent (default 100), the words. No look fields yet: the avatar is the frame's (3.2) until a body has a model of its own |
+| `[[body]]` (bodies.toml) | `key`, `name`, `frame`, `floors`, `skill`, `stamina`, `blurb` | a body (BODIES.md 3.1, 2026-10-19): the frame, five floors summing to 25 (each 3..=25), the body skill (an `active` of no aspect, free, active 1), the stamina pool's percent (default 100), the words. No look fields: a body's look is an `[[avatar]]` row naming it (3.2, 2026-10-23), the frame's otherwise |
 | `[[ability]]` | `heavy` | a heavy blow (GEAR.md 7, 2026-10-16; the two-handers): blocked, it costs the blocker twice the guard's stamina, and once its windup has passed a stagger does not stop it |
 | | `ammo` | the stack a shot draws one of (GEAR.md 7: the bow's `arrow`), by the stack template's key; refused with none carried; a firearm's is `firearm.ammo` |
 | | `covers` | an armour: the standard bones (MODELS.md 2) whose part of the body its overlay hides (LOOK.md 6.6) |
@@ -115,6 +115,7 @@ each the key of a file in 2:
 | | `icon` | its portrait; absent: baked from the model |
 | `[[build]]` | `icon` | the archetype's picture on the new-character screen; absent: baked from the frame's avatar or mannequin |
 | `[[avatar]]` (`avatars.toml`, since 2026-10-13) | `frame`, `armour`, `model` | `models/avatars/<model>.glb`: the official look of that frame in that armour class, worn by every character of the pair that has no model of its own; one row per pair at most |
+| | `body` | since 2026-10-23 (3.2): the key of the body (BODIES.md 3.1) whose look this row is, worn by every character of that body before the frame's row; one row per body, a model one row's |
 
 Since content v3 (2026-10-07, MODES.md 11.1) `[[template]]` has a third `kind`, `stack`:
 no layers, a `cap` (the most one holder carries, 1–1,000) and an optional `heals`; a
@@ -214,6 +215,26 @@ Blender), and `scripts/dev/blender-quaternius-warrior.py` is the Blender pass th
 first one (bones renamed, the IK feet and the thighs reparented, the face decimated, the sword
 split off as a prop).
 
+**The bodies' looks** (2026-10-23, BODIES.md 3.1). A row may name a `body` (a key of
+`bodies.toml`, of the row's frame): then it is that body's look, ingested as the frame's is
+and written as `avatars/<body>.gmm` (`AvatarEntry.body`), and every character of the body
+without a model of its own wears it before the frame's row (`Manifest::avatar_of`), which
+stays for a character from before the bodies, a bot and a companion. A body has one row, a
+frame one row without a body, and a model is one row's (the soldier has no row: the
+striker's look, `striker_mail`, is his). The zone tells a client who is which body
+(`PlayerEntry.body` and `PlayerInfo.body`, protocol v37, an index into the pack's bodies);
+the selector and the creation screen draw a build's `body` the same way. Seven are made
+from Quaternius' CC0 base characters by `scripts/dev/bodies-pipeline.py` (LICENSES.md):
+the man or the woman with a hairstyle, the beard and the peasant trousers and shoes of
+its sex, cut and decimated by `scripts/dev/blender-quaternius-body.py`, packed into one
+atlas by `gltf-atlas.py` and scaled to its frame by `glb-retarget.py` (the man's head
+pivot is at 1.60 m and the woman's at 1.55; the colossus band wants 1.53–1.79, the
+infiltrator's 1.32–1.55, MODELS.md 4), so the brute is a quarter wider and 7% taller than
+the soldier, the whelp a tenth shorter and thinner. The woman stands bare in the pack's
+top and briefs as the man stands bare in trousers. Each body's hood, robe and helms are
+cut for it and its cuirass and trousers baked onto its atlas (3.3): an overlay cut for the
+striker sits 11 cm high on the elder.
+
 ### 3.3 Armour overlays (2026-10-13)
 
 An armour is seen on the body (LOOK.md 6.6): its template's `model` names
@@ -224,7 +245,12 @@ the body's pose it sits where it was cut. It is ingested as an overlay: the pose
 the rig's rules as a body, the budgets of the **overlay** row of 4, no envelope (it covers
 part of a body). `covers` on the row names the bones whose part of the body is hidden
 under it. A frame without a file is drawn bare; `build` refuses a model with no file for
-any frame. One overlay a place (EQUIPMENT.md 5.2, content v10): the row's `place` says
+any frame or any official avatar. Since 2026-10-23 (the bodies' looks, 3.2) a model may
+also name `models/armour/<model>_<avatar key>.glb`, the piece cut for one official avatar
+(`OverlayEntry.body`), ingested as an overlay of that look's frame and written as
+`armour/<model>_<avatar key>.gmm`; a body wearing that look wears it before the frame's
+cut (`Manifest::overlay_of`), as it wears the patches baked for that look. The bodies'
+pipeline (3.2) cuts a hood and a robe and binds the three helms for each body it makes. One overlay a place (EQUIPMENT.md 5.2, content v10): the row's `place` says
 which, and a body wears up to three at once (the chest, the head, the legs since
 EQUIPMENT.md 10.8, 2026-10-14; seven before), drawn in the order of `Place::BODY`. The
 ranger set on the striker is the first cut: `cuirass` (the jerkin and its belts),

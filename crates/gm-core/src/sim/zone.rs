@@ -144,6 +144,12 @@ impl Player {
         self.sheet.build.frame
     }
 
+    /// The body it is (BODIES.md 3.1), an index into the pack's bodies; `None` for a
+    /// creature, a companion, a bot and a character from before the bodies.
+    pub fn body(&self) -> Option<u16> {
+        self.sheet.build.body
+    }
+
     pub fn team(&self) -> u8 {
         self.sheet.team
     }

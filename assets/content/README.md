@@ -1,4 +1,4 @@
-# Content v3 (2026-10-09, content version 6: the six elements of MATRIX.md 5; v2 2026-10-06; v1 Phase 3)
+# Content v3 (2026-10-09, content version 6: the six elements of MATRIX.md 5; v2 2026-10-06; v1 Phase 3; version 32 on 2026-10-23: the bodies' looks, CONTENT.md 3.2)
 
 Nothing is priced since 2026-10-20 (MATRIX.md 20: no kit points, no trainer; the mode
 `gun` is `fps`). `abilities.toml`, `builds.toml`, `creatures.toml` and `trials.toml` are the shipped content

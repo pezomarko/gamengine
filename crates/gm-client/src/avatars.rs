@@ -72,6 +72,9 @@ pub struct Body {
     /// Frame and aspect mask as in the snapshot's spawn info.
     pub frame: u8,
     pub aspects: u8,
+    /// The body it is (BODIES.md 3.1), an index into the pack's bodies, when the zone
+    /// said one: it wears its body's official look (CONTENT.md 3.2) before its frame's.
+    pub body: Option<u16>,
     /// Status mask (the aura).
     pub status: u32,
     pub model: Option<ModelId>,
@@ -173,6 +176,9 @@ pub struct Avatars {
     /// The official avatars of the bundle by frame (CONTENT.md 3.2), once loaded: a body
     /// without a model of its own wears one before it is the mannequin.
     officials: [Option<usize>; 4],
+    /// And by body (BODIES.md 3.1, an index into the pack's bodies): a body of one wears
+    /// its own before its frame's.
+    body_officials: HashMap<u16, usize>,
     /// Their atlases on the CPU, by slot (`keep_body`): what the composites start from.
     bodies: HashMap<usize, BodyAtlas>,
     /// The cloth patches the content has loaded (`add_patch`), by id.
@@ -308,6 +314,7 @@ impl Avatars {
             crowd_sheathed: false,
             flat: HashSet::new(),
             officials: [None; 4],
+            body_officials: HashMap::new(),
             bodies: HashMap::new(),
             patches: Vec::new(),
             composites: HashMap::new(),
@@ -414,6 +421,25 @@ impl Avatars {
         }
     }
 
+    /// The official avatar of a body (BODIES.md 3.1), on the GPU (or not there).
+    pub fn set_body_official(&mut self, body: u16, slot: Option<usize>) {
+        match slot {
+            Some(slot) => {
+                self.body_officials.insert(body, slot);
+            }
+            None => {
+                self.body_officials.remove(&body);
+            }
+        }
+    }
+
+    /// The official look a body wears (CONTENT.md 3.2): its body's, else its frame's.
+    fn official(&self, body: &Body) -> Option<usize> {
+        body.body
+            .and_then(|b| self.body_officials.get(&b).copied())
+            .or(self.officials[(body.frame as usize).min(3)])
+    }
+
     pub fn begin_frame(&mut self) {
         self.frame += 1;
         self.draws.clear();
@@ -443,7 +469,7 @@ impl Avatars {
                 self.with_model += 1;
                 (slot, [1.0; 3])
             }
-            None => match self.officials[frame] {
+            None => match self.official(body) {
                 // The official look is untinted, and so is the cloth it wears (LOOK.md
                 // 6.6); the mannequin is one grey (no armour class since GEAR.md 12).
                 Some(slot) => (self.dressed(slot, &body.patches), [1.0; 3]),
@@ -679,6 +705,7 @@ impl Avatars {
                 crouched: false,
                 frame,
                 aspects: 1 << (i % 6),
+                body: None,
                 status: 0,
                 model,
                 distance: (origin - camera).length(),
@@ -832,6 +859,7 @@ pub fn stall_keeper(stall: &gm_net::control::StallEntry, camera: Vec3) -> Body {
         crouched: false,
         frame: stall.frame,
         aspects: 0,
+        body: None,
         status: 0,
         model: stall.model,
         distance: (origin - camera).length(),

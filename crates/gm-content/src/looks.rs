@@ -84,10 +84,14 @@ pub struct BuildLook {
 }
 
 /// A row of `avatars.toml` (CONTENT.md 3.2): the official look of a frame, worn by every
-/// character of that frame that has no model of its own.
+/// character of that frame that has no model of its own; or, with `body` (BODIES.md 3.1,
+/// 2026-10-23), the look of that body, worn by every character of the body before the
+/// frame's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AvatarLook {
     pub frame: gm_core::vocab::ArchetypeFrame,
+    /// The body's key (`bodies.toml`) for a body's look; `None` for the frame's.
+    pub body: Option<String>,
     /// `models/avatars/<model>.glb`.
     pub model: String,
 }
@@ -103,6 +107,8 @@ struct AvatarsFile {
 #[serde(deny_unknown_fields)]
 struct AvatarRow {
     frame: String,
+    #[serde(default)]
+    body: Option<String>,
     model: String,
 }
 
@@ -393,14 +399,41 @@ impl Looks {
                     v.frame, v.model
                 )));
             }
-            if looks.avatars.iter().any(|a| a.frame == frame) {
+            if let Some(body) = &v.body {
+                if !valid_key(body) {
+                    return Err(ContentError::Invalid(format!(
+                        "avatar {}: body `{body}` is not a key",
+                        v.frame
+                    )));
+                }
+                if looks
+                    .avatars
+                    .iter()
+                    .any(|a| a.body.as_deref() == Some(body))
+                {
+                    return Err(ContentError::Invalid(format!(
+                        "avatar {body}: two rows; a body has one look"
+                    )));
+                }
+            } else if looks
+                .avatars
+                .iter()
+                .any(|a| a.body.is_none() && a.frame == frame)
+            {
                 return Err(ContentError::Invalid(format!(
                     "avatar {}: two rows; a frame has one look",
                     v.frame
                 )));
             }
+            if looks.avatars.iter().any(|a| a.model == v.model) {
+                return Err(ContentError::Invalid(format!(
+                    "avatar {}: model `{}` is another row's; a look has one model",
+                    v.frame, v.model
+                )));
+            }
             looks.avatars.push(AvatarLook {
                 frame,
+                body: v.body.clone(),
                 model: v.model.clone(),
             });
         }
@@ -578,7 +611,17 @@ tint = [0.8, 0.8, 0.85]
         let looks = Looks::load_str(ABILITIES, "", "", ITEMS, one).unwrap();
         assert_eq!(looks.avatars.len(), 1);
         assert_eq!(looks.avatars[0].model, "striker_mail");
+        assert_eq!(looks.avatars[0].body, None);
         assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{one}")).is_err());
+        // A body's row (BODIES.md 3.1) beside the frame's, once per body, each its own
+        // model.
+        let body = "[[avatar]]\nframe = \"striker\"\nbody = \"huntress\"\nmodel = \"huntress\"\n";
+        let looks = Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{body}")).unwrap();
+        assert_eq!(looks.avatars.len(), 2);
+        assert_eq!(looks.avatars[1].body.as_deref(), Some("huntress"));
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{body}{body}")).is_err());
+        let taken = body.replace("model = \"huntress\"", "model = \"striker_mail\"");
+        assert!(Looks::load_str(ABILITIES, "", "", ITEMS, &format!("{one}{taken}")).is_err());
         assert!(
             Looks::load_str(ABILITIES, "", "", ITEMS, &one.replace("striker", "ogre")).is_err()
         );

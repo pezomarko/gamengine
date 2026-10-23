@@ -306,17 +306,60 @@ pub fn check_bsp(path: &Path, b: &MapBudget) -> Result<Report> {
     })
 }
 
-/// An armour overlay source, `models/armour/<model>_<frame>.glb`, judged as `gm-tools content
-/// build` will ingest it (the overlay row of the budgets, no envelope, the standard rig's bones).
+/// The frame a model source's name ends or starts with (MODELS.md 4): a frame's name, or,
+/// since content v32 (CONTENT.md 3.2), a body's key, whose frame the `bodies.toml` at the
+/// content root (two directories above `models/armour` and `models/avatars`) names.
+fn frame_of(path: &Path, name: &str) -> Result<gm_core::vocab::ArchetypeFrame> {
+    if let Some(frame) = gm_model::rig::frame_by_name(name) {
+        return Ok(frame);
+    }
+    #[derive(Deserialize)]
+    struct BodyRow {
+        key: String,
+        frame: String,
+    }
+    #[derive(Deserialize)]
+    struct BodiesFile {
+        #[serde(default)]
+        body: Vec<BodyRow>,
+    }
+    let bodies = path
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .map(|root| root.join("bodies.toml"))
+        .filter(|p| p.exists());
+    if let Some(bodies) = bodies {
+        let text =
+            fs::read_to_string(&bodies).with_context(|| format!("reading {}", bodies.display()))?;
+        let file: BodiesFile =
+            toml::from_str(&text).with_context(|| format!("parsing {}", bodies.display()))?;
+        if let Some(body) = file.body.iter().find(|b| b.key == name) {
+            return gm_model::rig::frame_by_name(&body.frame).with_context(|| {
+                format!(
+                    "{}: body `{name}` has no frame `{}`",
+                    bodies.display(),
+                    body.frame
+                )
+            });
+        }
+    }
+    bail!(
+        "{}: `{name}` is neither a frame nor a body of bodies.toml",
+        path.display()
+    )
+}
+
+/// An armour overlay source, `models/armour/<model>_<frame>.glb` or, for a body's own cut,
+/// `<model>_<body>.glb` (CONTENT.md 3.3), judged as `gm-tools content build` will ingest
+/// it (the overlay row of the budgets, no envelope, the standard rig's bones).
 pub fn check_overlay(path: &Path) -> Result<Report> {
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or_default();
-    let frame = stem
-        .rsplit_once('_')
-        .and_then(|(_, f)| gm_model::rig::frame_by_name(f))
-        .with_context(|| format!("{}: no frame in the name", path.display()))?;
+    let name = stem.rsplit_once('_').map_or(stem, |(_, f)| f);
+    let frame = frame_of(path, name)?;
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let (report, _) = gm_ingest::ingest_overlay(&bytes, frame);
     let f = &report.facts;
@@ -330,8 +373,8 @@ pub fn check_overlay(path: &Path) -> Result<Report> {
     })
 }
 
-/// An official avatar's source, `models/avatars/<frame>_<armour>.glb`, judged as `gm-tools
-/// content build` will ingest it (the avatar rules: the envelope, the pose, the budgets, the
+/// An official avatar's source, `models/avatars/<frame>_<armour>.glb` or a body's
+/// `<body>.glb` (CONTENT.md 3.2), judged as `gm-tools content build` will ingest it (the avatar rules: the envelope, the pose, the budgets, the
 /// standard rig's bones). Since 2026-10-15 the file keeps the pack's whole armature, as the
 /// armour sources do: the bake of a cloth patch (CONTENT.md 3.3) wants the body exactly as
 /// the cuts were made on it, and the ingestion keeps the 24 bones it knows.
@@ -340,10 +383,8 @@ pub fn check_avatar(path: &Path) -> Result<Report> {
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or_default();
-    let frame = stem
-        .split_once('_')
-        .and_then(|(f, _)| gm_model::rig::frame_by_name(f))
-        .with_context(|| format!("{}: no frame in the name", path.display()))?;
+    let name = stem.split_once('_').map_or(stem, |(f, _)| f);
+    let frame = frame_of(path, name)?;
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let (report, _) = gm_ingest::ingest(&bytes, frame);
     let f = &report.facts;

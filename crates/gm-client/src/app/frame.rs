@@ -427,6 +427,7 @@ impl App {
             crouched: self.input.crouch_and_shift().0 || self.input.down(KeyCode::KeyX),
             frame: 1,
             aspects: 0,
+            body: None,
             status: 0,
             model: None,
             distance: 0.0,
@@ -559,18 +560,41 @@ impl App {
         // The official avatars of the bundle (CONTENT.md 3.2) stand in for the mannequins
         // of their frame: natively a file is read the first time it is asked for, in a
         // browser it is fetched like a prop and lands through `poll`.
+        // A body's look (BODIES.md 3.1) goes under the body's index in the pack the zone
+        // or the hub sent; one the client has no pack for yet waits for the next frame.
         {
+            let packs = [
+                self.online.as_ref().and_then(|o| o.pack.as_ref()),
+                self.screens.front.as_ref().and_then(|f| f.pack()),
+            ];
+            let index_of = |key: &str| -> Option<u16> {
+                packs
+                    .into_iter()
+                    .flatten()
+                    .find_map(|p| p.bodies.iter().position(|b| b.key == key).map(|i| i as u16))
+            };
+            let entries: Vec<(u8, String, Option<Option<u16>>)> = self
+                .content
+                .avatar_entries()
+                .into_iter()
+                .map(|(frame, key, body)| (frame, key, body.map(|b| index_of(&b))))
+                .collect();
             let (gpu, characters, avatars) = (&a.gpu, &mut a.renderer.characters, &mut a.avatars);
-            for frame in 0..4u8 {
-                let key = self.content.official_key(frame);
-                let slot = self.content.avatar(frame, |model| {
+            for (frame, key, body) in entries {
+                if body == Some(None) {
+                    continue;
+                }
+                let slot = self.content.avatar_by_key(&key, |model| {
                     let slot = characters.add_model(gpu, model);
                     // Its atlas stays on the CPU: the cloth patches are laid into a copy
                     // of it when the body wears them (LOOK.md 6.6).
-                    avatars.keep_body(slot, key.as_deref().unwrap_or(""), model);
+                    avatars.keep_body(slot, &key, model);
                     Some(slot)
                 });
-                avatars.set_official(frame, slot);
+                match body {
+                    Some(Some(index)) => avatars.set_body_official(index, slot),
+                    _ => avatars.set_official(frame, slot),
+                }
             }
         }
         a.avatars.begin_frame();
@@ -1073,7 +1097,12 @@ impl App {
         let place = |i: usize| worn.map(|w| w[i].as_str());
         let prop = template_prop(&mut self.content, Some(a), place(0));
         let off = template_prop(&mut self.content, Some(a), place(1));
-        let (overlay, hide, patches) = template_overlay(&mut self.content, Some(a), worn, frame);
+        let key = body_key(
+            self.screens.front.as_ref().and_then(|f| f.pack()),
+            build.body,
+        );
+        let (overlay, hide, patches) =
+            template_overlay(&mut self.content, Some(a), worn, key, frame);
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1083,6 +1112,7 @@ impl App {
             crouched: false,
             frame,
             aspects: build.aspects.0,
+            body: build.body,
             status: 0,
             model,
             distance: 0.0,
@@ -1112,7 +1142,14 @@ impl App {
         let build = &c.sheet.build;
         let look = o.looks.get(&c.my_id).copied().unwrap_or_default();
         let frame = gm_model::rig::frame_index(build.frame);
-        let worn = worn_overlay(&mut self.content, Some(a), &o.props, look, frame);
+        let worn = worn_overlay(
+            &mut self.content,
+            Some(a),
+            &o.props,
+            look,
+            body_key(o.pack.as_ref(), build.body),
+            frame,
+        );
         let body = Body {
             key: DOLL,
             origin: Vec3::new(0.0, 0.0, 24.0),
@@ -1122,6 +1159,7 @@ impl App {
             crouched: false,
             frame,
             aspects: build.aspects.0,
+            body: build.body,
             status: 0,
             model: o.names.get(&c.my_id).and_then(|n| n.2),
             distance: 0.0,

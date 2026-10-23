@@ -28,6 +28,7 @@ pub(super) fn worn_overlay(
     active: Option<&mut Active>,
     props: &[String],
     look: Look,
+    body: Option<&str>,
     frame: u8,
 ) -> Worn {
     let mut worn = [None; BODY_PLACES];
@@ -46,15 +47,21 @@ pub(super) fn worn_overlay(
             continue;
         };
         if content.is_patch(key) {
-            patches[i] = content.patch(key, frame, |p| Some(avatars.add_patch(p.clone())));
-        } else if let Some(slot) =
-            content.overlay(key, frame, |model| Some(characters.add_model(gpu, model)))
-        {
+            patches[i] = content.patch(key, body, frame, |p| Some(avatars.add_patch(p.clone())));
+        } else if let Some(slot) = content.overlay(key, body, frame, |model| {
+            Some(characters.add_model(gpu, model))
+        }) {
             worn[i] = Some(slot);
             hide |= content.covers(key);
         }
     }
     (worn, hide, patches)
+}
+
+/// The key of a body (BODIES.md 3.1) the zone or the hub named by its index into the
+/// pack's bodies; nothing without a pack, or for a body without one.
+pub(super) fn body_key(pack: Option<&ContentPack>, body: Option<u16>) -> Option<&str> {
+    pack?.bodies.get(body? as usize).map(|b| b.key.as_str())
 }
 
 /// The off hand's prop (LOOK.md 6.5), the same way.
@@ -105,6 +112,7 @@ pub(super) fn template_overlay(
     content: &mut Content,
     active: Option<&mut Active>,
     worn: Option<&[String; gm_hub_proto::protocol::PLACES]>,
+    body: Option<&str>,
     frame: u8,
 ) -> Worn {
     let mut out = [None; BODY_PLACES];
@@ -123,9 +131,9 @@ pub(super) fn template_overlay(
             continue;
         };
         if content.is_patch(&model) {
-            patches[i] = content.patch(&model, frame, |p| Some(avatars.add_patch(p.clone())));
+            patches[i] = content.patch(&model, body, frame, |p| Some(avatars.add_patch(p.clone())));
         } else if let Some(slot) =
-            content.overlay(&model, frame, |m| Some(characters.add_model(gpu, m)))
+            content.overlay(&model, body, frame, |m| Some(characters.add_model(gpu, m)))
         {
             out[i] = Some(slot);
             hide |= content.covers(&model);
