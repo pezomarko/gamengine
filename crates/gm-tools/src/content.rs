@@ -556,12 +556,35 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         }
     }
 
-    // The official avatars (CONTENT.md 3.2): a frame's look, ingested as the hub ingests
-    // an upload for that frame (the envelope, the pose, the budgets).
+    // The official avatars (CONTENT.md 3.2): a frame's look, or a body's (BODIES.md 3.1,
+    // 2026-10-23), ingested as the hub ingests an upload for that frame (the envelope, the
+    // pose, the budgets). The bundle's name of one is the frame's, or the body's key.
+    let avatar_name = |a: &gm_content::looks::AvatarLook| {
+        a.body
+            .clone()
+            .unwrap_or_else(|| rig::frame_name(a.frame).to_string())
+    };
     let mut avatars: BTreeMap<String, Model> = BTreeMap::new();
     let mut avatar_entries: Vec<AvatarEntry> = Vec::new();
     for a in &looks.avatars {
-        let name = rig::frame_name(a.frame).to_string();
+        let name = avatar_name(a);
+        if let Some(body) = &a.body {
+            match pack.bodies.iter().find(|b| &b.key == body) {
+                None => {
+                    problems.push(format!("avatar {name}: no body `{body}` in bodies.toml"));
+                    continue;
+                }
+                Some(b) if b.frame != a.frame => {
+                    problems.push(format!(
+                        "avatar {name}: the body is a {}, the row says {}",
+                        rig::frame_name(b.frame),
+                        rig::frame_name(a.frame)
+                    ));
+                    continue;
+                }
+                Some(_) => {}
+            }
+        }
         let file = format!("models/avatars/{}.glb", a.model.replace('/', "_"));
         let path = dir.join(&file);
         if !path.is_file() {
@@ -580,6 +603,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                 avatar_entries.push(AvatarEntry {
                     frame: rig::frame_index(a.frame),
                     key: a.model.clone(),
+                    body: a.body.clone(),
                     file: out.clone(),
                     sha256: sha(&ing.gmm),
                     bytes: ing.gmm.len() as u32,
@@ -633,6 +657,52 @@ pub fn build(dir: &Path) -> Result<Bundle> {
                         overlay_entries.push(OverlayEntry {
                             key: model.clone(),
                             frame: rig::frame_index(frame),
+                            body: None,
+                            file: out.clone(),
+                            sha256: sha(&ing.gmm),
+                            bytes: ing.gmm.len() as u32,
+                            triangles: ing.model.triangles() as u32,
+                            etc2,
+                        });
+                        files.insert(out, ing.gmm);
+                    }
+                    overlays.insert(name, ing.model);
+                }
+                _ => {
+                    for v in &report.violations {
+                        problems.push(format!("armour {} ({file}): {v}", t.key));
+                    }
+                }
+            }
+        }
+        // And the cuts for the official avatars (BODIES.md 3.1, 2026-10-23):
+        // `models/armour/<model>_<avatar key>.glb`, an overlay of that look's frame worn
+        // by a body in that look before the frame's cut (a body's shoulders are its own).
+        for a in &looks.avatars {
+            let name = format!("{}_{}", model.replace('/', "_"), a.model.replace('/', "_"));
+            let file = format!("models/armour/{name}.glb");
+            let path = dir.join(&file);
+            if !path.is_file() {
+                continue;
+            }
+            any = true;
+            if !licensed(&format!("{name}.glb")) {
+                problems.push(format!(
+                    "armour {}: {file} is not named in LICENSES.md",
+                    t.key
+                ));
+            }
+            let (report, ingested) = gm_ingest::ingest_overlay(&read(&path)?, a.frame);
+            match ingested {
+                Some(ing) if report.ok => {
+                    if !t.patch {
+                        let out = format!("armour/{name}.gmm");
+                        facts.push((format!("overlay/{name}"), report.facts.clone()));
+                        let etc2 = file_variant(&mut files, &out, ing.etc);
+                        overlay_entries.push(OverlayEntry {
+                            key: model.clone(),
+                            frame: rig::frame_index(a.frame),
+                            body: Some(a.model.clone()),
                             file: out.clone(),
                             sha256: sha(&ing.gmm),
                             bytes: ing.gmm.len() as u32,
@@ -674,7 +744,7 @@ pub fn build(dir: &Path) -> Result<Bundle> {
         };
         let mut any = false;
         for a in &looks.avatars {
-            let Some(body) = avatars.get(rig::frame_name(a.frame)) else {
+            let Some(body) = avatars.get(&avatar_name(a)) else {
                 continue;
             };
             let name = format!("{}_{}", model.replace('/', "_"), a.model.replace('/', "_"));

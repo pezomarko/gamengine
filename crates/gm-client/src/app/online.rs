@@ -19,6 +19,9 @@ pub(crate) struct Online {
     pub(super) rate: TickRate,
     /// Everyone in the zone: name, team, avatar model.
     pub(super) names: HashMap<u32, (String, u8, Option<ModelId>)>,
+    /// The body each one is (BODIES.md 3.1), an index into the pack's bodies, for those
+    /// the zone said one for: it wears its body's official look (CONTENT.md 3.2).
+    pub(super) bodies: HashMap<u32, u16>,
     /// What each body holds (LOOK.md 6.2), by the pack's prop list.
     pub(super) looks: HashMap<u32, Look>,
     /// The prop keys the zone's content names: what a `Look` indexes.
@@ -142,6 +145,7 @@ pub(super) fn online(
         last_snapshot: Instant::now(),
         rate: TickRate::COMBAT,
         names: HashMap::new(),
+        bodies: HashMap::new(),
         looks: HashMap::new(),
         props: Vec::new(),
         kinds: HashMap::new(),
@@ -635,7 +639,8 @@ impl App {
                 model,
                 kind,
                 look,
-            } => self.on_player_info(id, name, team, model, kind, look),
+                body,
+            } => self.on_player_info(id, name, team, model, kind, look, body),
             FromZone::Look { id, look } => {
                 if let Some(o) = self.online.as_mut() {
                     o.looks.insert(id, look);
@@ -749,16 +754,21 @@ impl App {
             return;
         };
         o.names.clear();
+        o.bodies.clear();
         o.kinds.clear();
         o.looks.clear();
         for p in players {
             o.kinds.insert(p.id, p.kind);
             o.names.insert(p.id, (p.name, p.team, p.model));
+            if let Some(body) = p.body {
+                o.bodies.insert(p.id, body);
+            }
             o.looks.insert(p.id, p.look);
         }
     }
 
     /// Somebody came in, or changed.
+    #[allow(clippy::too_many_arguments)]
     fn on_player_info(
         &mut self,
         id: u32,
@@ -767,12 +777,17 @@ impl App {
         model: Option<ModelId>,
         kind: BodyKind,
         look: Look,
+        body: Option<u16>,
     ) {
         let Some(o) = self.online.as_mut() else {
             return;
         };
         o.kinds.insert(id, kind);
         o.names.insert(id, (name, team, model));
+        match body {
+            Some(body) => o.bodies.insert(id, body),
+            None => o.bodies.remove(&id),
+        };
         o.looks.insert(id, look);
     }
 
@@ -1779,11 +1794,13 @@ impl App {
         );
         self.view.facings.insert(e.id, yaw);
         let look = o.looks.get(&e.id).copied().unwrap_or_default();
+        let body = o.bodies.get(&e.id).copied();
         let worn = worn_overlay(
             &mut self.content,
             self.active.as_mut(),
             &o.props,
             look,
+            body_key(o.pack.as_ref(), body),
             frame,
         );
         let anim = Self::npc_anim(o, clock_now, e.id, e.anim);
@@ -1793,6 +1810,7 @@ impl App {
             yaw,
             pitch: e.pitch,
             anim,
+            body,
             crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
             frame,
             aspects,
@@ -2343,6 +2361,7 @@ impl App {
             self.active.as_mut(),
             &o.props,
             o.looks.get(&c.my_id).copied().unwrap_or_default(),
+            body_key(o.pack.as_ref(), build.body),
             gm_model::rig::frame_index(build.frame),
         );
         self.scene.bodies.push(Body {
@@ -2351,6 +2370,7 @@ impl App {
             yaw,
             pitch: self.sim.pitch,
             anim: own_anim,
+            body: build.body,
             // The own body squats from the first frame of a crouch under way, as its eye
             // begins to sink; others see it stand until it is done, as its hitbox does
             // (MODES.md 12).

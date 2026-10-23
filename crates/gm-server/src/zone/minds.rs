@@ -56,6 +56,7 @@ impl Run {
             id,
             npc_wears(&self.pack, kind),
         );
+        let body = self.zone.player(id).and_then(|p| p.body());
         for s in self.sessions.values() {
             s.send_control(FromZone::PlayerInfo {
                 id,
@@ -64,6 +65,7 @@ impl Run {
                 model,
                 kind: wire_kind(kind),
                 look,
+                body,
             });
         }
     }

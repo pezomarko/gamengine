@@ -490,7 +490,9 @@ the official avatar's own atlas, as WoW painted a shirt on in 2004 and GoldSrc's
 bodygroups swapped a skin. The cuirass and the trousers are patches; the hood, the robe,
 the helms and the cape, which change the silhouette, stay overlays. The zone sends the
 same `Look.worn`; the client, finding the template's `patch` flag in the manifest, loads
-the patch of that model for the **official avatar of the body's frame and class**
+the patch of that model for the **official avatar the body wears** (its body's look, else
+its frame's, CONTENT.md 3.2; the frame's in its class until 2026-10-17, the frame's alone
+until the bodies' looks of 2026-10-23)
 (`Content::patch`, `armour/<model>_<avatar>.gmp`) into the avatars' registry
 (`Avatars::add_patch`), and `Body.patches` carries the ids, one a place, beside
 `Body.worn`. A body drawn as that official avatar is drawn as the **composite** of its

@@ -1053,3 +1053,11 @@ in hand, answered by a line.
 client compile the same kit from it. `FromClient::Shrine` asks the shrine the player stands
 at to wash every harmful status off the body, answered by a line.
 
+
+## 43. Changes in v37 (the bodies' looks, 2026-10-23)
+
+`PROTOCOL_VERSION` 37 (CONTENT.md 3.2, BODIES.md 3.1): `PlayerEntry` and `PlayerInfo`
+carry `body`, the body the character is as an index into the pack's `bodies` (`None` for
+a companion, a creature, a bot and a character from before the bodies), so that a client
+draws the body's official look before its frame's and the overlays and patches cut and
+baked for that look. Nothing else on the wire changes.

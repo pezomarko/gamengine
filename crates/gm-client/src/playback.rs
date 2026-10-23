@@ -246,6 +246,7 @@ impl Playback {
                         crouched: e.flags & gm_net::snapshot::flags::CROUCHED != 0,
                         frame,
                         aspects,
+                        body: None,
                         status: e.status,
                         model: None,
                         distance: (e.pos - eye).length(),

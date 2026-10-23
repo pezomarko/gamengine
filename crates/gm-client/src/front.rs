@@ -621,6 +621,11 @@ impl Front {
         [answered, clicked]
     }
 
+    /// The hub's content pack, once it came: what a build's body index names (BODIES.md 3.1).
+    pub fn pack(&self) -> Option<&ContentPack> {
+        self.content.as_ref()
+    }
+
     /// The build the selector shows this frame (CLIENT.md 4.2), for the body the app
     /// draws into it: a character's, with the model it wears, or an archetype's.
     pub fn shown(&self) -> Option<Doll<'_>> {

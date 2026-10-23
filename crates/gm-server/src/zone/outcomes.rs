@@ -125,6 +125,7 @@ impl Run {
             None,
         );
         if let Some((name, team, model)) = wears {
+            let body = self.zone.player(id).and_then(|p| p.body());
             for s in self.sessions.values() {
                 s.send_control(FromZone::PlayerInfo {
                     id,
@@ -133,6 +134,7 @@ impl Run {
                     model,
                     kind: BodyKind::Human,
                     look,
+                    body,
                 });
             }
         } else {

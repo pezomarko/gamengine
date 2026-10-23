@@ -215,9 +215,11 @@ margin is 1.2 (one matrix step and a little) where it was 1.5.
 ### 6.2 Step 2, the bodies
 
 - **Content**: `bodies.toml` (3.1), eight rows: `key`, `name`, `frame`, `floors`,
-  `skill`, `stamina` (default 100), `blurb`. No `avatar` field: only the striker has an
-  official model today, so a body's look is its frame's (CONTENT.md 3.2) until the eight
-  models exist. Validated by `ContentPack::validate`: floors in 3..=25 summing to 25, the
+  `skill`, `stamina` (default 100), `blurb`. No `avatar` field: a body's look is an
+  `[[avatar]]` row of `avatars.toml` naming it (CONTENT.md 3.2; since 2026-10-23 all eight
+  have one, seven made from Quaternius' CC0 base characters by
+  `scripts/dev/bodies-pipeline.py`, the soldier's the striker's own; the frame's row stands
+  in for a character from before the bodies). Validated by `ContentPack::validate`: floors in 3..=25 summing to 25, the
   skill a plain active (no aspect, no creature's), stamina above zero, and a build of the
   body in each mode validating with nothing bought. The fixture pack mirrors the eight.
   Content v22.

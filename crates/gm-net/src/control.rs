@@ -110,6 +110,10 @@ pub struct PlayerEntry {
     pub kind: BodyKind,
     /// v8: what it holds.
     pub look: Look,
+    /// v37: the body it is (BODIES.md 3.1), an index into the pack's `bodies`, so that a
+    /// client draws the body's official look (CONTENT.md 3.2) before its frame's; `None`
+    /// for a companion, a creature, a bot and a character from before the bodies.
+    pub body: Option<u16>,
 }
 
 /// A standing order (COMPANIONS.md 5.3).
@@ -467,6 +471,8 @@ pub enum FromZone {
         kind: BodyKind,
         /// v8: what it holds.
         look: Look,
+        /// v37: the body it is, as in `PlayerEntry`.
+        body: Option<u16>,
     },
     /// A model was taken down: forget it, delete it (MODELS.md 8).
     ModelRevoked([u8; 32]),
@@ -935,6 +941,7 @@ mod tests {
                         off: if i % 2 == 0 { 3 } else { Look::NONE },
                         sheathed: i % 3 == 0,
                     },
+                    body: Some((i % 8) as u16),
                 })
                 .collect(),
         );

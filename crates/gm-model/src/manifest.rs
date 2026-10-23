@@ -95,14 +95,19 @@ pub struct PatchEntry {
 }
 
 /// An armour overlay (CONTENT.md 3.3): a skinned piece on the standard rig, made for one
-/// frame, drawn over a body of that frame with the body's pose when the armour is worn.
+/// frame or for one official avatar, drawn over a body of that frame (or that look) with
+/// the body's pose when the armour is worn.
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct OverlayEntry {
-    /// The template's model key (`models/armour/<key>_<frame>.glb` in the sources).
+    /// The template's model key (`models/armour/<key>_<frame>.glb` in the sources, or
+    /// `<key>_<avatar key>.glb` for one cut for an official avatar).
     pub key: String,
     /// `rig::frame_index`.
     pub frame: u8,
-    /// The file under the bundle: `armour/<key>_<frame>.gmm`.
+    /// The official avatar's key it was cut for (`AvatarEntry.key`, 2026-10-23): a body
+    /// wearing that look wears this cut before the frame's; `None` for the frame's cut.
+    pub body: Option<String>,
+    /// The file under the bundle: `armour/<key>_<frame>.gmm`, or `<key>_<avatar key>.gmm`.
     pub file: String,
     pub sha256: [u8; 32],
     pub bytes: u32,
@@ -161,14 +166,18 @@ pub struct Variant {
 }
 
 /// An official avatar: the look of a frame, worn by every character of that frame without
-/// a model of its own (MODELS.md 1, CONTENT.md 3.2).
+/// a model of its own (MODELS.md 1, CONTENT.md 3.2); or, since 2026-10-23, the look of a
+/// body (BODIES.md 3.1), worn by every character of that body the same way, before the
+/// frame's.
 #[derive(Clone, Debug, Default, PartialEq, Encode, Decode)]
 pub struct AvatarEntry {
     /// `rig::frame_index`.
     pub frame: u8,
     /// The model's key (`models/avatars/<key>.glb` in the sources).
     pub key: String,
-    /// The file under the bundle: `avatars/<frame>.gmm`.
+    /// The body's key (`bodies.toml`) when this is a body's look; `None` for a frame's.
+    pub body: Option<String>,
+    /// The file under the bundle: `avatars/<frame>.gmm`, or `avatars/<body>.gmm`.
     pub file: String,
     pub sha256: [u8; 32],
     pub bytes: u32,
@@ -255,14 +264,39 @@ impl Manifest {
     /// body of the frame without a model of its own, whatever it wears (no armour class
     /// since GEAR.md 12, 2026-10-17).
     pub fn avatar(&self, frame: u8) -> Option<&AvatarEntry> {
-        self.avatars.iter().find(|a| a.frame == frame)
+        self.avatars
+            .iter()
+            .find(|a| a.body.is_none() && a.frame == frame)
     }
 
-    /// The overlay of an armour's model for a frame (`rig::frame_index`).
+    /// The official avatar a body wears (BODIES.md 3.1, 2026-10-23): its body's look when
+    /// the bundle has one, else its frame's.
+    pub fn avatar_of(&self, body: Option<&str>, frame: u8) -> Option<&AvatarEntry> {
+        body.and_then(|b| self.avatars.iter().find(|a| a.body.as_deref() == Some(b)))
+            .or_else(|| self.avatar(frame))
+    }
+
+    /// An official avatar by its model key (`AvatarEntry.key`).
+    pub fn avatar_by_key(&self, key: &str) -> Option<&AvatarEntry> {
+        self.avatars.iter().find(|a| a.key == key)
+    }
+
+    /// The overlay of an armour's model for a frame (`rig::frame_index`): the frame's cut.
     pub fn overlay(&self, key: &str, frame: u8) -> Option<&OverlayEntry> {
         self.overlays
             .iter()
-            .find(|o| o.key == key && o.frame == frame)
+            .find(|o| o.key == key && o.body.is_none() && o.frame == frame)
+    }
+
+    /// The overlay of an armour's model on a body wearing an official avatar (its key):
+    /// the cut for that look when the bundle has one, else the frame's.
+    pub fn overlay_of(&self, key: &str, body: Option<&str>, frame: u8) -> Option<&OverlayEntry> {
+        body.and_then(|b| {
+            self.overlays
+                .iter()
+                .find(|o| o.key == key && o.body.as_deref() == Some(b))
+        })
+        .or_else(|| self.overlay(key, frame))
     }
 
     /// The patch of an armour's model for an official avatar (`AvatarEntry.key`).
@@ -321,6 +355,7 @@ mod tests {
             overlays: vec![OverlayEntry {
                 key: "cuirass".into(),
                 frame: 1,
+                body: None,
                 file: "armour/cuirass_striker.gmm".into(),
                 sha256: [3; 32],
                 bytes: 90_000,
@@ -338,6 +373,7 @@ mod tests {
             avatars: vec![AvatarEntry {
                 frame: 1,
                 key: "striker_mail".into(),
+                body: None,
                 file: "avatars/striker.gmm".into(),
                 sha256: [9; 32],
                 bytes: 415_970,

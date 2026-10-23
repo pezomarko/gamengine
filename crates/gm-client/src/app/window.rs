@@ -203,7 +203,7 @@ impl App {
                     // The patch for the official striker.
                     let id = self
                         .content
-                        .patch(key, 1, |p| Some(avatars.add_patch(p.clone())));
+                        .patch(key, None, 1, |p| Some(avatars.add_patch(p.clone())));
                     match id {
                         Some(id) => patches.push(id),
                         None => {
@@ -214,7 +214,7 @@ impl App {
                 }
                 let slot = self
                     .content
-                    .overlay(key, 1, |model| Some(characters.add_model(gpu, model)));
+                    .overlay(key, None, 1, |model| Some(characters.add_model(gpu, model)));
                 match slot {
                     Some(s) => worn.push((s, self.content.covers(key))),
                     None => {

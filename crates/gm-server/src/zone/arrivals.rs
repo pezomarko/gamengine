@@ -247,6 +247,7 @@ impl Run {
             id,
             None,
         );
+        let body = self.zone.player(id).and_then(|p| p.body());
         for s in self.sessions.values() {
             s.send_control(FromZone::PlayerInfo {
                 id,
@@ -255,6 +256,7 @@ impl Run {
                 model: session.announced,
                 kind: BodyKind::Human,
                 look,
+                body,
             });
         }
         self.sessions.insert(id, session);
@@ -322,6 +324,7 @@ impl Run {
                     s.id,
                     None,
                 ),
+                body: self.zone.player(s.id).and_then(|p| p.body()),
             })
             .collect();
         roster.extend(
@@ -342,6 +345,7 @@ impl Run {
                         body,
                         npc_wears(&self.pack, kind),
                     ),
+                    body: self.zone.player(body).and_then(|p| p.body()),
                 }),
         );
         self.sessions[&id].send_control(FromZone::Roster(roster));

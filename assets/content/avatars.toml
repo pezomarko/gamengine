@@ -16,3 +16,48 @@
 [[avatar]]
 frame = "striker"
 model = "striker_mail"
+
+# The bodies' looks (BODIES.md 3.1, 2026-10-23): a row with `body` is that body's, worn by
+# every character of the body before the frame's row above; the frame's row stays for a
+# character from before the bodies, a bot and a companion, and is the soldier's own look (a
+# model is one row's: the soldier has no row). Each is Quaternius' Universal
+# Base Characters superhero (the man or the woman) with a hairstyle, the beard where the
+# body is bearded, and the Fantasy outfits' peasant trousers and shoes of its sex, made by
+# scripts/dev/bodies-pipeline.py (blender-quaternius-body.py, gltf-atlas.py, glb-retarget.py:
+# the same rig and atlas as the striker, scaled to the body's frame) with its own hood, robe
+# and helms cut for it (`models/armour/<model>_<body>.glb`) and the cuirass and trousers
+# baked onto its atlas (`<model>_<body>.png`), LICENSES.md.
+[[avatar]]
+frame = "colossus"
+body = "brute"
+model = "brute"          # the man, bearded, buzzed, a quarter wider and 7% taller
+
+[[avatar]]
+frame = "colossus"
+body = "veteran"
+model = "veteran"        # the man, grey, bearded, parted hair, an eighth wider and 7% taller
+
+[[avatar]]
+frame = "striker"
+body = "huntress"
+model = "huntress"       # the woman, long auburn hair, as the pack has her
+
+[[avatar]]
+frame = "caster"
+body = "sorceress"
+model = "sorceress"      # the woman, dark skin, long black hair, 2% taller and thinner
+
+[[avatar]]
+frame = "caster"
+body = "elder"
+model = "elder"          # the woman, white hair in buns, 6% shorter
+
+[[avatar]]
+frame = "infiltrator"
+body = "whelp"
+model = "whelp"          # the man, parted light brown hair, a tenth shorter and thinner
+
+[[avatar]]
+frame = "infiltrator"
+body = "thief"
+model = "thief"          # the woman, dark skin, buzzed black hair, 7% shorter and thinner
